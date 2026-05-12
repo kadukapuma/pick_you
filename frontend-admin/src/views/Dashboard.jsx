@@ -191,7 +191,7 @@ const Dashboard = () => {
                             </button>
                             <button className="btn-view" style={{ width: '100%', justifyContent: 'flex-start', background: '#f8f9fa', color: '#1a1f2b' }} onClick={() => navigate('/vehicles')}>
                                 <span className="material-icons">directions_car</span>
-                                Manage Vehicles2
+                                Manage Vehicles
                             </button>
                         </div>
                     </div>
