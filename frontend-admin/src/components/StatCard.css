@@ -1,0 +1,54 @@
+/* Stats Cards */
+.stats-summary {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.stat-pill {
+  background: white;
+  padding: 8px 16px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  font-size: 14px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stat-pill strong {
+  color: var(--text-dark);
+}
+
+/* Dashboard Stat Card */
+.dashboard-stat-card {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  box-shadow: var(--shadow-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dashboard-stat-card span {
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.dashboard-stat-card strong {
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.dashboard-stat-card .trend {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.trend.up { color: var(--status-active-text); }
+.trend.down { color: var(--status-suspended-text); }

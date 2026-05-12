@@ -1,0 +1,63 @@
+<?php
+
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
+
+use App\Http\Controllers\Api\AuthController;
+
+// Public routes
+Route::post('/register', [AuthController::class, 'register']);
+Route::post('/login', [AuthController::class, 'login']);
+Route::post('/otp/send', [AuthController::class, 'sendOtp']);
+Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA']);
+
+// Protected routes
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/user', function (Request $request) {
+        return $request->user();
+    });
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
+    Route::post('/driver/license-images', [App\Http\Controllers\Api\DriverController::class, 'updateLicenseImages']);
+
+    // Resource routes
+    Route::apiResource('passengers', App\Http\Controllers\Api\PassengerController::class);
+    Route::apiResource('drivers', App\Http\Controllers\Api\DriverController::class);
+    Route::apiResource('vehicles', App\Http\Controllers\Api\VehicleController::class);
+    Route::post('/vehicles/{id}/upload-images', [App\Http\Controllers\Api\VehicleController::class, 'uploadImages']);
+    Route::apiResource('driver-documents', App\Http\Controllers\Api\DriverDocumentController::class);
+    Route::apiResource('rides', App\Http\Controllers\Api\RideController::class);
+    Route::post('/rides/{id}/accept', [App\Http\Controllers\Api\RideController::class, 'acceptRide']);
+    Route::apiResource('ride-statuses', App\Http\Controllers\Api\RideStatusController::class);
+    Route::post('/payments/{ride_id}', [App\Http\Controllers\Api\PaymentController::class, 'processPayment']);
+    Route::apiResource('wallet-transactions', App\Http\Controllers\Api\WalletTransactionController::class);
+    Route::apiResource('ratings', App\Http\Controllers\Api\RatingController::class);
+    Route::apiResource('promotions', App\Http\Controllers\Api\PromotionController::class);
+    Route::apiResource('ride-promotions', App\Http\Controllers\Api\RidePromotionController::class);
+    Route::apiResource('driver-locations', App\Http\Controllers\Api\DriverLocationController::class);
+    Route::apiResource('otp-verifications', App\Http\Controllers\Api\OtpVerificationController::class);
+    Route::apiResource('notifications', App\Http\Controllers\Api\NotificationController::class);
+    Route::apiResource('support-tickets', App\Http\Controllers\Api\SupportTicketController::class);
+
+    // Admin routes
+    Route::middleware('admin')->group(function () {
+        Route::get('/admin/notifications', [App\Http\Controllers\Api\AdminNotificationController::class, 'index']);
+        Route::put('/admin/notifications/read', [App\Http\Controllers\Api\AdminNotificationController::class, 'markAllRead']);
+        Route::delete('/admin/notifications', [App\Http\Controllers\Api\AdminNotificationController::class, 'clear']);
+        Route::delete('/admin/notifications/read', [App\Http\Controllers\Api\AdminNotificationController::class, 'clearRead']);
+        Route::apiResource('fare-configs', App\Http\Controllers\Api\FareConfigController::class);
+        Route::put('/drivers/{id}/status', [App\Http\Controllers\Api\DriverController::class, 'updateStatus']);
+        Route::put('/drivers/{id}/active-status', [App\Http\Controllers\Api\DriverController::class, 'updateActiveStatus']);
+        Route::put('/vehicles/{id}/status', [App\Http\Controllers\Api\VehicleController::class, 'updateStatus']);
+        Route::put('/passengers/{id}/status', [App\Http\Controllers\Api\PassengerController::class, 'updateStatus']);
+        Route::get('/dashboard/stats', [App\Http\Controllers\Api\DashboardController::class, 'getStats']);
+        Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
+
+        // Super Admin only routes
+        Route::middleware('super_admin')->group(function () {
+            Route::apiResource('admins', App\Http\Controllers\Api\AdminController::class);
+            Route::put('/admins/{id}/status', [App\Http\Controllers\Api\AdminController::class, 'updateStatus']);
+        });
+    });
+});

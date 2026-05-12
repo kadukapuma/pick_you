@@ -1,0 +1,7 @@
+/* Dashboard Specific */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(28px, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
