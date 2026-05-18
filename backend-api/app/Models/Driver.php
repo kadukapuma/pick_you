@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -8,25 +9,30 @@ class Driver extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'license_number', 'license_front_path', 'license_back_path', 'vehicle_type', 'availability', 'status', 'rating'];
+    protected $fillable = ['user_id', 'license_number', 'license_front_path', 'license_back_path', 'vehicle_type', 'availability', 'status', 'rating', 'dob', 'address'];
 
-    public function user() {
+    public function user()
+    {
         return $this->belongsTo(User::class);
     }
 
-    public function vehicles() {
+    public function vehicles()
+    {
         return $this->hasMany(Vehicle::class);
     }
 
-    public function locations() {
+    public function locations()
+    {
         return $this->hasMany(DriverLocation::class);
     }
 
-    public function rides() {
+    public function rides()
+    {
         return $this->hasMany(Ride::class);
     }
 
-    public function vehicleImages() {
+    public function vehicleImages()
+    {
         return $this->hasMany(VehicleImage::class);
     }
 }

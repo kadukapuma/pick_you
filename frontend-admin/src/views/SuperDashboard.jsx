@@ -27,11 +27,16 @@ const SuperDashboard = () => {
                     apiFetch('/dashboard/stats', { token })
                 ])
 
+                const adminsCount = adminsRes.data?.total || adminsRes.data?.data?.length || 0
+                const driversCount = driversRes.data?.total || driversRes.data?.data?.length || 0
+                const vehiclesCount = vehiclesRes.data?.total || vehiclesRes.data?.data?.length || 0
+                const passengersCount = passengersRes.data?.total || passengersRes.data?.data?.length || 0
+
                 setStats({
-                    admins_count: adminsRes.data?.length || 0,
-                    drivers_count: driversRes.data?.length || 0,
-                    vehicles_count: vehiclesRes.data?.length || 0,
-                    customers_count: passengersRes.data?.length || 0,
+                    admins_count: adminsCount,
+                    drivers_count: driversCount,
+                    vehicles_count: vehiclesCount,
+                    customers_count: passengersCount,
                     system_health: healthRes.health?.api || 'OK',
                     latency: healthRes.health?.database_latency || '...'
                 })
@@ -106,6 +111,10 @@ const SuperDashboard = () => {
                         <button className="btn-signin" style={{ width: 'auto' }} onClick={() => window.location.href = '/admins'}>
                             <span className="material-icons" style={{ marginRight: 8 }}>manage_accounts</span>
                             Manage Admin Users
+                        </button>
+                        <button className="btn-view" style={{ width: 'auto', background: '#f8f9fa', color: '#1a1f2b' }} onClick={() => window.location.href = '/permissions'}>
+                            <span className="material-icons" style={{ marginRight: 8 }}>admin_panel_settings</span>
+                            Manage Permissions
                         </button>
                         <button className="btn-view" style={{ width: 'auto', background: '#f8f9fa', color: '#1a1f2b' }}>
                             <span className="material-icons" style={{ marginRight: 8 }}>settings</span>

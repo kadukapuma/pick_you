@@ -23,6 +23,7 @@ class AdminController extends Controller
         $perPage = min($perPage, 100);
 
         $admins = User::where('role', User::ROLE_ADMIN)
+            ->with('rolePermissions')
             ->orderByDesc('id')
             ->paginate($perPage);
 
@@ -52,7 +53,7 @@ class AdminController extends Controller
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
             'role' => User::ROLE_ADMIN,
-        ]);
+        ])->load('rolePermissions');
 
         $adminName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
         if ($adminName === '') {
@@ -78,7 +79,7 @@ class AdminController extends Controller
      */
     public function show(string $id)
     {
-        $admin = User::where('role', User::ROLE_ADMIN)->findOrFail($id);
+        $admin = User::where('role', User::ROLE_ADMIN)->with('rolePermissions')->findOrFail($id);
 
         return response()->json([
             'status' => 'success',
@@ -91,7 +92,7 @@ class AdminController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $admin = User::where('role', User::ROLE_ADMIN)->findOrFail($id);
+        $admin = User::where('role', User::ROLE_ADMIN)->with('rolePermissions')->findOrFail($id);
 
         $request->validate([
             'first_name' => ['string', 'max:255'],
@@ -114,7 +115,7 @@ class AdminController extends Controller
      */
     public function destroy(string $id)
     {
-        $admin = User::where('role', User::ROLE_ADMIN)->findOrFail($id);
+        $admin = User::where('role', User::ROLE_ADMIN)->with('rolePermissions')->findOrFail($id);
         $admin->delete();
 
         return response()->json([
@@ -128,7 +129,7 @@ class AdminController extends Controller
      */
     public function updateStatus(Request $request, string $id)
     {
-        $admin = User::where('role', User::ROLE_ADMIN)->findOrFail($id);
+        $admin = User::where('role', User::ROLE_ADMIN)->with('rolePermissions')->findOrFail($id);
 
         $request->validate([
             'is_active' => 'required|boolean'

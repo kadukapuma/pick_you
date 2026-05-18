@@ -122,6 +122,7 @@ class VehicleController extends Controller
 
         return $this->success($vehicle, "Vehicle status has been updated to {$request->status} successfully.");
     }
+    
 
     public function uploadImages(Request $request, $id)
     {

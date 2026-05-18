@@ -15,10 +15,11 @@ Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA'])
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
-        return $request->user();
+        return $request->user()->load(['driver.vehicles', 'rolePermissions']);
     });
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
+    Route::post('/driver/complete-profile', [App\Http\Controllers\Api\DriverController::class, 'completeProfile']);
     Route::post('/driver/license-images', [App\Http\Controllers\Api\DriverController::class, 'updateLicenseImages']);
 
     // Resource routes
@@ -42,15 +43,29 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Admin routes
     Route::middleware('admin')->group(function () {
-        Route::get('/admin/notifications', [App\Http\Controllers\Api\AdminNotificationController::class, 'index']);
-        Route::put('/admin/notifications/read', [App\Http\Controllers\Api\AdminNotificationController::class, 'markAllRead']);
-        Route::delete('/admin/notifications', [App\Http\Controllers\Api\AdminNotificationController::class, 'clear']);
-        Route::delete('/admin/notifications/read', [App\Http\Controllers\Api\AdminNotificationController::class, 'clearRead']);
-        Route::apiResource('fare-configs', App\Http\Controllers\Api\FareConfigController::class);
+        // Admin notification routes require manage_notifications permission
+        Route::middleware('permission:manage_notifications')->group(function () {
+            Route::get('/admin/notifications', [App\Http\Controllers\Api\AdminNotificationController::class, 'index']);
+            Route::put('/admin/notifications/read', [App\Http\Controllers\Api\AdminNotificationController::class, 'markAllRead']);
+            Route::delete('/admin/notifications', [App\Http\Controllers\Api\AdminNotificationController::class, 'clear']);
+            Route::delete('/admin/notifications/read', [App\Http\Controllers\Api\AdminNotificationController::class, 'clearRead']);
+        });
+
+        Route::get('/role-permissions', [App\Http\Controllers\Api\RolePermissionController::class, 'index'])->middleware('super_admin');
+        Route::put('/role-permissions/{role}', [App\Http\Controllers\Api\RolePermissionController::class, 'update'])->middleware('super_admin');
+        Route::apiResource('operators', App\Http\Controllers\Api\OperatorController::class)->only(['index', 'store'])->middleware('permission:create_operators');
+        Route::apiResource('fare-configs', App\Http\Controllers\Api\FareConfigController::class)->middleware('permission:manage_fare_configs');
+
+        // Vehicle management requires manage_vehicles permission
+        Route::apiResource('vehicles', App\Http\Controllers\Api\VehicleController::class)->middleware('permission:manage_vehicles');
+        Route::post('/vehicles/{id}/upload-images', [App\Http\Controllers\Api\VehicleController::class, 'uploadImages'])->middleware('permission:manage_vehicles');
+        Route::put('/vehicles/{id}/status', [App\Http\Controllers\Api\VehicleController::class, 'updateStatus'])->middleware('permission:manage_vehicles');
+
+        // Driver and passenger status updates remain admin-only (no permissions configured)
         Route::put('/drivers/{id}/status', [App\Http\Controllers\Api\DriverController::class, 'updateStatus']);
         Route::put('/drivers/{id}/active-status', [App\Http\Controllers\Api\DriverController::class, 'updateActiveStatus']);
-        Route::put('/vehicles/{id}/status', [App\Http\Controllers\Api\VehicleController::class, 'updateStatus']);
         Route::put('/passengers/{id}/status', [App\Http\Controllers\Api\PassengerController::class, 'updateStatus']);
+
         Route::get('/dashboard/stats', [App\Http\Controllers\Api\DashboardController::class, 'getStats']);
         Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
 

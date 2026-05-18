@@ -10,6 +10,9 @@ use App\Models\AdminNotificationLog;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\DriverApprovedMail;
+use App\Mail\DriverSuspendedMail;
 
 class DriverController extends Controller
 {
@@ -92,8 +95,18 @@ class DriverController extends Controller
         // Also activate the driver's user account if approved
         if ($request->status === 'approved' && $driver->user) {
             $driver->user->update(['is_active' => true]);
+
+            // Send approval email
+            if ($driver->user->email) {
+                Mail::to($driver->user->email)->send(new DriverApprovedMail($driver));
+            }
         } elseif ($request->status === 'suspended' && $driver->user) {
             $driver->user->update(['is_active' => false]);
+
+            // Send suspended email
+            if ($driver->user->email) {
+                Mail::to($driver->user->email)->send(new DriverSuspendedMail($driver));
+            }
         }
 
         event(new DashboardUpdated('driver.status', [
@@ -123,6 +136,99 @@ class DriverController extends Controller
         ]));
 
         return $this->success($driver, 'Driver account status updated successfully.');
+    }
+
+    public function completeProfile(Request $request)
+    {
+        $request->validate([
+            'dob' => 'nullable|date',
+            'address' => 'nullable|string',
+            'nic' => 'nullable|string',
+            'make' => 'nullable|string',
+            'model' => 'nullable|string',
+            'year' => 'nullable|string',
+            'color' => 'nullable|string',
+            'plate' => 'nullable|string',
+            'vehicleType' => 'nullable|string',
+            'front' => 'nullable|file',
+            'back' => 'nullable|file',
+            'interior' => 'nullable|file',
+            'insurance' => 'nullable|file',
+            'registration' => 'nullable|file',
+            'license_front' => 'nullable|file',
+            'license_back' => 'nullable|file',
+        ]);
+
+        $user = $request->user();
+        if (!$user->driver) {
+            $driver = $user->driver()->create([]);
+        } else {
+            $driver = $user->driver;
+        }
+
+        $basePath = "uploads/users/{$user->id}/vehicles";
+        $fullPath = public_path($basePath);
+
+        if (!File::exists($fullPath)) {
+            File::makeDirectory($fullPath, 0755, true);
+        }
+
+        $uploadFile = function ($fileKey) use ($request, $fullPath, $basePath) {
+            if ($request->hasFile($fileKey)) {
+                $file = $request->file($fileKey);
+                $fileName = $fileKey . '_' . time() . '.' . $file->getClientOriginalExtension();
+                $file->move($fullPath, $fileName);
+                return "{$basePath}/{$fileName}";
+            }
+            return null;
+        };
+
+
+        $driver->update([
+            'dob' => $request->dob,
+            'address' => $request->address,
+            'license_number' => $request->nic,
+            'license_front_path' => $request->hasFile('license_front') ? $uploadFile('license_front') : $driver->license_front_path,
+            'license_back_path' => $request->hasFile('license_back') ? $uploadFile('license_back') : $driver->license_back_path,
+        ]);
+
+        $vehicleData = array_filter([
+            'brand' => $request->make,
+            'model' => $request->model,
+            'year' => $request->year,
+            'color' => $request->color,
+            'vehicle_number' => $request->plate,
+            'vehicle_type' => $request->vehicleType,
+            'seat_capacity' => $request->seat_capacity,
+        ]);
+
+        if (!empty($vehicleData)) {
+            $vehicle = $driver->vehicles()->updateOrCreate(
+                ['driver_id' => $driver->id],
+                $vehicleData
+            );
+        } else {
+            $vehicle = $driver->vehicles()->first();
+        }
+
+        if ($vehicle) {
+            $imageData = array_filter([
+                'v_front' => $uploadFile('front'),
+                'v_back' => $uploadFile('back'),
+                'v_side' => $uploadFile('interior'),
+                'insurance_img' => $uploadFile('insurance'),
+                'licence_img' => $uploadFile('registration'),
+            ]);
+
+            if (!empty($imageData)) {
+                $vehicle->images()->updateOrCreate(
+                    ['vehicle_id' => $vehicle->id],
+                    array_merge(['driver_id' => $driver->id], $imageData)
+                );
+            }
+        }
+
+        return $this->success($driver->load('vehicles.images'), 'Profile completed successfully.');
     }
 
     public function updateLicenseImages(Request $request)

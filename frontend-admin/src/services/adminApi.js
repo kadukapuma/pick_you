@@ -145,7 +145,7 @@ const updatePassengerStatus = (id, status, token) =>
 
 const fetchMe = async (token) => {
   const payload = await apiFetch('/user', { token })
-  return payload
+  return payload.data || payload
 }
 
 const fetchDrivers = async (token, { page = 1, perPage = 10 } = {}) => {
@@ -193,6 +193,38 @@ const fetchAdmins = async (token, { page = 1, perPage = 10 } = {}) => {
     admins: data.data || [],
     pagination: mapPagination(data, page, perPage),
   }
+}
+
+const fetchOperators = async (token, { page = 1, perPage = 10 } = {}) => {
+  const payload = await apiFetch(`/operators?page=${page}&per_page=${perPage}`, { token })
+  const data = payload.data || {}
+  return {
+    operators: data.data || [],
+    pagination: mapPagination(data, page, perPage),
+  }
+}
+
+const createOperator = async (token, operator) => {
+  const payload = await apiFetch('/operators', {
+    method: 'POST',
+    token,
+    body: operator,
+  })
+  return { operator: payload.data }
+}
+
+const fetchRolePermissions = async (token) => {
+  const payload = await apiFetch('/role-permissions', { token })
+  return payload.data || { roles: [], available_permissions: [] }
+}
+
+const updateRolePermissions = async (token, role, permissions) => {
+  const payload = await apiFetch(`/role-permissions/${role}`, {
+    method: 'PUT',
+    token,
+    body: { permissions },
+  })
+  return payload.data
 }
 
 const fetchVehicleDetails = async (token, vehicleId) => {
@@ -243,6 +275,29 @@ const clearAdminNotifications = (token) =>
     token,
   })
 
+const fetchFareConfigs = async (token) => {
+  const payload = await apiFetch('/fare-configs', { token })
+  return { fareConfigs: payload.data || [] }
+}
+
+const createFareConfig = async (token, fareConfig) => {
+  const payload = await apiFetch('/fare-configs', {
+    method: 'POST',
+    token,
+    body: fareConfig,
+  })
+  return { fareConfig: payload.data }
+}
+
+const updateFareConfig = async (token, fareConfigId, fareConfig) => {
+  const payload = await apiFetch(`/fare-configs/${fareConfigId}`, {
+    method: 'PUT',
+    token,
+    body: fareConfig,
+  })
+  return { fareConfig: payload.data }
+}
+
 export {
   API_BASE,
   TOKEN_KEY,
@@ -257,6 +312,7 @@ export {
   loginAdmin,
   logoutAdmin,
   fetchAdmins,
+  fetchOperators,
   fetchDrivers,
   fetchMe,
   fetchDriverDetails,
@@ -274,4 +330,10 @@ export {
   fetchAdminNotifications,
   markAdminNotificationsRead,
   clearAdminNotifications,
+  fetchFareConfigs,
+  createFareConfig,
+  updateFareConfig,
+  createOperator,
+  fetchRolePermissions,
+  updateRolePermissions,
 }
