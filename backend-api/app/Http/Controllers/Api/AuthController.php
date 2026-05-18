@@ -40,12 +40,12 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'is_active' => true,
-        ]);
+        ])->load('rolePermissions');
 
 
-        $fullName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
-        if ($fullName === '') {
-            $fullName = "User #{$user->id}";
+        $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+        if ($displayName === '') {
+            $displayName = "User #{$user->id}";
         }
 
         // Depending on role, create passenger or driver profile
@@ -60,7 +60,7 @@ class AuthController extends Controller
             AdminNotificationLog::createAndBroadcast(
                 'passenger',
                 'New passenger registered',
-                "{$fullName} joined as passenger.",
+                "{$displayName} joined as passenger.",
                 ['passenger_id' => $passenger->id, 'user_id' => $user->id]
             );
         } elseif ($request->role === 'driver') {
@@ -75,7 +75,7 @@ class AuthController extends Controller
             AdminNotificationLog::createAndBroadcast(
                 'driver',
                 'New driver registered',
-                "{$fullName} joined as driver.",
+                "{$displayName} joined as driver.",
                 ['driver_id' => $driver->id, 'user_id' => $user->id]
             );
         }
@@ -118,6 +118,7 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
+        $user->load(['driver.vehicles', 'rolePermissions']);
 
         return $this->success([
             'user' => $user,
@@ -150,6 +151,7 @@ class AuthController extends Controller
         }
 
         $token = $user->createToken('auth_token')->plainTextToken;
+        $user->load(['driver', 'rolePermissions']);
 
         return $this->success([
             'user' => $user,

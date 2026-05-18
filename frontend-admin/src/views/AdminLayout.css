@@ -12,6 +12,16 @@
   min-width: 0;
 }
 
+/* Reserve space for fixed sidebar */
+.app-shell .main-container {
+  margin-left: 260px;
+  transition: margin-left 0.3s ease;
+}
+
+.app-shell.collapsed .main-container {
+  margin-left: 80px;
+}
+
 /* Content Area */
 .content {
   padding: 32px;

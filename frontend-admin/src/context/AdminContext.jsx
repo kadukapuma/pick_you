@@ -6,6 +6,7 @@ import {
     logoutAdmin,
     storeToken,
     fetchMe,
+    verify2FA,
 } from '../services/adminApi'
 
 const AdminContext = createContext(null)
@@ -13,6 +14,7 @@ const AdminContext = createContext(null)
 const AdminProvider = ({ children }) => {
     const [token, setToken] = useState(() => getStoredToken())
     const [admin, setAdmin] = useState(null)
+    const permissions = admin?.permissions || []
 
     useEffect(() => {
         if (token && !admin) {
@@ -27,7 +29,7 @@ const AdminProvider = ({ children }) => {
 
     const signIn = async ({ phone, password }) => {
         const data = await loginAdmin({ phone, password })
-        
+
         // If 2FA is required, we don't set admin yet
         if (data.require_2fa) {
             return data
@@ -39,17 +41,28 @@ const AdminProvider = ({ children }) => {
 
         storeToken(data.token)
         setToken(data.token)
-        setAdmin(data.user)
+        // Fetch fresh user record (includes appended permissions)
+        try {
+            const me = await fetchMe(data.token)
+            setAdmin(me)
+        } catch (err) {
+            // fallback to provided user
+            setAdmin(data.user)
+        }
         return data
     }
 
     const verifyAdmin2FA = async ({ phone, code }) => {
-        const { verify2FA } = await import('../services/adminApi')
         const data = await verify2FA({ phone, code })
 
         storeToken(data.token)
         setToken(data.token)
-        setAdmin(data.user)
+        try {
+            const me = await fetchMe(data.token)
+            setAdmin(me)
+        } catch (err) {
+            setAdmin(data.user)
+        }
         return data
     }
 
@@ -71,12 +84,14 @@ const AdminProvider = ({ children }) => {
         () => ({
             token,
             admin,
+            permissions,
+            hasPermission: (permission) => Boolean(admin?.role === 'super_admin' || permissions.includes(permission)),
             signIn,
             signOut,
             verifyAdmin2FA,
             isAuthenticated: Boolean(token),
         }),
-        [token, admin],
+        [token, admin, permissions],
     )
 
     return <AdminContext.Provider value={value}>{children}</AdminContext.Provider>
