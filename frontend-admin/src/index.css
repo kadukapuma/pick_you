@@ -113,20 +113,28 @@ p {
   background-color: var(--accent);
   color: var(--sidebar-active-text);
   border: none;
-  padding: 8px 16px;
-  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
   font-weight: 600;
   font-size: 13px;
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
+  justify-content: center;
+  gap: 0;
   transition: all 0.2s;
 }
 
 .btn-view:hover {
   background-color: var(--accent-hover);
   transform: translateY(-1px);
+}
+
+.btn-view .material-icons {
+  font-size: 18px;
+  line-height: 1;
 }
 
 .avatar-initials {

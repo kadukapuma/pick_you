@@ -84,7 +84,7 @@ class DriverController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:pending,approved,suspended,updated'
+            'status' => 'required|in:pending,approved,suspended,updated,rejected'
         ]);
 
         $driver = Driver::with(['user', 'vehicles.images'])->withCount('rides')->find($id);

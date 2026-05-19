@@ -3,7 +3,7 @@ const API_BASE =
   'http://localhost:8000/api'
 const TOKEN_KEY = 'admin_token'
 
-const statusOptions = ['pending', 'approved', 'suspended', 'updated']
+const statusOptions = ['pending', 'approved', 'suspended', 'updated', 'rejected']
 
 const apiFetch = async (path, { method = 'GET', body, token } = {}) => {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -213,6 +213,32 @@ const createOperator = async (token, operator) => {
   return { operator: payload.data }
 }
 
+const updateOperator = async (token, operatorId, operator) => {
+  const payload = await apiFetch(`/operators/${operatorId}`, {
+    method: 'PUT',
+    token,
+    body: operator,
+  })
+  return { operator: payload.data }
+}
+
+const updateOperatorStatus = async (token, operatorId, status) => {
+  const payload = await apiFetch(`/operators/${operatorId}/status`, {
+    method: 'PUT',
+    token,
+    body: { is_active: status },
+  })
+  return { operator: payload.data }
+}
+
+const deleteOperator = async (token, operatorId) => {
+  const payload = await apiFetch(`/operators/${operatorId}`, {
+    method: 'DELETE',
+    token,
+  })
+  return payload
+}
+
 const fetchRolePermissions = async (token) => {
   const payload = await apiFetch('/role-permissions', { token })
   return payload.data || { roles: [], available_permissions: [] }
@@ -275,6 +301,23 @@ const clearAdminNotifications = (token) =>
     token,
   })
 
+const fetchSuperAdminNotifications = async (token, limit = 20) => {
+  const payload = await apiFetch(`/superadmin/notifications?limit=${limit}`, { token })
+  return { notifications: payload.data || [] }
+}
+
+const markSuperAdminNotificationsRead = (token) =>
+  apiFetch('/superadmin/notifications/read', {
+    method: 'PUT',
+    token,
+  })
+
+const clearSuperAdminNotifications = (token) =>
+  apiFetch('/superadmin/notifications', {
+    method: 'DELETE',
+    token,
+  })
+
 const fetchFareConfigs = async (token) => {
   const payload = await apiFetch('/fare-configs', { token })
   return { fareConfigs: payload.data || [] }
@@ -330,10 +373,16 @@ export {
   fetchAdminNotifications,
   markAdminNotificationsRead,
   clearAdminNotifications,
+  fetchSuperAdminNotifications,
+  markSuperAdminNotificationsRead,
+  clearSuperAdminNotifications,
   fetchFareConfigs,
   createFareConfig,
   updateFareConfig,
   createOperator,
+  updateOperator,
+  updateOperatorStatus,
+  deleteOperator,
   fetchRolePermissions,
   updateRolePermissions,
 }

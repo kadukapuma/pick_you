@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\AdminNotificationLog;
+use App\Models\SuperAdminNotificationLog;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -61,6 +62,14 @@ class AdminController extends Controller
         }
 
         AdminNotificationLog::createAndBroadcast(
+            'admin',
+            'New admin added',
+            "{$adminName} was added as admin.",
+            ['admin_id' => $user->id]
+        );
+
+        // Also notify super admin
+        SuperAdminNotificationLog::createAndBroadcast(
             'admin',
             'New admin added',
             "{$adminName} was added as admin.",

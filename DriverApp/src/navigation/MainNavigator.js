@@ -48,6 +48,9 @@ const MainNavigator = ({
       // If docs missing, send to document upload
       if (!documentsComplete) return "Documentscreen";
 
+      // If all complete and they need to see the success screen
+      if (status === "show_approved_screen") return "Verification";
+
       // If all complete and approved, go to main
       if (status === "approved") return "MainTabs";
 
@@ -56,6 +59,7 @@ const MainNavigator = ({
     }
 
     // Fallbacks when driver object isn't available
+    if (status === "show_approved_screen") return "Verification";
     if (status === "approved") return "MainTabs";
     if (isNewUser) return "ProfileSet";
     if (status === "pending" || status === "rejected") return "Verification";

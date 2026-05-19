@@ -25,8 +25,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const { width, height } = Dimensions.get("window");
 
 const LoginScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver }) => {
-  // Backend expects phone number for login, not email
-  const [phone, setPhone] = useState(route?.params?.phone || "");
+  // Backend expects email and password for login
+  const [email, setEmail] = useState(route?.params?.email || "");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -34,15 +34,15 @@ const LoginScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriver
   const BRAND_GREEN = "#00A859";
 
   const handleLogin = async () => {
-    if (!phone || !password) {
-      Alert.alert("Error", "Please enter both phone number and password");
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password");
       return;
     }
 
     setIsLoading(true);
     try {
       const response = await api.post("/login", {
-        phone,
+        email,
         password
       });
 
@@ -203,18 +203,18 @@ const LoginScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriver
                 style={styles.inputWrapper}
               >
                 <Feather
-                  name="phone"
+                  name="mail"
                   size={20}
                   color="#94A3B8"
                   style={styles.inputIcon}
                 />
                 <TextInput
                   style={styles.input}
-                  placeholder="Phone Number"
+                  placeholder="Email Address"
                   placeholderTextColor="#94A3B8"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
+                  value={email}
+                  onChangeText={setEmail}
+                  keyboardType="email-address"
                   autoCapitalize="none"
                 />
               </MotiView>

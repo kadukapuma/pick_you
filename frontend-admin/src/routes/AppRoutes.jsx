@@ -31,7 +31,10 @@ const RequireAuth = () => {
 const AppRoutes = () => {
     const { isAuthenticated, admin } = useAdmin()
     const canManagePermissions = admin?.role === 'super_admin'
-    const canManageOperators = admin?.role === 'super_admin' || admin?.permissions?.includes('create_operators')
+    const canManageOperators =
+        admin?.role === 'super_admin' ||
+        admin?.permissions?.includes('create_operators') ||
+        admin?.permissions?.includes('manage_operators')
 
     return (
         <Routes>

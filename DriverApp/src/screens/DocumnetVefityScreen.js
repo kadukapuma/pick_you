@@ -17,7 +17,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
 
-const DocumentVerifyScreen = ({ navigation, onExit }) => {
+const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
   const [uploads, setUploads] = useState({
     license_front: null,
     license_back: null,
@@ -101,11 +101,21 @@ const DocumentVerifyScreen = ({ navigation, onExit }) => {
         headers: { "Content-Type": "multipart/form-data" }
       });
 
-      // Reset stack to Verification to prevent going back to onboarding
-      navigation.reset({
-        index: 0,
-        routes: [{ name: "Verification" }],
-      });
+      // Update global context status so app instantly reflects 'pending'
+      if (setDriverStatus) {
+        setDriverStatus("pending");
+      }
+
+      // After a successful upload/re-upload, update the local status directly to pending so the Verification screen adapts properly
+      if (navigation.getState?.().routes[0]?.name === "Verification") {
+        navigation.goBack(); // Return to Verification Screen directly instead of resetting if we just came from it
+      } else {
+        // Reset stack to Verification for onboarding flow
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "Verification" }],
+        });
+      }
     } catch (error) {
       console.error("Submit error:", error);
       Alert.alert("Error", "Could not submit your profile. Please try again.");

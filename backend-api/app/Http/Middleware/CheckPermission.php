@@ -17,7 +17,9 @@ class CheckPermission
     {
         $user = $request->user();
 
-        if ($user && $user->hasPermission($permission)) {
+        $permissions = array_filter(array_map('trim', explode(',', $permission)));
+
+        if ($user && collect($permissions)->contains(fn($item) => $user->hasPermission($item))) {
             return $next($request);
         }
 

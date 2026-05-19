@@ -6,6 +6,7 @@ use App\Events\DriverCreated;
 use App\Events\PassengerCreated;
 use App\Http\Controllers\Controller;
 use App\Models\AdminNotificationLog;
+use App\Models\SuperAdminNotificationLog;
 use App\Models\User;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -63,6 +64,14 @@ class AuthController extends Controller
                 "{$displayName} joined as passenger.",
                 ['passenger_id' => $passenger->id, 'user_id' => $user->id]
             );
+
+            // Notify super admin
+            SuperAdminNotificationLog::createAndBroadcast(
+                'passenger',
+                'New passenger registered',
+                "{$displayName} joined as passenger.",
+                ['passenger_id' => $passenger->id, 'user_id' => $user->id]
+            );
         } elseif ($request->role === 'driver') {
             $driver = $user->driver()->create([
                 'status' => 'pending',
@@ -73,6 +82,14 @@ class AuthController extends Controller
             $driver = $driver->loadMissing(['user', 'vehicles.images'])->loadCount('rides');
             event(new DriverCreated($driver));
             AdminNotificationLog::createAndBroadcast(
+                'driver',
+                'New driver registered',
+                "{$displayName} joined as driver.",
+                ['driver_id' => $driver->id, 'user_id' => $user->id]
+            );
+
+            // Notify super admin
+            SuperAdminNotificationLog::createAndBroadcast(
                 'driver',
                 'New driver registered',
                 "{$displayName} joined as driver.",
@@ -91,7 +108,7 @@ class AuthController extends Controller
     public function login(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string',
+            'email' => 'required|string|email',
             'password' => 'required|string',
         ]);
 
@@ -99,7 +116,7 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('phone', $request->phone)->first();
+        $user = User::where('email', $request->email)->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
             return $this->error('Invalid credentials', 401);
@@ -113,7 +130,7 @@ class AuthController extends Controller
         if ($user->role === User::ROLE_SUPER_ADMIN) {
             return $this->success([
                 'require_2fa' => true,
-                'phone' => $user->phone
+                'email' => $user->email
             ], 'Super Admin authentication required');
         }
 
@@ -129,7 +146,7 @@ class AuthController extends Controller
     public function verifySuperAdmin2FA(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string',
+            'email' => 'required|string|email',
             'code' => 'required|string',
         ]);
 
@@ -140,7 +157,7 @@ class AuthController extends Controller
             return $this->error('Invalid authentication code', 401);
         }
 
-        $user = User::where('phone', $request->phone)->where('role', User::ROLE_SUPER_ADMIN)->first();
+        $user = User::where('email', $request->email)->where('role', User::ROLE_SUPER_ADMIN)->first();
 
         if (!$user) {
             return $this->error('User not found', 404);
@@ -168,7 +185,7 @@ class AuthController extends Controller
     public function sendOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string',
+            'email' => 'required|string|email',
             'purpose' => 'required|string',
         ]);
 
@@ -176,7 +193,7 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('phone', $request->phone)->first();
+        $user = User::where('email', $request->email)->first();
         if (!$user) {
             return $this->error('User not found', 404);
         }
@@ -192,7 +209,7 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(5)
         ]);
 
-        // Integrate SMS Gateway here (e.g., Twilio, local SMS provider)
+        // Integrate Email Gateway here (e.g., Mail, SendGrid, etc.)
         // For now, we will just return it in the response for testing
         return $this->success(['otp' => $otpCode], 'OTP sent successfully');
     }
@@ -200,7 +217,7 @@ class AuthController extends Controller
     public function verifyOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'phone' => 'required|string',
+            'email' => 'required|string|email',
             'otp_code' => 'required|string',
             'purpose' => 'required|string',
         ]);
@@ -209,7 +226,7 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('phone', $request->phone)->first();
+        $user = User::where('email', $request->email)->first();
         if (!$user) {
             return $this->error('User not found', 404);
         }

@@ -53,7 +53,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/role-permissions', [App\Http\Controllers\Api\RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [App\Http\Controllers\Api\RolePermissionController::class, 'update'])->middleware('super_admin');
-        Route::apiResource('operators', App\Http\Controllers\Api\OperatorController::class)->only(['index', 'store'])->middleware('permission:create_operators');
+        Route::get('/operators', [App\Http\Controllers\Api\OperatorController::class, 'index'])->middleware('permission:create_operators,manage_operators');
+        Route::post('/operators', [App\Http\Controllers\Api\OperatorController::class, 'store'])->middleware('permission:create_operators');
+        Route::put('/operators/{id}', [App\Http\Controllers\Api\OperatorController::class, 'update'])->middleware('permission:manage_operators');
+        Route::put('/operators/{id}/status', [App\Http\Controllers\Api\OperatorController::class, 'updateStatus'])->middleware('permission:manage_operators');
+        Route::delete('/operators/{id}', [App\Http\Controllers\Api\OperatorController::class, 'destroy'])->middleware('permission:manage_operators');
         Route::apiResource('fare-configs', App\Http\Controllers\Api\FareConfigController::class)->middleware('permission:manage_fare_configs');
 
         // Vehicle management requires manage_vehicles permission
@@ -73,6 +77,12 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('super_admin')->group(function () {
             Route::apiResource('admins', App\Http\Controllers\Api\AdminController::class);
             Route::put('/admins/{id}/status', [App\Http\Controllers\Api\AdminController::class, 'updateStatus']);
+
+            // Super admin notifications
+            Route::get('/superadmin/notifications', [App\Http\Controllers\Api\SuperAdminNotificationController::class, 'index']);
+            Route::put('/superadmin/notifications/read', [App\Http\Controllers\Api\SuperAdminNotificationController::class, 'markAllRead']);
+            Route::delete('/superadmin/notifications', [App\Http\Controllers\Api\SuperAdminNotificationController::class, 'clear']);
+            Route::delete('/superadmin/notifications/read', [App\Http\Controllers\Api\SuperAdminNotificationController::class, 'clearRead']);
         });
     });
 });
