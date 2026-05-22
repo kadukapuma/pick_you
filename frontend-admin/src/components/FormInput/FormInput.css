@@ -1,0 +1,59 @@
+.form-input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.form-input-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-dark, #1e293b);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.form-input-required {
+    color: #ef4444;
+}
+
+.form-input {
+    padding: 10px 12px;
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--text-dark, #1e293b);
+    background: var(--panel-bg, #ffffff);
+    transition: all 0.2s;
+}
+
+.form-input::placeholder {
+    color: var(--text-muted, #64748b);
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: var(--accent, #10b981);
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.form-input:disabled {
+    background: var(--border, #e2e8f0);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.form-input--error {
+    border-color: #ef4444;
+}
+
+.form-input--error:focus {
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.form-input-error {
+    font-size: 13px;
+    color: #ef4444;
+    font-weight: 500;
+}

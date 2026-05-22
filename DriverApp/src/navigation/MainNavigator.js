@@ -1,12 +1,18 @@
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
+// --- SCREENS IMPORT (Your exact file paths combined) ---
+import EditVehicleScreen from "../screens//Main Screen/EditVehicleScreem";
 import DocumentVefityscreen from "../screens/DocumnetVefityScreen";
+import EditProfileScreen from "../screens/Main Screen/EditProfileScreen";
+import TripDetailsScreen from "../screens/Main Screen/TripDetailsScreen";
+import NotificationScreen from "../screens/NotificationScreen";
 import ProfileSetScreen from "../screens/ProfileSetupScreen";
 import VehicleDetailsScreen from "../screens/VehicleDeatilsScreem";
 import VerificationScreen from "../screens/VerificationScreen";
-import NotificationScreen from "../screens/NotificationScreen";
-import TripDetailsScreen from "../screens/Main Screen/TripDetailsScreen";
-
+import DocumentsScreen from "../screens/Main Screen/DocumentsScreen";
+import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen";
+import ComingSoonScreen from "../screens/ComingSoonScreen";
 import BottomTabs from "./BottomTabs";
 
 const Stack = createNativeStackNavigator();
@@ -19,44 +25,51 @@ const MainNavigator = ({
   setDriverStatus,
   driver = null,
 }) => {
+
+  // Back-end Exit handler logic
   const handleExitToGetStarted = () => {
     setIsLoggedIn(false);
     setIsNewUser?.(false);
     setDriverStatus?.(null);
   };
 
-  // Logic: if they are "new" (onboarding) but status is already "pending",
-  // it means they submitted docs and should go to Verification screen.
+  // Back-end Logic: Evaluates data completeness to safely direct user entry routing
   const getInitialRoute = () => {
     const status = driverStatus?.toLowerCase();
 
-    // If we have the full driver object, prefer checking completeness
+    // If we have the full driver object, check data parameter completeness
     if (driver) {
       const profileComplete = !!driver.license_number && !!driver.address;
 
       const hasVehicle = driver.vehicles && driver.vehicles.length > 0;
-      const vehicleComplete = hasVehicle && (!!driver.vehicles[0].vehicle_number || !!driver.vehicles[0].brand);
+      const vehicleComplete =
+        hasVehicle &&
+        (!!driver.vehicles[0].vehicle_number || !!driver.vehicles[0].brand);
 
-      const documentsComplete = !!driver.license_front_path && !!driver.license_back_path;
+      const documentsComplete =
+        !!driver.license_front_path && !!driver.license_back_path;
 
-      // If profile missing, send to profile setup
+      // Check step 1: Profile
       if (!profileComplete) return "ProfileSet";
 
-      // If vehicle missing, send to vehicle details
+      // Check step 2: Vehicle details
       if (!vehicleComplete) return "VehicleDetails";
 
-      // If docs missing, send to document upload
+      // Check step 3: Initial documents upload flow
       if (!documentsComplete) return "Documentscreen";
 
-      // If all complete and approved, go to main
-      if (status === "approved") return "MainTabs";
-
-      // Otherwise show verification for pending/rejected
+      // Validation gates
+      if (status === "show_approved_screen") return "Verification";
+      if (status === "approved") return "ComingSoon";
+      // if (status === "approved") return "MainTabs";
       if (status === "pending" || status === "rejected") return "Verification";
     }
 
-    // Fallbacks when driver object isn't available
-    if (status === "approved") return "MainTabs";
+    // Direct Fallbacks when live driver context payload structure isn't populated
+    if (status === "show_approved_screen") return "Verification";
+    //
+    if (status === "approved") return "ComingSoon";
+    //  if (status === "approved") return "MainTabs";
     if (isNewUser) return "ProfileSet";
     if (status === "pending" || status === "rejected") return "Verification";
 
@@ -70,7 +83,7 @@ const MainNavigator = ({
         headerShown: false,
       }}
     >
-      {/* Setup Flow */}
+      {/* ==================== ONBOARDING FLOW ==================== */}
       <Stack.Screen name="ProfileSet">
         {(props) => (
           <ProfileSetScreen
@@ -82,6 +95,7 @@ const MainNavigator = ({
           />
         )}
       </Stack.Screen>
+
       <Stack.Screen name="VehicleDetails">
         {(props) => (
           <VehicleDetailsScreen
@@ -93,6 +107,7 @@ const MainNavigator = ({
           />
         )}
       </Stack.Screen>
+
       <Stack.Screen name="Documentscreen">
         {(props) => (
           <DocumentVefityscreen
@@ -116,7 +131,18 @@ const MainNavigator = ({
         )}
       </Stack.Screen>
 
-      {/* Main App */}
+      {/* ==================== MAIN CORE APP ==================== */}
+      <Stack.Screen name="ComingSoon">
+        {(props) => (
+          <ComingSoonScreen
+            {...props}
+            setIsLoggedIn={setIsLoggedIn}
+            setIsNewUser={setIsNewUser}
+            setDriverStatus={setDriverStatus}
+          />
+        )}
+      </Stack.Screen>
+
       <Stack.Screen name="MainTabs">
         {(props) => (
           <BottomTabs
@@ -128,19 +154,52 @@ const MainNavigator = ({
         )}
       </Stack.Screen>
 
-      {/* App Sub-Pages */}
+      {/* ==================== SUB-PAGES (WITH UI ANIMATIONS) ==================== */}
       <Stack.Screen
         name="Notifications"
         component={NotificationScreen}
         options={{
-          animation: "slide_from_right", // Smooth transition
+          animation: "slide_from_right",
         }}
       />
+
       <Stack.Screen
         name="TripDetails"
         component={TripDetailsScreen}
         options={{
-          animation: "slide_from_right", // Smooth transition
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="EditProfile"
+        component={EditProfileScreen}
+        options={{
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="EditVehicle"
+        component={EditVehicleScreen}
+        options={{
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="Documents"
+        component={DocumentsScreen}
+        options={{
+          animation: "slide_from_right",
+        }}
+      />
+
+      <Stack.Screen
+        name="DocumentPreview"
+        component={DocumentPreviewScreen}
+        options={{
+          animation: "slide_from_right",
         }}
       />
     </Stack.Navigator>

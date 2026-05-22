@@ -1,0 +1,36 @@
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border, #e2e8f0);
+}
+
+.form-actions .primary-btn {
+    flex: 0 1 auto;
+    min-width: 100px;
+}
+
+.loading-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 600px) {
+    .form-actions {
+        flex-direction: column-reverse;
+    }
+
+    .form-actions .primary-btn {
+        width: 100%;
+    }
+}

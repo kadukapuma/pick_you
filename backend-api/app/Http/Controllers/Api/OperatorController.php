@@ -55,4 +55,52 @@ class OperatorController extends Controller
             'data' => $user,
         ], 201);
     }
+
+    public function update(Request $request, string $id)
+    {
+        $operator = User::where('role', User::ROLE_OPERATOR)->with('rolePermissions')->findOrFail($id);
+
+        $request->validate([
+            'first_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'last_name' => ['sometimes', 'required', 'string', 'max:255'],
+            'email' => ['sometimes', 'required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email,' . $operator->id],
+            'phone' => ['sometimes', 'required', 'string', 'max:20', 'unique:users,phone,' . $operator->id],
+        ]);
+
+        $operator->update($request->only(['first_name', 'last_name', 'email', 'phone']));
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Operator updated successfully',
+            'data' => $operator->fresh()->load('rolePermissions'),
+        ]);
+    }
+
+    public function updateStatus(Request $request, string $id)
+    {
+        $operator = User::where('role', User::ROLE_OPERATOR)->with('rolePermissions')->findOrFail($id);
+
+        $request->validate([
+            'is_active' => ['required', 'boolean'],
+        ]);
+
+        $operator->update(['is_active' => $request->is_active]);
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Operator status updated successfully',
+            'data' => $operator->fresh()->load('rolePermissions'),
+        ]);
+    }
+
+    public function destroy(string $id)
+    {
+        $operator = User::where('role', User::ROLE_OPERATOR)->with('rolePermissions')->findOrFail($id);
+        $operator->delete();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Operator deleted successfully',
+        ]);
+    }
 }

@@ -1,350 +1,352 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Alert,
-} from "react-native";
-import KeyboardAwareWrapper from "../../components/KeyboardAwareWrapper";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { useState } from "react";
+import {
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { MotiView, MotiText } from "moti";
-import api from "../../services/api";
 
-const ProfileScreen = ({ setIsLoggedIn, setIsNewUser, setDriverStatus }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
-  const BRAND_GREEN = "#00A859";
+  const user = {
+    name: "John Driver",
+    email: "ayeshanthoythasan@gmail.com",
+    trips: 247,
+    rating: 4.9,
+    acceptance: "94%",
+    cancellation: "2%",
+    vehicle: { plateNumber: "Not set" },
+  };
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  const confirmLogout = async () => {
+    setShowLogoutModal(false);
+    // Clear your local storage/auth state here
     try {
-      const response = await api.get("/user");
-      setUser(response.data);
-    } catch (error) {
-      console.log("Error fetching profile:", error);
-    } finally {
-      setLoading(false);
+      await AsyncStorage.removeItem("userToken");
+    } catch (e) {
+      console.log("Error clearing token on logout:", e);
+    }
+    if (setIsLoggedIn) {
+      setIsLoggedIn(false);
     }
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      "Logout",
-      "Are you sure you want to log out?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await AsyncStorage.removeItem("userToken");
-              await AsyncStorage.removeItem("profileFormData");
-              await AsyncStorage.removeItem("vehicleFormData");
-              setDriverStatus?.(null);
-              setIsNewUser?.(false);
-              setIsLoggedIn(false);
-            } catch (error) {
-              console.log("Logout error:", error);
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const ProfileItem = ({ icon, title, value, color = "#FFF" }) => (
-    <View style={styles.itemContainer}>
-      <View style={[styles.iconBox, { backgroundColor: color + "15" }]}>
-        <Feather name={icon} size={20} color={color} />
-      </View>
-      <View style={styles.itemTextContent}>
-        <Text style={styles.itemTitle}>{title}</Text>
-        <Text style={styles.itemValue}>{value || "Not Set"}</Text>
-      </View>
+  const StatBox = ({ label, value }) => (
+    <View style={styles.statBox}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
     </View>
   );
 
+  const MenuItem = ({ icon, label, value, showBadge, onPress, isLast }) => (
+    <TouchableOpacity
+      style={[styles.menuItem, isLast && { borderBottomWidth: 0 }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.menuIconContainer}>
+        <Feather name={icon} size={20} color="#64748B" />
+      </View>
+      <View style={styles.menuTextContainer}>
+        <Text style={styles.menuLabel}>{label}</Text>
+        {value && <Text style={styles.menuSubValue}>{value}</Text>}
+      </View>
+      {showBadge && (
+        <View style={styles.badge}>
+          <Feather name="check" size={12} color="#16A34A" />
+          <Text style={styles.badgeText}>Verified</Text>
+        </View>
+      )}
+      <Feather name="chevron-right" size={20} color="#CBD5E1" />
+    </TouchableOpacity>
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" />
 
-      <KeyboardAwareWrapper contentContainerStyle={styles.scrollContent}>
-        {/* HEADER */}
-        <MotiView
-          from={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          style={styles.header}
+      <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+        {/* Header Section - Updated to Green Gradient */}
+        <LinearGradient
+          colors={["#00A859", "#007A41"]}
+          style={styles.headerGradient}
         >
-          <View style={styles.avatarContainer}>
-            <View style={styles.avatarPlaceholder}>
-              <Text style={styles.avatarText}>
-                {user?.first_name?.[0] || "D"}
-              </Text>
+          <SafeAreaView edges={["top"]}>
+            <View style={styles.profileHeader}>
+              <LinearGradient
+                colors={["#A855F7", "#EC4899"]}
+                style={styles.avatarCircle}
+              >
+                <Text style={styles.avatarText}>{user.name.charAt(0)}</Text>
+              </LinearGradient>
+
+              <View style={styles.profileInfo}>
+                <Text style={styles.userName}>{user.name}</Text>
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <MaterialCommunityIcons
+                    name="star"
+                    size={18}
+                    color="#FACC15"
+                  />
+                  <Text style={styles.ratingText}> {user.rating}</Text>
+                  <Text style={styles.tripsCount}> ({user.trips} trips)</Text>
+                </View>
+              </View>
             </View>
-            <View style={styles.statusDot} />
+
+            <View style={styles.statsContainer}>
+              <StatBox label="Acceptance" value={user.acceptance} />
+              <StatBox label="Cancellation" value={user.cancellation} />
+              <StatBox label="Rating" value={user.rating} />
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+
+        <View style={styles.content}>
+          <Text style={styles.sectionTitle}>Account</Text>
+          <View style={styles.menuGroup}>
+            <MenuItem
+              icon="user"
+              label="Personal Info"
+              value={user.email}
+              onPress={() => navigation.navigate("EditProfile")}
+            />
+            <MenuItem
+              icon="truck"
+              label="Vehicle Details"
+              value={user.vehicle.plateNumber}
+              onPress={() => navigation.navigate("EditVehicle")}
+            />
+            <MenuItem
+              icon="file-text"
+              label="Documents"
+              value="Verified"
+              showBadge
+              onPress={() => navigation.navigate("Documents")}
+              isLast
+            />
           </View>
 
-          <MotiText
-            from={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 200 }}
-            style={styles.userName}
+          <Text style={styles.sectionTitle}>Preferences</Text>
+          <View style={styles.menuGroup}>
+            <MenuItem
+              icon="settings"
+              label="Settings"
+              onPress={() => navigation.navigate("Settings")}
+              isLast
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={() => setShowLogoutModal(true)}
+            activeOpacity={0.8}
           >
-            {user?.first_name} {user?.last_name}
-          </MotiText>
-          <Text style={styles.userRole}>Professional Driver</Text>
-        </MotiView>
+            <Feather name="log-out" size={20} color="#EF4444" />
+            <Text style={styles.logoutText}>Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
 
-        {/* STATS */}
-        <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>4.8</Text>
-            <Text style={styles.statLabel}>Rating</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>152</Text>
-            <Text style={styles.statLabel}>Trips</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>2y</Text>
-            <Text style={styles.statLabel}>Exp</Text>
+      {/* Modern Custom Sign Out Modal */}
+      <Modal visible={showLogoutModal} transparent={true} animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconBg}>
+              <Feather name="log-out" size={30} color="#EF4444" />
+            </View>
+            <Text style={styles.modalTitle}>Sign Out</Text>
+            <Text style={styles.modalSubTitle}>
+              Are you sure you want to sign out of your account?
+            </Text>
+
+            <View style={styles.modalActionRow}>
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.cancelBtn]}
+                onPress={() => setShowLogoutModal(false)}
+              >
+                <Text style={styles.cancelBtnText}>No</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.modalBtn, styles.confirmBtn]}
+                onPress={confirmLogout}
+              >
+                <Text style={styles.confirmBtnText}>Yes, Sign Out</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
-
-        {/* INFO SECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Personal Information</Text>
-          <View style={styles.card}>
-            <ProfileItem icon="phone" title="Phone Number" value={user?.phone} color={BRAND_GREEN} />
-            <View style={styles.divider} />
-            <ProfileItem icon="mail" title="Email Address" value={user?.email} color="#3B82F6" />
-            <View style={styles.divider} />
-            <ProfileItem icon="map-pin" title="Address" value={user?.driver?.address} color="#F59E0B" />
-          </View>
-        </View>
-
-        {/* ACCOUNT SECTION */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Settings</Text>
-          <View style={styles.card}>
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.menuLeft}>
-                <Feather name="shield" size={18} color="#94A3B8" />
-                <Text style={styles.menuText}>Security & Privacy</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color="#475569" />
-            </TouchableOpacity>
-
-            <View style={styles.divider} />
-
-            <TouchableOpacity style={styles.menuItem}>
-              <View style={styles.menuLeft}>
-                <Feather name="help-circle" size={18} color="#94A3B8" />
-                <Text style={styles.menuText}>Help & Support</Text>
-              </View>
-              <Feather name="chevron-right" size={18} color="#475569" />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* LOGOUT BUTTON */}
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={handleLogout}
-          activeOpacity={0.8}
-        >
-          <Feather name="log-out" size={20} color="#EF4444" />
-          <Text style={styles.logoutText}>Logout from Account</Text>
-        </TouchableOpacity>
-
-        <Text style={styles.versionText}>Version 1.0.4 (Build 45)</Text>
-      </KeyboardAwareWrapper>
-    </SafeAreaView>
+      </Modal>
+    </View>
   );
 };
 
+export default ProfileScreen;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#0F172A",
+  mainWrapper: { flex: 1, backgroundColor: "#F8FAFC" },
+  headerGradient: {
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
   },
-  scrollContent: {
-    paddingBottom: 100,
-  },
-  header: {
-    alignItems: "center",
-    paddingTop: 30,
-    paddingBottom: 25,
-  },
-  avatarContainer: {
-    position: "relative",
-    marginBottom: 15,
-  },
-  avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    backgroundColor: "#1E293B",
-    borderWidth: 2,
-    borderColor: "#00A859",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: {
-    color: "#FFF",
-    fontSize: 32,
-    fontWeight: "900",
-  },
-  statusDot: {
-    position: "absolute",
-    bottom: 5,
-    right: 5,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#22C55E",
-    borderWidth: 3,
-    borderColor: "#0F172A",
-  },
-  userName: {
-    color: "#FFF",
-    fontSize: 22,
-    fontWeight: "800",
-    marginBottom: 4,
-  },
-  userRole: {
-    color: "#94A3B8",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  statsRow: {
+  profileHeader: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 15,
-    paddingHorizontal: 25,
-    marginBottom: 30,
-  },
-  statCard: {
-    backgroundColor: "#1E293B",
-    paddingVertical: 15,
-    paddingHorizontal: 25,
-    borderRadius: 16,
     alignItems: "center",
-    minWidth: 90,
-  },
-  statValue: {
-    color: "#FFF",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-  statLabel: {
-    color: "#64748B",
-    fontSize: 12,
-    fontWeight: "600",
-    marginTop: 2,
-  },
-  section: {
-    paddingHorizontal: 25,
+    marginTop: 20,
     marginBottom: 25,
   },
-  sectionTitle: {
-    color: "#94A3B8",
-    fontSize: 13,
-    fontWeight: "800",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginBottom: 12,
-    marginLeft: 5,
-  },
-  card: {
-    backgroundColor: "#1E293B",
-    borderRadius: 20,
-    padding: 15,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.05)",
-  },
-  itemContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 10,
-  },
-  iconBox: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
+  avatarCircle: {
+    width: 75,
+    height: 75,
+    borderRadius: 37.5,
     justifyContent: "center",
     alignItems: "center",
-    marginRight: 15,
   },
-  itemTextContent: {
+  avatarText: { color: "#FFF", fontSize: 28, fontWeight: "800" },
+  profileInfo: { marginLeft: 15, flex: 1 },
+  userName: { color: "#FFF", fontSize: 24, fontWeight: "700", marginBottom: 4 },
+  ratingText: { color: "#FFF", fontSize: 16, fontWeight: "600" },
+  tripsCount: { color: "rgba(255,255,255,0.7)", fontSize: 14 },
+
+  statsContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  statBox: {
     flex: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    paddingVertical: 15,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
   },
-  itemTitle: {
-    color: "#64748B",
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  itemValue: {
-    color: "#E2E8F0",
-    fontSize: 15,
+  statLabel: { color: "rgba(255,255,255,0.8)", fontSize: 12, marginBottom: 4 },
+  statValue: { color: "#FFF", fontSize: 18, fontWeight: "800" },
+
+  content: { padding: 20, paddingBottom: 120 },
+  sectionTitle: {
+    fontSize: 18,
     fontWeight: "700",
+    color: "#1E293B",
+    marginTop: 25,
+    marginBottom: 15,
   },
-  divider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.05)",
-    marginVertical: 10,
+  menuGroup: {
+    backgroundColor: "#FFF",
+    borderRadius: 20,
+    overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
-  menuLeft: {
+  menuIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#F8FAFC",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  menuTextContainer: { flex: 1 },
+  menuLabel: { fontSize: 16, fontWeight: "600", color: "#1E293B" },
+  menuSubValue: { fontSize: 13, color: "#64748B", marginTop: 2 },
+  badge: {
     flexDirection: "row",
     alignItems: "center",
+    backgroundColor: "#DCFCE7",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    marginRight: 8,
   },
-  menuText: {
-    color: "#E2E8F0",
-    fontSize: 15,
-    fontWeight: "600",
-    marginLeft: 15,
+  badgeText: {
+    color: "#16A34A",
+    fontSize: 11,
+    fontWeight: "700",
+    marginLeft: 4,
   },
-  logoutBtn: {
+
+  logoutButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "rgba(239, 68, 68, 0.1)",
-    marginHorizontal: 25,
-    paddingVertical: 16,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: "rgba(239, 68, 68, 0.2)",
-    marginTop: 10,
-    marginBottom: 20,
+    backgroundColor: "#FEF2F2",
+    marginTop: 40,
+    padding: 18,
+    borderRadius: 16,
+    gap: 10,
   },
-  logoutText: {
-    color: "#EF4444",
-    fontSize: 16,
-    fontWeight: "800",
-    marginLeft: 10,
-  },
-  versionText: {
-    color: "#475569",
-    textAlign: "center",
-    fontSize: 12,
-    fontWeight: "600",
-  },
-});
+  logoutText: { color: "#EF4444", fontSize: 16, fontWeight: "700" },
 
-export default ProfileScreen;
+  /* Modal Styles */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  modalContent: {
+    width: "100%",
+    backgroundColor: "#FFF",
+    borderRadius: 24,
+    padding: 24,
+    alignItems: "center",
+  },
+  modalIconBg: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#FEF2F2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 8,
+  },
+  modalSubTitle: {
+    fontSize: 15,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  modalActionRow: { flexDirection: "row", gap: 12 },
+  modalBtn: {
+    flex: 1,
+    height: 50,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelBtn: { backgroundColor: "#F1F5F9" },
+  cancelBtnText: { color: "#64748B", fontWeight: "700", fontSize: 16 },
+  confirmBtn: { backgroundColor: "#EF4444" },
+  confirmBtnText: { color: "#FFF", fontWeight: "700", fontSize: 16 },
+});

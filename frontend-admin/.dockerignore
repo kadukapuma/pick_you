@@ -1,0 +1,10 @@
+.git
+.github
+node_modules
+dist
+.vscode
+.idea
+npm-debug.log
+yarn-error.log
+*.bak
+*.tmp

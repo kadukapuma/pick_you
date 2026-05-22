@@ -30,6 +30,7 @@ class User extends Authenticatable
         'manage_role_permissions',
         'manage_drivers',
         'manage_vehicles',
+        'manage_vehicle_types',
         'manage_passengers',
         'manage_fare_configs',
         'manage_notifications',

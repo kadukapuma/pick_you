@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, StatusBar } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient'; // Added LinearGradient
 
 const TripDetailsScreen = ({ route, navigation }) => {
   const { trip } = route.params || {};
@@ -19,13 +20,15 @@ const TripDetailsScreen = ({ route, navigation }) => {
   );
 
   return (
-    // Main container is black to fill the bottom safe area
     <View style={styles.mainWrapper}>
       <View style={styles.container}>
         <StatusBar barStyle="light-content" />
         
-        {/* Header */}
-        <View style={styles.header}>
+        {/* Updated Header with LinearGradient */}
+        <LinearGradient
+          colors={['#00A859', '#007A41']}
+          style={styles.headerGradient}
+        >
           <SafeAreaView edges={['top']}>
             <View style={styles.navRow}>
               <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
@@ -35,7 +38,7 @@ const TripDetailsScreen = ({ route, navigation }) => {
               <View style={{ width: 40 }} /> 
             </View>
           </SafeAreaView>
-        </View>
+        </LinearGradient>
 
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <View style={styles.mapContainer}>
@@ -48,7 +51,10 @@ const TripDetailsScreen = ({ route, navigation }) => {
 
           <View style={styles.fareCard}>
             <Text style={styles.fareLabel}>Total Fare</Text>
-            <Text style={styles.fareAmount}>{trip?.status === "Cancelled" ? "$0.00" : trip?.amount}</Text>
+            {/* Keeping "Rs." consistency with other screens */}
+            <Text style={styles.fareAmount}>
+                {trip?.status === "Cancelled" ? "Rs.0.00" : trip?.amount}
+            </Text>
             <View style={[styles.statusBadge, { backgroundColor: trip?.status === "Cancelled" ? "#FEE2E2" : "#DCFCE7" }]}>
               <Text style={[styles.statusText, { color: trip?.status === "Cancelled" ? "#EF4444" : "#16A34A" }]}>
                 {trip?.status}
@@ -93,7 +99,6 @@ const TripDetailsScreen = ({ route, navigation }) => {
         </ScrollView>
       </View>
       
-      {/* This SafeAreaView ensures the bottom notch area is black */}
       <SafeAreaView edges={['bottom']} style={styles.bottomSafeArea} />
     </View>
   );
@@ -102,15 +107,19 @@ const TripDetailsScreen = ({ route, navigation }) => {
 export default TripDetailsScreen;
 
 const styles = StyleSheet.create({
-  mainWrapper: { flex: 1, backgroundColor: '#000' }, // Sets the very bottom color
-  container: { flex: 1, backgroundColor: '#F8FAFC' }, // App background
-  bottomSafeArea: { backgroundColor: '#000' }, // Bottom bar color
-  header: { 
-    backgroundColor: '#00A859', 
+  mainWrapper: { flex: 1, backgroundColor: '#000' },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  bottomSafeArea: { backgroundColor: '#000' },
+  headerGradient: { 
     paddingHorizontal: 16, 
-    paddingBottom: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingBottom: 25,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
   },
   navRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 10 },
   headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },

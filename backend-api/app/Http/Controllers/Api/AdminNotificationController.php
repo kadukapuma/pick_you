@@ -19,11 +19,22 @@ class AdminNotificationController extends Controller
         }
         $limit = min($limit, 100);
 
-        $data = AdminNotificationLog::orderByDesc('created_at')
+        $notifications = AdminNotificationLog::orderByDesc('created_at')
             ->limit($limit)
-            ->get();
+            ->get()
+            ->map(function ($notification) {
+                return [
+                    'id' => $notification->id,
+                    'type' => $notification->type,
+                    'title' => $notification->title,
+                    'message' => $notification->message,
+                    'data' => $notification->data,
+                    'is_read' => (bool) $notification->is_read,
+                    'created_at' => $notification->created_at->toIso8601String(),
+                ];
+            });
 
-        return $this->success($data, 'Admin notifications retrieved successfully.');
+        return $this->success($notifications, 'Admin notifications retrieved successfully.');
     }
 
     public function markAllRead()

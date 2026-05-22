@@ -20,18 +20,30 @@ import api from "../services/api";
 import { Alert } from "react-native";
 
 const VehicleDetailsScreen = ({ navigation, onExit }) => {
-  const [vehicleType, setVehicleType] = useState("Car");
+  const [vehicleType, setVehicleType] = useState("car");
+  const [vehicleTypeId, setVehicleTypeId] = useState(null);
+  const [vehicleTypes, setVehicleTypes] = useState([]);
   const [showVehicleModal, setShowVehicleModal] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const vehicleOptions = [
-    { name: "Tuk", icon: "rickshaw" },
-    { name: "Car", icon: "car" },
-    { name: "Van", icon: "van-passenger" },
-    { name: "Mini Van", icon: "van-passenger" },
-    { name: "Flex", icon: "truck-fast" },
-    { name: "Bike", icon: "motorbike" },
+  const fallbackVehicleTypes = [
+    { id: 1, name: "car", display_name: "Car" },
+    { id: 2, name: "tuk", display_name: "Tuk Tuk" },
+    { id: 3, name: "bike", display_name: "Motorbike" },
+    { id: 4, name: "suv", display_name: "SUV" },
   ];
+
+  const activeTypesList = vehicleTypes.length > 0 ? vehicleTypes : fallbackVehicleTypes;
+
+  const getVehicleIcon = (typeName) => {
+    const name = (typeName || "").toLowerCase();
+    if (name.includes("tuk") || name.includes("three") || name.includes("rickshaw")) return "rickshaw";
+    if (name.includes("bike") || name.includes("motorcycle")) return "motorbike";
+    if (name.includes("van") || name.includes("minivan")) return "van-passenger";
+    if (name.includes("suv") || name.includes("jeep")) return "car";
+    if (name.includes("flex") || name.includes("truck")) return "truck-fast";
+    return "car";
+  };
 
   const [formData, setFormData] = useState({
     make: "",
@@ -47,11 +59,23 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
 
   useEffect(() => {
     loadVehicleData();
+    fetchActiveVehicleTypes();
   }, []);
 
   useEffect(() => {
     saveVehicleData();
-  }, [formData, vehicleType]);
+  }, [formData, vehicleType, vehicleTypeId]);
+
+  const fetchActiveVehicleTypes = async () => {
+    try {
+      const response = await api.get("/vehicle-types?active_only=true");
+      if (response.data && response.data.status === "success") {
+        setVehicleTypes(response.data.data);
+      }
+    } catch (error) {
+      console.log("Error fetching vehicle types from API:", error);
+    }
+  };
 
   const loadVehicleData = async () => {
     try {
@@ -59,7 +83,8 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
       if (savedData) {
         const parsedData = JSON.parse(savedData);
         setFormData(parsedData.formData);
-        setVehicleType(parsedData.vehicleType);
+        if (parsedData.vehicleType) setVehicleType(parsedData.vehicleType);
+        if (parsedData.vehicle_type_id) setVehicleTypeId(parsedData.vehicle_type_id);
       }
     } catch (error) {
       console.log("Error loading form data:", error);
@@ -68,7 +93,7 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
 
   const saveVehicleData = async () => {
     try {
-      const data = { formData, vehicleType };
+      const data = { formData, vehicleType, vehicle_type_id: vehicleTypeId };
       await AsyncStorage.setItem("vehicleFormData", JSON.stringify(data));
     } catch (error) {
       console.log("Error saving form data:", error);
@@ -94,6 +119,7 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
         color: formData.color,
         plate: formData.plate,
         vehicleType: vehicleType,
+        vehicle_type_id: vehicleTypeId,
         seat_capacity: formData.seat_capacity,
       });
 
@@ -184,21 +210,22 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
                   exit={{ opacity: 0, scale: 0.9, y: 20 }}
                   style={styles.modalContent}
                 >
-                  {vehicleOptions.map((item, index) => (
+                  {activeTypesList.map((item, index) => (
                     <TouchableOpacity
-                      key={index}
+                      key={item.id || index}
                       style={styles.modalItem}
                       onPress={() => {
                         setVehicleType(item.name);
+                        setVehicleTypeId(item.id);
                         setShowVehicleModal(false);
                       }}
                     >
                       <MaterialCommunityIcons
-                        name={item.icon}
+                        name={getVehicleIcon(item.name)}
                         size={22}
                         color="#0F172A"
                       />
-                      <Text style={styles.modalText}>{item.name}</Text>
+                      <Text style={styles.modalText}>{item.display_name}</Text>
                     </TouchableOpacity>
                   ))}
                 </MotiView>
@@ -246,14 +273,13 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
           >
             <View style={styles.dropdownLeft}>
               <MaterialCommunityIcons
-                name={
-                  vehicleOptions.find((item) => item.name === vehicleType)
-                    ?.icon || "car"
-                }
+                name={getVehicleIcon(vehicleType)}
                 size={22}
                 color="#0F172A"
               />
-              <Text style={styles.dropdownText}>{vehicleType}</Text>
+              <Text style={styles.dropdownText}>
+                {activeTypesList.find((item) => item.name === vehicleType)?.display_name || vehicleType}
+              </Text>
             </View>
             <Feather name="chevron-down" size={20} color="#64748B" />
           </TouchableOpacity>
