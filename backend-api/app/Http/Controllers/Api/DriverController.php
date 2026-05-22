@@ -84,7 +84,7 @@ class DriverController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:pending,approved,suspended,updated'
+            'status' => 'required|in:pending,approved,suspended,updated,rejected'
         ]);
 
         $driver = Driver::with(['user', 'vehicles.images'])->withCount('rides')->find($id);
@@ -150,6 +150,7 @@ class DriverController extends Controller
             'color' => 'nullable|string',
             'plate' => 'nullable|string',
             'vehicleType' => 'nullable|string',
+            'vehicle_type_id' => 'nullable|integer|exists:vehicle_types,id',
             'front' => 'nullable|file',
             'back' => 'nullable|file',
             'interior' => 'nullable|file',
@@ -183,14 +184,33 @@ class DriverController extends Controller
             return null;
         };
 
-
-        $driver->update([
-            'dob' => $request->dob,
-            'address' => $request->address,
-            'license_number' => $request->nic,
+        $updateData = [
+            'status' => 'pending',
+            'dob' => $request->filled('dob') ? $request->dob : $driver->dob,
+            'address' => $request->filled('address') ? $request->address : $driver->address,
+            'license_number' => $request->filled('nic') ? trim((string) $request->nic) : $driver->license_number,
             'license_front_path' => $request->hasFile('license_front') ? $uploadFile('license_front') : $driver->license_front_path,
             'license_back_path' => $request->hasFile('license_back') ? $uploadFile('license_back') : $driver->license_back_path,
-        ]);
+        ];
+
+        $driver->update($updateData);
+
+        // Resolve vehicle type ID and name string
+        $vehicleTypeId = $request->vehicle_type_id;
+        $vehicleTypeStr = $request->vehicleType;
+
+        if ($vehicleTypeId) {
+            $foundType = \App\Models\VehicleType::find($vehicleTypeId);
+            if ($foundType) {
+                $vehicleTypeStr = $foundType->name;
+            }
+        } elseif ($vehicleTypeStr) {
+            $foundType = \App\Models\VehicleType::where('name', strtolower($vehicleTypeStr))->first();
+            if ($foundType) {
+                $vehicleTypeId = $foundType->id;
+                $vehicleTypeStr = $foundType->name;
+            }
+        }
 
         $vehicleData = array_filter([
             'brand' => $request->make,
@@ -198,7 +218,7 @@ class DriverController extends Controller
             'year' => $request->year,
             'color' => $request->color,
             'vehicle_number' => $request->plate,
-            'vehicle_type' => $request->vehicleType,
+            'vehicle_type_id' => $vehicleTypeId,
             'seat_capacity' => $request->seat_capacity,
         ]);
 

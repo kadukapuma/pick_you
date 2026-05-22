@@ -44,6 +44,16 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
   const BRAND_GREEN = "#0B1220";
   const DARK_BG = "#00A859";
 
+  const formatDobForForm = (value) => {
+    if (!value) return "";
+    const parts = String(value).split("-");
+    if (parts.length === 3) {
+      const [year, month, day] = parts;
+      return `${day}/${month}/${year}`;
+    }
+    return String(value);
+  };
+
   // Load data from local storage on mount
   useEffect(() => {
     loadFormData();
@@ -106,9 +116,23 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
   const loadFormData = async () => {
     try {
       const savedData = await AsyncStorage.getItem("profileFormData");
-      if (savedData) {
-        setFormData(JSON.parse(savedData));
-      }
+      const response = await api.get("/user");
+      const driver = response.data?.driver;
+
+      const backendData = driver
+        ? {
+            nic: driver.license_number || "",
+            dob: formatDobForForm(driver.dob),
+            address: driver.address || "",
+          }
+        : {};
+
+      const localData = savedData ? JSON.parse(savedData) : {};
+      setFormData((current) => ({
+        ...current,
+        ...backendData,
+        ...localData,
+      }));
     } catch (error) {
       console.log("Error loading form data:", error);
     }

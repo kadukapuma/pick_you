@@ -15,10 +15,11 @@ import {
   Alert
 } from "react-native";
 import api from "../../services/api";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
-const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverStatus }) => {
+const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver }) => {
   // Backend returns a 4-digit OTP
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [timer, setTimer] = useState(120);
@@ -28,6 +29,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
   const inputs = useRef([]);
   const BRAND_GREEN = "#00A859";
   const isRegistration = route?.params?.isRegistration ?? false;
+  const email = route?.params?.email ?? "";
   const phone = route?.params?.phone ?? "";
 
   // Automatically request OTP when screen mounts
@@ -41,10 +43,15 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
   }, []);
 
   const sendOtpRequest = async () => {
-    if (!phone) return;
+    if (!email) {
+      Alert.alert("Missing Email", "An email address is required to send the OTP.");
+      return;
+    }
     try {
-      // We can use 'verification' for login/registration purposes loosely based on your backend
-      const res = await api.post("/otp/send", { phone, purpose: "verification" });
+      const res = await api.post("/otp/send", {
+        email,
+        purpose: "verification",
+      });
       if (res.data?.data?.otp) {
         Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
       }
@@ -78,25 +85,61 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
   const handleVerify = async () => {
     const otpCode = otp.join("");
     if (otpCode.length < 4) return;
+    if (!email) {
+      Alert.alert("Missing Email", "An email address is required to verify the OTP.");
+      return;
+    }
 
     setIsLoading(true);
     try {
       await api.post("/otp/verify", {
-        phone,
+        email,
         otp_code: otpCode,
         purpose: "verification"
       });
 
+      // Fetch user profile to ensure driver context is set up properly
+      let driverData = null;
+      let status = "pending";
+      let isProfileComplete = false;
+
+      try {
+        const userResponse = await api.get("/user");
+        driverData = userResponse.data?.driver;
+        if (driverData) {
+          status = (driverData.status || "pending").toLowerCase();
+
+          if (status === "approved") {
+            const hasSeenKey = `hasSeenApproved_${driverData.id}`;
+            const hasSeenApproved = await AsyncStorage.getItem(hasSeenKey);
+            if (!hasSeenApproved) {
+              status = "show_approved_screen";
+            }
+          }
+          isProfileComplete = !!driverData.address;
+        }
+      } catch (userErr) {
+        console.log("Error fetching user after OTP verify:", userErr);
+      }
+
+      setDriver?.(driverData);
+      setDriverStatus?.(status);
+
+      if (isRegistration) {
+        setIsNewUser?.(true);
+      } else {
+        // For existing users, check profile completeness
+        if (status !== "approved" && status !== "show_approved_screen" && !isProfileComplete) {
+          setIsNewUser?.(true);
+        } else {
+          setIsNewUser?.(false);
+        }
+      }
+
       setIsLoading(false);
       // Wait a tick for modal to clear before proceeding
       setTimeout(() => {
-        if (isRegistration) {
-          setDriverStatus?.("pending");
-          setIsNewUser?.(true);
-          setIsLoggedIn?.(true);
-        } else {
-          setIsLoggedIn?.(true);
-        }
+        setIsLoggedIn?.(true);
       }, 300);
     } catch (error) {
       setIsLoading(false);
@@ -156,7 +199,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
           <MotiText style={styles.subtitle}>
             We sent a 4-digit code to{" "}
             <Text style={[styles.phoneText, { color: BRAND_GREEN }]}>
-              {phone || "+94 7* *** **90"}
+              {email || phone || "your email address"}
             </Text>
           </MotiText>
 

@@ -27,8 +27,8 @@ const AdminProvider = ({ children }) => {
         }
     }, [token, admin])
 
-    const signIn = async ({ phone, password }) => {
-        const data = await loginAdmin({ phone, password })
+    const signIn = async ({ email, password }) => {
+        const data = await loginAdmin({ email, password })
 
         // If 2FA is required, we don't set admin yet
         if (data.require_2fa) {
@@ -52,8 +52,8 @@ const AdminProvider = ({ children }) => {
         return data
     }
 
-    const verifyAdmin2FA = async ({ phone, code }) => {
-        const data = await verify2FA({ phone, code })
+    const verifyAdmin2FA = async ({ email, code }) => {
+        const data = await verify2FA({ email, code })
 
         storeToken(data.token)
         setToken(data.token)

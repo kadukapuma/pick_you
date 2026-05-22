@@ -53,6 +53,7 @@ const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver
             setIsLoggedIn={setIsLoggedIn}
             setIsNewUser={setIsNewUser}
             setDriverStatus={setDriverStatus}
+            setDriver={setDriver}
             onExit={() => handleExitToGetStarted(props.navigation)}
           />
         )}

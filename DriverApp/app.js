@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./src/services/api";
 
@@ -21,14 +22,24 @@ export default function App() {
           const drv = response.data?.driver;
           setDriver(drv || null);
           if (drv) {
-            const status = drv.status?.toLowerCase() || "pending";
-            setDriverStatus(status);
+            const fetchedStatus = drv.status?.toLowerCase() || "pending";
+
+            // Check if seen approved screen before
+            const hasSeenKey = `hasSeenApproved_${drv.id}`;
+            const hasSeenApproved = await AsyncStorage.getItem(hasSeenKey);
+
+            let finalStatus = fetchedStatus;
+
+            // If they are approved but haven't seen the success screen
+            if (fetchedStatus === "approved" && !hasSeenApproved) {
+              finalStatus = "show_approved_screen";
+            }
+
+            setDriverStatus(finalStatus);
             setIsLoggedIn(true);
 
-            // A user is only "new" if they haven't filled out their profile (e.g., no address)
-            // AND they aren't approved yet.
             const isProfileComplete = !!drv.address;
-            setIsNewUser(status !== "approved" && !isProfileComplete);
+            setIsNewUser(fetchedStatus !== "approved" && !isProfileComplete);
           } else {
             // Logged in but no driver profile found at all
             setIsLoggedIn(true);
@@ -49,6 +60,7 @@ export default function App() {
 
   return (
     <NavigationContainer>
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
       <AppNavigator
         isLoggedIn={isLoggedIn}
         setIsLoggedIn={setIsLoggedIn}

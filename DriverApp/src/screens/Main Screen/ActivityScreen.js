@@ -7,43 +7,86 @@ import {
   FlatList,
   StatusBar,
   Animated,
-  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { useNavigation } from "@react-navigation/native"; // Added hook
-import { MotiView } from "moti";
+import { useNavigation } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient"; // Added LinearGradient
 
-import api from "../../services/api";
+const dummyTrips = [
+  {
+    id: "1",
+    destination: "Kandy City Centre",
+    date: "Today, 12:30 PM",
+    amount: "Rs.1,250",
+    status: "Completed",
+    distance: "4.2 km",
+  },
+  {
+    id: "2",
+    destination: "Peradeniya Botanical Garden",
+    date: "Today, 10:15 AM",
+    amount: "Rs.1,820",
+    status: "Completed",
+    distance: "7.1 km",
+  },
+  {
+    id: "3",
+    destination: "Getambe Temple",
+    date: "Yesterday, 06:45 PM",
+    amount: "Rs.0.00",
+    status: "Cancelled",
+    distance: "2.5 km",
+  },
+  {
+    id: "4",
+    destination: "Amaya Hills Kandy",
+    date: "Yesterday, 04:20 PM",
+    amount: "Rs.2,500",
+    status: "Completed",
+    distance: "12.0 km",
+  },
+  {
+    id: "5",
+    destination: "Dalada Maligawa",
+    date: "10 May, 09:00 AM",
+    amount: "Rs.1,080",
+    status: "Completed",
+    distance: "3.8 km",
+  },
+];
 
 const ActivityScreen = () => {
-  const navigation = useNavigation(); // Initialize navigation
+  const navigation = useNavigation();
   const [filter, setFilter] = useState("All");
-  const [trips, setTrips] = useState([]);
-  const [loading, setLoading] = useState(true);
+
+  const fadeAnims = useRef(dummyTrips.map(() => new Animated.Value(0))).current;
+  const slideAnims = useRef(dummyTrips.map(() => new Animated.Value(20))).current;
 
   useEffect(() => {
-    fetchTrips();
+    const animations = dummyTrips.map((_, i) => {
+      return Animated.parallel([
+        Animated.timing(fadeAnims[i], {
+          toValue: 1,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnims[i], {
+          toValue: 0,
+          duration: 500,
+          useNativeDriver: true,
+        }),
+      ]);
+    });
+    Animated.stagger(100, animations).start();
   }, [filter]);
 
-  const fetchTrips = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get("/rides");
-      // Assuming response.data.data is the array of trips
-      setTrips(response.data.data || []);
-    } catch (error) {
-      console.log("Error fetching trips:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const renderTripItem = ({ item, index }) => (
-    <MotiView
-      from={{ opacity: 0, translateY: 20 }}
-      animate={{ opacity: 1, translateY: 0 }}
-      transition={{ delay: index * 100 }}
+    <Animated.View
+      style={{
+        opacity: fadeAnims[index],
+        transform: [{ translateY: slideAnims[index] }],
+      }}
     >
       <TouchableOpacity 
         style={styles.tripCard} 
@@ -56,31 +99,33 @@ const ActivityScreen = () => {
         
         <View style={styles.tripDetails}>
           <Text style={styles.destinationText} numberOfLines={1}>
-            {item.dropoff_address || item.destination || "Unnamed Location"}
+            {item.destination}
           </Text>
-          <Text style={styles.dateText}>
-            {item.created_at ? new Date(item.created_at).toLocaleDateString() : "Unknown date"} • {item.distance || "0 km"}
-          </Text>
+          <Text style={styles.dateText}>{item.date} • {item.distance}</Text>
         </View>
 
         <View style={styles.amountContainer}>
           <Text style={[
             styles.amountText, 
-            item.status === "cancelled" && styles.cancelledText
+            item.status === "Cancelled" && styles.cancelledText
           ]}>
-            {item.status === "cancelled" ? "Cancelled" : `Rs. ${item.fare || item.amount || "0"}`}
+            {item.status === "Cancelled" ? "Cancelled" : item.amount}
           </Text>
           <Feather name="chevron-right" size={16} color="#94A3B8" />
         </View>
       </TouchableOpacity>
-    </MotiView>
+    </Animated.View>
   );
 
   return (
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" />
       
-      <View style={styles.header}>
+      {/* Updated Header with LinearGradient */}
+      <LinearGradient
+        colors={['#00A859', '#007A41']}
+        style={styles.headerGradient}
+      >
         <SafeAreaView edges={["top"]}>
           <Text style={styles.headerTitle}>Trip History</Text>
           
@@ -98,18 +143,14 @@ const ActivityScreen = () => {
             ))}
           </View>
         </SafeAreaView>
-      </View>
+      </LinearGradient>
 
       <View style={styles.content}>
-        {loading ? (
-          <View style={styles.emptyState}>
-            <ActivityIndicator size="large" color="#00A859" />
-          </View>
-        ) : trips.length > 0 ? (
+        {dummyTrips.length > 0 ? (
           <FlatList
-            data={trips}
+            data={dummyTrips}
             renderItem={renderTripItem}
-            keyExtractor={(item) => item.id.toString()}
+            keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listPadding}
             showsVerticalScrollIndicator={false}
           />
@@ -131,8 +172,7 @@ export default ActivityScreen;
 
 const styles = StyleSheet.create({
   mainWrapper: { flex: 1, backgroundColor: "#F8FAFC" },
-  header: {
-    backgroundColor: "#00A859",
+  headerGradient: {
     paddingHorizontal: 24,
     paddingBottom: 30,
     borderBottomLeftRadius: 32,
