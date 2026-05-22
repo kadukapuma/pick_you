@@ -13,6 +13,7 @@ const Sidebar = ({ admin, isCollapsed }) => {
         admin?.permissions?.includes('manage_operators')
     const canManageDrivers = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_drivers')
     const canManageVehicles = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_vehicles')
+    const canManageVehicleTypes = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_vehicle_types')
     const canManagePassengers = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_passengers')
     const canManageFare = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_fare_configs')
 
@@ -43,6 +44,12 @@ const Sidebar = ({ admin, isCollapsed }) => {
                     <NavLink to="/vehicles">
                         <span className="material-icons">directions_car</span>
                         <span>Vehicles</span>
+                    </NavLink>
+                )}
+                {canManageVehicleTypes && (
+                    <NavLink to="/vehicle-types">
+                        <span className="material-icons">local_taxi</span>
+                        <span>Vehicle Types</span>
                     </NavLink>
                 )}
                 {canManageFare && (

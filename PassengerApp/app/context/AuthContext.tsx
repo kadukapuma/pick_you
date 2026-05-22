@@ -1,0 +1,148 @@
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { AuthService } from "../services/auth/authService";
+import { StoredUser } from "../services/auth/storageService";
+
+export interface AuthContextType {
+  user: StoredUser | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
+  register: (data: any) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  error: string | null;
+  clearError: () => void;
+  pendingRegistration: RegisterResponse | null;
+  setPendingRegistration: (data: RegisterResponse | null) => void;
+}
+
+export interface RegisterResponse {
+  user: any;
+  token: string;
+  email: string;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<StoredUser | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingRegistration, setPendingRegistration] =
+    useState<RegisterResponse | null>(null);
+
+  // Restore authentication on app startup
+  useEffect(() => {
+    const restoreAuth = async () => {
+      try {
+        const result = await AuthService.restoreAuth();
+        if (result.success && result.user) {
+          setUser(result.user);
+        }
+      } catch (err) {
+        console.error("Failed to restore auth:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    restoreAuth();
+  }, []);
+
+  const register = async (data: any) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const result = await AuthService.register({
+        first_name: data.firstName,
+        last_name: data.lastName,
+        email: data.email,
+        phone: data.phone,
+        password: data.password,
+        password_confirmation: data.passwordConfirm,
+        role: "passenger",
+      });
+
+      if (result.success && result.data) {
+        setUser(result.data.user);
+      } else {
+        const errorMsg =
+          result.errors && Object.keys(result.errors).length > 0
+            ? Object.values(result.errors)[0][0]
+            : result.message || "Registration failed";
+        setError(errorMsg);
+        throw new Error(errorMsg);
+      }
+    } catch (err: any) {
+      const message = err.message || "Registration failed";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email: string, password: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const result = await AuthService.login({ email, password });
+
+      if (result.success && result.data) {
+        setUser(result.data.user);
+      } else {
+        const errorMsg = result.message || "Login failed";
+        setError(errorMsg);
+        throw new Error(errorMsg);
+      }
+    } catch (err: any) {
+      const message = err.message || "Login failed";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      await AuthService.logout();
+      setUser(null);
+    } catch (err: any) {
+      const message = err.message || "Logout failed";
+      setError(message);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const clearError = () => setError(null);
+
+  const value: AuthContextType = {
+    user,
+    isLoading,
+    isAuthenticated: !!user,
+    register,
+    login,
+    logout,
+    error,
+    clearError,
+    pendingRegistration,
+    setPendingRegistration,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error("useAuth must be used within AuthProvider");
+  }
+  return context;
+}

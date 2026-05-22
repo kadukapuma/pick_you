@@ -86,6 +86,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
       if (vehicle.formData?.plate) formData.append("plate", vehicle.formData.plate);
       if (vehicle.formData?.seat_capacity) formData.append("seat_capacity", vehicle.formData.seat_capacity);
       if (vehicle.vehicleType) formData.append("vehicleType", vehicle.vehicleType);
+      if (vehicle.vehicle_type_id) formData.append("vehicle_type_id", vehicle.vehicle_type_id);
 
       Object.keys(uploads).forEach((key) => {
         if (uploads[key]) {

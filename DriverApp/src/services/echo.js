@@ -5,9 +5,10 @@ const createEchoInstance = async () => {
     const token = await AsyncStorage.getItem("userToken");
 
     console.log("Requiring Pusher...");
-
-    const Pusher = require("pusher-js/react-native");
-    const PusherConstructor = Pusher.Pusher;
+    const PusherModule = require("pusher-js/react-native");
+    
+    // Fallback logic to grab the correct constructor regardless of build bundler quirks
+    const PusherConstructor = PusherModule.Pusher || PusherModule.default || PusherModule;
 
     console.log("Creating Pusher instance with config...");
 
@@ -26,21 +27,29 @@ const createEchoInstance = async () => {
           console.log("Listening for event:", event);
           // Pusher events start with '.' so add it if not present
           const eventName = event.startsWith('.') ? event : '.' + event;
-          pusherChannel.bind(eventName, callback);
+          
+          // Safe resolution: Direct method check vs internal emitter routing
+          if (typeof pusherChannel.bind === 'function') {
+            pusherChannel.bind(eventName, callback);
+          } else if (pusherChannel.emitter && typeof pusherChannel.emitter.bind === 'function') {
+            pusherChannel.emitter.bind(eventName, callback);
+          } else {
+            console.warn(`Could not bind to event ${eventName}: Bind method missing on channel structural type.`);
+          }
           return this;
         },
 
         unbind(event, callback) {
+          console.log("Unbinding event:", event);
           const eventName = event.startsWith('.') ? event : '.' + event;
-          pusherChannel.unbind(eventName, callback);
+          
+          if (typeof pusherChannel.unbind === 'function') {
+            pusherChannel.unbind(eventName, callback);
+          } else if (pusherChannel.emitter && typeof pusherChannel.emitter.unbind === 'function') {
+            pusherChannel.emitter.unbind(eventName, callback);
+          }
           return this;
-        },
-
-        // Pass through other methods
-        bind: pusherChannel.bind.bind(pusherChannel),
-        unbind: pusherChannel.unbind.bind(pusherChannel),
-        subscribe: pusherChannel.subscribe.bind(pusherChannel),
-        unsubscribe: pusherChannel.unsubscribe.bind(pusherChannel),
+        }
       };
     };
 

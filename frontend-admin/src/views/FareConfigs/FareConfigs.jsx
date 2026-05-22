@@ -11,6 +11,7 @@ import {
     createFareConfig,
     fetchFareConfigs,
     updateFareConfig,
+    fetchVehicleTypes,
 } from '../../services/adminApi'
 import './FareConfigs.css'
 
@@ -45,6 +46,7 @@ const FareConfigs = () => {
     const [editingId, setEditingId] = useState(null)
     const [isModalOpen, setModalOpen] = useState(false)
     const [form, setForm] = useState(defaultForm)
+    const [vehicleTypes, setVehicleTypes] = useState([])
 
     const loadFareConfigs = async () => {
         if (!token) return
@@ -60,14 +62,25 @@ const FareConfigs = () => {
         }
     }
 
+    const loadVehicleTypesList = async () => {
+        try {
+            const response = await fetchVehicleTypes(token)
+            setVehicleTypes(response.vehicleTypes || [])
+        } catch (error) {
+            console.error('Failed to load vehicle types:', error)
+        }
+    }
+
     useEffect(() => {
         if (!token) {
             setFareConfigs([])
+            setVehicleTypes([])
             setLoading(false)
             return
         }
 
         loadFareConfigs()
+        loadVehicleTypesList()
     }, [token])
 
     const filteredFareConfigs = useMemo(() => {
@@ -282,15 +295,38 @@ const FareConfigs = () => {
                 size="medium"
             >
                 <div style={{ display: 'grid', gap: '16px' }}>
-                    <FormInput
-                        label="Vehicle Type"
-                        name="vehicle_type"
-                        placeholder="e.g. car, bike, tuk"
-                        value={form.vehicle_type}
-                        onChange={handleFormChange}
-                        required
-                        disabled={saving}
-                    />
+                    <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <label htmlFor="vehicle_type" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted, #64748b)' }}>
+                            Vehicle Type *
+                        </label>
+                        <select
+                            id="vehicle_type"
+                            name="vehicle_type"
+                            value={form.vehicle_type}
+                            onChange={handleFormChange}
+                            required
+                            disabled={saving}
+                            style={{
+                                width: '100%',
+                                padding: '10px 12px',
+                                border: '1px solid var(--border, #e2e8f0)',
+                                borderRadius: '8px',
+                                background: '#ffffff',
+                                color: 'var(--text-dark, #1e293b)',
+                                fontSize: '14px',
+                                outline: 'none',
+                                transition: 'all 0.2s',
+                                fontFamily: 'var(--sans)'
+                            }}
+                        >
+                            <option value="">Select a vehicle type</option>
+                            {vehicleTypes.map((type) => (
+                                <option key={type.id} value={type.name}>
+                                    {type.display_name} ({type.name})
+                                </option>
+                            ))}
+                        </select>
+                    </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '0' }}>
                         <FormInput

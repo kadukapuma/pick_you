@@ -13,6 +13,7 @@ import Settings from '../views/Settings'
 import FareConfigs from '../views/FareConfigs'
 import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
+import VehicleTypes from '../views/VehicleTypes'
 
 import SuperDashboard from '../views/SuperDashboard'
 import Admins from '../views/Admins'
@@ -35,6 +36,9 @@ const AppRoutes = () => {
         admin?.role === 'super_admin' ||
         admin?.permissions?.includes('create_operators') ||
         admin?.permissions?.includes('manage_operators')
+    const canManageVehicleTypes =
+        admin?.role === 'super_admin' ||
+        admin?.permissions?.includes('manage_vehicle_types')
 
     return (
         <Routes>
@@ -53,6 +57,10 @@ const AppRoutes = () => {
                 <Route path="vehicles/:vehicleId" element={<VehicleDetail />} />
                 <Route path="customers" element={<Passengers />} />
                 <Route path="fare-configs" element={<FareConfigs />} />
+                <Route
+                    path="vehicle-types"
+                    element={canManageVehicleTypes ? <VehicleTypes /> : <Navigate to="/" replace />}
+                />
                 <Route path="settings" element={<Settings />} />
                 <Route
                     path="operators"

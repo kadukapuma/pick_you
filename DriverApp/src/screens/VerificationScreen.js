@@ -34,11 +34,20 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   ========================= */
   const [verificationStatus, setVerificationStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
+  const [driver, setDriver] = useState(null);
 
   useEffect(() => {
     fetchStatus();
     setupEcho();
-  }, []);
+
+    const unsubscribe = navigation?.addListener?.("focus", () => {
+      fetchStatus();
+    });
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, [navigation]);
 
   const setupEcho = async () => {
     try {
@@ -94,9 +103,10 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   const fetchStatus = async () => {
     try {
       const response = await api.get("/user");
-      const driver = response.data?.driver;
-      if (driver) {
-        setVerificationStatus(driver.status?.toLowerCase() || "pending");
+      const drv = response.data?.driver;
+      if (drv) {
+        setDriver(drv);
+        setVerificationStatus(drv.status?.toLowerCase() || "pending");
       }
     } catch (error) {
       console.log("Error fetching driver status:", error);
@@ -399,10 +409,12 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
             setDriverStatus?.("rejected");
             navigation.navigate("Documentscreen");
           } else if (verificationStatus === "approved") {
-            await AsyncStorage.setItem("hasSeenApproved", "true");
+            const hasSeenKey = driver ? `hasSeenApproved_${driver.id}` : "hasSeenApproved";
+            await AsyncStorage.setItem(hasSeenKey, "true");
             setDriverStatus?.("approved");
             setIsNewUser?.(false);
-            navigation.replace("MainTabs");
+            navigation.replace("ComingSoon");
+            // navigation.replace("MainTabs");
           }
         }}
       >

@@ -1,0 +1,33 @@
+.vehicle-types-page {
+  display: block;
+}
+
+.vehicle-types-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: auto;
+  flex-shrink: 0;
+}
+
+.vehicle-type-name {
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.vehicle-type-desc {
+  color: var(--text-muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 250px;
+}
+
+@media (max-width: 900px) {
+  .vehicle-types-toolbar {
+    width: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+}

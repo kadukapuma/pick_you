@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
+import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./src/services/api";
 
@@ -24,13 +25,14 @@ export default function App() {
             const fetchedStatus = drv.status?.toLowerCase() || "pending";
 
             // Check if seen approved screen before
-            const hasSeenApproved = await AsyncStorage.getItem("hasSeenApproved");
+            const hasSeenKey = `hasSeenApproved_${drv.id}`;
+            const hasSeenApproved = await AsyncStorage.getItem(hasSeenKey);
 
             let finalStatus = fetchedStatus;
 
             // If they are approved but haven't seen the success screen
             if (fetchedStatus === "approved" && !hasSeenApproved) {
-               finalStatus = "show_approved_screen";
+              finalStatus = "show_approved_screen";
             }
 
             setDriverStatus(finalStatus);
@@ -58,6 +60,7 @@ export default function App() {
 
   return (
     <NavigationContainer>
+      <StatusBar style="dark" translucent backgroundColor="transparent" />
       <AppNavigator
         isLoggedIn={isLoggedIn}
         setIsLoggedIn={setIsLoggedIn}

@@ -1,0 +1,104 @@
+RiderApp/
+├── documentation/                     # Project-level docs
+│   └── README.md
+
+├── frontend/                          # Main React Native Expo app
+│   ├── app/                           # Expo Router file-based routing
+│   │   ├── _layout.tsx                # Root layout (Stack navigation)
+│   │   ├── index.tsx                  # Default home route
+│   │   ├── +not-found.tsx             # 404 handler
+│   │   ├── ride-search/               # Ride search feature
+│   │   │   ├── index.tsx              # Ride search entry
+│   │   │   ├── confirm-ride.tsx       # Ride confirmation screen
+│   │   │   ├── driver-search.tsx      # Driver search screen
+│   │   │   └── ride-tracking.tsx      # Ride tracking screen
+│   │   │
+│   │   ├── (auth)/                    # Auth route group
+│   │   │   ├── _layout.tsx            # Auth stack layout
+│   │   │   ├── splash.tsx             # Splash screen
+│   │   │   ├── get-started.tsx        # Onboarding screen
+│   │   │   ├── language.tsx           # Language selection
+│   │   │   ├── welcome.tsx            # Welcome screen
+│   │   │   ├── signin.tsx             # Sign in form
+│   │   │   ├── signup.tsx             # Sign up form
+│   │   │   ├── verify-number.tsx      # Phone verification
+│   │   │   └── onboarding/            # Onboarding screens folder
+│   │   │
+│   │   └── (drawer)/                  # Drawer navigation group
+│   │       ├── _layout.tsx            # Drawer layout
+│   │       └── (tabs)/                # Tab navigation
+│   │           ├── _layout.tsx        # Tab layout
+│   │           ├── index.tsx          # Main tab
+│   │           ├── home.tsx           # Home screen
+│   │           ├── account.tsx        # Account screen
+│   │           ├── activities.tsx     # Activities screen
+│   │           ├── notification.tsx   # Notifications screen
+│   │           └── scan.tsx           # Scan/QR screen
+│   │
+│   ├── components/
+│   │   ├── CustomDrawerContent.tsx    # Drawer menu content
+│   │   ├── home/
+│   │   │   ├── HomeHeader.tsx
+│   │   │   ├── FeatureRow.tsx
+│   │   │   ├── PromoBanner.tsx
+│   │   │   ├── SavedPlaces.tsx
+│   │   │   ├── SearchBar.tsx
+│   │   │   ├── ServiceGrid.tsx
+│   │   │   ├── serviceGridnew.tsx
+│   │   │   └── WalletCard.tsx
+│   │   └── ride/
+│   │       ├── RideMap.tsx
+│   │       ├── DriverMarker.tsx
+│   │       ├── RoutePolyline.tsx
+│   │       ├── PickupInput.tsx
+│   │       ├── DestinationInput.tsx
+│   │       └── RideLocationInput.tsx
+│   │
+│   ├── hooks/                         # Custom React hooks
+│   │   └── useLocation.ts             # Example: location hook
+│   │
+│   ├── services/
+│   │   ├── location/
+│   │   │   ├── locationService.ts     # Get current location
+│   │   │   └── trackingService.ts     # Track user movement
+│   │   └── routing/
+│   │       ├── routeService.ts        # Handle route requests
+│   │       └── geocodeService.ts      # Convert address ↔ coordinates
+│   │
+│   ├── assets/
+│   │   └── images/                    # App images & logos
+│   │       ├── logo.png
+│   │       └── banner.png
+│   │
+│   ├── app-example/                   # Example/template app
+│   │   ├── app/
+│   │   ├── components/
+│   │   ├── constants/
+│   │   ├── hooks/
+│   │   ├── scripts/
+│   │   └── assets/
+│   │
+│   ├── lib/
+│   │   └── services/
+│   │       └── location/
+│   │           └── mockLocation.ts    # Mock location for testing
+│   │
+│   ├── documentation/
+│   │   ├── folderstructure.txt
+│   │   └── home-feature-screen-plan.md
+│   │
+│   ├── Configuration files:
+│   │   ├── package.json               # Dependencies
+│   │   ├── tsconfig.json              # TypeScript config
+│   │   ├── tailwind.config.js         # Tailwind CSS config
+│   │   ├── metro.config.js            # Metro bundler config
+│   │   ├── babel.config.js            # Babel config
+│   │   ├── eslint.config.js           # Linting rules
+│   │   ├── global.css                 # Global styles
+│   │   ├── nativewind-env.d.ts        # NativeWind types
+│   │   ├── expo-env.d.ts              # Expo types
+│   │   └── README.md
+│   │
+│   └── node_modules/                  # Dependencies (npm packages)
+│
+└── (Other folders at root level)

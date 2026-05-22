@@ -27,6 +27,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('drivers', App\Http\Controllers\Api\DriverController::class);
     Route::apiResource('vehicles', App\Http\Controllers\Api\VehicleController::class);
     Route::post('/vehicles/{id}/upload-images', [App\Http\Controllers\Api\VehicleController::class, 'uploadImages']);
+    Route::get('/vehicle-types', [App\Http\Controllers\Api\VehicleTypeController::class, 'index']);
     Route::apiResource('driver-documents', App\Http\Controllers\Api\DriverDocumentController::class);
     Route::apiResource('rides', App\Http\Controllers\Api\RideController::class);
     Route::post('/rides/{id}/accept', [App\Http\Controllers\Api\RideController::class, 'acceptRide']);
@@ -59,6 +60,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/operators/{id}/status', [App\Http\Controllers\Api\OperatorController::class, 'updateStatus'])->middleware('permission:manage_operators');
         Route::delete('/operators/{id}', [App\Http\Controllers\Api\OperatorController::class, 'destroy'])->middleware('permission:manage_operators');
         Route::apiResource('fare-configs', App\Http\Controllers\Api\FareConfigController::class)->middleware('permission:manage_fare_configs');
+        Route::apiResource('vehicle-types', App\Http\Controllers\Api\VehicleTypeController::class)->except(['index'])->middleware('permission:manage_vehicle_types');
 
         // Vehicle management requires manage_vehicles permission
         Route::apiResource('vehicles', App\Http\Controllers\Api\VehicleController::class)->middleware('permission:manage_vehicles');

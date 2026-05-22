@@ -341,6 +341,37 @@ const updateFareConfig = async (token, fareConfigId, fareConfig) => {
   return { fareConfig: payload.data }
 }
 
+const fetchVehicleTypes = async (token) => {
+  const payload = await apiFetch('/vehicle-types', { token })
+  return { vehicleTypes: payload.data || [] }
+}
+
+const createVehicleType = async (token, vehicleType) => {
+  const payload = await apiFetch('/vehicle-types', {
+    method: 'POST',
+    token,
+    body: vehicleType,
+  })
+  return { vehicleType: payload.data }
+}
+
+const updateVehicleType = async (token, vehicleTypeId, vehicleType) => {
+  const payload = await apiFetch(`/vehicle-types/${vehicleTypeId}`, {
+    method: 'PUT',
+    token,
+    body: vehicleType,
+  })
+  return { vehicleType: payload.data }
+}
+
+const deleteVehicleType = async (token, vehicleTypeId) => {
+  const payload = await apiFetch(`/vehicle-types/${vehicleTypeId}`, {
+    method: 'DELETE',
+    token,
+  })
+  return payload
+}
+
 export {
   API_BASE,
   TOKEN_KEY,
@@ -379,6 +410,10 @@ export {
   fetchFareConfigs,
   createFareConfig,
   updateFareConfig,
+  fetchVehicleTypes,
+  createVehicleType,
+  updateVehicleType,
+  deleteVehicleType,
   createOperator,
   updateOperator,
   updateOperatorStatus,
