@@ -120,7 +120,7 @@ const Login = () => {
                     </div>
 
                     <h3>LOGIN</h3>
-                    <p className="subtitle">welcome to the website</p>
+                    {/* <p className="subtitle">welcome to the website</p> */}
 
                     <form onSubmit={handleSubmit}>
                         <div className="form-group">
