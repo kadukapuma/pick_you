@@ -7,6 +7,8 @@ import {
   Switch,
   StatusBar,
   Platform,
+  Alert,
+  ActivityIndicator,
 } from "react-native";
 
 import MapView, { PROVIDER_GOOGLE, Marker, AnimatedRegion } from "react-native-maps";
@@ -14,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { Feather } from "@expo/vector-icons";
+import api from "../../services/api";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -21,6 +24,7 @@ const HomeScreen = () => {
   const navigation = useNavigation();
 
   const [isOnline, setIsOnline] = useState(false);
+  const [isToggling, setIsToggling] = useState(false);
 
   const [region] = useState(
     new AnimatedRegion({
@@ -38,9 +42,59 @@ const HomeScreen = () => {
       StatusBar.setTranslucent(false);
       StatusBar.setHidden(false);
 
+      // Fetch driver data when screen is focused
+      fetchDriverData();
+
       return () => {};
     }, [])
   );
+
+  const fetchDriverData = async () => {
+    try {
+      const response = await api.get("/user");
+      const driverAvailability = response.data?.driver?.availability;
+      // Convert to boolean: 1 = true, 0 or falsy = false
+      setIsOnline(driverAvailability === 1);
+    } catch (error) {
+      console.log("Error fetching driver data:", error);
+    }
+  };
+
+  const handleToggleAvailability = async (newValue) => {
+    setIsToggling(true);
+
+    try {
+      // Call the API to update driver availability
+      const response = await api.put('/driver/availability', {
+        is_active: newValue,
+      });
+
+      // Update local state if API call is successful
+      setIsOnline(newValue);
+
+      // Optional: Show confirmation message
+      Alert.alert(
+        "Success",
+        newValue
+          ? "You're now online and searching for trips!"
+          : "You're now offline.",
+        [{ text: "OK" }]
+      );
+    } catch (error) {
+      console.log("Error updating driver availability:", error);
+
+      // Reset the toggle if there's an error
+      setIsOnline(!newValue);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to update availability. Please try again.";
+
+      Alert.alert("Error", errorMessage, [{ text: "OK" }]);
+    } finally {
+      setIsToggling(false);
+    }
+  };
 
   const goToMyLocation = async () => {
     try {
@@ -143,12 +197,17 @@ const HomeScreen = () => {
             </Text>
           </View>
 
-          <Switch
-            trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
-            thumbColor={isOnline ? "#00A859" : "#FFF"}
-            onValueChange={() => setIsOnline(!isOnline)}
-            value={isOnline}
-          />
+          {isToggling ? (
+            <ActivityIndicator size="large" color="#00A859" />
+          ) : (
+            <Switch
+              trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
+              thumbColor={isOnline ? "#00A859" : "#FFF"}
+              onValueChange={handleToggleAvailability}
+              value={isOnline}
+              disabled={isToggling}
+            />
+          )}
         </View>
       </SafeAreaView>
     </View>

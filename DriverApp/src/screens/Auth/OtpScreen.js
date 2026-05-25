@@ -32,18 +32,21 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
   // 1. Updated Route Params
   const isRegistration = route?.params?.isRegistration ?? false;
   const isForgotPassword = route?.params?.isForgotPassword ?? false;
+  const shouldAutoSendOtp = route?.params?.shouldAutoSendOtp ?? true;
   const email = route?.params?.email ?? "";
   const phone = route?.params?.phone ?? "";
 
   // Automatically request OTP when screen mounts
   useEffect(() => {
-    sendOtpRequest();
+    if (shouldAutoSendOtp) {
+      sendOtpRequest();
+    }
 
     const interval = setInterval(() => {
       setTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [shouldAutoSendOtp]);
 
   // 2. Updated sendOtpRequest() with conditional purpose
   const sendOtpRequest = async () => {

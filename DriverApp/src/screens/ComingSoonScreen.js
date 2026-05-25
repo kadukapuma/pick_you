@@ -3,6 +3,9 @@ import { MotiText, MotiView } from "moti";
 import React from "react";
 import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
+import { fetchMaintenanceMode } from "../services/appSettings";
 
 const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNewUser }) => {
   const handleLogout = () => {
@@ -13,13 +16,32 @@ const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNew
 
   const BRAND_GREEN = "#00A859";
 
+  // Check maintenance mode when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const checkMaintenance = async () => {
+        try {
+          const result = await fetchMaintenanceMode();
+          // If maintenance mode is disabled, navigate to home
+          if (!result.maintenanceMode) {
+            navigation?.replace?.("MainTabs");
+          }
+        } catch (error) {
+          console.error('Error checking maintenance mode:', error);
+        }
+      };
+
+      checkMaintenance();
+    }, [navigation])
+  );
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
       {/* Top Header Row with Construction Accents */}
       <View style={styles.topRow}>
-        <MotiView 
+        <MotiView
           from={{ translateX: -10 }}
           animate={{ translateX: 10 }}
           transition={{ type: "timing", duration: 2500, loop: true, repeatReverse: true }}
@@ -65,17 +87,17 @@ const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNew
           </View>
 
           {/* Miniature construction barrier indicators */}
-          <MotiView 
+          <MotiView
             from={{ opacity: 0.4 }}
             animate={{ opacity: 1 }}
             transition={{ type: "timing", duration: 800, loop: true, repeatReverse: true }}
-            style={[styles.blinkingLight, { top: 0, left: 10 }]} 
+            style={[styles.blinkingLight, { top: 0, left: 10 }]}
           />
-          <MotiView 
+          <MotiView
             from={{ opacity: 1 }}
             animate={{ opacity: 0.4 }}
             transition={{ type: "timing", duration: 800, loop: true, repeatReverse: true }}
-            style={[styles.blinkingLight, { bottom: 6, right: 10 }]} 
+            style={[styles.blinkingLight, { bottom: 6, right: 10 }]}
           />
         </View>
 

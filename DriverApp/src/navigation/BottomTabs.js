@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import { StyleSheet, TouchableOpacity, View } from "react-native";
 import Animated, {
@@ -9,6 +10,7 @@ import Animated, {
   withSpring,
 } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useCallback } from "react";
 
 import ActivityScreen from "../screens/Main Screen/ActivityScreen";
 import EarningsScreen from "../screens/Main Screen/EarningScreen";
@@ -114,7 +116,19 @@ const CustomTabBar = ({ state, navigation }) => {
 /* =========================
    NAVIGATION
 ========================= */
-const BottomTabs = ({ setIsLoggedIn, setIsNewUser, setDriverStatus }) => {
+const BottomTabs = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, maintenanceMode, driverStatus }) => {
+  const navigation = useNavigation();
+
+  // Check maintenance mode when this screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      if (maintenanceMode && driverStatus?.toLowerCase() === "approved") {
+        // Navigate to ComingSoon screen if maintenance mode is enabled
+        navigation.replace("ComingSoon");
+      }
+    }, [maintenanceMode, driverStatus, navigation])
+  );
+
   return (
     <SafeAreaView
       edges={["bottom"]}
