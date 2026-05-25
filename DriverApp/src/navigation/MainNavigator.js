@@ -1,5 +1,6 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 
 // --- SCREENS IMPORT (Your exact file paths combined) ---
 import EditVehicleScreen from "../screens//Main Screen/EditVehicleScreem";
@@ -14,6 +15,7 @@ import DocumentsScreen from "../screens/Main Screen/DocumentsScreen";
 import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen";
 import ComingSoonScreen from "../screens/ComingSoonScreen";
 import BottomTabs from "./BottomTabs";
+import { fetchMaintenanceMode } from "../services/appSettings";
 
 const Stack = createNativeStackNavigator();
 
@@ -25,6 +27,56 @@ const MainNavigator = ({
   setDriverStatus,
   driver = null,
 }) => {
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [loadingMaintenanceMode, setLoadingMaintenanceMode] = useState(true);
+  const navigationRef = useRef(null);
+  const pollIntervalRef = useRef(null);
+
+  // Function to check maintenance mode
+  const checkMaintenanceMode = async () => {
+    try {
+      const result = await fetchMaintenanceMode();
+      const newMaintenanceMode = result.maintenanceMode || false;
+      setMaintenanceMode(newMaintenanceMode);
+
+      // If maintenance mode was turned OFF and we're on ComingSoon, navigate to MainTabs
+      if (!newMaintenanceMode && driverStatus?.toLowerCase() === "approved") {
+        navigationRef.current?.navigate("MainTabs");
+      }
+    } catch (error) {
+      console.error('Error checking maintenance mode:', error);
+    }
+  };
+
+  // Check maintenance mode on mount
+  useEffect(() => {
+    const initializeMaintenanceMode = async () => {
+      try {
+        const result = await fetchMaintenanceMode();
+        setMaintenanceMode(result.maintenanceMode || false);
+      } catch (error) {
+        console.error('Error checking maintenance mode:', error);
+        setMaintenanceMode(false);
+      } finally {
+        setLoadingMaintenanceMode(false);
+      }
+    };
+
+    initializeMaintenanceMode();
+  }, []);
+
+  // Poll maintenance mode every 5 seconds
+  useEffect(() => {
+    pollIntervalRef.current = setInterval(() => {
+      checkMaintenanceMode();
+    }, 5000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [driverStatus]);
 
   // Back-end Exit handler logic
   const handleExitToGetStarted = () => {
@@ -35,6 +87,11 @@ const MainNavigator = ({
 
   // Back-end Logic: Evaluates data completeness to safely direct user entry routing
   const getInitialRoute = () => {
+    // If maintenance mode is enabled and driver is approved, show ComingSoonScreen
+    if (maintenanceMode && driverStatus?.toLowerCase() === "approved" && driver) {
+      return "ComingSoon";
+    }
+
     const status = driverStatus?.toLowerCase();
 
     // If we have the full driver object, check data parameter completeness
@@ -68,8 +125,8 @@ const MainNavigator = ({
     // Direct Fallbacks when live driver context payload structure isn't populated
     if (status === "show_approved_screen") return "Verification";
     //
-    if (status === "approved") return "ComingSoon";
-    //  if (status === "approved") return "MainTabs";
+    // if (status === "approved") return "ComingSoon";
+     if (status === "approved") return "MainTabs";
     if (isNewUser) return "ProfileSet";
     if (status === "pending" || status === "rejected") return "Verification";
 
@@ -78,6 +135,7 @@ const MainNavigator = ({
 
   return (
     <Stack.Navigator
+      ref={navigationRef}
       initialRouteName={getInitialRoute()}
       screenOptions={{
         headerShown: false,
@@ -150,6 +208,8 @@ const MainNavigator = ({
             setIsLoggedIn={setIsLoggedIn}
             setIsNewUser={setIsNewUser}
             setDriverStatus={setDriverStatus}
+            maintenanceMode={maintenanceMode}
+            driverStatus={driverStatus}
           />
         )}
       </Stack.Screen>

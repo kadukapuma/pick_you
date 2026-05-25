@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import './TopBar.css'
 
@@ -75,6 +76,15 @@ const TopBar = ({
             </div>
 
             <div className="top-bar-right">
+                <NavLink
+                    to="/settings"
+                    className={({ isActive }) => `top-bar-link ${isActive ? 'active' : ''}`}
+                    title="Settings"
+                >
+                    <span className="material-icons">settings</span>
+
+                </NavLink>
+
                 {/* Notification Center */}
                 <div className="notification-center" ref={notificationRef}>
                     <button

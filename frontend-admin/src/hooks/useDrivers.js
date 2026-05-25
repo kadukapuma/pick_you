@@ -84,6 +84,35 @@ const useDrivers = (token) => {
     }
   }, [token, page])
 
+  // Listen for real-time driver availability updates
+  useEffect(() => {
+    if (!token) return
+
+    const channel = echo.channel('admin.dashboard')
+    const handleDashboardUpdate = (payload) => {
+      // Update driver availability when DashboardUpdated event is received
+      if (payload?.event === 'driver.account' && payload?.data?.driver_id) {
+        const driverId = payload.data.driver_id
+        const availability = payload.data.availability
+
+        setDrivers((prev) =>
+          prev.map((driver) =>
+            driver.id === driverId
+              ? { ...driver, availability }
+              : driver,
+          ),
+        )
+      }
+    }
+
+    channel.listen('DashboardUpdated', handleDashboardUpdate)
+
+    return () => {
+      channel.stopListening('DashboardUpdated', handleDashboardUpdate)
+      echo.leave('admin.dashboard')
+    }
+  }, [token])
+
   const updateDriver = useCallback((nextDriver) => {
     setDrivers((prev) =>
       prev.map((driver) =>

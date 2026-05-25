@@ -2,6 +2,9 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
 import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback } from "react";
+import { fetchMaintenanceMode } from "../services/appSettings";
 
 const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNewUser }) => {
   const handleLogout = () => {
@@ -9,6 +12,25 @@ const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNew
     setIsNewUser?.(false);
     setIsLoggedIn?.(false);
   };
+
+  // Check maintenance mode when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      const checkMaintenance = async () => {
+        try {
+          const result = await fetchMaintenanceMode();
+          // If maintenance mode is disabled, navigate to home
+          if (!result.maintenanceMode) {
+            navigation?.replace?.("MainTabs");
+          }
+        } catch (error) {
+          console.error('Error checking maintenance mode:', error);
+        }
+      };
+
+      checkMaintenance();
+    }, [navigation])
+  );
 
   return (
     <SafeAreaView style={styles.container}>

@@ -138,6 +138,31 @@ class DriverController extends Controller
         return $this->success($driver, 'Driver account status updated successfully.');
     }
 
+    public function updateOwnAvailability(Request $request)
+    {
+        $request->validate([
+            'is_active' => 'required|boolean'
+        ]);
+
+        $user = $request->user();
+        if (!$user || !$user->driver) {
+            return $this->error('Driver not found.', 404);
+        }
+
+        $driver = $user->driver;
+
+        // Update the driver's availability status (1 for online, 0 for offline)
+        $availability = $request->is_active ? 1 : 0;
+        $driver->update(['availability' => $availability]);
+
+        event(new DashboardUpdated('driver.account', [
+            'driver_id' => $driver->id,
+            'availability' => $availability,
+        ]));
+
+        return $this->success($driver->load('user'), 'Availability updated successfully.');
+    }
+
     public function completeProfile(Request $request)
     {
         $request->validate([

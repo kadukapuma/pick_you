@@ -12,6 +12,9 @@ Route::post('/otp/send', [AuthController::class, 'sendOtp']);
 Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
 Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA']);
 
+// Public app settings (maintenance mode check for all users)
+Route::get('/app-settings/maintenance-mode', [App\Http\Controllers\Api\AppSettingsController::class, 'getMaintenanceMode']);
+
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
@@ -21,6 +24,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
     Route::post('/driver/complete-profile', [App\Http\Controllers\Api\DriverController::class, 'completeProfile']);
     Route::post('/driver/license-images', [App\Http\Controllers\Api\DriverController::class, 'updateLicenseImages']);
+    Route::put('/driver/availability', [App\Http\Controllers\Api\DriverController::class, 'updateOwnAvailability']);
 
     // Resource routes
     Route::apiResource('passengers', App\Http\Controllers\Api\PassengerController::class);
@@ -74,6 +78,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/dashboard/stats', [App\Http\Controllers\Api\DashboardController::class, 'getStats']);
         Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
+
+        // App Settings routes (Super Admin only)
+        Route::middleware('super_admin')->group(function () {
+            Route::get('/app-settings', [App\Http\Controllers\Api\AppSettingsController::class, 'index']);
+            Route::get('/app-settings/{key}', [App\Http\Controllers\Api\AppSettingsController::class, 'show']);
+            Route::put('/app-settings/{key}', [App\Http\Controllers\Api\AppSettingsController::class, 'update']);
+        });
 
         // Super Admin only routes
         Route::middleware('super_admin')->group(function () {

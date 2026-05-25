@@ -413,8 +413,8 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
             await AsyncStorage.setItem(hasSeenKey, "true");
             setDriverStatus?.("approved");
             setIsNewUser?.(false);
-            navigation.replace("ComingSoon");
-            // navigation.replace("MainTabs");
+            // navigation.replace("ComingSoon");
+            navigation.replace("MainTabs");
           }
         }}
       >
