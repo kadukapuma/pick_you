@@ -4,6 +4,8 @@ import GetStartedScreen from "../screens/Auth/GetStartedScreen";
 import LoginScreen from "../screens/Auth/LoginScreen";
 import OTPScreen from "../screens/Auth/OtpScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
+import ForgotPasswordScreen from "../screens/Auth/ForgotPasswordScreen";
+import ResetPasswordScreen from "../screens/Auth/ResetPasswordScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -58,6 +60,24 @@ const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver
           />
         )}
       </Stack.Screen>
+
+      <Stack.Screen name="ForgotPassword">
+  {(props) => (
+    <ForgotPasswordScreen
+      {...props}
+      onExit={() => handleExitToGetStarted(props.navigation)}
+    />
+  )}
+</Stack.Screen>
+
+<Stack.Screen name="ResetPassword">
+  {(props) => (
+    <ResetPasswordScreen
+      {...props}
+      onExit={() => handleExitToGetStarted(props.navigation)}
+    />
+  )}
+</Stack.Screen>
     </Stack.Navigator>
   );
 };

@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
-import { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -28,7 +28,10 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
 
   const inputs = useRef([]);
   const BRAND_GREEN = "#00A859";
+
+  // 1. Updated Route Params
   const isRegistration = route?.params?.isRegistration ?? false;
+  const isForgotPassword = route?.params?.isForgotPassword ?? false;
   const email = route?.params?.email ?? "";
   const phone = route?.params?.phone ?? "";
 
@@ -42,6 +45,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
     return () => clearInterval(interval);
   }, []);
 
+  // 2. Updated sendOtpRequest() with conditional purpose
   const sendOtpRequest = async () => {
     if (!email) {
       Alert.alert("Missing Email", "An email address is required to send the OTP.");
@@ -50,7 +54,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
     try {
       const res = await api.post("/otp/send", {
         email,
-        purpose: "verification",
+        purpose: isForgotPassword ? "forgot_password" : "verification",
       });
       if (res.data?.data?.otp) {
         Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
@@ -82,40 +86,67 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
     }
   };
 
+  // 3 & 4. Updated handleVerify() with Forgot Password Routing and API payloads
   const handleVerify = async () => {
     const otpCode = otp.join("");
+
     if (otpCode.length < 4) return;
+
     if (!email) {
-      Alert.alert("Missing Email", "An email address is required to verify the OTP.");
+      Alert.alert(
+        "Missing Email",
+        "An email address is required to verify the OTP."
+      );
       return;
     }
 
     setIsLoading(true);
+
     try {
       await api.post("/otp/verify", {
         email,
         otp_code: otpCode,
-        purpose: "verification"
+        purpose: isForgotPassword ? "forgot_password" : "verification",
       });
 
-      // Fetch user profile to ensure driver context is set up properly
+      // ==========================
+      // FORGOT PASSWORD FLOW
+      // ==========================
+      if (isForgotPassword) {
+        setIsLoading(false);
+
+        navigation.replace("ResetPassword", {
+          email,
+        });
+
+        return;
+      }
+
+      // ==========================
+      // REGISTRATION / LOGIN FLOW
+      // ==========================
       let driverData = null;
       let status = "pending";
       let isProfileComplete = false;
 
       try {
         const userResponse = await api.get("/user");
+
         driverData = userResponse.data?.driver;
+
         if (driverData) {
           status = (driverData.status || "pending").toLowerCase();
 
           if (status === "approved") {
             const hasSeenKey = `hasSeenApproved_${driverData.id}`;
+
             const hasSeenApproved = await AsyncStorage.getItem(hasSeenKey);
+
             if (!hasSeenApproved) {
               status = "show_approved_screen";
             }
           }
+
           isProfileComplete = !!driverData.address;
         }
       } catch (userErr) {
@@ -128,8 +159,11 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
       if (isRegistration) {
         setIsNewUser?.(true);
       } else {
-        // For existing users, check profile completeness
-        if (status !== "approved" && status !== "show_approved_screen" && !isProfileComplete) {
+        if (
+          status !== "approved" &&
+          status !== "show_approved_screen" &&
+          !isProfileComplete
+        ) {
           setIsNewUser?.(true);
         } else {
           setIsNewUser?.(false);
@@ -137,13 +171,17 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
       }
 
       setIsLoading(false);
-      // Wait a tick for modal to clear before proceeding
+
       setTimeout(() => {
         setIsLoggedIn?.(true);
       }, 300);
     } catch (error) {
       setIsLoading(false);
-      Alert.alert("Verification Failed", error.response?.data?.message || "Invalid OTP code.");
+
+      Alert.alert(
+        "Verification Failed",
+        error.response?.data?.message || "Invalid OTP code."
+      );
     }
   };
 
@@ -187,17 +225,19 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
         </MotiView>
 
         <View style={styles.contentContainer}>
+          {/* 5. Dynamic Screen Title */}
           <MotiText
             from={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 100 }}
             style={styles.title}
           >
-            Verify Phone
+            {isForgotPassword ? "Verify OTP" : "Verify Account"}
           </MotiText>
 
+          {/* 6. Dynamic Subtitle text */}
           <MotiText style={styles.subtitle}>
-            We sent a 4-digit code to{" "}
+            {isForgotPassword ? "Enter the OTP sent to " : "We sent a 4-digit code to "}
             <Text style={[styles.phoneText, { color: BRAND_GREEN }]}>
               {email || phone || "your email address"}
             </Text>
@@ -290,12 +330,13 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
               color={BRAND_GREEN}
             />
           </MotiView>
+          {/* 7. Dynamic Loading Text */}
           <MotiText
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ loop: true, duration: 1500, type: "timing" }}
             style={styles.loadingText}
           >
-            Verifying Code...
+            {isForgotPassword ? "Verifying OTP..." : "Verifying Account..."}
           </MotiText>
         </View>
       </Modal>
@@ -355,7 +396,7 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   otpBox: {
-    width: (width - 80) / 6,
+    width: (width - 80) / 4, // Adjusted from /6 to /4 for a perfect 4-digit grid alignment
     height: 68,
     borderRadius: 16,
     borderWidth: 1.5,

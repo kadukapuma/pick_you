@@ -275,9 +275,20 @@ const LoginScreen = ({
                     transition={{ delay: 800 }}
                     style={styles.forgotBtn}
                   >
-                    <TouchableOpacity>
-                      <Text style={styles.forgotText}>Forgot Password?</Text>
-                    </TouchableOpacity>
+                   <TouchableOpacity
+                      onPress={() => navigation.navigate("ForgotPassword")}
+                      style={{ alignSelf: "flex-end", marginTop: 8 }}
+                  >
+               <Text
+                  style={{
+                  color: "#00A859",
+                  fontWeight: "700",
+                 fontSize: 14,
+              }}
+               >
+                Forgot Password?
+              </Text>
+                </TouchableOpacity>
                   </MotiView>
 
                   {/* LOGIN ACTIONS */}
