@@ -75,7 +75,7 @@ class AuthController extends Controller
         } elseif ($request->role === 'driver') {
             $driver = $user->driver()->create([
                 'status' => 'pending',
-                'availability' => 'offline',
+                'availability' => 0,
                 'rating' => 0.0
             ]);
 

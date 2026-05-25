@@ -15,10 +15,13 @@ const Settings = () => {
     });
     const [maintenanceMode, setMaintenanceMode] = useState(false);
 
-    // Load app settings
+    // Check if user is super admin
+    const isSuperAdmin = admin?.role === 'super_admin';
+
+    // Load app settings (Super Admin only)
     useEffect(() => {
         const loadSettings = async () => {
-            if (!token) return;
+            if (!token || !isSuperAdmin) return;
             try {
                 setLoadingSettings(true);
                 const result = await fetchAppSettings(token);
@@ -33,7 +36,7 @@ const Settings = () => {
         };
 
         loadSettings();
-    }, [token]);
+    }, [token, isSuperAdmin]);
 
     const handleChange = (e) => {
         setPasswords({
@@ -114,36 +117,38 @@ const Settings = () => {
                     </div>
                 </div>
 
-                {/* App Settings Section */}
-                <div className="settings-section">
-                    <div className="section-header">
-                        <span className="material-icons">tune</span>
-                        <h2>App Settings</h2>
-                    </div>
+                {/* App Settings Section - Only visible to Super Admin */}
+                {isSuperAdmin ? (
+                    <div className="settings-section">
+                        <div className="section-header">
+                            <span className="material-icons">tune</span>
+                            <h2>App Settings</h2>
+                        </div>
 
-                    <div className="app-settings-form">
-                        <div className="settings-item">
-                            <div className="setting-info">
-                                <h3>Maintenance Mode</h3>
-                                <p>When enabled, all users will see a "Coming Soon" screen after login instead of the main app</p>
-                            </div>
-                            <div className="setting-control">
-                                <label className="toggle-switch">
-                                    <input
-                                        type="checkbox"
-                                        checked={maintenanceMode}
-                                        onChange={handleMaintenanceModeToggle}
-                                        disabled={loadingSettings}
-                                    />
-                                    <span className="toggle-slider"></span>
-                                </label>
-                                <span className="toggle-status">
-                                    {maintenanceMode ? 'ENABLED' : 'DISABLED'}
-                                </span>
+                        <div className="app-settings-form">
+                            <div className="settings-item">
+                                <div className="setting-info">
+                                    <h3>Maintenance Mode</h3>
+                                    <p>When enabled, all users will see a "Coming Soon" screen after login instead of the main app</p>
+                                </div>
+                                <div className="setting-control">
+                                    <label className="toggle-switch">
+                                        <input
+                                            type="checkbox"
+                                            checked={maintenanceMode}
+                                            onChange={handleMaintenanceModeToggle}
+                                            disabled={loadingSettings}
+                                        />
+                                        <span className="toggle-slider"></span>
+                                    </label>
+                                    <span className="toggle-status">
+                                        {maintenanceMode ? 'ENABLED' : 'DISABLED'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
+                ) : null}
 
                 {/* Change Password Section */}
                 <div className="settings-section">
