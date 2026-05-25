@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
 import React, { useState } from "react";
 import {
+  Alert,
   Dimensions,
   KeyboardAvoidingView,
   Platform,
@@ -11,8 +12,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from "react-native";
+
+import api from "../../services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -22,24 +24,38 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
   const BRAND_GREEN = "#00A859";
 
-  // UI ONLY (simulate OTP send)
-  const handleSendOtp = () => {
-    if (!email.trim()) {
+  const handleSendOtp = async () => {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
       Alert.alert("Required", "Please enter your email.");
       return;
     }
 
-    setLoading(true);
+    try {
+      setLoading(true);
 
-    setTimeout(() => {
+      await api.post("/otp/send", {
+        email: trimmedEmail,
+        purpose: "forgot_password",
+      });
+
       setLoading(false);
 
-      // go to OTP screen (no backend)
       navigation.navigate("OTP", {
-        email,
+        email: trimmedEmail,
         isForgotPassword: true,
+        shouldAutoSendOtp: false,
       });
-    }, 1200);
+    } catch (error) {
+      setLoading(false);
+
+      Alert.alert(
+        "Error",
+        error.response?.data?.message ||
+          "Unable to send OTP. Please verify the email and try again."
+      );
+    }
   };
 
   return (
@@ -97,6 +113,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
               placeholderTextColor="#94A3B8"
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
               value={email}
               onChangeText={setEmail}
             />

@@ -248,6 +248,45 @@ class AuthController extends Controller
         return $this->success(null, 'OTP verified successfully');
     }
 
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        $user = User::where('email', $request->email)->first();
+
+        if (!$user) {
+            return $this->error('User not found', 404);
+        }
+
+        $verifiedOtp = $user->otpVerifications()
+            ->where('purpose', 'forgot_password')
+            ->where('is_verified', true)
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$verifiedOtp) {
+            return $this->error('OTP verification required', 403);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        $user->otpVerifications()
+            ->where('purpose', 'forgot_password')
+            ->update(['is_verified' => false]);
+
+        return $this->success(null, 'Password reset successfully');
+    }
+
     public function updateProfilePicture(Request $request)
     {
         $request->validate([
