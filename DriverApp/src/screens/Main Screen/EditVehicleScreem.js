@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,15 +8,42 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import api from '../../services/api';
 
 const VehicleDetailsScreen = ({ navigation }) => {
-  const [vehicleModel, setVehicleModel] = useState('Toyota Prius');
-  const [plateNumber, setPlateNumber] = useState('WP ABC-1234');
-  const [color, setColor] = useState('Pearl White');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+  const [color, setColor] = useState('');
+  const [vehicleImages, setVehicleImages] = useState({ front: null, side: null, back: null });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/driver/profile');
+        if (response.data.status === 'success') {
+          const vehicle = response.data.data.vehicle;
+          if (vehicle) {
+            setVehicleModel(`${vehicle.brand || ''} ${vehicle.model || ''}`.trim());
+            setPlateNumber(vehicle.plateNumber !== 'Not set' ? vehicle.plateNumber : '');
+            setColor(vehicle.color || '');
+            if (vehicle.images) setVehicleImages(vehicle.images);
+          }
+        }
+      } catch (error) {
+        console.log('Error fetching vehicle for edit:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const InputField = ({ label, value, onChangeText, icon, placeholder }) => (
     <View style={styles.inputWrapper}>
@@ -55,7 +82,12 @@ const VehicleDetailsScreen = ({ navigation }) => {
           </SafeAreaView>
         </LinearGradient>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#00A859" />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Vehicle Display Section */}
           <View style={styles.vehicleCard}>
             <View style={styles.iconCircle}>
@@ -94,12 +126,34 @@ const VehicleDetailsScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Vehicle Photos</Text>
           <View style={styles.photoGrid}>
             <TouchableOpacity style={styles.photoBox}>
-              <Feather name="camera" size={24} color="#00A859" />
-              <Text style={styles.photoLabel}>Front View</Text>
+              {vehicleImages.front ? (
+                <Image source={{ uri: vehicleImages.front }} style={{ width: '100%', height: '100%', borderRadius: 14 }} />
+              ) : (
+                <>
+                  <Feather name="camera" size={24} color="#00A859" />
+                  <Text style={styles.photoLabel}>Front View</Text>
+                </>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.photoBox}>
-              <Feather name="camera" size={24} color="#00A859" />
-              <Text style={styles.photoLabel}>Side View</Text>
+              {vehicleImages.side ? (
+                <Image source={{ uri: vehicleImages.side }} style={{ width: '100%', height: '100%', borderRadius: 14 }} />
+              ) : (
+                <>
+                  <Feather name="camera" size={24} color="#00A859" />
+                  <Text style={styles.photoLabel}>Side View</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.photoBox}>
+              {vehicleImages.back ? (
+                <Image source={{ uri: vehicleImages.back }} style={{ width: '100%', height: '100%', borderRadius: 14 }} />
+              ) : (
+                <>
+                  <Feather name="camera" size={24} color="#00A859" />
+                  <Text style={styles.photoLabel}>Back View</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -110,6 +164,7 @@ const VehicleDetailsScreen = ({ navigation }) => {
             </Text>
           </View>
         </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </View>
   );

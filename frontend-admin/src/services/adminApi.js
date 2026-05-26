@@ -393,6 +393,11 @@ const fetchAppSettings = async (token) => {
   return { settings: payload.settings || {} }
 }
 
+const fetchMaintenanceMode = async () => {
+  const payload = await apiFetch('/app-settings/maintenance-mode')
+  return { maintenanceMode: Boolean(payload.maintenance_mode) }
+}
+
 const updateAppSetting = async (token, key, value, type = 'string') => {
   const payload = await apiFetch(`/app-settings/${key}`, {
     method: 'PUT',
@@ -451,5 +456,6 @@ export {
   fetchRolePermissions,
   updateRolePermissions,
   fetchAppSettings,
+  fetchMaintenanceMode,
   updateAppSetting,
 }

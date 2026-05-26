@@ -9,6 +9,7 @@ import {
     clearSuperAdminNotifications,
     fetchSuperAdminNotifications,
     markSuperAdminNotificationsRead,
+    fetchMaintenanceMode,
 } from '../../services/adminApi'
 import useDrivers from '../../hooks/useDrivers'
 import useVehicles from '../../hooks/useVehicles'
@@ -24,6 +25,7 @@ const AdminLayout = () => {
     const vehiclesState = useVehicles(token)
     const [isSidebarCollapsed, setSidebarCollapsed] = useState(false)
     const [notifications, setNotifications] = useState([])
+    const [maintenanceMode, setMaintenanceMode] = useState(false)
 
     const isSuperAdmin = admin?.role === 'super_admin'
 
@@ -101,6 +103,15 @@ const AdminLayout = () => {
         })
     }, [formatNotification])
 
+    const loadMaintenanceMode = useCallback(async () => {
+        try {
+            const result = await fetchMaintenanceMode()
+            setMaintenanceMode(Boolean(result.maintenanceMode))
+        } catch (error) {
+            console.error('Failed to load maintenance mode status:', error)
+        }
+    }, [])
+
     useEffect(() => {
         if (!token) {
             setNotifications([])
@@ -121,6 +132,33 @@ const AdminLayout = () => {
 
         loadNotifications()
     }, [token, formatNotification, isSuperAdmin])
+
+    useEffect(() => {
+        loadMaintenanceMode()
+    }, [loadMaintenanceMode])
+
+    useEffect(() => {
+        const handleMaintenanceUpdate = (event) => {
+            const nextValue = event?.detail?.key === 'maintenance_mode'
+                ? Boolean(event.detail.value)
+                : null
+
+            if (nextValue !== null) {
+                setMaintenanceMode(nextValue)
+                return
+            }
+
+            loadMaintenanceMode()
+        }
+
+        window.addEventListener('maintenance-mode-updated', handleMaintenanceUpdate)
+        window.addEventListener('focus', loadMaintenanceMode)
+
+        return () => {
+            window.removeEventListener('maintenance-mode-updated', handleMaintenanceUpdate)
+            window.removeEventListener('focus', loadMaintenanceMode)
+        }
+    }, [loadMaintenanceMode])
 
     useEffect(() => {
         if (!token) {
@@ -184,6 +222,7 @@ const AdminLayout = () => {
                     unreadCount={unreadCount}
                     onMarkAllRead={markAllRead}
                     onClearNotifications={clearNotifications}
+                    maintenanceMode={maintenanceMode}
                 />
 
                 <main className="content">

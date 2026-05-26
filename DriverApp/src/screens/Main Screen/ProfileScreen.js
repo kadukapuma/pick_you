@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   ScrollView,
@@ -9,21 +9,33 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../../services/api";
 
 const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const user = {
-    name: "John Driver",
-    email: "ayeshanthoythasan@gmail.com",
-    trips: 247,
-    rating: 4.9,
-    acceptance: "94%",
-    cancellation: "2%",
-    vehicle: { plateNumber: "Not set" },
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get("/driver/profile");
+      if (response.data.status === 'success') {
+        setUser(response.data.data);
+      }
+    } catch (error) {
+      console.log("Error fetching profile:", error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const confirmLogout = async () => {
@@ -46,14 +58,18 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     </View>
   );
 
-  const MenuItem = ({ icon, label, value, showBadge, onPress, isLast }) => (
+  const MenuItem = ({ icon, label, value, showBadge, onPress, isLast, image }) => (
     <TouchableOpacity
       style={[styles.menuItem, isLast && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.menuIconContainer}>
-        <Feather name={icon} size={20} color="#64748B" />
+        {image ? (
+          <Image source={{ uri: image }} style={{ width: 40, height: 40, borderRadius: 10 }} />
+        ) : (
+          <Feather name={icon} size={20} color="#64748B" />
+        )}
       </View>
       <View style={styles.menuTextContainer}>
         <Text style={styles.menuLabel}>{label}</Text>
@@ -69,11 +85,34 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     </TouchableOpacity>
   );
 
+  const getVehicleDetailsText = () => {
+    if (!user.vehicle || user.vehicle.plateNumber === 'Not set') return 'Not set';
+    const parts = [];
+    if (user.vehicle.brand) parts.push(user.vehicle.brand);
+    if (user.vehicle.model) parts.push(user.vehicle.model);
+    
+    let text = parts.join(' ');
+    if (user.vehicle.plateNumber) {
+        text = text ? `${text} • ${user.vehicle.plateNumber}` : user.vehicle.plateNumber;
+    }
+    return text;
+  };
+
   return (
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" />
 
-      <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#00A859" />
+        </View>
+      ) : !user ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: "#1E293B", fontSize: 16 }}>Failed to load profile.</Text>
+        </View>
+      ) : (
+        <>
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
         {/* Header Section - Updated to Green Gradient */}
         <LinearGradient
           colors={["#00A859", "#007A41"]}
@@ -81,12 +120,16 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
         >
           <SafeAreaView edges={["top"]}>
             <View style={styles.profileHeader}>
-              <LinearGradient
-                colors={["#A855F7", "#EC4899"]}
-                style={styles.avatarCircle}
-              >
-                <Text style={styles.avatarText}>{user.name.charAt(0)}</Text>
-              </LinearGradient>
+              {user.profile_picture ? (
+                <Image source={{ uri: user.profile_picture }} style={styles.avatarCircle} />
+              ) : (
+                <LinearGradient
+                  colors={["#A855F7", "#EC4899"]}
+                  style={styles.avatarCircle}
+                >
+                  <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+                </LinearGradient>
+              )}
 
               <View style={styles.profileInfo}>
                 <Text style={styles.userName}>{user.name}</Text>
@@ -122,7 +165,8 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
             <MenuItem
               icon="truck"
               label="Vehicle Details"
-              value={user.vehicle.plateNumber}
+              value={getVehicleDetailsText()}
+              image={user.vehicle?.image}
               onPress={() => navigation.navigate("EditVehicle")}
             />
             <MenuItem
@@ -186,6 +230,8 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
           </View>
         </View>
       </Modal>
+        </>
+      )}
     </View>
   );
 };

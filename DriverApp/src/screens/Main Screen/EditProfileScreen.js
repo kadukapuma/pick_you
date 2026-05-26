@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,15 +8,40 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import api from '../../services/api';
 
 const EditProfileScreen = ({ navigation }) => {
-  const [name, setName] = useState('John Driver');
-  const [email, setEmail] = useState('ayeshanthoythasan@gmail.com');
-  const [phone, setPhone] = useState('+94 77 123 4567');
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [profileImage, setProfileImage] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/driver/profile');
+        if (response.data.status === 'success') {
+          const data = response.data.data;
+          setName(data.name || '');
+          setEmail(data.email || '');
+          setPhone(data.phone || '');
+          if (data.profile_picture) setProfileImage(data.profile_picture);
+        }
+      } catch (error) {
+        console.log('Error fetching profile for edit:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const InputField = ({ label, value, onChangeText, icon, keyboardType = 'default' }) => (
     <View style={styles.inputWrapper}>
@@ -55,15 +80,29 @@ const EditProfileScreen = ({ navigation }) => {
           </SafeAreaView>
         </LinearGradient>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#00A859" />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Updated Profile Picture Section */}
           <View style={styles.avatarSection}>
-            <LinearGradient colors={['#00A859', '#007A41']} style={styles.avatarLarge}>
-              <Text style={styles.avatarTextLarge}>{name.charAt(0)}</Text>
-              <TouchableOpacity style={styles.editPhotoBadge}>
-                <Feather name="camera" size={14} color="#FFF" />
-              </TouchableOpacity>
-            </LinearGradient>
+            {profileImage ? (
+              <View>
+                <Image source={{ uri: profileImage }} style={styles.avatarLarge} />
+                <TouchableOpacity style={styles.editPhotoBadge}>
+                  <Feather name="camera" size={14} color="#FFF" />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <LinearGradient colors={['#00A859', '#007A41']} style={styles.avatarLarge}>
+                <Text style={styles.avatarTextLarge}>{name ? name.charAt(0).toUpperCase() : ''}</Text>
+                <TouchableOpacity style={styles.editPhotoBadge}>
+                  <Feather name="camera" size={14} color="#FFF" />
+                </TouchableOpacity>
+              </LinearGradient>
+            )}
             <Text style={styles.changePhotoText}>Change Profile Photo</Text>
           </View>
 
@@ -98,6 +137,7 @@ const EditProfileScreen = ({ navigation }) => {
             </Text>
           </View>
         </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </View>
   );
