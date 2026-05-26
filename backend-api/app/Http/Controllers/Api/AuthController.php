@@ -13,10 +13,36 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
     use ApiResponse;
+
+    private function resolveOtpUser(Request $request): ?User
+    {
+        if ($request->filled('email')) {
+            return User::where('email', $request->email)->first();
+        }
+
+        if ($request->filled('phone')) {
+            $normalizedPhone = preg_replace('/\D+/', '', $request->phone);
+            $phoneCandidates = array_values(array_unique(array_filter([
+                $request->phone,
+                $normalizedPhone,
+                str_starts_with($normalizedPhone, '0') && strlen($normalizedPhone) === 10
+                    ? '94' . substr($normalizedPhone, 1)
+                    : null,
+                str_starts_with($normalizedPhone, '94') && strlen($normalizedPhone) === 11
+                    ? '0' . substr($normalizedPhone, 2)
+                    : null,
+            ])));
+
+            return User::whereIn('phone', $phoneCandidates)->first();
+        }
+
+        return null;
+    }
 
     public function register(Request $request)
     {
@@ -185,7 +211,8 @@ class AuthController extends Controller
     public function sendOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => 'nullable|string|email',
+            'phone' => 'nullable|string',
             'purpose' => 'required|string',
         ]);
 
@@ -193,9 +220,29 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('email', $request->email)->first();
+        if (!$request->filled('email') && !$request->filled('phone')) {
+            return $this->error('Email or phone number is required', 422);
+        }
+
+        $user = $this->resolveOtpUser($request);
         if (!$user) {
             return $this->error('User not found', 404);
+        }
+
+        if (empty($user->phone)) {
+            return $this->error('Phone number not found for user', 422);
+        }
+
+        $notifyPhone = preg_replace('/\D+/', '', $user->phone);
+        if (str_starts_with($notifyPhone, '0') && strlen($notifyPhone) === 10) {
+            $notifyPhone = '94' . substr($notifyPhone, 1);
+        }
+
+        if (strlen($notifyPhone) !== 11) {
+            return $this->error('Phone number must be 11 digits for Notify.lk', 422, [
+                'phone' => $user->phone,
+                'normalized_phone' => $notifyPhone,
+            ]);
         }
 
         // Generate a 4 digit OTP
@@ -209,6 +256,21 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(5)
         ]);
 
+        // Send SMS using Notify.lk
+        $response = Http::get('https://app.notify.lk/api/v1/send', [
+            'user_id' => env('NOTIFYLK_USER_ID'),
+            'api_key' => env('NOTIFYLK_API_KEY'),
+            'sender_id' => env('NOTIFYLK_SENDER_ID'),
+            'to' => $notifyPhone,
+            // 'message' => "Your OTP is: $otpCode"
+            'message' => "Your OTP: $otpCode Please use the above PickYou OTP to complete your action. Do not share this OTP with anyone."
+        ]);
+
+        if (!$response->successful()) {
+            return $this->error('Failed to send OTP SMS', 502, [
+                'provider_response' => $response->body(),
+            ]);
+        }
         // Integrate Email Gateway here (e.g., Mail, SendGrid, etc.)
         // For now, we will just return it in the response for testing
         return $this->success(['otp' => $otpCode], 'OTP sent successfully');
@@ -217,7 +279,8 @@ class AuthController extends Controller
     public function verifyOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => 'nullable|string|email',
+            'phone' => 'nullable|string',
             'otp_code' => 'required|string',
             'purpose' => 'required|string',
         ]);
@@ -226,7 +289,11 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('email', $request->email)->first();
+        if (!$request->filled('email') && !$request->filled('phone')) {
+            return $this->error('Email or phone number is required', 422);
+        }
+
+        $user = $this->resolveOtpUser($request);
         if (!$user) {
             return $this->error('User not found', 404);
         }
@@ -251,7 +318,8 @@ class AuthController extends Controller
     public function resetPassword(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => 'nullable|string|email',
+            'phone' => 'nullable|string',
             'password' => 'required|string|min:8|confirmed',
         ]);
 
@@ -259,7 +327,11 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('email', $request->email)->first();
+        if (!$request->filled('email') && !$request->filled('phone')) {
+            return $this->error('Email or phone number is required', 422);
+        }
+
+        $user = $this->resolveOtpUser($request);
 
         if (!$user) {
             return $this->error('User not found', 404);
