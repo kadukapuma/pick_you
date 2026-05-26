@@ -367,25 +367,37 @@ class AuthController extends Controller
 
         $user = $request->user();
         $userId = $user->id;
-        $basePath = "uploads/users/{$userId}";
-        $fullPath = public_path($basePath);
-
-        if (!File::exists($fullPath)) {
-            File::makeDirectory($fullPath, 0755, true);
-        }
-
         $file = $request->file('profile_picture');
-        $fileName = 'profile_' . time() . '.' . $file->getClientOriginalExtension();
 
-        // Delete old picture if exists
-        if ($user->profile_picture_path && File::exists(public_path($user->profile_picture_path))) {
-            File::delete(public_path($user->profile_picture_path));
+        // Delete old local picture if present (don't attempt to delete Cloudinary URLs)
+        if ($user->profile_picture_path && !filter_var($user->profile_picture_path, FILTER_VALIDATE_URL)) {
+            $oldLocal = public_path($user->profile_picture_path);
+            if (file_exists($oldLocal)) {
+                @unlink($oldLocal);
+            }
         }
 
-        $file->move($fullPath, $fileName);
-        $user->update(['profile_picture_path' => "{$basePath}/{$fileName}"]);
+        $uploadedUrl = $this->uploadImageToCloudinary($file, "users/{$userId}", 'profile_' . time());
+        if ($uploadedUrl) {
+            $user->update(['profile_picture_path' => $uploadedUrl]);
+        }
 
         return $this->success($user, 'Profile picture updated successfully');
+    }
+
+    private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
+    {
+        $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+            'folder' => $folder,
+            'public_id' => $publicId,
+            'overwrite' => true,
+            'invalidate' => true,
+            'resource_type' => 'image',
+        ]);
+
+        return data_get($uploadResult, 'secure_url')
+            ?? data_get($uploadResult, 'url')
+            ?? null;
     }
 
     public function updatePassword(Request $request)

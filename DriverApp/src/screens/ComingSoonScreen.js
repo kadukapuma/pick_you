@@ -1,18 +1,16 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
-import React from "react";
+import React, { useEffect } from "react";
 import { StatusBar, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import { useCallback } from "react";
 import { fetchMaintenanceMode } from "../services/appSettings";
 
-const ComingSoonScreen = ({ 
-  navigation, 
-  setIsLoggedIn, 
-  setDriverStatus, 
+const ComingSoonScreen = ({
+  navigation,
+  setIsLoggedIn,
+  setDriverStatus,
   setIsNewUser,
-  onMaintenanceDisabled 
+  onMaintenanceDisabled
 }) => {
   const handleLogout = () => {
     setDriverStatus?.(null);
@@ -22,28 +20,26 @@ const ComingSoonScreen = ({
 
   const BRAND_GREEN = "#00A859";
 
-  // Check maintenance mode when screen comes into focus or mounts
-  useFocusEffect(
-    useCallback(() => {
-      const checkMaintenance = async () => {
-        try {
-          const result = await fetchMaintenanceMode();
-          // If maintenance mode is disabled, transition seamlessly back to app
-          if (!result.maintenanceMode) {
-            if (onMaintenanceDisabled) {
-              onMaintenanceDisabled();
-            } else {
-              navigation?.replace?.("MainTabs");
-            }
+  // This screen can render outside NavigationContainer during maintenance mode,
+  // so useEffect is safer than useFocusEffect here.
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const result = await fetchMaintenanceMode();
+        if (!result.maintenanceMode) {
+          if (onMaintenanceDisabled) {
+            onMaintenanceDisabled();
+          } else {
+            navigation?.replace?.("MainTabs");
           }
-        } catch (error) {
-          console.error('Error checking maintenance mode:', error);
         }
-      };
+      } catch (error) {
+        console.error('Error checking maintenance mode:', error);
+      }
+    };
 
-      checkMaintenance();
-    }, [navigation, onMaintenanceDisabled])
-  );
+    checkMaintenance();
+  }, [navigation, onMaintenanceDisabled]);
 
   return (
     <SafeAreaView style={styles.container}>
