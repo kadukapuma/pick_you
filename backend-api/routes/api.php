@@ -23,6 +23,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
+    Route::get('/driver/profile', [App\Http\Controllers\Api\DriverProfileController::class, 'getProfile']);
     Route::post('/driver/complete-profile', [App\Http\Controllers\Api\DriverController::class, 'completeProfile']);
     Route::post('/driver/license-images', [App\Http\Controllers\Api\DriverController::class, 'updateLicenseImages']);
     Route::put('/driver/availability', [App\Http\Controllers\Api\DriverController::class, 'updateOwnAvailability']);

@@ -149,7 +149,7 @@ const DocumentsScreen = ({ navigation }) => {
             </Text>
 
             <TouchableOpacity style={styles.uploadAllBtn}>
-              
+
             </TouchableOpacity>
           </View>
 

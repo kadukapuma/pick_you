@@ -51,6 +51,12 @@ const Settings = () => {
 
         try {
             await updateAppSetting(token, 'maintenance_mode', newValue, 'boolean');
+            window.dispatchEvent(new CustomEvent('maintenance-mode-updated', {
+                detail: {
+                    key: 'maintenance_mode',
+                    value: newValue,
+                },
+            }));
             Swal.fire({
                 icon: 'success',
                 title: 'Success',
