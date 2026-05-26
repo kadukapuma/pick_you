@@ -16,10 +16,37 @@ import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
 
+const getVehicleIconName = (vehicleType) => {
+  const typeName = (vehicleType || '').toLowerCase();
+
+  if (typeName.includes('tuk') || typeName.includes('three') || typeName.includes('rickshaw')) {
+    return 'rickshaw';
+  }
+
+  if (typeName.includes('bike') || typeName.includes('motorcycle') || typeName.includes('motorbike')) {
+    return 'motorbike';
+  }
+
+  if (typeName.includes('van') || typeName.includes('minivan')) {
+    return 'van-passenger';
+  }
+
+  if (typeName.includes('suv') || typeName.includes('jeep')) {
+    return 'car-suv';
+  }
+
+  if (typeName.includes('truck') || typeName.includes('pickup') || typeName.includes('flex')) {
+    return 'truck-fast';
+  }
+
+  return 'car-hatchback';
+};
+
 const VehicleDetailsScreen = ({ navigation }) => {
   const [vehicleModel, setVehicleModel] = useState('');
   const [plateNumber, setPlateNumber] = useState('');
   const [color, setColor] = useState('');
+  const [vehicleType, setVehicleType] = useState('');
   const [vehicleImages, setVehicleImages] = useState({ front: null, side: null, back: null });
   const [loading, setLoading] = useState(true);
 
@@ -33,6 +60,7 @@ const VehicleDetailsScreen = ({ navigation }) => {
             setVehicleModel(`${vehicle.brand || ''} ${vehicle.model || ''}`.trim());
             setPlateNumber(vehicle.plateNumber !== 'Not set' ? vehicle.plateNumber : '');
             setColor(vehicle.color || '');
+            setVehicleType(vehicle.vehicle_type || vehicle.vehicleType?.name || '');
             if (vehicle.images) setVehicleImages(vehicle.images);
           }
         }
@@ -91,7 +119,7 @@ const VehicleDetailsScreen = ({ navigation }) => {
           {/* Vehicle Display Section */}
           <View style={styles.vehicleCard}>
             <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="car-hatchback" size={40} color="#00A859" />
+              <MaterialCommunityIcons name={getVehicleIconName(vehicleType)} size={40} color="#00A859" />
             </View>
             <Text style={styles.vehicleTitle}>{vehicleModel || 'No Vehicle Set'}</Text>
             <Text style={styles.vehicleSubTitle}>{plateNumber || 'Enter plate number'}</Text>
@@ -99,25 +127,25 @@ const VehicleDetailsScreen = ({ navigation }) => {
 
           {/* Details Form */}
           <View style={styles.formCard}>
-            <InputField 
-              label="Vehicle Model" 
-              value={vehicleModel} 
-              onChangeText={setVehicleModel} 
-              icon="car-info" 
+            <InputField
+              label="Vehicle Model"
+              value={vehicleModel}
+              onChangeText={setVehicleModel}
+              icon="car-info"
               placeholder="e.g. Toyota Prius"
             />
-            <InputField 
-              label="License Plate" 
-              value={plateNumber} 
-              onChangeText={setPlateNumber} 
-              icon="numeric" 
+            <InputField
+              label="License Plate"
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+              icon="numeric"
               placeholder="e.g. WP ABC-1234"
             />
-            <InputField 
-              label="Vehicle Color" 
-              value={color} 
-              onChangeText={setColor} 
-              icon="palette-outline" 
+            <InputField
+              label="Vehicle Color"
+              value={color}
+              onChangeText={setColor}
+              icon="palette-outline"
               placeholder="e.g. White"
             />
           </View>
@@ -200,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  
+
   scrollContent: { padding: 20, paddingBottom: 40 },
   vehicleCard: {
     backgroundColor: '#FFF',
