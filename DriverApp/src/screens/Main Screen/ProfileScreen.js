@@ -34,13 +34,12 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     } catch (error) {
       console.log("Error fetching profile:", error);
     } finally {
-      setLoading(false);
+      loading && setLoading(false);
     }
   };
 
   const confirmLogout = async () => {
     setShowLogoutModal(false);
-    // Clear your local storage/auth state here
     try {
       await AsyncStorage.removeItem("userToken");
     } catch (e) {
@@ -98,6 +97,18 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     return text;
   };
 
+  // Helper text formulation to map bank name and masked account number
+  const getBankDetailsText = () => {
+    if (!user?.bank || !user.bank.accountNumber || user.bank.accountNumber === 'Not set') {
+      return 'Not set';
+    }
+    const bankName = user.bank.name || 'Bank Account';
+    const accNum = user.bank.accountNumber;
+    // Mask all but last 4 digits cleanly
+    const maskedNum = accNum.length > 4 ? `•••• ${accNum.slice(-4)}` : accNum;
+    return `${bankName} • ${maskedNum}`;
+  };
+
   return (
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" />
@@ -113,123 +124,130 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
       ) : (
         <>
           <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-        {/* Header Section - Updated to Green Gradient */}
-        <LinearGradient
-          colors={["#00A859", "#007A41"]}
-          style={styles.headerGradient}
-        >
-          <SafeAreaView edges={["top"]}>
-            <View style={styles.profileHeader}>
-              {user.profile_picture ? (
-                <Image source={{ uri: user.profile_picture }} style={styles.avatarCircle} />
-              ) : (
-                <LinearGradient
-                  colors={["#A855F7", "#EC4899"]}
-                  style={styles.avatarCircle}
-                >
-                  <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
-                </LinearGradient>
-              )}
+            {/* Header Section */}
+            <LinearGradient
+              colors={["#00A859", "#007A41"]}
+              style={styles.headerGradient}
+            >
+              <SafeAreaView edges={["top"]}>
+                <View style={styles.profileHeader}>
+                  {user.profile_picture ? (
+                    <Image source={{ uri: user.profile_picture }} style={styles.avatarCircle} />
+                  ) : (
+                    <LinearGradient
+                      colors={["#A855F7", "#EC4899"]}
+                      style={styles.avatarCircle}
+                    >
+                      <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+                    </LinearGradient>
+                  )}
 
-              <View style={styles.profileInfo}>
-                <Text style={styles.userName}>{user.name}</Text>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <MaterialCommunityIcons
-                    name="star"
-                    size={18}
-                    color="#FACC15"
-                  />
-                  <Text style={styles.ratingText}> {user.rating}</Text>
-                  <Text style={styles.tripsCount}> ({user.trips} trips)</Text>
+                  <View style={styles.profileInfo}>
+                    <Text style={styles.userName}>{user.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <MaterialCommunityIcons
+                        name="star"
+                        size={18}
+                        color="#FACC15"
+                      />
+                      <Text style={styles.ratingText}> {user.rating}</Text>
+                      <Text style={styles.tripsCount}> ({user.trips} trips)</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.statsContainer}>
+                  <StatBox label="Acceptance" value={user.acceptance} />
+                  <StatBox label="Cancellation" value={user.cancellation} />
+                  <StatBox label="Rating" value={user.rating} />
+                </View>
+              </SafeAreaView>
+            </LinearGradient>
+
+            <View style={styles.content}>
+              <Text style={styles.sectionTitle}>Account</Text>
+              <View style={styles.menuGroup}>
+                <MenuItem
+                  icon="user"
+                  label="Personal Info"
+                  value={user.email}
+                  onPress={() => navigation.navigate("EditProfile")}
+                />
+                <MenuItem
+                  icon="truck"
+                  label="Vehicle Details"
+                  value={getVehicleDetailsText()}
+                  image={user.vehicle?.image}
+                  onPress={() => navigation.navigate("EditVehicle")}
+                />
+                <MenuItem
+                  icon="file-text"
+                  label="Documents"
+                  value="Verified"
+                  showBadge
+                  onPress={() => navigation.navigate("Documents")}
+                />
+                {/* NEW: Bank Details menu option item added at the bottom of the stack */}
+                <MenuItem
+                  icon="credit-card"
+                  label="Bank Details"
+                  value={getBankDetailsText()}
+                  onPress={() => navigation.navigate("BankDetails")}
+                  isLast
+                />
+              </View>
+
+              <Text style={styles.sectionTitle}>Preferences</Text>
+              <View style={styles.menuGroup}>
+                <MenuItem
+                  icon="settings"
+                  label="Settings"
+                  onPress={() => navigation.navigate("Settings")}
+                  isLast
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={() => setShowLogoutModal(true)}
+                activeOpacity={0.8}
+              >
+                <Feather name="log-out" size={20} color="#EF4444" />
+                <Text style={styles.logoutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+
+          {/* Modern Custom Sign Out Modal */}
+          <Modal visible={showLogoutModal} transparent={true} animationType="fade">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalIconBg}>
+                  <Feather name="log-out" size={30} color="#EF4444" />
+                </View>
+                <Text style={styles.modalTitle}>Sign Out</Text>
+                <Text style={styles.modalSubTitle}>
+                  Are you sure you want to sign out of your account?
+                </Text>
+
+                <View style={styles.modalActionRow}>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.cancelBtn]}
+                    onPress={() => setShowLogoutModal(false)}
+                  >
+                    <Text style={styles.cancelBtnText}>No</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.confirmBtn]}
+                    onPress={confirmLogout}
+                  >
+                    <Text style={styles.confirmBtnText}>Yes, Sign Out</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
-
-            <View style={styles.statsContainer}>
-              <StatBox label="Acceptance" value={user.acceptance} />
-              <StatBox label="Cancellation" value={user.cancellation} />
-              <StatBox label="Rating" value={user.rating} />
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-
-        <View style={styles.content}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.menuGroup}>
-            <MenuItem
-              icon="user"
-              label="Personal Info"
-              value={user.email}
-              onPress={() => navigation.navigate("EditProfile")}
-            />
-            <MenuItem
-              icon="truck"
-              label="Vehicle Details"
-              value={getVehicleDetailsText()}
-              image={user.vehicle?.image}
-              onPress={() => navigation.navigate("EditVehicle")}
-            />
-            <MenuItem
-              icon="file-text"
-              label="Documents"
-              value="Verified"
-              showBadge
-              onPress={() => navigation.navigate("Documents")}
-              isLast
-            />
-          </View>
-
-          <Text style={styles.sectionTitle}>Preferences</Text>
-          <View style={styles.menuGroup}>
-            <MenuItem
-              icon="settings"
-              label="Settings"
-              onPress={() => navigation.navigate("Settings")}
-              isLast
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={() => setShowLogoutModal(true)}
-            activeOpacity={0.8}
-          >
-            <Feather name="log-out" size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Sign Out</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Modern Custom Sign Out Modal */}
-      <Modal visible={showLogoutModal} transparent={true} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIconBg}>
-              <Feather name="log-out" size={30} color="#EF4444" />
-            </View>
-            <Text style={styles.modalTitle}>Sign Out</Text>
-            <Text style={styles.modalSubTitle}>
-              Are you sure you want to sign out of your account?
-            </Text>
-
-            <View style={styles.modalActionRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.cancelBtn]}
-                onPress={() => setShowLogoutModal(false)}
-              >
-                <Text style={styles.cancelBtnText}>No</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.confirmBtn]}
-                onPress={confirmLogout}
-              >
-                <Text style={styles.confirmBtnText}>Yes, Sign Out</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+          </Modal>
         </>
       )}
     </View>
