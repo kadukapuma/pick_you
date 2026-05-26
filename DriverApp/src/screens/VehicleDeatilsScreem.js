@@ -35,8 +35,8 @@ const VehicleDetailsScreen = ({ navigation, onExit }) => {
 
   const activeTypesList = vehicleTypes.length > 0 ? vehicleTypes : fallbackVehicleTypes;
 
-  const getVehicleIcon = (typeName) => {
-    const name = (typeName || "").toLowerCase();
+  const getVehicleIcon = (type) => {
+    const name = (type || "").toLowerCase();
     if (name.includes("tuk") || name.includes("three") || name.includes("rickshaw")) return "rickshaw";
     if (name.includes("bike") || name.includes("motorcycle")) return "motorbike";
     if (name.includes("van") || name.includes("minivan")) return "van-passenger";

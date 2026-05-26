@@ -13,7 +13,7 @@ class DriverProfileController extends Controller
     public function getProfile(Request $request)
     {
         $user = $request->user()->load(['driver.vehicles.vehicleType', 'driver.vehicles.images']);
-        
+
         if ($user->role !== 'driver' || !$user->driver) {
             return $this->error('Driver profile not found', 404);
         }
@@ -22,11 +22,11 @@ class DriverProfileController extends Controller
 
         $tripsCount = $driver->rides()->where('status', 'completed')->count();
         $rating = $driver->rating ?? 0.0;
-        
+
         $profilePictureUrl = $user->profile_picture_path ? url($user->profile_picture_path) : null;
 
         $vehicle = $driver->vehicles->first();
-        
+
         $vehicleImages = [
             'front' => null,
             'side' => null,

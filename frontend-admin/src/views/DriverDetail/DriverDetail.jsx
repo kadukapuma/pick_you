@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext'
 import useDriverDetails from '../../hooks/useDriverDetails'
 import { resolveAssetUrl, statusOptions, updateDriverStatus } from '../../services/adminApi'
+import VehicleTypeIcon from '../../components/VehicleTypeIcon/VehicleTypeIcon'
 
 import Swal from 'sweetalert2'
 import './DetailView.css'
@@ -106,6 +107,7 @@ const DriverDetail = () => {
                                     ) : (
                                         driver.name?.charAt(0) || 'D'
                                     )}
+                                    <span className={`presence-dot ${Number(driver?.availability) === 1 ? 'online' : 'offline'}`} />
                                 </div>
                                 <div style={{ flex: 1 }}>
                                     <h2 style={{ marginBottom: 8 }}>{driver.name}</h2>
@@ -326,6 +328,11 @@ const DriverDetail = () => {
                             {driver.vehicles.map((vehicle) => (
                                 <div className="table-row" key={vehicle.id} style={{ gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 80px' }}>
                                     <div className="cell-driver">
+                                        <VehicleTypeIcon
+                                            type={vehicle.vehicle_type}
+                                            size={18}
+                                            style={{ width: 36, height: 36, justifyContent: 'center', padding: 0, marginRight: 12 }}
+                                        />
                                         <div className="driver-info">
                                             <h4>{vehicle.plate_number}</h4>
                                             <p>{vehicle.vehicle_type || 'N/A'}</p>
