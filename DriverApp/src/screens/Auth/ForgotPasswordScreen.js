@@ -3,7 +3,6 @@ import { MotiText, MotiView } from "moti";
 import React, { useState } from "react";
 import {
   Alert,
-  Dimensions,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -16,19 +15,17 @@ import {
 
 import api from "../../services/api";
 
-const { width } = Dimensions.get("window");
-
 const ForgotPasswordScreen = ({ navigation }) => {
-  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
   const BRAND_GREEN = "#00A859";
 
   const handleSendOtp = async () => {
-    const trimmedEmail = email.trim();
+    const trimmedPhone = phone.trim();
 
-    if (!trimmedEmail) {
-      Alert.alert("Required", "Please enter your email.");
+    if (!trimmedPhone) {
+      Alert.alert("Required", "Please enter your registered mobile number.");
       return;
     }
 
@@ -36,14 +33,14 @@ const ForgotPasswordScreen = ({ navigation }) => {
       setLoading(true);
 
       await api.post("/otp/send", {
-        email: trimmedEmail,
+        phone: trimmedPhone,
         purpose: "forgot_password",
       });
 
       setLoading(false);
 
       navigation.navigate("OTP", {
-        email: trimmedEmail,
+        phone: trimmedPhone,
         isForgotPassword: true,
         shouldAutoSendOtp: false,
       });
@@ -99,7 +96,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
           </MotiText>
 
           <Text style={styles.subtitle}>
-            Enter your registered email address.{"\n"}
+            Enter your registered mobile number.{"\n"}
             We’ll send you an OTP to reset your password.
           </Text>
 
@@ -109,13 +106,13 @@ const ForgotPasswordScreen = ({ navigation }) => {
 
             <TextInput
               style={styles.input}
-              placeholder="Enter Email"
+              placeholder="Enter Mobile Number"
               placeholderTextColor="#94A3B8"
-              keyboardType="email-address"
+              keyboardType="phone-pad"
               autoCapitalize="none"
               autoCorrect={false}
-              value={email}
-              onChangeText={setEmail}
+              value={phone}
+              onChangeText={setPhone}
             />
           </View>
 

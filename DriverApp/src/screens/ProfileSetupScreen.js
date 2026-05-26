@@ -40,7 +40,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
 
   // Custom photo picker UI states
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false); // NEW: Custom success modal visibility
+  const [showSuccessModal, setShowSuccessModal] = useState(false); 
   const [tempImage, setTempImage] = useState(null);
 
   const BRAND_GREEN = "#0B1220";
@@ -91,7 +91,9 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         return;
       }
 
+      // FIX: Added mediaTypes configuration parameters to avoid native handler drop crashes
       const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
         quality: 1,
@@ -101,7 +103,8 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         setTempImage(result.assets[0].uri);
       }
     } catch (error) {
-      console.log(error);
+      console.log("Camera execution error:", error);
+      Alert.alert("Camera Error", "Failed to access device camera.");
     }
   };
 
@@ -130,8 +133,6 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
       }
       setTempImage(null);
       setShowPhotoModal(false); 
-      
-      // NEW: Show custom UI success modal instead of system alert
       setShowSuccessModal(true);
     } catch (error) {
       console.log("Profile picture upload error:", error.response?.data || error.message);
@@ -475,7 +476,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         </View>
       </Modal>
 
-      {/* NEW: PREMIUM CUSTOM SUCCESS MODAL */}
+      {/* PREMIUM CUSTOM SUCCESS MODAL */}
       <Modal
         transparent
         animationType="fade"
@@ -663,10 +664,10 @@ const styles = StyleSheet.create({
   applyCropButton: { height: 54, borderRadius: 27, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginHorizontal: 16 },
   applyCropText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
 
-  /* NEW: ALIGNED MODERN DIALOG MODAL STYLES */
+  /* ALIGNED MODERN DIALOG MODAL STYLES */
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)", // Sleek dark slate tint backdrop
+    backgroundColor: "rgba(15, 23, 42, 0.6)", 
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 28,

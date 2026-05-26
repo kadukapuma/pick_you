@@ -17,6 +17,8 @@ import api from "../../services/api";
 
 const ResetPasswordScreen = ({ navigation, route }) => {
   const email = route?.params?.email || "";
+  const phone = route?.params?.phone || "";
+  const resetIdentifier = phone || email;
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] =
@@ -52,12 +54,18 @@ const ResetPasswordScreen = ({ navigation, route }) => {
     try {
       setLoading(true);
 
-      await api.post("/reset-password", {
-        email,
+      const payload = {
         password,
-        password_confirmation:
-          confirmPassword,
-      });
+        password_confirmation: confirmPassword,
+      };
+
+      if (phone) {
+        payload.phone = phone;
+      } else {
+        payload.email = email;
+      }
+
+      await api.post("/reset-password", payload);
 
       Alert.alert(
         "Success",
@@ -126,7 +134,8 @@ const ResetPasswordScreen = ({ navigation, route }) => {
 
           <Text style={styles.subtitle}>
             Create a new secure password for
-            your account.
+            {" "}
+            {resetIdentifier || "your account"}.
           </Text>
 
           <View style={styles.inputWrapper}>

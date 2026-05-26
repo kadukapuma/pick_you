@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   KeyboardAvoidingView,
   Modal,
@@ -35,6 +35,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
   const shouldAutoSendOtp = route?.params?.shouldAutoSendOtp ?? true;
   const email = route?.params?.email ?? "";
   const phone = route?.params?.phone ?? "";
+  const otpRecipient = phone || email;
 
   // Automatically request OTP when screen mounts
   useEffect(() => {
@@ -46,26 +47,33 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
       setTimer((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, [shouldAutoSendOtp]);
+  }, [shouldAutoSendOtp, sendOtpRequest]);
 
   // 2. Updated sendOtpRequest() with conditional purpose
-  const sendOtpRequest = async () => {
-    if (!email) {
-      Alert.alert("Missing Email", "An email address is required to send the OTP.");
+  const sendOtpRequest = useCallback(async () => {
+    if (!otpRecipient) {
+      Alert.alert("Missing Contact", "A mobile number or email address is required to send the OTP.");
       return;
     }
     try {
-      const res = await api.post("/otp/send", {
-        email,
+      const payload = {
         purpose: isForgotPassword ? "forgot_password" : "verification",
-      });
+      };
+
+      if (phone) {
+        payload.phone = phone;
+      } else {
+        payload.email = email;
+      }
+
+      const res = await api.post("/otp/send", payload);
       if (res.data?.data?.otp) {
         Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
       }
     } catch (err) {
       console.log("Error sending OTP", err.response?.data || err.message);
     }
-  };
+  }, [email, phone, otpRecipient, isForgotPassword]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -95,10 +103,10 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
 
     if (otpCode.length < 4) return;
 
-    if (!email) {
+    if (!otpRecipient) {
       Alert.alert(
-        "Missing Email",
-        "An email address is required to verify the OTP."
+        "Missing Contact",
+        "A mobile number or email address is required to verify the OTP."
       );
       return;
     }
@@ -106,11 +114,18 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
     setIsLoading(true);
 
     try {
-      await api.post("/otp/verify", {
-        email,
+      const payload = {
         otp_code: otpCode,
         purpose: isForgotPassword ? "forgot_password" : "verification",
-      });
+      };
+
+      if (phone) {
+        payload.phone = phone;
+      } else {
+        payload.email = email;
+      }
+
+      await api.post("/otp/verify", payload);
 
       // ==========================
       // FORGOT PASSWORD FLOW
@@ -120,6 +135,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
 
         navigation.replace("ResetPassword", {
           email,
+          phone,
         });
 
         return;
@@ -242,7 +258,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
           <MotiText style={styles.subtitle}>
             {isForgotPassword ? "Enter the OTP sent to " : "We sent a 4-digit code to "}
             <Text style={[styles.phoneText, { color: BRAND_GREEN }]}>
-              {email || phone || "your email address"}
+              {otpRecipient || "your contact details"}
             </Text>
           </MotiText>
 
