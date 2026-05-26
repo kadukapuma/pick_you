@@ -12,6 +12,7 @@ import ProfileSetScreen from "../screens/ProfileSetupScreen";
 import VehicleDetailsScreen from "../screens/VehicleDeatilsScreem";
 import VerificationScreen from "../screens/VerificationScreen";
 import DocumentsScreen from "../screens/Main Screen/DocumentsScreen";
+import BankDetailsScreen from "../screens/Main Screen/BankDetailsScreen";
 import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen";
 import ComingSoonScreen from "../screens/ComingSoonScreen";
 import BottomTabs from "./BottomTabs";
@@ -246,6 +247,11 @@ const MainNavigator = ({
       <Stack.Screen
         name="DocumentPreview"
         component={DocumentPreviewScreen}
+        options={{ animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="BankDetails"
+        component={BankDetailsScreen}
         options={{ animation: "slide_from_right" }}
       />
     </Stack.Navigator>
