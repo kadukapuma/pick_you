@@ -7,7 +7,6 @@ import {
   Switch,
   StatusBar,
   Platform,
-  Alert,
   ActivityIndicator,
 } from "react-native";
 
@@ -15,7 +14,8 @@ import MapView, { PROVIDER_GOOGLE, Marker, AnimatedRegion } from "react-native-m
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
 
 const HomeScreen = () => {
@@ -25,6 +25,16 @@ const HomeScreen = () => {
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+
+  // --- REFINED PREMIUM TOAST SYSTEM ---
+  const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
+
+  const showCustomToast = (type, message) => {
+    setToast({ visible: true, type, message });
+    setTimeout(() => {
+      setToast((prev) => ({ ...prev, visible: false }));
+    }, 3500);
+  };
 
   const [region] = useState(
     new AnimatedRegion({
@@ -42,9 +52,7 @@ const HomeScreen = () => {
       StatusBar.setTranslucent(false);
       StatusBar.setHidden(false);
 
-      // Fetch driver data when screen is focused
       fetchDriverData();
-
       return () => {};
     }, [])
   );
@@ -53,7 +61,6 @@ const HomeScreen = () => {
     try {
       const response = await api.get("/user");
       const driverAvailability = response.data?.driver?.availability;
-      // Convert to boolean: 1 = true, 0 or falsy = false
       setIsOnline(driverAvailability === 1);
     } catch (error) {
       console.log("Error fetching driver data:", error);
@@ -62,35 +69,27 @@ const HomeScreen = () => {
 
   const handleToggleAvailability = async (newValue) => {
     setIsToggling(true);
-
     try {
-      // Call the API to update driver availability
-      const response = await api.put('/driver/availability', {
+      await api.put('/driver/availability', {
         is_active: newValue,
       });
 
-      // Update local state if API call is successful
       setIsOnline(newValue);
-
-      // Optional: Show confirmation message
-      Alert.alert(
-        "Success",
+      showCustomToast(
+        "success",
         newValue
-          ? "You're now online and searching for trips!"
-          : "You're now offline.",
-        [{ text: "OK" }]
+          ? "You are now online. Searching for trips..."
+          : "You are now offline. Enjoy your break!"
       );
     } catch (error) {
       console.log("Error updating driver availability:", error);
-
-      // Reset the toggle if there's an error
       setIsOnline(!newValue);
 
       const errorMessage =
         error.response?.data?.message ||
         "Failed to update availability. Please try again.";
 
-      Alert.alert("Error", errorMessage, [{ text: "OK" }]);
+      showCustomToast("error", errorMessage);
     } finally {
       setIsToggling(false);
     }
@@ -102,7 +101,6 @@ const HomeScreen = () => {
       if (status !== "granted") return;
 
       const location = await Location.getCurrentPositionAsync({});
-
       const newRegion = {
         latitude: location.coords.latitude,
         longitude: location.coords.longitude,
@@ -143,6 +141,7 @@ const HomeScreen = () => {
         </Marker.Animated>
       </MapView>
 
+      {/* --- TOP HEADER ROW --- */}
       <SafeAreaView style={[styles.topContainer, { paddingTop: insets.top }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.locationButton}>
@@ -160,12 +159,8 @@ const HomeScreen = () => {
         </View>
       </SafeAreaView>
 
-      <View
-        style={[
-          styles.rightButtons,
-          { bottom: 220 + insets.bottom },
-        ]}
-      >
+      {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
+      <View style={[styles.rightButtons, { bottom: 250 + insets.bottom }]}>
         <TouchableOpacity style={styles.floatingBtn} onPress={goToMyLocation}>
           <Feather name="navigation" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -175,13 +170,45 @@ const HomeScreen = () => {
         </TouchableOpacity>
       </View>
 
+      {/* --- ANCHORED PREMIUM BANNER (SHIFTS DYNAMICALLY ABOVE THE BOTTOM STATUS CARD) --- */}
+      <AnimatePresence>
+        {toast.visible && (
+          <MotiView
+            from={{ opacity: 0, y: 15, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.96 }}
+            transition={{ type: "spring", damping: 20, stiffness: 150 }}
+            style={[
+              styles.toastCard,
+              { bottom: Platform.OS === "android" ? 210 : 190 + insets.bottom }
+            ]}
+          >
+            <View style={[
+              styles.statusIndicatorIndicator, 
+              { backgroundColor: toast.type === "error" ? "#EF4444" : "#00A859" }
+            ]} />
+            <View style={styles.toastContentContainer}>
+              <Text style={styles.toastTitleText}>
+                {toast.type === "error" ? "System Update Fail" : "Status Changed"}
+              </Text>
+              <Text style={styles.toastBodyText}>{toast.message}</Text>
+            </View>
+            <TouchableOpacity 
+              onPress={() => setToast((prev) => ({ ...prev, visible: false }))} 
+              style={styles.toastCloseBtn}
+            >
+              <Ionicons name="close" size={16} color="#94A3B8" />
+            </TouchableOpacity>
+          </MotiView>
+        )}
+      </AnimatePresence>
+
+      {/* --- YOUR PERFECT POSITIONED STATUS CARD --- */}
       <SafeAreaView
         edges={["bottom"]}
         style={[
           styles.bottomContainer,
-          {
-            bottom: Platform.OS === "android" ? 60 : 40 + insets.bottom,
-          },
+          { bottom: Platform.OS === "android" ? 60 : 40 + insets.bottom },
         ]}
       >
         <View style={styles.statusCard}>
@@ -189,11 +216,8 @@ const HomeScreen = () => {
             <Text style={styles.statusTitle}>
               {isOnline ? "You're Online" : "You're Offline"}
             </Text>
-
             <Text style={styles.statusSubtitle}>
-              {isOnline
-                ? "Searching for trips..."
-                : "Go online to start earning"}
+              {isOnline ? "Searching for trips..." : "Go online to start earning"}
             </Text>
           </View>
 
@@ -223,18 +247,68 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#fff",
   },
-
   map: {
     flex: 1,
   },
-
+  /* --- REFINED CUSTOM PLACEMENT TOAST STYLING --- */
+  toastCard: {
+    position: "absolute",
+    left: "5%",
+    right: "5%",
+    width: "90%",
+    backgroundColor: "#1E293B", 
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 999,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#0F172A",
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.15,
+        shadowRadius: 12,
+      },
+      android: {
+        elevation: 8,
+      },
+    }),
+  },
+  statusIndicatorIndicator: {
+    width: 4,
+    height: 28,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  toastContentContainer: {
+    flex: 1,
+    justifyContent: "center",
+  },
+  toastTitleText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#94A3B8",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 1,
+  },
+  toastBodyText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    lineHeight: 16,
+  },
+  toastCloseBtn: {
+    padding: 4,
+    marginLeft: 8,
+  },
   topContainer: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
   },
-
   headerRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -242,7 +316,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 10,
   },
-
   locationButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -252,14 +325,12 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     elevation: 4,
   },
-
   locationText: {
     marginLeft: 8,
     fontSize: 14,
     fontWeight: "700",
     color: "#0F172A",
   },
-
   notificationButton: {
     width: 46,
     height: 46,
@@ -269,7 +340,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     elevation: 4,
   },
-
   dot: {
     position: "absolute",
     top: 12,
@@ -279,12 +349,10 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: "#EF4444",
   },
-
   rightButtons: {
     position: "absolute",
     right: 18,
   },
-
   floatingBtn: {
     width: 50,
     height: 50,
@@ -295,13 +363,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     elevation: 4,
   },
-
   bottomContainer: {
     position: "absolute",
     width: "100%",
     alignItems: "center",
   },
-
   statusCard: {
     width: "90%",
     backgroundColor: "#FFF",
@@ -313,24 +379,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     elevation: 6,
   },
-
   statusTitle: {
     fontSize: 18,
     fontWeight: "800",
     color: "#0F172A",
   },
-
   statusSubtitle: {
     marginTop: 4,
     fontSize: 13,
     color: "#64748B",
   },
-
   markerContainer: {
     alignItems: "center",
     justifyContent: "center",
   },
-
   driverIcon: {
     width: 44,
     height: 44,
@@ -339,9 +401,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 6,
-    shadowColor: "#000",
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-    shadowOffset: { width: 0, height: 2 },
   },
 });

@@ -7,7 +7,13 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useCallback } from "react";
 import { fetchMaintenanceMode } from "../services/appSettings";
 
-const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNewUser }) => {
+const ComingSoonScreen = ({ 
+  navigation, 
+  setIsLoggedIn, 
+  setDriverStatus, 
+  setIsNewUser,
+  onMaintenanceDisabled 
+}) => {
   const handleLogout = () => {
     setDriverStatus?.(null);
     setIsNewUser?.(false);
@@ -16,15 +22,19 @@ const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNew
 
   const BRAND_GREEN = "#00A859";
 
-  // Check maintenance mode when screen comes into focus
+  // Check maintenance mode when screen comes into focus or mounts
   useFocusEffect(
     useCallback(() => {
       const checkMaintenance = async () => {
         try {
           const result = await fetchMaintenanceMode();
-          // If maintenance mode is disabled, navigate to home
+          // If maintenance mode is disabled, transition seamlessly back to app
           if (!result.maintenanceMode) {
-            navigation?.replace?.("MainTabs");
+            if (onMaintenanceDisabled) {
+              onMaintenanceDisabled();
+            } else {
+              navigation?.replace?.("MainTabs");
+            }
           }
         } catch (error) {
           console.error('Error checking maintenance mode:', error);
@@ -32,7 +42,7 @@ const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNew
       };
 
       checkMaintenance();
-    }, [navigation])
+    }, [navigation, onMaintenanceDisabled])
   );
 
   return (
@@ -132,9 +142,15 @@ const ComingSoonScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNew
         <TouchableOpacity
           style={styles.secondaryBtn}
           activeOpacity={0.9}
-          onPress={() => navigation?.replace?.("Verification")}
+          onPress={() => {
+            if (navigation) {
+              navigation.replace("Verification");
+            } else if (onMaintenanceDisabled) {
+              onMaintenanceDisabled();
+            }
+          }}
         >
-          <Text style={styles.secondaryBtnText}>Back to Status</Text>
+          <Text style={styles.secondaryBtnText}>Check Status</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
@@ -162,7 +178,7 @@ const styles = StyleSheet.create({
     top: 24,
     width: "150%",
     height: 4,
-    backgroundColor: "rgba(253, 224, 71, 0.08)", // Muted background tracker line
+    backgroundColor: "rgba(253, 224, 71, 0.08)",
     transform: [{ rotate: "-2deg" }],
   },
   logoutBtn: {
@@ -193,7 +209,7 @@ const styles = StyleSheet.create({
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: "rgba(253, 224, 71, 0.03)", // Very faint warm baseline accent
+    backgroundColor: "rgba(253, 224, 71, 0.03)",
   },
   animationContainer: {
     width: 130,
@@ -210,7 +226,7 @@ const styles = StyleSheet.create({
     borderRadius: 58,
     borderWidth: 1.5,
     borderStyle: "dashed",
-    borderColor: "rgba(253, 224, 71, 0.2)", // Subdued interface perimeter line
+    borderColor: "rgba(253, 224, 71, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -226,10 +242,10 @@ const styles = StyleSheet.create({
     borderRadius: 48,
     backgroundColor: "rgba(15, 23, 42, 0.85)",
     borderWidth: 1,
-    borderColor: "rgba(253, 224, 71, 0.25)", // Soft layout constraint outline
+    borderColor: "rgba(253, 224, 71, 0.25)",
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#000000", // Dark natural shadows instead of emission lines
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
