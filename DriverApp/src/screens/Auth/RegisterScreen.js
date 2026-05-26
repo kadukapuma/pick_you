@@ -35,6 +35,7 @@ const RegisterScreen = ({ navigation }) => {
 
   // Validation States
   const [emailError, setEmailError] = useState("");
+  const [phoneError, setPhoneError] = useState(""); // Added explicitly for inline rendering
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
@@ -73,6 +74,11 @@ const RegisterScreen = ({ navigation }) => {
     return /\S+@\S+\.\S+/.test(value);
   };
 
+  // Validates that number starts with 0 and has exactly 10 digits
+  const validatePhone = (value) => {
+    return /^0\d{9}$/.test(value);
+  };
+
   const handleEmailChange = (value) => {
     setEmail(value);
 
@@ -84,13 +90,26 @@ const RegisterScreen = ({ navigation }) => {
     setEmailError(validateEmail(value) ? "" : "Please enter a valid email address");
   };
 
+  // Force truncating input value past 10 characters
+  const handlePhoneChange = (value) => {
+    const cleanedValue = value.slice(0, 10);
+    setPhone(cleanedValue);
+
+    if (!cleanedValue) {
+      setPhoneError("");
+      return;
+    }
+
+    setPhoneError(validatePhone(cleanedValue) ? "" : "Number must start with 0 and be 10 digits");
+  };
+
   const handlePasswordChange = (value) => {
     setPassword(value);
 
     if (!value) {
       setPasswordError("");
-    } else if (value.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
+    } else if (value.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
     } else {
       setPasswordError("");
     }
@@ -118,6 +137,7 @@ const RegisterScreen = ({ navigation }) => {
   // Backend Registration Pipeline Logic
   const handleRegister = async () => {
     setEmailError("");
+    setPhoneError("");
     setPasswordError("");
     setConfirmPasswordError("");
 
@@ -142,8 +162,13 @@ const RegisterScreen = ({ navigation }) => {
       hasError = true;
     }
 
-    if (password.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
+    if (!validatePhone(phone)) {
+      setPhoneError("Phone number must start with 0 and contain exactly 10 digits.");
+      hasError = true;
+    }
+
+    if (password.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
       hasError = true;
     }
 
@@ -182,9 +207,8 @@ const RegisterScreen = ({ navigation }) => {
       const resp = error.response?.data;
       const msg = resp?.message || "An error occurred during registration.";
 
-      const emailError = resp?.errors?.email || /email|already/i.test(msg);
-
-      if (emailError) {
+      const isEmailTaken = resp?.errors?.email || /email|already/i.test(msg);
+      if (isEmailTaken) {
         showPopup(
           "Email Already Registered",
           "This email is already registered. Please log in to continue.",
@@ -195,9 +219,8 @@ const RegisterScreen = ({ navigation }) => {
         return;
       }
 
-      // Check if phone or user instance is already present in the database setup
-      const phoneError = resp?.errors?.phone || /phone|already/i.test(msg);
-      if (phoneError) {
+      const isPhoneTaken = resp?.errors?.phone || /phone|already/i.test(msg);
+      if (isPhoneTaken) {
         showPopup(
           "Number Already Registered",
           "Your mobile number is already registered. Please log in to continue.",
@@ -369,15 +392,35 @@ const RegisterScreen = ({ navigation }) => {
                   {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
                 </MotiView>
 
-                {/* PHONE NUMBER FIELD SYSTEM */}
-                <InputField
-                  icon="phone"
-                  placeholder="Phone Number"
-                  value={phone}
-                  onChangeText={setPhone}
-                  keyboardType="phone-pad"
-                  delay={800}
-                />
+                {/* PHONE NUMBER FIELD SYSTEM - MAX LENGTH SET TO 10 */}
+                <MotiView
+                  from={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 800 }}
+                >
+                  <View style={[styles.inputWrapper, phoneError && styles.inputError]}>
+                    <Feather
+                      name="phone"
+                      size={18}
+                      color={phoneError ? "#EF4444" : "#94A3B8"}
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Phone Number"
+                      placeholderTextColor="#94A3B8"
+                      value={phone}
+                      onChangeText={handlePhoneChange}
+                      keyboardType="phone-pad"
+                      autoCapitalize="none"
+                      maxLength={10} 
+                    />
+                    {phone.length > 0 && !phoneError && validatePhone(phone) && (
+                      <Feather name="check-circle" size={18} color="#00A859" />
+                    )}
+                  </View>
+                  {phoneError ? <Text style={styles.errorText}>{phoneError}</Text> : null}
+                </MotiView>
 
                 {/* SECURE PASSWORD CREATION FIELD */}
                 <MotiView
@@ -394,7 +437,7 @@ const RegisterScreen = ({ navigation }) => {
                     />
                     <TextInput
                       style={styles.input}
-                      placeholder="Password"
+                      placeholder="Password (Min 8 characters)"
                       placeholderTextColor="#94A3B8"
                       value={password}
                       secureTextEntry={!showPassword}
