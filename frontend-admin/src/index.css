@@ -109,6 +109,45 @@ p {
   color: var(--status-suspended-text);
 }
 
+/* Avatar + presence dot */
+.avatar-initials {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #e9ecef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-size: 14px;
+  overflow: hidden;
+  position: relative;
+}
+
+.presence-dot {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  z-index: 3;
+}
+.presence-dot.online { background: #0ca678; }
+.presence-dot.offline { background: #6c757d; }
+
+/* Larger dot for big avatar in detail view */
+.detail-view .avatar-initials .presence-dot {
+  width: 14px;
+  height: 14px;
+  right: 12px;
+  top: 12px;
+  border-width: 3px;
+}
+
 .btn-view {
   background-color: var(--accent);
   color: var(--sidebar-active-text);
@@ -136,21 +175,6 @@ p {
   font-size: 18px;
   line-height: 1;
 }
-
-.avatar-initials {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background-color: #e9ecef;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  color: var(--text-muted);
-  font-size: 14px;
-  overflow: hidden;
-}
-
 .avatar-initials img {
   width: 100%;
   height: 100%;

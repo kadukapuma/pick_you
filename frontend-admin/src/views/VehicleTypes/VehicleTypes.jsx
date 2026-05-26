@@ -5,6 +5,7 @@ import DataTable from '../../components/DataTable/DataTable'
 import SearchBar from '../../components/SearchBar/SearchBar'
 import Modal from '../../components/Modal/Modal'
 import FormInput from '../../components/FormInput/FormInput'
+import VehicleTypeIcon from '../../components/VehicleTypeIcon/VehicleTypeIcon'
 import {
     createVehicleType,
     fetchVehicleTypes,
@@ -231,7 +232,9 @@ const VehicleTypes = () => {
                             key={item.id}
                             style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 1fr' }}
                         >
-                            <div className="vehicle-type-name">{item.name}</div>
+                            <div className="vehicle-type-name">
+                                <VehicleTypeIcon type={item} showLabel />
+                            </div>
                             <div>{item.display_name}</div>
                             <div className="vehicle-type-desc" title={item.description}>{item.description || 'N/A'}</div>
                             <div>
@@ -292,6 +295,19 @@ const VehicleTypes = () => {
                         required
                         disabled={saving}
                     />
+
+                    <div className="vehicle-type-icon-preview">
+                        <label style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted, #64748b)' }}>
+                            Reference Icon Preview
+                        </label>
+                        <div style={{ marginTop: '8px' }}>
+                            <VehicleTypeIcon
+                                type={form.name || form.display_name}
+                                showLabel
+                                style={{ background: '#f0fdfa', borderColor: '#ccfbf1' }}
+                            />
+                        </div>
+                    </div>
 
                     <div className="form-group" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                         <label htmlFor="description" style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted, #64748b)' }}>
