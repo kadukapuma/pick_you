@@ -149,7 +149,9 @@ export default function SignInScreen() {
               onPress={handleSignIn}
               disabled={isLoading}
               activeOpacity={0.8}
-              className="rounded-xl py-4 items-center mb-5 flex-row justify-center"
+              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${
+                isLoading ? "bg-gray-400" : "bg-[#59C36A]"
+              }`}
               style={{
                 shadowColor: "#59C36A",
                 shadowOpacity: isLoading ? 0 : 0.2,
@@ -163,7 +165,6 @@ export default function SignInScreen() {
                 <Text className="text-white text-lg font-bold">Continue</Text>
               )}
             </TouchableOpacity>
-
           </View>
         </KeyboardAwareScrollView>
       </TouchableWithoutFeedback>

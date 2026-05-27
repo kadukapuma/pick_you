@@ -36,6 +36,7 @@ export class AuthService {
       if (response.success && response.data?.token) {
         await StorageService.saveToken(response.data.token);
         await StorageService.saveUser(response.data.user);
+        console.log("✅ Token and user saved after registration");
       }
 
       return {
@@ -60,6 +61,7 @@ export class AuthService {
     try {
       await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
       await StorageService.clearAuth();
+      console.log("✅ User logged out and auth cleared");
       return { success: true, message: "Logged out successfully" };
     } catch (error: any) {
       console.error("Logout error:", error);
@@ -80,8 +82,10 @@ export class AuthService {
       const user = await StorageService.getUser();
 
       if (token && user) {
+        console.log("✅ Auth restored from storage - Token:", token.substring(0, 20) + "...");
         return { success: true, user };
       }
+      console.log("⚠️ No token or user in storage");
       return { success: false };
     } catch (error) {
       console.error("Restore auth error:", error);
@@ -117,6 +121,7 @@ export class AuthService {
 
   /**
    * Verify OTP code and check registration status
+   * Saves auth tokens for both existing users and new registrations
    */
   static async verifyOtp(
     phone: string,
@@ -132,9 +137,13 @@ export class AuthService {
         otp_code: otpCode,
       });
 
-      if (response.success && response.data?.registered) {
+      // ✅ Save token and user for BOTH registered users AND new user registrations
+      if (response.success && response.data?.token && response.data?.user) {
         await StorageService.saveToken(response.data.token);
         await StorageService.saveUser(response.data.user);
+        console.log(
+          `✅ Auth saved after OTP verification (registered: ${response.data.registered}) - User: ${response.data.user.id}`
+        );
       }
 
       return {
@@ -143,6 +152,7 @@ export class AuthService {
         data: response.data,
       };
     } catch (error: any) {
+      console.error("OTP verification error:", error);
       return {
         success: false,
         message: error.message || "Failed to verify OTP",

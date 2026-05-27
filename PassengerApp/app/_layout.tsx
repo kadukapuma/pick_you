@@ -53,11 +53,13 @@ function RootLayoutContent() {
       loadMaintenanceMode();
     };
 
+    // ✅ App state listener to sync auth when app returns to foreground
     const appStateSubscription = AppState.addEventListener("change", (nextState) => {
       const wasBackgrounded = appStateRef.current.match(/inactive|background/);
       appStateRef.current = nextState;
 
       if (wasBackgrounded && nextState === "active") {
+        console.log("🔄 App resumed - syncing maintenance mode");
         syncMaintenanceMode();
       }
     });

@@ -12,12 +12,15 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthService } from "../services/auth/authService";
+import { useAuth } from "../context/AuthContext";
 
 export default function VerifyNumberScreen() {
   const { mobileNumber, testOtp } = useLocalSearchParams<{
     mobileNumber?: string;
     testOtp?: string;
   }>();
+
+  const { updateUser } = useAuth();
 
   const [code, setCode] = useState(["", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -87,6 +90,12 @@ export default function VerifyNumberScreen() {
       if (result.success) {
         if (result.data?.registered) {
           // User exists - login successful
+          // ✅ UPDATE AUTH CONTEXT BEFORE NAVIGATION
+          if (result.data.user) {
+            updateUser(result.data.user);
+            console.log("✅ User context updated after login");
+          }
+          
           Alert.alert("Success", "Logged in successfully!", [
             {
               text: "OK",
@@ -96,7 +105,12 @@ export default function VerifyNumberScreen() {
             },
           ]);
         } else {
-          // New User
+          // New User - store user data for signup
+          if (result.data?.user) {
+            updateUser(result.data.user);
+            console.log("✅ User context updated for new registration");
+          }
+          
           Alert.alert("Welcome!", "Complete your profile to get started", [
             {
               text: "OK",
@@ -198,50 +212,64 @@ export default function VerifyNumberScreen() {
 
         <View className="flex-1 px-5 pt-6">
           <View className="mb-6 flex-row items-center rounded-lg bg-[#EAF4FF] px-4 py-3">
-            <Text className="flex-1 text-base leading-6 text-[#627088]">
-              We have sent a 4 digit code via SMS to{" "}
-              <Text className="font-semibold text-[#263A59]">
-                {displayNumber}
-              </Text>{" "}
-              <Text
-                className="text-[#2385C6] underline"
-                onPress={() => router.back()}
-              >
-                Change number
-              </Text>
+            <Ionicons name="information-circle" size={20} color="#0071E3" />
+            <Text className="ml-2 flex-1 text-sm text-gray-600">
+              We sent a code to
+              <Text className="font-semibold">{displayNumber}</Text>
             </Text>
-            <Ionicons name="chatbubble-ellipses" size={28} color="#263A59" />
           </View>
 
-          <View className="mb-6 flex-row justify-between gap-3">
-            {code.map((digit, index) => (
+          {/* OTP Input Fields */}
+          <View className="mb-6 flex-row justify-between gap-2">
+            {[0, 1, 2, 3].map((index) => (
               <TextInput
                 key={index}
                 ref={(ref) => {
                   inputRefs.current[index] = ref;
                 }}
-                className="h-14 flex-1 rounded-lg border-2 bg-white text-center text-2xl font-semibold text-[#263A59]"
+                className="flex-1 rounded-lg border border-gray-300 bg-white text-center text-2xl font-bold text-black"
+                style={{ height: 60 }}
+                placeholder="0"
+                placeholderTextColor="#999"
                 keyboardType="number-pad"
                 maxLength={1}
-                value={digit}
+                value={code[index]}
                 onChangeText={(value) => handleCodeChange(value, index)}
-                onKeyPress={({ nativeEvent }) =>
-                  handleKeyPress(nativeEvent.key, index)
-                }
-                textContentType="oneTimeCode"
+                onKeyPress={(e) => handleKeyPress(e.nativeEvent.key, index)}
                 editable={!isVerifying}
+                selectTextOnFocus
               />
             ))}
           </View>
-          <TouchableOpacity
-            disabled={!canResend || isVerifying}
-            onPress={handleResendOTP}
-            className="self-start rounded-full border border-[#C4C8D0] px-7 py-3"
-          >
-            <Text className="font-semibold">
-              {canResend ? "Resend code" : `Resend code in ${timeLeft}s`}
+
+          {/* Resend Section */}
+          <View className="mb-6 flex-row items-center justify-center">
+            <Text className="text-sm text-gray-600">
+              {canResend ? "Didn't receive? " : `Resend in ${timeLeft}s `}
             </Text>
-          </TouchableOpacity>
+            {canResend && (
+              <TouchableOpacity onPress={handleResendOTP} disabled={isVerifying}>
+                <Text className="text-sm font-semibold text-blue-600">
+                  Resend OTP
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Manual Verify Button (optional) */}
+          {isCodeComplete && (
+            <TouchableOpacity
+              onPress={verifyOTP}
+              disabled={isVerifying}
+              className={`rounded-lg py-4 ${
+                isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
+              }`}
+            >
+              <Text className="text-center font-semibold text-white">
+                {isVerifying ? "Verifying..." : "Verify Code"}
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
