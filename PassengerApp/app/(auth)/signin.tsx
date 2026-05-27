@@ -16,7 +16,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-
 import { AuthService } from "../services/auth/authService";
 
 export default function SignInScreen() {
@@ -108,21 +107,12 @@ export default function SignInScreen() {
 
             {/* Heading */}
             <Text className="text-3xl font-extrabold text-center text-[#222] mb-2">
-              Welcome Back!
+              Welcome
             </Text>
 
             <Text className="text-base text-center text-gray-500 mb-10">
-              Sign in with your phone number
+              Enter your phone number to get started
             </Text>
-
-            {/* Error Message */}
-            {validationErrors.phoneNumber && (
-              <View className="bg-red-100 border border-red-400 rounded-lg px-4 py-3 mb-4">
-                <Text className="text-red-700 text-sm">
-                  {validationErrors.phoneNumber}
-                </Text>
-              </View>
-            )}
 
             {/* Phone Number */}
             <Text className="text-sm font-medium text-gray-600 mb-2">
@@ -130,10 +120,8 @@ export default function SignInScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-4 mb-5 text-base ${
-                validationErrors.phoneNumber ? "border-2 border-red-500" : ""
-              }`}
-              placeholder="Enter your phone number"
+              className="bg-[#EDEDED] rounded-xl px-4 py-4 mb-5 text-base"
+              placeholder="0771234567"
               placeholderTextColor="#999"
               keyboardType={Platform.OS === "ios" ? "number-pad" : "phone-pad"}
               value={phoneNumber}
@@ -161,9 +149,7 @@ export default function SignInScreen() {
               onPress={handleSignIn}
               disabled={isLoading}
               activeOpacity={0.8}
-              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${
-                isLoading ? "bg-gray-400" : "bg-[#59C36A]"
-              }`}
+              className="rounded-xl py-4 items-center mb-5 flex-row justify-center"
               style={{
                 shadowColor: "#59C36A",
                 shadowOpacity: isLoading ? 0 : 0.2,
@@ -174,21 +160,10 @@ export default function SignInScreen() {
               {isLoading ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
-                <Text className="text-white text-lg font-bold">Send OTP</Text>
+                <Text className="text-white text-lg font-bold">Continue</Text>
               )}
             </TouchableOpacity>
 
-            {/* Bottom Text */}
-            <TouchableOpacity
-              onPress={() => router.push("/(auth)/signup")}
-              disabled={isLoading}
-              activeOpacity={0.8}
-            >
-              <Text className="text-center text-sm text-gray-500">
-                Don’t have an account?{" "}
-                <Text className="text-[#59C36A] font-bold">Sign Up</Text>
-              </Text>
-            </TouchableOpacity>
           </View>
         </KeyboardAwareScrollView>
       </TouchableWithoutFeedback>

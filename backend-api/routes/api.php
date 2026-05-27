@@ -4,6 +4,15 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PassengerAuthController;
+
+// Passenger App Auth routes
+Route::prefix('passenger/auth')->group(function () {
+    Route::post('/otp/send', [PassengerAuthController::class, 'sendOtp']);
+    Route::post('/otp/verify', [PassengerAuthController::class, 'verifyOtp']);
+    Route::post('/register', [PassengerAuthController::class, 'completeRegistration']);
+    Route::middleware('auth:sanctum')->post('/logout', [PassengerAuthController::class, 'logout']);
+});
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
