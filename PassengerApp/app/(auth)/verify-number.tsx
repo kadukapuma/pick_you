@@ -81,29 +81,43 @@ export default function VerifyNumberScreen() {
 
     setIsVerifying(true);
     try {
-      // Pass registration data from context to complete the login after OTP verification
+      // Verify OTP
       const result = await AuthService.verifyOtp(
         mobileNumber || "",
         otpCode,
         pendingRegistration || undefined,
       );
 
-      if (result.success) {
-        // Clear pending registration
+      if (result.success && result.data) {
+        // User exists - login successful
         setPendingRegistration(null);
 
-        // Show success message
-        Alert.alert("Success", "OTP verified successfully!", [
+        Alert.alert("Success", "Logged in successfully!", [
           {
             text: "OK",
             onPress: () => {
-              // Navigate to home
               router.replace("/(drawer)/(tabs)/home");
             },
           },
         ]);
+      } else if (result.success) {
+        // OTP verified but no user data returned - this is a NEW user
+        // Navigate to signup screen with phone number
+        setPendingRegistration(null);
+
+        Alert.alert("Welcome!", "Complete your profile to get started", [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace({
+                pathname: "/(auth)/signup",
+                params: { mobileNumber },
+              });
+            },
+          },
+        ]);
       } else {
-        // Show error
+        // Verification failed
         Alert.alert(
           "Verification Failed",
           result.message || "Invalid OTP. Please try again.",
@@ -111,7 +125,6 @@ export default function VerifyNumberScreen() {
             {
               text: "OK",
               onPress: () => {
-                // Reset the code
                 setCode(["", "", "", ""]);
                 inputRefs.current[0]?.focus();
               },
@@ -148,8 +161,8 @@ export default function VerifyNumberScreen() {
         setCanResend(false);
         setCode(["", "", "", ""]);
         inputRefs.current[0]?.focus();
-        
-        const successMsg = result.otp 
+
+        const successMsg = result.otp
           ? `OTP sent again. Your new OTP is: ${result.otp}`
           : "OTP sent again. Check your email.";
         Alert.alert("Success", successMsg);
