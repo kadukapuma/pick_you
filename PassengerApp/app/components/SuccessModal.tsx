@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, Modal, Animated } from "react-native";
+import { View, Text, Modal, Animated, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 interface SuccessModalProps {
@@ -7,6 +7,8 @@ interface SuccessModalProps {
   title?: string;
   message?: string;
   onDismiss?: () => void;
+  onClose?: () => void;
+  buttonText?: string;
   autoClose?: boolean;
   autoCloseDuration?: number;
 }
@@ -16,6 +18,8 @@ export default function SuccessModal({
   title = "Success!",
   message = "Operation completed successfully.",
   onDismiss,
+  onClose,
+  buttonText = "OK",
   autoClose = true,
   autoCloseDuration = 2000,
 }: SuccessModalProps) {
@@ -63,6 +67,7 @@ export default function SuccessModal({
       }),
     ]).start(() => {
       onDismiss?.();
+      onClose?.();
     });
   };
 
@@ -95,6 +100,14 @@ export default function SuccessModal({
           {message && (
             <Text className="text-sm text-gray-600 text-center">{message}</Text>
           )}
+          {/* Button */}
+          <TouchableOpacity
+            onPress={animateOut}
+            activeOpacity={0.8}
+            className="mt-6 bg-[#59C36A] rounded-lg px-6 py-3"
+          >
+            <Text className="text-white font-semibold text-center">{buttonText}</Text>
+          </TouchableOpacity>
         </Animated.View>
       </View>
     </Modal>

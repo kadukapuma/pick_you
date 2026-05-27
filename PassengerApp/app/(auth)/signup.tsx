@@ -15,11 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-
 import SuccessModal from "../components/SuccessModal";
-import ErrorAlert from "../components/ErrorAlert";
-
-import { useAuth } from "../hooks/useAuth";
 
 import { AuthService } from "../services/auth/authService";
 
@@ -33,7 +29,6 @@ export default function SignUpScreen() {
     mobileNumber?: string;
   }>();
 
-  const { setPendingRegistration } = useAuth();
 
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -98,12 +93,11 @@ export default function SignUpScreen() {
       setShowError(false);
 
       // Register user
-      const registerResult = await AuthService.registerWithPhone({
+      const registerResult = await AuthService.register({
         first_name: firstName,
         last_name: lastName,
         email: email.trim() || undefined,
         phone: mobileNumber,
-        role: "passenger",
       });
 
       if (!registerResult.success) {
@@ -123,9 +117,6 @@ export default function SignUpScreen() {
 
         return;
       }
-
-      // Save registration data
-      setPendingRegistration(registerResult.data || null);
 
       // Show success modal
       setShowSuccess(true);
@@ -178,7 +169,7 @@ export default function SignUpScreen() {
 
             {/* Title */}
             <Text className="text-2xl font-bold text-center text-[#222] mb-5">
-              Sign Up
+              Complete Profile
             </Text>
 
             {/* First Name */}
@@ -187,9 +178,8 @@ export default function SignUpScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${
-                validationErrors.firstName ? "border-2 border-red-500" : ""
-              }`}
+              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${validationErrors.firstName ? "border-2 border-red-500" : ""
+                }`}
               placeholder="Enter first name"
               placeholderTextColor="#999"
               value={firstName}
@@ -215,9 +205,8 @@ export default function SignUpScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${
-                validationErrors.lastName ? "border-2 border-red-500" : ""
-              }`}
+              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${validationErrors.lastName ? "border-2 border-red-500" : ""
+                }`}
               placeholder="Enter last name"
               placeholderTextColor="#999"
               value={lastName}
@@ -243,27 +232,31 @@ export default function SignUpScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-5 text-base ${
-                validationErrors.email ? "border-2 border-red-500" : ""
-              }`}
+              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-5 text-base ${validationErrors.email ? "border-2 border-red-500" : ""
+                }`}
               placeholder="Enter email address (optional)"
               placeholderTextColor="#999"
               keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
               value={email}
               onChangeText={setEmail}
               editable={!isVerifying}
+              autoCapitalize="none"
+              autoCorrect={false}
               textContentType="emailAddress"
               autoComplete="email"
               returnKeyType="done"
-              blurOnSubmit={true}
               onSubmitEditing={handleSignUp}
             />
 
             {validationErrors.email && (
-              <Text className="text-red-500 text-xs mb-5">
+              <Text className="text-red-500 text-xs mb-3 -mt-2">
                 {validationErrors.email}
+              </Text>
+            )}
+
+            {showError && (
+              <Text className="text-red-500 text-sm mb-3 text-center">
+                {errorMessage}
               </Text>
             )}
 
@@ -272,58 +265,35 @@ export default function SignUpScreen() {
               onPress={handleSignUp}
               disabled={isVerifying}
               activeOpacity={0.8}
-              className={`rounded-xl py-4 items-center mb-4 flex-row justify-center ${
-                isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
-              }`}
-              style={{
-                shadowColor: "#59C36A",
-                shadowOpacity: isVerifying ? 0 : 0.2,
-                shadowRadius: 8,
-                elevation: isVerifying ? 0 : 5,
-              }}
+              className={`rounded-xl py-4 items-center mb-8 mt-2 flex-row justify-center ${isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
+                }`}
             >
               {isVerifying ? (
                 <ActivityIndicator size="small" color="white" />
               ) : (
                 <Text className="text-white text-lg font-bold">
-                  Complete Setup
+                  Complete Registration
                 </Text>
               )}
             </TouchableOpacity>
 
-            {/* Login Text */}
             <TouchableOpacity
-              onPress={() => router.push("/(auth)/signin")}
-              disabled={isVerifying}
+              onPress={() => router.replace("/(auth)/signin")}
               activeOpacity={0.8}
+              className="items-center"
             >
-              <Text className="text-center text-sm text-gray-500">
-                Already have an account?{" "}
-                <Text className="text-[#59C36A] font-bold">Sign In</Text>
-              </Text>
+              <Text className="text-gray-500">Cancel</Text>
             </TouchableOpacity>
           </View>
         </KeyboardAwareScrollView>
       </TouchableWithoutFeedback>
 
-      {/* Success Modal */}
       <SuccessModal
         visible={showSuccess}
-        title="Profile Complete!"
-        message="Your profile has been created successfully. Enjoy PickYou!"
-        onDismiss={handleSuccessClose}
-        autoClose={true}
-        autoCloseDuration={2000}
-      />
-
-      {/* Error Modal */}
-      <ErrorAlert
-        visible={showError}
-        title="Setup Failed"
-        message={errorMessage}
-        onDismiss={() => setShowError(false)}
-        onRetry={handleSignUp}
-        showRetry={true}
+        title="Registration Successful!"
+        message="Welcome to PickYou!"
+        buttonText="Get Started"
+        onClose={handleSuccessClose}
       />
     </SafeAreaView>
   );

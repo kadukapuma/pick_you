@@ -12,15 +12,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthService } from "../services/auth/authService";
-import { useAuth } from "../hooks/useAuth";
 
 export default function VerifyNumberScreen() {
   const { mobileNumber, testOtp } = useLocalSearchParams<{
     mobileNumber?: string;
     testOtp?: string;
   }>();
-
-  const { pendingRegistration, setPendingRegistration } = useAuth();
 
   const [code, setCode] = useState(["", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -29,7 +26,7 @@ export default function VerifyNumberScreen() {
   const [showOtpPopup, setShowOtpPopup] = useState(true);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
-  const displayNumber = mobileNumber || "your email";
+  const displayNumber = mobileNumber || "your phone number";
   const isCodeComplete = code.every(Boolean);
   const otpCode = code.join("");
 
@@ -37,8 +34,8 @@ export default function VerifyNumberScreen() {
   useEffect(() => {
     if (showOtpPopup && mobileNumber) {
       const message = testOtp
-        ? `📧 OTP has been sent to: ${mobileNumber}\n\n🔐 FOR TESTING (DEV): Your OTP code is: ${testOtp}\n\nEnter it in the field below to verify.`
-        : `📧 OTP has been sent to: ${mobileNumber}\n\nIn development, check:\n• Your backend logs\n• Email received\n• Backend console output\n\nThe OTP is typically a 4-digit code.\n\nEnter it in the field below to verify.`;
+        ? "📧 OTP has been sent to: \n\n🔐 FOR TESTING (DEV): Your OTP code is: \n\nEnter it in the field below to verify."
+        : "📧 OTP has been sent to: \n\nIn development, check:\n• Your backend logs\n• Email received\n• Backend console output\n\nThe OTP is typically a 4-digit code.\n\nEnter it in the field below to verify.";
 
       // In development, show a popup with info on how to get the OTP
       Alert.alert(
@@ -84,38 +81,34 @@ export default function VerifyNumberScreen() {
       // Verify OTP
       const result = await AuthService.verifyOtp(
         mobileNumber || "",
-        otpCode,
-        pendingRegistration || undefined,
+        otpCode
       );
 
-      if (result.success && result.data) {
-        // User exists - login successful
-        setPendingRegistration(null);
-
-        Alert.alert("Success", "Logged in successfully!", [
-          {
-            text: "OK",
-            onPress: () => {
-              router.replace("/(drawer)/(tabs)/home");
+      if (result.success) {
+        if (result.data?.registered) {
+          // User exists - login successful
+          Alert.alert("Success", "Logged in successfully!", [
+            {
+              text: "OK",
+              onPress: () => {
+                router.replace("/(drawer)/(tabs)/home");
+              },
             },
-          },
-        ]);
-      } else if (result.success) {
-        // OTP verified but no user data returned - this is a NEW user
-        // Navigate to signup screen with phone number
-        setPendingRegistration(null);
-
-        Alert.alert("Welcome!", "Complete your profile to get started", [
-          {
-            text: "OK",
-            onPress: () => {
-              router.replace({
-                pathname: "/(auth)/signup",
-                params: { mobileNumber },
-              });
+          ]);
+        } else {
+          // New User
+          Alert.alert("Welcome!", "Complete your profile to get started", [
+            {
+              text: "OK",
+              onPress: () => {
+                router.replace({
+                  pathname: "/(auth)/signup",
+                  params: { mobileNumber },
+                });
+              },
             },
-          },
-        ]);
+          ]);
+        }
       } else {
         // Verification failed
         Alert.alert(
@@ -163,8 +156,8 @@ export default function VerifyNumberScreen() {
         inputRefs.current[0]?.focus();
 
         const successMsg = result.otp
-          ? `OTP sent again. Your new OTP is: ${result.otp}`
-          : "OTP sent again. Check your email.";
+          ? "OTP sent again. Your new OTP is: "
+          : "OTP sent again. Check your SMS.";
         Alert.alert("Success", successMsg);
       } else {
         Alert.alert("Error", result.message || "Failed to resend OTP");
@@ -199,14 +192,14 @@ export default function VerifyNumberScreen() {
       >
         <View className="border-b border-gray-200 bg-[#FFF8FF] px-5 pb-9 pt-7">
           <Text className="text-center text-2xl font-bold text-black">
-            Verify email
+            Verify phone
           </Text>
         </View>
 
         <View className="flex-1 px-5 pt-6">
           <View className="mb-6 flex-row items-center rounded-lg bg-[#EAF4FF] px-4 py-3">
             <Text className="flex-1 text-base leading-6 text-[#627088]">
-              We have sent a 4 digit code via email to{" "}
+              We have sent a 4 digit code via SMS to{" "}
               <Text className="font-semibold text-[#263A59]">
                 {displayNumber}
               </Text>{" "}
@@ -214,7 +207,7 @@ export default function VerifyNumberScreen() {
                 className="text-[#2385C6] underline"
                 onPress={() => router.back()}
               >
-                Change email
+                Change number
               </Text>
             </Text>
             <Ionicons name="chatbubble-ellipses" size={28} color="#263A59" />
@@ -227,9 +220,7 @@ export default function VerifyNumberScreen() {
                 ref={(ref) => {
                   inputRefs.current[index] = ref;
                 }}
-                className={`h-14 flex-1 rounded-lg border-2 bg-white text-center text-2xl font-semibold text-[#263A59] ${
-                  index === 0 ? "border-[#263A59]" : "border-[#C4C8D0]"
-                }`}
+                className="h-14 flex-1 rounded-lg border-2 bg-white text-center text-2xl font-semibold text-[#263A59]"
                 keyboardType="number-pad"
                 maxLength={1}
                 value={digit}
@@ -242,27 +233,15 @@ export default function VerifyNumberScreen() {
               />
             ))}
           </View>
-
           <TouchableOpacity
             disabled={!canResend || isVerifying}
             onPress={handleResendOTP}
             className="self-start rounded-full border border-[#C4C8D0] px-7 py-3"
           >
-            <Text
-              className={`text-base ${
-                canResend ? "text-[#2385C6]" : "text-[#D4D7DC]"
-              }`}
-            >
-              Resend code {String(Math.floor(timeLeft / 60)).padStart(2, "0")} :{" "}
-              {String(timeLeft % 60).padStart(2, "0")}
+            <Text className="font-semibold">
+              {canResend ? "Resend code" : `Resend code in ${timeLeft}s`}
             </Text>
           </TouchableOpacity>
-
-          {isVerifying && (
-            <Text className="mt-5 text-center text-base font-semibold text-[#59C36A]">
-              Verifying email...
-            </Text>
-          )}
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
