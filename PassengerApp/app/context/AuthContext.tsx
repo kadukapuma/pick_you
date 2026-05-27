@@ -13,6 +13,7 @@ export interface AuthContextType {
   clearError: () => void;
   pendingRegistration: RegisterResponse | null;
   setPendingRegistration: (data: RegisterResponse | null) => void;
+  updateUser: (userData: StoredUser | null) => void;
 }
 
 export interface RegisterResponse {
@@ -34,12 +35,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const restoreAuth = async () => {
       try {
+        setIsLoading(true);
         const result = await AuthService.restoreAuth();
         if (result.success && result.user) {
           setUser(result.user);
+          console.log("✅ Auth restored: User", result.user.id);
+        } else {
+          setUser(null);
+          console.log("⚠️ No valid auth found");
         }
       } catch (err) {
         console.error("Failed to restore auth:", err);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -65,6 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (result.success && result.data) {
         setUser(result.data.user);
+        console.log("✅ Registration successful: User", result.data.user.id);
       } else {
         const errorMsg =
           result.errors && Object.keys(result.errors).length > 0
@@ -91,6 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (result.success && result.data) {
         setUser(result.data.user);
+        console.log("✅ Login successful: User", result.data.user.id);
       } else {
         const errorMsg = result.message || "Login failed";
         setError(errorMsg);
@@ -103,6 +112,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  /**
+   * Update user in context (used after OTP verification)
+   */
+  const updateUser = (userData: StoredUser | null) => {
+    setUser(userData);
+    console.log("✅ User context updated", userData ? userData.id : "null");
   };
 
   const logout = async () => {
@@ -134,6 +151,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearError,
     pendingRegistration,
     setPendingRegistration,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
