@@ -16,11 +16,11 @@ export const API_CONFIG = {
 
 export const API_ENDPOINTS = {
   AUTH: {
-    REGISTER: "/register",
-    LOGIN: "/login",
-    LOGOUT: "/logout",
-    OTP_SEND: "/otp/send",
-    OTP_VERIFY: "/otp/verify",
+    REGISTER: "/passenger/auth/register",
+    LOGIN: "/passenger/auth/otp/verify", // Using OTP verified login now
+    LOGOUT: "/passenger/auth/logout",
+    OTP_SEND: "/passenger/auth/otp/send",
+    OTP_VERIFY: "/passenger/auth/otp/verify",
     GET_USER: "/user",
   },
 };
