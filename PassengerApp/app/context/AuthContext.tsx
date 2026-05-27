@@ -7,7 +7,6 @@ export interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   register: (data: any) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
@@ -65,9 +64,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         last_name: data.lastName,
         email: data.email,
         phone: data.phone,
-        password: data.password,
-        password_confirmation: data.passwordConfirm,
-        role: "passenger",
       });
 
       if (result.success && result.data) {
@@ -83,30 +79,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err: any) {
       const message = err.message || "Registration failed";
-      setError(message);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const login = async (email: string, password: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const result = await AuthService.login({ email, password });
-
-      if (result.success && result.data) {
-        setUser(result.data.user);
-        console.log("✅ Login successful: User", result.data.user.id);
-      } else {
-        const errorMsg = result.message || "Login failed";
-        setError(errorMsg);
-        throw new Error(errorMsg);
-      }
-    } catch (err: any) {
-      const message = err.message || "Login failed";
       setError(message);
       throw err;
     } finally {
@@ -145,7 +117,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     isAuthenticated: !!user,
     register,
-    login,
     logout,
     error,
     clearError,
