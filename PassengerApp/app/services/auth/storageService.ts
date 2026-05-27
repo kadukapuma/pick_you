@@ -41,13 +41,11 @@ export class StorageService {
   }
 
   /**
-   * Get authentication token
+   * Get authentication token (no logging - called frequently for every API request)
    */
   static async getToken(): Promise<string | null> {
     try {
-      const token = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
-      console.log(`🔍 Retrieved token: ${token ? "FOUND (length: " + token.length + ")" : "NOT FOUND"}`);
-      return token;
+      return await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
     } catch (error) {
       console.error("❌ Failed to retrieve token:", error);
       return null;
@@ -80,10 +78,9 @@ export class StorageService {
       const userData = await AsyncStorage.getItem(STORAGE_KEYS.USER);
       if (userData) {
         const user = JSON.parse(userData);
-        console.log(`🔍 Retrieved user: FOUND (ID: ${user.id}, ${user.first_name})`);
+        console.log(`🔍 User restored: ID ${user.id}`);
         return user;
       }
-      console.log(`🔍 Retrieved user: NOT FOUND`);
       return null;
     } catch (error) {
       console.error("❌ Failed to retrieve user:", error);
