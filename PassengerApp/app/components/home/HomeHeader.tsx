@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { router } from "expo-router";
 import { Image, TouchableOpacity, View } from "react-native";
 
@@ -8,23 +7,6 @@ type HomeHeaderProps = {
 };
 
 export default function HomeHeader({ compact = false }: HomeHeaderProps) {
-  const navigation = useNavigation<any>();
-
-  const openDrawer = () => {
-    let current = navigation;
-
-    while (current) {
-      if (current.getState?.()?.type === "drawer") {
-        current.dispatch(DrawerActions.openDrawer());
-        return;
-      }
-
-      current = current.getParent?.();
-    }
-
-    navigation.dispatch(DrawerActions.openDrawer());
-  };
-
   return (
     <View
       style={{
@@ -42,9 +24,8 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           flex: 1,
         }}
       >
-        {/* MENU */}
-        <TouchableOpacity
-          onPress={openDrawer}
+        {/* HOME BADGE */}
+        <View
           style={{
             width: compact ? 36 : 42,
             height: compact ? 36 : 42,
@@ -54,8 +35,8 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
             justifyContent: "center",
           }}
         >
-          <Ionicons name="menu" size={compact ? 20 : 22} color="#0B3D2E" />
-        </TouchableOpacity>
+          <Ionicons name="home" size={compact ? 20 : 22} color="#0B3D2E" />
+        </View>
 
         {/* LOGO */}
         <View

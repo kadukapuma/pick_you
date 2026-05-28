@@ -82,10 +82,7 @@ export default function VerifyNumberScreen() {
     setIsVerifying(true);
     try {
       // Verify OTP
-      const result = await AuthService.verifyOtp(
-        mobileNumber || "",
-        otpCode
-      );
+      const result = await AuthService.verifyOtp(mobileNumber || "", otpCode);
 
       if (result.success) {
         if (result.data?.registered) {
@@ -95,7 +92,7 @@ export default function VerifyNumberScreen() {
             updateUser(result.data.user);
             console.log("✅ User context updated after login");
           }
-          
+
           Alert.alert("Success", "Logged in successfully!", [
             {
               text: "OK",
@@ -110,7 +107,7 @@ export default function VerifyNumberScreen() {
             updateUser(result.data.user);
             console.log("✅ User context updated for new registration");
           }
-          
+
           Alert.alert("Welcome!", "Complete your profile to get started", [
             {
               text: "OK",
@@ -248,7 +245,10 @@ export default function VerifyNumberScreen() {
               {canResend ? "Didn't receive? " : `Resend in ${timeLeft}s `}
             </Text>
             {canResend && (
-              <TouchableOpacity onPress={handleResendOTP} disabled={isVerifying}>
+              <TouchableOpacity
+                onPress={handleResendOTP}
+                disabled={isVerifying}
+              >
                 <Text className="text-sm font-semibold text-blue-600">
                   Resend OTP
                 </Text>
