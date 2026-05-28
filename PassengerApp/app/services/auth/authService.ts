@@ -1,6 +1,7 @@
 import { apiClient } from "../api/apiClient";
 import { API_ENDPOINTS } from "../api/config";
 import { StorageService, StoredUser } from "./storageService";
+import { IS_DEV_MODE, MOCK_USER, MOCK_TOKEN } from "../api/config";
 
 export interface RegisterPhonePayload {
   first_name: string;
@@ -18,6 +19,45 @@ export interface AuthResponse {
 }
 
 export class AuthService {
+  /**
+   * Dev Mode: Send mock OTP
+   */
+  static async sendOtpDev(phone: string): Promise<{
+    success: boolean;
+    message?: string;
+    otp?: number;
+  }> {
+    console.log("🔧 DEV MODE: Sending mock OTP to", phone);
+    return {
+      success: true,
+      message: "Mock OTP sent",
+      otp: 123456, // Always use this in dev
+    };
+  }
+
+  /**
+   * Dev Mode: Verify mock OTP
+   */
+  static async verifyOtpDev(phone: string): Promise<{
+    success: boolean;
+    message?: string;
+    data?: AuthResponse;
+  }> {
+    console.log("🔧 DEV MODE: Verifying mock OTP for", phone);
+    await StorageService.saveToken(MOCK_TOKEN);
+    await StorageService.saveUser(MOCK_USER);
+
+    return {
+      success: true,
+      message: "Mock OTP verified",
+      data: {
+        user: MOCK_USER,
+        token: MOCK_TOKEN,
+        registered: true,
+      },
+    };
+  }
+
   /**
    * Register a new user
    */
@@ -82,7 +122,10 @@ export class AuthService {
       const user = await StorageService.getUser();
 
       if (token && user) {
-        console.log("✅ Auth restored from storage - Token:", token.substring(0, 20) + "...");
+        console.log(
+          "✅ Auth restored from storage - Token:",
+          token.substring(0, 20) + "...",
+        );
         return { success: true, user };
       }
       console.log("⚠️ No token or user in storage");
@@ -101,10 +144,15 @@ export class AuthService {
     message?: string;
     otp?: number;
   }> {
+    if (IS_DEV_MODE) return this.sendOtpDev(phone);
+
     try {
-      const response = await apiClient.post<{ otp: number }>(API_ENDPOINTS.AUTH.OTP_SEND, {
-        phone
-      });
+      const response = await apiClient.post<{ otp: number }>(
+        API_ENDPOINTS.AUTH.OTP_SEND,
+        {
+          phone,
+        },
+      );
 
       return {
         success: response.success,
@@ -131,18 +179,22 @@ export class AuthService {
     message?: string;
     data?: AuthResponse;
   }> {
-    try {
-      const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.OTP_VERIFY, {
-        phone,
-        otp_code: otpCode,
-      });
+    if (IS_DEV_MODE) return this.verifyOtpDev(phone);
 
-      // ✅ Save token and user for BOTH registered users AND new user registrations
+    try {
+      const response = await apiClient.post<AuthResponse>(
+        API_ENDPOINTS.AUTH.OTP_VERIFY,
+        {
+          phone,
+          otp_code: otpCode,
+        },
+      );
+
       if (response.success && response.data?.token && response.data?.user) {
         await StorageService.saveToken(response.data.token);
         await StorageService.saveUser(response.data.user);
         console.log(
-          `✅ Auth saved after OTP verification (registered: ${response.data.registered}) - User: ${response.data.user.id}`
+          `✅ Auth saved after OTP verification (registered: ${response.data.registered}) - User: ${response.data.user.id}`,
         );
       }
 

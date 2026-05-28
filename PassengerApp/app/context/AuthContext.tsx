@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { AuthService } from "../services/auth/authService";
 import { StoredUser } from "../services/auth/storageService";
+import { IS_DEV_MODE, MOCK_USER, MOCK_TOKEN } from "../services/api/config";
 
 export interface AuthContextType {
   user: StoredUser | null;

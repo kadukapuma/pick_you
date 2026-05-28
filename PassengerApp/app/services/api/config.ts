@@ -14,6 +14,28 @@ export const API_CONFIG = {
   },
 };
 
+// Development mode flag
+export const IS_DEV_MODE = process.env.EXPO_PUBLIC_DEV_MODE === "true";
+
+// Mock user for development
+export const MOCK_USER = {
+  id: 999,
+  first_name: "Dev",
+  last_name: "User",
+  phone: "+1234567890",
+  email: "dev@pickme.com",
+  role: "passenger" as const,
+  is_active: true,
+  created_at: new Date().toISOString(),
+  passenger: {
+    id: 999,
+    wallet_balance: 5000,
+  },
+};
+
+// Mock token for development
+export const MOCK_TOKEN = "dev-token-xyz123-no-auth";
+
 export const API_ENDPOINTS = {
   AUTH: {
     REGISTER: "/passenger/auth/register",
