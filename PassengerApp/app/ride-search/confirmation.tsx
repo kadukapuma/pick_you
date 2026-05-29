@@ -4,13 +4,19 @@ import {
   TouchableOpacity,
   Text,
   ScrollView,
+  Alert,
+  ActivityIndicator
 } from "react-native";
+import { useState } from "react";
+import { apiClient } from "../services/api/apiClient";
+import { getCachedDirections_withCache } from "../services/routing/mapboxRoutingService";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useRideSearch } from "../context/RideSearchContext";
 
 export default function ConfirmationScreen() {
-  const { tripType, outboundTrip, returnTrip } = useRideSearch();
+  const [isBooking, setIsBooking] = useState(false);
+  const { tripType, outboundTrip, returnTrip, setIsSearchingForDriver, setActiveRide } = useRideSearch();
 
   if (
     !outboundTrip.pickup ||
@@ -31,14 +37,46 @@ export default function ConfirmationScreen() {
     );
   }
 
-  const handleConfirmBooking = () => {
-    // This will later connect to your backend
-    console.log("Booking confirmed:", {
-      tripType,
-      outbound: outboundTrip,
-      return: tripType === "return" ? returnTrip : null,
-    });
-    router.push("/");
+  const handleConfirmBooking = async () => {
+    setIsBooking(true);
+    try {
+      const directions = await getCachedDirections_withCache(
+        outboundTrip.pickup!.latitude,
+        outboundTrip.pickup!.longitude,
+        outboundTrip.dropoff!.latitude,
+        outboundTrip.dropoff!.longitude
+      );
+
+      const distance_km = directions ? parseFloat((directions.distance / 1000).toFixed(2)) : 5.0;
+
+      const payload = {
+        vehicle_type: outboundTrip.selectedRide!.id,
+        pickup_address: outboundTrip.pickup!.address || "Unknown Pickup",
+        pickup_lat: outboundTrip.pickup!.latitude,
+        pickup_lng: outboundTrip.pickup!.longitude,
+        drop_address: outboundTrip.dropoff!.address || "Unknown Drop",
+        drop_lat: outboundTrip.dropoff!.latitude,
+        drop_lng: outboundTrip.dropoff!.longitude,
+        distance_km
+      };
+
+      const response = await apiClient.post("/rides", payload);
+
+      if (response.success) {
+        const rideId = response.data?.id ? Number(response.data.id) : null;
+        setIsSearchingForDriver(true);
+        setActiveRide(rideId, "REQUESTED");
+        // Stay inside the authenticated app shell after booking
+        router.replace("/(drawer)/(tabs)/activities");
+      } else {
+        const errorMsg = typeof response.message === 'string' ? response.message : JSON.stringify(response.errors);
+        Alert.alert("Error booking ride", errorMsg || "Unknown error");
+      }
+    } catch (e: any) {
+      Alert.alert("Error", "Network or server error.");
+    } finally {
+      setIsBooking(false);
+    }
   };
 
   return (
@@ -218,8 +256,13 @@ export default function ConfirmationScreen() {
       <TouchableOpacity
         style={styles.confirmButton}
         onPress={handleConfirmBooking}
+        disabled={isBooking}
       >
-        <Text style={styles.confirmButtonText}>Confirm & Pay</Text>
+        {isBooking ? (
+          <ActivityIndicator color="#000" />
+        ) : (
+          <Text style={styles.confirmButtonText}>Confirm & Pay</Text>
+        )}
       </TouchableOpacity>
     </View>
   );

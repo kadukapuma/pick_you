@@ -22,7 +22,10 @@ class VehicleTypeController extends Controller
             $query->where('is_active', true);
         }
 
-        $data = $query->get();
+        $data = $query->get()->map(function ($vt) {
+            $vt->fare_config = \App\Models\FareConfig::where('vehicle_type', $vt->name)->where('is_active', true)->first();
+            return $vt;
+        });
 
         return $this->success($data, 'Vehicle types retrieved successfully.');
     }

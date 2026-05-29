@@ -13,8 +13,10 @@ import { Ionicons } from "@expo/vector-icons";
 
 import LocationPicker from "../components/ride/LocationPicker";
 import { LocationSuggestion } from "../services/location/locationSuggestionsService";
+import { useRideSearch } from "../context/RideSearchContext";
 
 export default function RideSearchScreen() {
+  const { setOutboundPickup, setOutboundDropoff, setTripType: setContextTripType } = useRideSearch();
   const [currentLocation, setCurrentLocation] =
     useState<LocationSuggestion | null>(null);
 
@@ -59,23 +61,19 @@ export default function RideSearchScreen() {
     pickup: LocationSuggestion,
     destination: LocationSuggestion,
   ) => {
-    if (tripType === "return-trip") {
-      router.push({
-        pathname: "/ride-search/return-trip-location",
-        params: {
-          pickup: JSON.stringify(pickup),
-          destination: JSON.stringify(destination),
-        },
-      });
-    } else {
-      router.push({
-        pathname: "/ride-search/select-ride",
-        params: {
-          pickup: JSON.stringify(pickup),
-          destination: JSON.stringify(destination),
-        },
-      });
-    }
+    // Save to centralized search context
+    setOutboundPickup(pickup);
+    setOutboundDropoff(destination);
+    setContextTripType(tripType === "return-trip" ? "return" : "oneway");
+
+    // Always navigate to outbound ride selection first
+    router.push({
+      pathname: "/ride-search/select-ride",
+      params: {
+        pickup: JSON.stringify(pickup),
+        destination: JSON.stringify(destination),
+      },
+    });
   };
 
   if (isLoadingLocation) {

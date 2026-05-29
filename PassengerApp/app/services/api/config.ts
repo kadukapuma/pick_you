@@ -3,7 +3,7 @@
  * Reads backend URL from environment variable EXPO_PUBLIC_API_URL
  */
 
-const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.6:8000";
+const API_URL = (process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.6:8000").trim();
 
 export const API_CONFIG = {
   BASE_URL: `${API_URL}/api`,
