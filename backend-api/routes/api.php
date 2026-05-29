@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\PassengerAuthController;
+use App\Http\Controllers\Api\PassengerProfileController;
 
 // Passenger App Auth routes
 Route::prefix('passenger/auth')->group(function () {
@@ -30,6 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user()->load(['driver.vehicles', 'rolePermissions']);
     });
+    Route::get('/passenger/profile', [PassengerProfileController::class, 'getProfile']);
+    Route::put('/passenger/profile', [PassengerProfileController::class, 'updateProfile']);
+    Route::post('/passenger/profile-picture', [PassengerProfileController::class, 'updateProfilePicture']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
     Route::get('/driver/profile', [App\Http\Controllers\Api\DriverProfileController::class, 'getProfile']);

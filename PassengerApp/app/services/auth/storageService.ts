@@ -11,6 +11,7 @@ export interface StoredUser {
   last_name: string;
   email: string;
   phone: string;
+  profile_picture_path?: string;
   role: "passenger" | "driver" | "admin";
   is_active: boolean;
   created_at?: string;
@@ -27,13 +28,13 @@ export class StorageService {
   static async saveToken(token: string): Promise<void> {
     try {
       await AsyncStorage.setItem(STORAGE_KEYS.TOKEN, token);
-      console.log(
-        `💾 Token saved to AsyncStorage (length: ${token.length})`
-      );
-      
+      console.log(`💾 Token saved to AsyncStorage (length: ${token.length})`);
+
       // Verify it was saved
       const saved = await AsyncStorage.getItem(STORAGE_KEYS.TOKEN);
-      console.log(`✅ Token verification: ${saved ? "SUCCESS - saved" : "FAILED - not saved"}`);
+      console.log(
+        `✅ Token verification: ${saved ? "SUCCESS - saved" : "FAILED - not saved"}`,
+      );
     } catch (error) {
       console.error("❌ Failed to save token:", error);
       throw error;
@@ -59,11 +60,15 @@ export class StorageService {
     try {
       const userData = JSON.stringify(user);
       await AsyncStorage.setItem(STORAGE_KEYS.USER, userData);
-      console.log(`💾 User saved to AsyncStorage (ID: ${user.id}, ${user.first_name})`);
-      
+      console.log(
+        `💾 User saved to AsyncStorage (ID: ${user.id}, ${user.first_name})`,
+      );
+
       // Verify it was saved
       const saved = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      console.log(`✅ User verification: ${saved ? "SUCCESS - saved" : "FAILED - not saved"}`);
+      console.log(
+        `✅ User verification: ${saved ? "SUCCESS - saved" : "FAILED - not saved"}`,
+      );
     } catch (error) {
       console.error("❌ Failed to save user:", error);
       throw error;
@@ -95,7 +100,9 @@ export class StorageService {
     try {
       const token = await this.getToken();
       const isAuth = !!token;
-      console.log(`🔐 Authentication check: ${isAuth ? "AUTHENTICATED" : "NOT AUTHENTICATED"}`);
+      console.log(
+        `🔐 Authentication check: ${isAuth ? "AUTHENTICATED" : "NOT AUTHENTICATED"}`,
+      );
       return isAuth;
     } catch {
       console.log(`🔐 Authentication check: ERROR`);
@@ -124,10 +131,12 @@ export class StorageService {
     try {
       const keys = await AsyncStorage.getAllKeys();
       console.log("📊 All storage keys:", keys);
-      
+
       for (const key of keys) {
         const value = await AsyncStorage.getItem(key);
-        console.log(`  - ${key}: ${value ? value.substring(0, 50) + "..." : "null"}`);
+        console.log(
+          `  - ${key}: ${value ? value.substring(0, 50) + "..." : "null"}`,
+        );
       }
     } catch (error) {
       console.error("❌ Failed to get all keys:", error);

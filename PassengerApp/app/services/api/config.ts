@@ -44,5 +44,11 @@ export const API_ENDPOINTS = {
     OTP_SEND: "/passenger/auth/otp/send",
     OTP_VERIFY: "/passenger/auth/otp/verify",
     GET_USER: "/user",
+    GET_PROFILE: "/user",
+  },
+  PASSENGER: {
+    PROFILE: "/passenger/profile",
+    UPDATE_PROFILE: "/passenger/profile",
+    PROFILE_PICTURE: "/passenger/profile-picture",
   },
 };
