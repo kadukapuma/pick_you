@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
@@ -13,6 +14,20 @@ use Illuminate\Support\Facades\DB;
 class RideController extends Controller
 {
     use ApiResponse;
+
+    /**
+     * Display a single ride.
+     */
+    public function show($id)
+    {
+        $ride = Ride::with(['statuses', 'driver', 'vehicle', 'fareConfig'])->find($id);
+
+        if (!$ride) {
+            return $this->error('Ride not found', 404);
+        }
+
+        return $this->success($ride, 'Ride retrieved successfully');
+    }
 
     /**
      * Passenger requests a new ride
