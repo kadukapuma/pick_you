@@ -125,17 +125,16 @@ class PassengerProfileController extends Controller
 
   private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
   {
-    $extension = $file->getClientOriginalExtension() ?: 'jpg';
-    $fileName = $publicId . '.' . $extension;
-    $relativeFolder = 'uploads/' . trim($folder, '/');
-    $destinationPath = public_path($relativeFolder);
+    $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+      'folder' => $folder,
+      'public_id' => $publicId,
+      'overwrite' => true,
+      'invalidate' => true,
+      'resource_type' => 'image',
+    ]);
 
-    if (!file_exists($destinationPath)) {
-      mkdir($destinationPath, 0755, true);
-    }
-
-    $file->move($destinationPath, $fileName);
-
-    return $relativeFolder . '/' . $fileName;
+    return data_get($uploadResult, 'secure_url')
+      ?? data_get($uploadResult, 'url')
+      ?? null;
   }
 }
