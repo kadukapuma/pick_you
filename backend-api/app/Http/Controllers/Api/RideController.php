@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ride;
 use App\Models\FareConfig;
+use App\Events\RideRequested;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -27,6 +28,61 @@ class RideController extends Controller
         }
 
         return $this->success($ride, 'Ride retrieved successfully');
+    }
+
+    /**
+     * Return open ride requests that match the authenticated driver's active vehicle type.
+     */
+    public function driverRideRequests(Request $request)
+    {
+        $user = $request->user();
+
+        if (!$user || !$user->driver) {
+            return $this->error('Driver not found', 404);
+        }
+
+        $driver = $user->driver;
+
+        if ((int) $driver->availability !== 1) {
+            return $this->success([], 'Driver is offline');
+        }
+
+        $activeVehicle = $driver->vehicles()
+            ->where('is_active', true)
+            ->with('vehicleType')
+            ->first();
+
+        $vehicleTypeName = $activeVehicle?->vehicleType?->name ?? $driver->vehicle_type;
+
+        if (!$vehicleTypeName) {
+            return $this->success([], 'No active vehicle type found');
+        }
+
+        $rides = Ride::with(['passenger.user', 'fareConfig'])
+            ->where('status', 'REQUESTED')
+            ->whereHas('fareConfig', function ($query) use ($vehicleTypeName) {
+                $query->where('vehicle_type', $vehicleTypeName);
+            })
+            ->orderByDesc('requested_at')
+            ->get()
+            ->map(function ($ride) {
+                $passengerUser = $ride->passenger?->user;
+
+                return [
+                    'id' => $ride->id,
+                    'ride_code' => $ride->ride_code,
+                    'status' => $ride->status,
+                    'vehicle_type' => $ride->fareConfig?->vehicle_type,
+                    'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger') . ' ' . ($passengerUser?->last_name ?? '')),
+                    'pickup_address' => $ride->pickup_address,
+                    'drop_address' => $ride->drop_address,
+                    'distance_km' => (float) $ride->distance_km,
+                    'estimated_fare' => (float) $ride->estimated_fare,
+                    'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
+                ];
+            });
+
+        return $this->success($rides, 'Driver ride requests retrieved successfully');
     }
 
     /**
@@ -81,6 +137,8 @@ class RideController extends Controller
             'status' => 'REQUESTED',
             'notes' => 'Passenger requested a ride.'
         ]);
+
+        event(new RideRequested($ride->load('fareConfig')));
 
         // TODO: Trigger Event/WebSocket to broadcast to nearby drivers
 

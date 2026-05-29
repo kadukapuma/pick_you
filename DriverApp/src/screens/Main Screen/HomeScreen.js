@@ -17,6 +17,7 @@ import * as Location from "expo-location";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
+import createEchoInstance from "../../services/echo";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -25,15 +26,25 @@ const HomeScreen = () => {
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [rideRequests, setRideRequests] = useState([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const lastNotifiedRideIdRef = useRef(null);
+  const echoRef = useRef(null);
+  const toastTimerRef = useRef(null);
+  const [activeVehicleType, setActiveVehicleType] = useState(null);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
 
-  const showCustomToast = (type, message) => {
+  const showCustomToast = (type, message, duration = 35000) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
     setToast({ visible: true, type, message });
-    setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToast((prev) => ({ ...prev, visible: false }));
-    }, 3500);
+    }, duration);
   };
 
   const [region] = useState(
@@ -57,15 +68,171 @@ const HomeScreen = () => {
     }, [])
   );
 
+  useEffect(() => {
+    let intervalId;
+
+    if (isOnline) {
+      fetchRideRequests();
+      intervalId = setInterval(fetchRideRequests, 5000);
+    } else {
+      setRideRequests([]);
+      lastNotifiedRideIdRef.current = null;
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isOnline]);
+
   const fetchDriverData = async () => {
     try {
       const response = await api.get("/user");
       const driverAvailability = response.data?.driver?.availability;
+      const primaryVehicle = response.data?.driver?.vehicles?.[0];
       setIsOnline(driverAvailability === 1);
+      setActiveVehicleType(
+        primaryVehicle?.vehicle_type || response.data?.driver?.vehicle_type || null,
+      );
     } catch (error) {
       console.log("Error fetching driver data:", error);
     }
   };
+
+  const fetchRideRequests = async () => {
+    if (!isOnline) {
+      setRideRequests([]);
+      return;
+    }
+
+    try {
+      setIsLoadingRequests(true);
+      const response = await api.get("/driver/ride-requests");
+      const payload = response.data?.data ?? response.data ?? [];
+      const requests = Array.isArray(payload) ? payload : [];
+
+      setRideRequests((prev) => {
+        const merged = [...prev];
+
+        requests.forEach((request) => {
+          const requestId = request?.id;
+          if (!requestId) {
+            return;
+          }
+
+          const existingIndex = merged.findIndex((ride) => ride.id === requestId);
+          if (existingIndex >= 0) {
+            merged[existingIndex] = {
+              ...merged[existingIndex],
+              ...request,
+            };
+          } else {
+            merged.unshift(request);
+          }
+        });
+
+        return merged;
+      });
+    } catch (error) {
+      console.log("Error fetching ride requests:", error);
+    } finally {
+      setIsLoadingRequests(false);
+    }
+  };
+
+  const handleAcceptRide = async (rideId) => {
+    try {
+      await api.post(`/rides/${rideId}/accept`);
+      setRideRequests((prev) => prev.filter((ride) => ride.id !== rideId));
+      showCustomToast("success", "Ride accepted successfully.");
+    } catch (error) {
+      console.log("Error accepting ride:", error);
+      const errorMessage =
+        error.response?.data?.message ||
+        "Failed to accept the ride. Please try again.";
+      showCustomToast("error", errorMessage);
+    }
+  };
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const setupRideSocket = async () => {
+      if (!isOnline || !activeVehicleType) {
+        return;
+      }
+
+      try {
+        if (echoRef.current) {
+          echoRef.current.leaveChannel("driver.rides");
+          echoRef.current = null;
+        }
+
+        const echo = await createEchoInstance();
+        if (!isMounted) {
+          echo.leaveChannel("driver.rides");
+          return;
+        }
+
+        echoRef.current = echo;
+
+        echo.channel("driver.rides").listen(".RideRequested", (event) => {
+          if (!event) {
+            return;
+          }
+
+          const eventVehicleType = String(event.vehicle_type || "").toLowerCase();
+          const driverVehicleType = String(activeVehicleType || "").toLowerCase();
+
+          if (eventVehicleType && driverVehicleType && eventVehicleType !== driverVehicleType) {
+            return;
+          }
+
+          const rideId = event.ride_id || event.id;
+          if (!rideId || lastNotifiedRideIdRef.current === rideId) {
+            return;
+          }
+
+          lastNotifiedRideIdRef.current = rideId;
+
+          const newRide = {
+            id: rideId,
+            ride_id: rideId,
+            ride_code: event.ride_code,
+            vehicle_type: event.vehicle_type,
+            passenger_name: "Passenger",
+            pickup_address: event.pickup_address,
+            drop_address: event.drop_address,
+            distance_km: event.distance_km,
+            estimated_fare: event.estimated_fare,
+            requested_at: event.requested_at,
+            status: "REQUESTED",
+          };
+
+          setRideRequests((prev) => {
+            const alreadyExists = prev.some((ride) => ride.id === rideId);
+            return alreadyExists ? prev : [newRide, ...prev];
+          });
+        });
+      } catch (error) {
+        console.log("Error setting up ride websocket:", error);
+      }
+    };
+
+    setupRideSocket();
+
+    return () => {
+      isMounted = false;
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+      }
+      if (echoRef.current) {
+        echoRef.current.leaveChannel("driver.rides");
+        echoRef.current = null;
+      }
+    };
+  }, [isOnline, activeVehicleType, navigation]);
 
   const handleToggleAvailability = async (newValue) => {
     setIsToggling(true);
@@ -184,7 +351,7 @@ const HomeScreen = () => {
             ]}
           >
             <View style={[
-              styles.statusIndicatorIndicator, 
+              styles.statusIndicatorIndicator,
               { backgroundColor: toast.type === "error" ? "#EF4444" : "#00A859" }
             ]} />
             <View style={styles.toastContentContainer}>
@@ -193,8 +360,8 @@ const HomeScreen = () => {
               </Text>
               <Text style={styles.toastBodyText}>{toast.message}</Text>
             </View>
-            <TouchableOpacity 
-              onPress={() => setToast((prev) => ({ ...prev, visible: false }))} 
+            <TouchableOpacity
+              onPress={() => setToast((prev) => ({ ...prev, visible: false }))}
               style={styles.toastCloseBtn}
             >
               <Ionicons name="close" size={16} color="#94A3B8" />
@@ -202,6 +369,80 @@ const HomeScreen = () => {
           </MotiView>
         )}
       </AnimatePresence>
+
+      {isOnline && rideRequests.length > 0 ? (
+        <SafeAreaView
+          edges={["bottom"]}
+          style={[
+            styles.requestContainer,
+            { bottom: Platform.OS === "android" ? 175 : 155 + insets.bottom },
+          ]}
+        >
+          <View style={styles.requestCard}>
+            <View style={styles.requestHeader}>
+              <View>
+                <Text style={styles.requestTitle}>New ride request</Text>
+                <Text style={styles.requestSubtitle}>
+                  {rideRequests[0].vehicle_type || "Matching vehicle type"}
+                </Text>
+              </View>
+              {isLoadingRequests ? (
+                <ActivityIndicator size="small" color="#00A859" />
+              ) : null}
+            </View>
+
+            <View style={styles.requestDetails}>
+              <Text style={styles.requestLabel}>Passenger</Text>
+              <Text style={styles.requestValue}>
+                {rideRequests[0].passenger_name || "Passenger"}
+              </Text>
+              <Text style={styles.requestLabel}>Pickup</Text>
+              <Text style={styles.requestValue}>
+                {rideRequests[0].pickup_address}
+              </Text>
+              <Text style={styles.requestLabel}>Drop-off</Text>
+              <Text style={styles.requestValue}>
+                {rideRequests[0].drop_address}
+              </Text>
+            </View>
+
+            <View style={styles.requestMetaRow}>
+              <Text style={styles.requestMeta}>
+                {Number(rideRequests[0].distance_km || 0).toFixed(1)} km
+              </Text>
+              <Text style={styles.requestMeta}>
+                Rs. {Number(rideRequests[0].estimated_fare || 0).toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.requestActions}>
+              <TouchableOpacity
+                style={styles.viewRequestBtn}
+                onPress={() =>
+                  navigation.navigate("TripDetails", {
+                    trip: {
+                      id: rideRequests[0].id,
+                      status: rideRequests[0].status,
+                      amount: `Rs. ${Number(rideRequests[0].estimated_fare || 0).toFixed(2)}`,
+                      date: rideRequests[0].requested_at,
+                      destination: rideRequests[0].drop_address,
+                      distance: `${Number(rideRequests[0].distance_km || 0).toFixed(1)} km`,
+                    },
+                  })
+                }
+              >
+                <Text style={styles.viewRequestText}>View</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.acceptRequestBtn}
+                onPress={() => handleAcceptRide(rideRequests[0].id)}
+              >
+                <Text style={styles.acceptRequestText}>Accept</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </SafeAreaView>
+      ) : null}
 
       {/* --- YOUR PERFECT POSITIONED STATUS CARD --- */}
       <SafeAreaView
@@ -256,7 +497,7 @@ const styles = StyleSheet.create({
     left: "5%",
     right: "5%",
     width: "90%",
-    backgroundColor: "#1E293B", 
+    backgroundColor: "#1E293B",
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -378,6 +619,93 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     elevation: 6,
+  },
+  requestContainer: {
+    position: "absolute",
+    width: "100%",
+    alignItems: "center",
+  },
+  requestCard: {
+    width: "90%",
+    backgroundColor: "#0F172A",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    elevation: 8,
+  },
+  requestHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  requestTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  requestSubtitle: {
+    marginTop: 2,
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  requestDetails: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    padding: 14,
+  },
+  requestLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginTop: 10,
+  },
+  requestValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  requestMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  requestMeta: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  requestActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  viewRequestBtn: {
+    flex: 1,
+    backgroundColor: "#1E293B",
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  viewRequestText: {
+    color: "#E2E8F0",
+    fontWeight: "800",
+  },
+  acceptRequestBtn: {
+    flex: 1,
+    backgroundColor: "#00A859",
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  acceptRequestText: {
+    color: "#FFF",
+    fontWeight: "800",
   },
   statusTitle: {
     fontSize: 18,
