@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -8,15 +8,70 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import api from '../../services/api';
+
+const getVehicleIconName = (vehicleType) => {
+  const typeName = (vehicleType || '').toLowerCase();
+
+  if (typeName.includes('tuk') || typeName.includes('three') || typeName.includes('rickshaw')) {
+    return 'rickshaw';
+  }
+
+  if (typeName.includes('bike') || typeName.includes('motorcycle') || typeName.includes('motorbike')) {
+    return 'motorbike';
+  }
+
+  if (typeName.includes('van') || typeName.includes('minivan')) {
+    return 'van-passenger';
+  }
+
+  if (typeName.includes('suv') || typeName.includes('jeep')) {
+    return 'car-suv';
+  }
+
+  if (typeName.includes('truck') || typeName.includes('pickup') || typeName.includes('flex')) {
+    return 'truck-fast';
+  }
+
+  return 'car-hatchback';
+};
 
 const VehicleDetailsScreen = ({ navigation }) => {
-  const [vehicleModel, setVehicleModel] = useState('Toyota Prius');
-  const [plateNumber, setPlateNumber] = useState('WP ABC-1234');
-  const [color, setColor] = useState('Pearl White');
+  const [vehicleModel, setVehicleModel] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+  const [color, setColor] = useState('');
+  const [vehicleType, setVehicleType] = useState('');
+  const [vehicleImages, setVehicleImages] = useState({ front: null, side: null, back: null });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const response = await api.get('/driver/profile');
+        if (response.data.status === 'success') {
+          const vehicle = response.data.data.vehicle;
+          if (vehicle) {
+            setVehicleModel(`${vehicle.brand || ''} ${vehicle.model || ''}`.trim());
+            setPlateNumber(vehicle.plateNumber !== 'Not set' ? vehicle.plateNumber : '');
+            setColor(vehicle.color || '');
+            setVehicleType(vehicle.vehicle_type || vehicle.vehicleType?.name || '');
+            if (vehicle.images) setVehicleImages(vehicle.images);
+          }
+        }
+      } catch (error) {
+        console.log('Error fetching vehicle for edit:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const InputField = ({ label, value, onChangeText, icon, placeholder }) => (
     <View style={styles.inputWrapper}>
@@ -55,11 +110,16 @@ const VehicleDetailsScreen = ({ navigation }) => {
           </SafeAreaView>
         </LinearGradient>
 
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#00A859" />
+          </View>
+        ) : (
+          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Vehicle Display Section */}
           <View style={styles.vehicleCard}>
             <View style={styles.iconCircle}>
-              <MaterialCommunityIcons name="car-hatchback" size={40} color="#00A859" />
+              <MaterialCommunityIcons name={getVehicleIconName(vehicleType)} size={40} color="#00A859" />
             </View>
             <Text style={styles.vehicleTitle}>{vehicleModel || 'No Vehicle Set'}</Text>
             <Text style={styles.vehicleSubTitle}>{plateNumber || 'Enter plate number'}</Text>
@@ -67,25 +127,25 @@ const VehicleDetailsScreen = ({ navigation }) => {
 
           {/* Details Form */}
           <View style={styles.formCard}>
-            <InputField 
-              label="Vehicle Model" 
-              value={vehicleModel} 
-              onChangeText={setVehicleModel} 
-              icon="car-info" 
+            <InputField
+              label="Vehicle Model"
+              value={vehicleModel}
+              onChangeText={setVehicleModel}
+              icon="car-info"
               placeholder="e.g. Toyota Prius"
             />
-            <InputField 
-              label="License Plate" 
-              value={plateNumber} 
-              onChangeText={setPlateNumber} 
-              icon="numeric" 
+            <InputField
+              label="License Plate"
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+              icon="numeric"
               placeholder="e.g. WP ABC-1234"
             />
-            <InputField 
-              label="Vehicle Color" 
-              value={color} 
-              onChangeText={setColor} 
-              icon="palette-outline" 
+            <InputField
+              label="Vehicle Color"
+              value={color}
+              onChangeText={setColor}
+              icon="palette-outline"
               placeholder="e.g. White"
             />
           </View>
@@ -94,12 +154,34 @@ const VehicleDetailsScreen = ({ navigation }) => {
           <Text style={styles.sectionTitle}>Vehicle Photos</Text>
           <View style={styles.photoGrid}>
             <TouchableOpacity style={styles.photoBox}>
-              <Feather name="camera" size={24} color="#00A859" />
-              <Text style={styles.photoLabel}>Front View</Text>
+              {vehicleImages.front ? (
+                <Image source={{ uri: vehicleImages.front }} style={{ width: '100%', height: '100%', borderRadius: 14 }} />
+              ) : (
+                <>
+                  <Feather name="camera" size={24} color="#00A859" />
+                  <Text style={styles.photoLabel}>Front View</Text>
+                </>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.photoBox}>
-              <Feather name="camera" size={24} color="#00A859" />
-              <Text style={styles.photoLabel}>Side View</Text>
+              {vehicleImages.side ? (
+                <Image source={{ uri: vehicleImages.side }} style={{ width: '100%', height: '100%', borderRadius: 14 }} />
+              ) : (
+                <>
+                  <Feather name="camera" size={24} color="#00A859" />
+                  <Text style={styles.photoLabel}>Side View</Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.photoBox}>
+              {vehicleImages.back ? (
+                <Image source={{ uri: vehicleImages.back }} style={{ width: '100%', height: '100%', borderRadius: 14 }} />
+              ) : (
+                <>
+                  <Feather name="camera" size={24} color="#00A859" />
+                  <Text style={styles.photoLabel}>Back View</Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -110,6 +192,7 @@ const VehicleDetailsScreen = ({ navigation }) => {
             </Text>
           </View>
         </ScrollView>
+        )}
       </KeyboardAvoidingView>
     </View>
   );
@@ -145,7 +228,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
-  
+
   scrollContent: { padding: 20, paddingBottom: 40 },
   vehicleCard: {
     backgroundColor: '#FFF',

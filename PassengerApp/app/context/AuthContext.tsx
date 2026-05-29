@@ -1,18 +1,19 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { AuthService } from "../services/auth/authService";
 import { StoredUser } from "../services/auth/storageService";
+import { IS_DEV_MODE, MOCK_USER, MOCK_TOKEN } from "../services/api/config";
 
 export interface AuthContextType {
   user: StoredUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
   register: (data: any) => Promise<void>;
-  login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
   pendingRegistration: RegisterResponse | null;
   setPendingRegistration: (data: RegisterResponse | null) => void;
+  updateUser: (userData: StoredUser | null) => void;
 }
 
 export interface RegisterResponse {
@@ -34,12 +35,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const restoreAuth = async () => {
       try {
+        setIsLoading(true);
         const result = await AuthService.restoreAuth();
         if (result.success && result.user) {
           setUser(result.user);
+          console.log("✅ Auth restored: User", result.user.id);
+        } else {
+          setUser(null);
+          console.log("⚠️ No valid auth found");
         }
       } catch (err) {
         console.error("Failed to restore auth:", err);
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -58,13 +65,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         last_name: data.lastName,
         email: data.email,
         phone: data.phone,
-        password: data.password,
-        password_confirmation: data.passwordConfirm,
-        role: "passenger",
       });
 
       if (result.success && result.data) {
         setUser(result.data.user);
+        console.log("✅ Registration successful: User", result.data.user.id);
       } else {
         const errorMsg =
           result.errors && Object.keys(result.errors).length > 0
@@ -82,27 +87,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const login = async (email: string, password: string) => {
-    try {
-      setIsLoading(true);
-      setError(null);
-
-      const result = await AuthService.login({ email, password });
-
-      if (result.success && result.data) {
-        setUser(result.data.user);
-      } else {
-        const errorMsg = result.message || "Login failed";
-        setError(errorMsg);
-        throw new Error(errorMsg);
-      }
-    } catch (err: any) {
-      const message = err.message || "Login failed";
-      setError(message);
-      throw err;
-    } finally {
-      setIsLoading(false);
-    }
+  /**
+   * Update user in context (used after OTP verification)
+   */
+  const updateUser = (userData: StoredUser | null) => {
+    setUser(userData);
+    console.log("✅ User context updated", userData ? userData.id : "null");
   };
 
   const logout = async () => {
@@ -128,12 +118,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     isAuthenticated: !!user,
     register,
-    login,
     logout,
     error,
     clearError,
     pendingRegistration,
     setPendingRegistration,
+    updateUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

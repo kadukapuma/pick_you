@@ -1,35 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
-import { DrawerActions, useNavigation } from "@react-navigation/native";
 import { router } from "expo-router";
-import { Image, TouchableOpacity, View } from "react-native";
+import { Image, Platform, TouchableOpacity, View } from "react-native";
 
 type HomeHeaderProps = {
   compact?: boolean;
 };
 
 export default function HomeHeader({ compact = false }: HomeHeaderProps) {
-  const navigation = useNavigation<any>();
-
-  const openDrawer = () => {
-    let current = navigation;
-
-    while (current) {
-      if (current.getState?.()?.type === "drawer") {
-        current.dispatch(DrawerActions.openDrawer());
-        return;
-      }
-
-      current = current.getParent?.();
-    }
-
-    navigation.dispatch(DrawerActions.openDrawer());
-  };
-
   return (
     <View
       style={{
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         width: "100%",
         paddingTop: 2,
       }}
@@ -42,37 +25,22 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           flex: 1,
         }}
       >
-        {/* MENU */}
-        <TouchableOpacity
-          onPress={openDrawer}
-          style={{
-            width: compact ? 36 : 42,
-            height: compact ? 36 : 42,
-            borderRadius: compact ? 18 : 21,
-            backgroundColor: "#E8F5EF",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          <Ionicons name="menu" size={compact ? 20 : 22} color="#0B3D2E" />
-        </TouchableOpacity>
-
-        {/* LOGO */}
+        {/* LOGO CONTAINER */}
         <View
           style={{
-            width: compact ? 108 : 120,
-            height: compact ? 42 : 52,
             justifyContent: "center",
-            marginLeft: 2,
+            alignItems: "flex-start",
+            width: compact ? 110 : 125,
+            height: compact ? 44 : 52,
           }}
         >
           <Image
             source={require("../../../assets/images/logo.png")}
             style={{
-              width: compact ? 154 : 175,
-              height: compact ? 56 : 64,
+              width: compact ? 150 : 172,
+              height: compact ? 54 : 62,
               resizeMode: "contain",
-              transform: [{ translateX: compact ? -24 : -28 }],
+              marginLeft: compact ? -20 : -24,
             }}
           />
         </View>
@@ -83,47 +51,67 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
         style={{
           flexDirection: "row",
           alignItems: "center",
-          gap: 8,
         }}
       >
+        {/* NOTIFICATION BUTTON */}
         <TouchableOpacity
+          activeOpacity={0.8}
           onPress={() => router.push("/(drawer)/(tabs)/notification")}
           style={{
-            width: compact ? 34 : 38,
-            height: compact ? 34 : 38,
-            borderRadius: compact ? 17 : 19,
+            width: compact ? 42 : 44,
+            height: compact ? 42 : 44,
+            borderRadius: compact ? 21 : 22,
             backgroundColor: "#FFFFFF",
             alignItems: "center",
             justifyContent: "center",
+
+            // Cross-platform shadow
+            shadowColor: "#000",
+            shadowOffset: {
+              width: 0,
+              height: 2,
+            },
+            shadowOpacity: 0.08,
+            shadowRadius: 4,
+
+            elevation: 3,
           }}
         >
           <Ionicons
             name="notifications-outline"
-            size={compact ? 19 : 21}
+            size={compact ? 20 : 22}
             color="#0B3D2E"
           />
 
+          {/* RED DOT */}
           <View
             style={{
               position: "absolute",
-              right: compact ? 8 : 9,
-              top: compact ? 7 : 8,
-              width: 7,
-              height: 7,
-              borderRadius: 10,
+              right: compact ? 10 : 11,
+              top: compact ? 9 : 10,
+              width: 8,
+              height: 8,
+              borderRadius: 4,
               backgroundColor: "#FF4D4F",
             }}
           />
         </TouchableOpacity>
 
+        {/* PROFILE BUTTON */}
         <TouchableOpacity
+          activeOpacity={0.8}
           onPress={() => router.push("/(drawer)/(tabs)/account")}
           style={{
-            width: compact ? 32 : 36,
-            height: compact ? 32 : 36,
-            borderRadius: compact ? 16 : 18,
+            width: compact ? 40 : 44,
+            height: compact ? 40 : 44,
+            borderRadius: compact ? 20 : 22,
             overflow: "hidden",
             backgroundColor: "#D1D5DB",
+            marginLeft: 10,
+
+            // Better Android rendering
+            borderWidth: Platform.OS === "android" ? 0.3 : 0,
+            borderColor: "#D1D5DB",
           }}
         >
           <Image

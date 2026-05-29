@@ -9,7 +9,6 @@ use App\Models\Driver;
 use App\Models\AdminNotificationLog;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\DriverApprovedMail;
 use App\Mail\DriverSuspendedMail;
@@ -138,6 +137,31 @@ class DriverController extends Controller
         return $this->success($driver, 'Driver account status updated successfully.');
     }
 
+    public function updateOwnAvailability(Request $request)
+    {
+        $request->validate([
+            'is_active' => 'required|boolean'
+        ]);
+
+        $user = $request->user();
+        if (!$user || !$user->driver) {
+            return $this->error('Driver not found.', 404);
+        }
+
+        $driver = $user->driver;
+
+        // Update the driver's availability status (1 for online, 0 for offline)
+        $availability = $request->is_active ? 1 : 0;
+        $driver->update(['availability' => $availability]);
+
+        event(new DashboardUpdated('driver.account', [
+            'driver_id' => $driver->id,
+            'availability' => $availability,
+        ]));
+
+        return $this->success($driver->load('user'), 'Availability updated successfully.');
+    }
+
     public function completeProfile(Request $request)
     {
         $request->validate([
@@ -167,30 +191,17 @@ class DriverController extends Controller
             $driver = $user->driver;
         }
 
-        $basePath = "uploads/users/{$user->id}/vehicles";
-        $fullPath = public_path($basePath);
-
-        if (!File::exists($fullPath)) {
-            File::makeDirectory($fullPath, 0755, true);
-        }
-
-        $uploadFile = function ($fileKey) use ($request, $fullPath, $basePath) {
-            if ($request->hasFile($fileKey)) {
-                $file = $request->file($fileKey);
-                $fileName = $fileKey . '_' . time() . '.' . $file->getClientOriginalExtension();
-                $file->move($fullPath, $fileName);
-                return "{$basePath}/{$fileName}";
-            }
-            return null;
-        };
-
         $updateData = [
             'status' => 'pending',
             'dob' => $request->filled('dob') ? $request->dob : $driver->dob,
             'address' => $request->filled('address') ? $request->address : $driver->address,
             'license_number' => $request->filled('nic') ? trim((string) $request->nic) : $driver->license_number,
-            'license_front_path' => $request->hasFile('license_front') ? $uploadFile('license_front') : $driver->license_front_path,
-            'license_back_path' => $request->hasFile('license_back') ? $uploadFile('license_back') : $driver->license_back_path,
+            'license_front_path' => $request->hasFile('license_front')
+                ? $this->uploadImageToCloudinary($request->file('license_front'), "drivers/{$user->id}/license", 'license_front')
+                : $driver->license_front_path,
+            'license_back_path' => $request->hasFile('license_back')
+                ? $this->uploadImageToCloudinary($request->file('license_back'), "drivers/{$user->id}/license", 'license_back')
+                : $driver->license_back_path,
         ];
 
         $driver->update($updateData);
@@ -233,11 +244,21 @@ class DriverController extends Controller
 
         if ($vehicle) {
             $imageData = array_filter([
-                'v_front' => $uploadFile('front'),
-                'v_back' => $uploadFile('back'),
-                'v_side' => $uploadFile('interior'),
-                'insurance_img' => $uploadFile('insurance'),
-                'licence_img' => $uploadFile('registration'),
+                'v_front' => $request->hasFile('front')
+                    ? $this->uploadImageToCloudinary($request->file('front'), "drivers/{$driver->id}/vehicles/{$vehicle->id}", 'v_front')
+                    : null,
+                'v_back' => $request->hasFile('back')
+                    ? $this->uploadImageToCloudinary($request->file('back'), "drivers/{$driver->id}/vehicles/{$vehicle->id}", 'v_back')
+                    : null,
+                'v_side' => $request->hasFile('interior')
+                    ? $this->uploadImageToCloudinary($request->file('interior'), "drivers/{$driver->id}/vehicles/{$vehicle->id}", 'v_side')
+                    : null,
+                'insurance_img' => $request->hasFile('insurance')
+                    ? $this->uploadImageToCloudinary($request->file('insurance'), "drivers/{$driver->id}/vehicles/{$vehicle->id}", 'insurance_img')
+                    : null,
+                'licence_img' => $request->hasFile('registration')
+                    ? $this->uploadImageToCloudinary($request->file('registration'), "drivers/{$driver->id}/vehicles/{$vehicle->id}", 'licence_img')
+                    : null,
             ]);
 
             if (!empty($imageData)) {
@@ -265,38 +286,22 @@ class DriverController extends Controller
             return $this->error('Driver profile not found', 404);
         }
 
-        $userId = $user->id;
-        $basePath = "uploads/users/{$userId}/license";
-        $fullPath = public_path($basePath);
-
-        if (!File::exists($fullPath)) {
-            File::makeDirectory($fullPath, 0755, true);
-        }
-
         $updatedData = [];
 
         if ($request->hasFile('license_front')) {
-            $file = $request->file('license_front');
-            $fileName = 'license_front_' . time() . '.' . $file->getClientOriginalExtension();
-
-            if ($driver->license_front_path && File::exists(public_path($driver->license_front_path))) {
-                File::delete(public_path($driver->license_front_path));
-            }
-
-            $file->move($fullPath, $fileName);
-            $updatedData['license_front_path'] = "{$basePath}/{$fileName}";
+            $updatedData['license_front_path'] = $this->uploadImageToCloudinary(
+                $request->file('license_front'),
+                "drivers/{$user->id}/license",
+                'license_front'
+            );
         }
 
         if ($request->hasFile('license_back')) {
-            $file = $request->file('license_back');
-            $fileName = 'license_back_' . time() . '.' . $file->getClientOriginalExtension();
-
-            if ($driver->license_back_path && File::exists(public_path($driver->license_back_path))) {
-                File::delete(public_path($driver->license_back_path));
-            }
-
-            $file->move($fullPath, $fileName);
-            $updatedData['license_back_path'] = "{$basePath}/{$fileName}";
+            $updatedData['license_back_path'] = $this->uploadImageToCloudinary(
+                $request->file('license_back'),
+                "drivers/{$user->id}/license",
+                'license_back'
+            );
         }
 
         if (!empty($updatedData)) {
@@ -304,5 +309,20 @@ class DriverController extends Controller
         }
 
         return $this->success($driver, 'License images updated successfully');
+    }
+
+    private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
+    {
+        $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+            'folder' => $folder,
+            'public_id' => $publicId,
+            'overwrite' => true,
+            'invalidate' => true,
+            'resource_type' => 'image',
+        ]);
+
+        return data_get($uploadResult, 'secure_url')
+            ?? data_get($uploadResult, 'url')
+            ?? null;
     }
 }

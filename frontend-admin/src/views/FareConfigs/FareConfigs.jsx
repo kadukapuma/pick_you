@@ -7,6 +7,7 @@ import PrimaryButton from '../../components/PrimaryButton/PrimaryButton'
 import Modal from '../../components/Modal/Modal'
 import FormInput from '../../components/FormInput/FormInput'
 import FormActions from '../../components/FormActions/FormActions'
+import VehicleTypeIcon from '../../components/VehicleTypeIcon/VehicleTypeIcon'
 import {
     createFareConfig,
     fetchFareConfigs,
@@ -261,7 +262,9 @@ const FareConfigs = () => {
                             key={item.id}
                             style={{ gridTemplateColumns: '1.2fr 0.9fr 0.9fr 0.9fr 0.9fr 0.8fr 0.9fr' }}
                         >
-                            <div className="fare-config-vehicle-type">{item.vehicle_type}</div>
+                            <div className="fare-config-vehicle-type">
+                                <VehicleTypeIcon type={item.vehicle_type} showLabel />
+                            </div>
                             <div>LKR {formatMoney(item.base_fare)}</div>
                             <div>LKR {formatMoney(item.per_km_rate)}</div>
                             <div>LKR {formatMoney(item.per_minute_rate)}</div>
@@ -326,6 +329,9 @@ const FareConfigs = () => {
                                 </option>
                             ))}
                         </select>
+                        <div style={{ marginTop: '10px' }}>
+                            <VehicleTypeIcon type={form.vehicle_type} showLabel />
+                        </div>
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '0' }}>

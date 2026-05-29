@@ -39,7 +39,7 @@ export default function GetStartedScreen() {
 
         {/* Button */}
         <TouchableOpacity
-          onPress={() => router.push("/(auth)/welcome")}
+          onPress={() => router.push("/(auth)/signin")}
           className="bg-[#34C759] rounded-full w-[70%] py-4 items-center mb-8"
           style={{
             shadowColor: "#34C759",

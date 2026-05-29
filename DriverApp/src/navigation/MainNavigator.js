@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { View, ActivityIndicator } from "react-native"; // Added View & ActivityIndicator for clean load gating
 
-// --- SCREENS IMPORT (Your exact file paths combined) ---
+// --- SCREENS IMPORT ---
 import EditVehicleScreen from "../screens//Main Screen/EditVehicleScreem";
 import DocumentVefityscreen from "../screens/DocumnetVefityScreen";
 import EditProfileScreen from "../screens/Main Screen/EditProfileScreen";
@@ -11,9 +12,11 @@ import ProfileSetScreen from "../screens/ProfileSetupScreen";
 import VehicleDetailsScreen from "../screens/VehicleDeatilsScreem";
 import VerificationScreen from "../screens/VerificationScreen";
 import DocumentsScreen from "../screens/Main Screen/DocumentsScreen";
+import BankDetailsScreen from "../screens/Main Screen/BankDetailsScreen";
 import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen";
 import ComingSoonScreen from "../screens/ComingSoonScreen";
 import BottomTabs from "./BottomTabs";
+import { fetchMaintenanceMode } from "../services/appSettings";
 
 const Stack = createNativeStackNavigator();
 
@@ -25,22 +28,74 @@ const MainNavigator = ({
   setDriverStatus,
   driver = null,
 }) => {
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [loadingMaintenanceMode, setLoadingMaintenanceMode] = useState(true); // Gating state
+  const navigationRef = useRef(null);
+  const pollIntervalRef = useRef(null);
 
-  // Back-end Exit handler logic
+  // Function to check maintenance mode dynamically
+  const checkMaintenanceMode = async () => {
+    try {
+      const result = await fetchMaintenanceMode();
+      const newMaintenanceMode = result.maintenanceMode || false;
+      setMaintenanceMode(newMaintenanceMode);
+
+      // If maintenance mode was turned OFF and we're stuck on ComingSoon, move forward immediately
+      if (!newMaintenanceMode && driverStatus?.toLowerCase() === "approved") {
+        navigationRef.current?.navigate("MainTabs");
+      }
+    } catch (error) {
+      console.error('Error checking maintenance mode:', error);
+    }
+  };
+
+  // Check maintenance mode on initial mount before creating navigation hierarchy
+  useEffect(() => {
+    const initializeMaintenanceMode = async () => {
+      try {
+        const result = await fetchMaintenanceMode();
+        setMaintenanceMode(result.maintenanceMode || false);
+      } catch (error) {
+        console.error('Error checking maintenance mode:', error);
+        setMaintenanceMode(false);
+      } finally {
+        setLoadingMaintenanceMode(false); // Clear gate safely
+      }
+    };
+
+    initializeMaintenanceMode();
+  }, []);
+
+  // Poll maintenance mode changes every 5 seconds
+  useEffect(() => {
+    pollIntervalRef.current = setInterval(() => {
+      checkMaintenanceMode();
+    }, 5000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [driverStatus]);
+
   const handleExitToGetStarted = () => {
     setIsLoggedIn(false);
     setIsNewUser?.(false);
     setDriverStatus?.(null);
   };
 
-  // Back-end Logic: Evaluates data completeness to safely direct user entry routing
+  // Evaluates data completeness to safely direct initial routing paths
   const getInitialRoute = () => {
     const status = driverStatus?.toLowerCase();
 
-    // If we have the full driver object, check data parameter completeness
+    // If maintenance mode is active, lock down approved users to the coming soon screen
+    if (maintenanceMode && status === "approved") {
+      return "ComingSoon";
+    }
+
     if (driver) {
       const profileComplete = !!driver.license_number && !!driver.address;
-
       const hasVehicle = driver.vehicles && driver.vehicles.length > 0;
       const vehicleComplete =
         hasVehicle &&
@@ -49,35 +104,37 @@ const MainNavigator = ({
       const documentsComplete =
         !!driver.license_front_path && !!driver.license_back_path;
 
-      // Check step 1: Profile
       if (!profileComplete) return "ProfileSet";
-
-      // Check step 2: Vehicle details
       if (!vehicleComplete) return "VehicleDetails";
-
-      // Check step 3: Initial documents upload flow
       if (!documentsComplete) return "Documentscreen";
 
-      // Validation gates
       if (status === "show_approved_screen") return "Verification";
-      if (status === "approved") return "ComingSoon";
-      // if (status === "approved") return "MainTabs";
+      
+      // FIX HERE: If maintenance is off, return MainTabs directly instead of ComingSoon fallback!
+      if (status === "approved") return "MainTabs"; 
       if (status === "pending" || status === "rejected") return "Verification";
     }
 
-    // Direct Fallbacks when live driver context payload structure isn't populated
     if (status === "show_approved_screen") return "Verification";
-    //
-    if (status === "approved") return "ComingSoon";
-    //  if (status === "approved") return "MainTabs";
+    if (status === "approved") return "MainTabs";
     if (isNewUser) return "ProfileSet";
     if (status === "pending" || status === "rejected") return "Verification";
 
     return "Verification";
   };
 
+  // Prevent routing calculations while we load system maintenance conditions
+  if (loadingMaintenanceMode) {
+    return (
+      <View style={{ flex: 1, backgroundColor: "#0B1220", justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color="#00A859" />
+      </View>
+    );
+  }
+
   return (
     <Stack.Navigator
+      ref={navigationRef}
       initialRouteName={getInitialRoute()}
       screenOptions={{
         headerShown: false,
@@ -150,57 +207,52 @@ const MainNavigator = ({
             setIsLoggedIn={setIsLoggedIn}
             setIsNewUser={setIsNewUser}
             setDriverStatus={setDriverStatus}
+            maintenanceMode={maintenanceMode}
+            driverStatus={driverStatus}
           />
         )}
       </Stack.Screen>
 
-      {/* ==================== SUB-PAGES (WITH UI ANIMATIONS) ==================== */}
+      {/* ==================== SUB-PAGES ==================== */}
       <Stack.Screen
         name="Notifications"
         component={NotificationScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
+        options={{ animation: "slide_from_right" }}
       />
 
       <Stack.Screen
         name="TripDetails"
         component={TripDetailsScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
+        options={{ animation: "slide_from_right" }}
       />
 
       <Stack.Screen
         name="EditProfile"
         component={EditProfileScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
+        options={{ animation: "slide_from_right" }}
       />
 
       <Stack.Screen
         name="EditVehicle"
         component={EditVehicleScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
+        options={{ animation: "slide_from_right" }}
       />
 
       <Stack.Screen
         name="Documents"
         component={DocumentsScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
+        options={{ animation: "slide_from_right" }}
       />
 
       <Stack.Screen
         name="DocumentPreview"
         component={DocumentPreviewScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
+        options={{ animation: "slide_from_right" }}
+      />
+      <Stack.Screen
+        name="BankDetails"
+        component={BankDetailsScreen}
+        options={{ animation: "slide_from_right" }}
       />
     </Stack.Navigator>
   );

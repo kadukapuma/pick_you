@@ -59,10 +59,11 @@ const Dashboard = () => {
         if (!token) return
 
         const channel = echo.channel('admin.dashboard')
-        const handleDashboardUpdate = () => {
-            loadStats()
-            if (refresh) {
-                refresh()
+        const handleDashboardUpdate = (payload) => {
+            // Only update API stats, don't refresh drivers list
+            // Drivers are updated in real-time by WebSocket listener in useDrivers hook
+            if (payload?.event === 'driver.account') {
+                loadStats()
             }
         }
 
@@ -72,7 +73,7 @@ const Dashboard = () => {
             channel.stopListening('DashboardUpdated', handleDashboardUpdate)
             echo.leave('admin.dashboard')
         }
-    }, [token, loadStats, refresh])
+    }, [token, loadStats])
 
     const stats = useMemo(() => {
         const total = pagination?.total || drivers.length
@@ -81,7 +82,9 @@ const Dashboard = () => {
             const s = driver.status || 'pending'
             acc[s] = (acc[s] || 0) + 1
 
-            if (driver.availability === 'online' || driver.availability === 'on_ride') {
+            // Check if driver is online (availability = 1)
+            const isOnline = driver.availability === 1 || driver.availability === '1' || driver.availability === true
+            if (isOnline) {
                 onlineCount++
             }
             return acc

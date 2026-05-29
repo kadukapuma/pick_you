@@ -13,10 +13,36 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
     use ApiResponse;
+
+    private function resolveOtpUser(Request $request): ?User
+    {
+        if ($request->filled('email')) {
+            return User::where('email', $request->email)->first();
+        }
+
+        if ($request->filled('phone')) {
+            $normalizedPhone = preg_replace('/\D+/', '', $request->phone);
+            $phoneCandidates = array_values(array_unique(array_filter([
+                $request->phone,
+                $normalizedPhone,
+                str_starts_with($normalizedPhone, '0') && strlen($normalizedPhone) === 10
+                    ? '94' . substr($normalizedPhone, 1)
+                    : null,
+                str_starts_with($normalizedPhone, '94') && strlen($normalizedPhone) === 11
+                    ? '0' . substr($normalizedPhone, 2)
+                    : null,
+            ])));
+
+            return User::whereIn('phone', $phoneCandidates)->first();
+        }
+
+        return null;
+    }
 
     public function register(Request $request)
     {
@@ -75,7 +101,7 @@ class AuthController extends Controller
         } elseif ($request->role === 'driver') {
             $driver = $user->driver()->create([
                 'status' => 'pending',
-                'availability' => 'offline',
+                'availability' => 0,
                 'rating' => 0.0
             ]);
 
@@ -185,7 +211,8 @@ class AuthController extends Controller
     public function sendOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => 'nullable|string|email',
+            'phone' => 'nullable|string',
             'purpose' => 'required|string',
         ]);
 
@@ -193,9 +220,29 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('email', $request->email)->first();
+        if (!$request->filled('email') && !$request->filled('phone')) {
+            return $this->error('Email or phone number is required', 422);
+        }
+
+        $user = $this->resolveOtpUser($request);
         if (!$user) {
             return $this->error('User not found', 404);
+        }
+
+        if (empty($user->phone)) {
+            return $this->error('Phone number not found for user', 422);
+        }
+
+        $notifyPhone = preg_replace('/\D+/', '', $user->phone);
+        if (str_starts_with($notifyPhone, '0') && strlen($notifyPhone) === 10) {
+            $notifyPhone = '94' . substr($notifyPhone, 1);
+        }
+
+        if (strlen($notifyPhone) !== 11) {
+            return $this->error('Phone number must be 11 digits for Notify.lk', 422, [
+                'phone' => $user->phone,
+                'normalized_phone' => $notifyPhone,
+            ]);
         }
 
         // Generate a 4 digit OTP
@@ -209,6 +256,21 @@ class AuthController extends Controller
             'expires_at' => now()->addMinutes(5)
         ]);
 
+        // Send SMS using Notify.lk
+        $response = Http::get('https://app.notify.lk/api/v1/send', [
+            'user_id' => env('NOTIFYLK_USER_ID'),
+            'api_key' => env('NOTIFYLK_API_KEY'),
+            'sender_id' => env('NOTIFYLK_SENDER_ID'),
+            'to' => $notifyPhone,
+            // 'message' => "Your OTP is: $otpCode"
+            'message' => "Your OTP: $otpCode Please use the above PickYou OTP to complete your action. Do not share this OTP with anyone."
+        ]);
+
+        if (!$response->successful()) {
+            return $this->error('Failed to send OTP SMS', 502, [
+                'provider_response' => $response->body(),
+            ]);
+        }
         // Integrate Email Gateway here (e.g., Mail, SendGrid, etc.)
         // For now, we will just return it in the response for testing
         return $this->success(['otp' => $otpCode], 'OTP sent successfully');
@@ -217,7 +279,8 @@ class AuthController extends Controller
     public function verifyOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
-            'email' => 'required|string|email',
+            'email' => 'nullable|string|email',
+            'phone' => 'nullable|string',
             'otp_code' => 'required|string',
             'purpose' => 'required|string',
         ]);
@@ -226,7 +289,11 @@ class AuthController extends Controller
             return $this->error('Validation Error', 422, $validator->errors());
         }
 
-        $user = User::where('email', $request->email)->first();
+        if (!$request->filled('email') && !$request->filled('phone')) {
+            return $this->error('Email or phone number is required', 422);
+        }
+
+        $user = $this->resolveOtpUser($request);
         if (!$user) {
             return $this->error('User not found', 404);
         }
@@ -248,6 +315,50 @@ class AuthController extends Controller
         return $this->success(null, 'OTP verified successfully');
     }
 
+    public function resetPassword(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'nullable|string|email',
+            'phone' => 'nullable|string',
+            'password' => 'required|string|min:8|confirmed',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        if (!$request->filled('email') && !$request->filled('phone')) {
+            return $this->error('Email or phone number is required', 422);
+        }
+
+        $user = $this->resolveOtpUser($request);
+
+        if (!$user) {
+            return $this->error('User not found', 404);
+        }
+
+        $verifiedOtp = $user->otpVerifications()
+            ->where('purpose', 'forgot_password')
+            ->where('is_verified', true)
+            ->where('expires_at', '>', now())
+            ->latest()
+            ->first();
+
+        if (!$verifiedOtp) {
+            return $this->error('OTP verification required', 403);
+        }
+
+        $user->update([
+            'password' => Hash::make($request->password),
+        ]);
+
+        $user->otpVerifications()
+            ->where('purpose', 'forgot_password')
+            ->update(['is_verified' => false]);
+
+        return $this->success(null, 'Password reset successfully');
+    }
+
     public function updateProfilePicture(Request $request)
     {
         $request->validate([
@@ -256,25 +367,37 @@ class AuthController extends Controller
 
         $user = $request->user();
         $userId = $user->id;
-        $basePath = "uploads/users/{$userId}";
-        $fullPath = public_path($basePath);
-
-        if (!File::exists($fullPath)) {
-            File::makeDirectory($fullPath, 0755, true);
-        }
-
         $file = $request->file('profile_picture');
-        $fileName = 'profile_' . time() . '.' . $file->getClientOriginalExtension();
 
-        // Delete old picture if exists
-        if ($user->profile_picture_path && File::exists(public_path($user->profile_picture_path))) {
-            File::delete(public_path($user->profile_picture_path));
+        // Delete old local picture if present (don't attempt to delete Cloudinary URLs)
+        if ($user->profile_picture_path && !filter_var($user->profile_picture_path, FILTER_VALIDATE_URL)) {
+            $oldLocal = public_path($user->profile_picture_path);
+            if (file_exists($oldLocal)) {
+                @unlink($oldLocal);
+            }
         }
 
-        $file->move($fullPath, $fileName);
-        $user->update(['profile_picture_path' => "{$basePath}/{$fileName}"]);
+        $uploadedUrl = $this->uploadImageToCloudinary($file, "users/{$userId}", 'profile_' . time());
+        if ($uploadedUrl) {
+            $user->update(['profile_picture_path' => $uploadedUrl]);
+        }
 
         return $this->success($user, 'Profile picture updated successfully');
+    }
+
+    private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
+    {
+        $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+            'folder' => $folder,
+            'public_id' => $publicId,
+            'overwrite' => true,
+            'invalidate' => true,
+            'resource_type' => 'image',
+        ]);
+
+        return data_get($uploadResult, 'secure_url')
+            ?? data_get($uploadResult, 'url')
+            ?? null;
     }
 
     public function updatePassword(Request $request)

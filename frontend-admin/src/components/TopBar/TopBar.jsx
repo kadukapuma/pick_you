@@ -1,3 +1,4 @@
+import { NavLink } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import './TopBar.css'
 
@@ -10,6 +11,7 @@ const TopBar = ({
     unreadCount = 0,
     onMarkAllRead,
     onClearNotifications,
+    maintenanceMode = false,
 }) => {
     const [showNotifications, setShowNotifications] = useState(false)
     const notificationRef = useRef(null)
@@ -61,7 +63,7 @@ const TopBar = ({
 
     return (
         <div className="top-bar">
-            <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div className="top-bar-left">
                 <button
                     className="icon-btn toggle-btn"
                     onClick={onToggleSidebar}
@@ -72,9 +74,29 @@ const TopBar = ({
                     </span>
                 </button>
                 <h1 className="page-title-text">{getPageName()}</h1>
+
+                {maintenanceMode && (
+                    <div className="maintenance-banner" role="status" aria-live="polite">
+                        <span className="maintenance-banner__pulse" />
+                        <span className="material-icons maintenance-banner__icon">warning_amber</span>
+                        <div className="maintenance-banner__text">
+                            <strong>Maintenance mode enabled</strong>
+                            <span>Users will see the Coming Soon screen</span>
+                        </div>
+                    </div>
+                )}
             </div>
 
             <div className="top-bar-right">
+                <NavLink
+                    to="/settings"
+                    className={({ isActive }) => `top-bar-link ${isActive ? 'active' : ''}`}
+                    title="Settings"
+                >
+                    <span className="material-icons">settings</span>
+
+                </NavLink>
+
                 {/* Notification Center */}
                 <div className="notification-center" ref={notificationRef}>
                     <button

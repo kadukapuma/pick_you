@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import DataTable from '../../components/DataTable/DataTable'
 import SearchBar from '../../components/SearchBar/SearchBar'
+import VehicleTypeIcon from '../../components/VehicleTypeIcon/VehicleTypeIcon'
 
 const Vehicles = () => {
     const { vehiclesState } = useOutletContext()
@@ -80,9 +81,11 @@ const Vehicles = () => {
                     filteredVehicles.map((vehicle) => (
                         <div className="table-row" key={vehicle.id} style={{ gridTemplateColumns: '2fr 1.5fr 1fr 1.2fr 0.8fr 0.8fr 120px' }}>
                             <div className="cell-driver">
-                                <div className="brand-icon" style={{ width: 40, height: 40, background: '#f8f9fa', color: '#1a1f2b' }}>
-                                    <span className="material-icons">directions_car</span>
-                                </div>
+                                <VehicleTypeIcon
+                                    type={vehicle.vehicle_type}
+                                    size={20}
+                                    style={{ width: 40, height: 40, justifyContent: 'center', padding: 0 }}
+                                />
                                 <div className="driver-info">
                                     <h4>{vehicle.plate_number}</h4>
                                     <p>{vehicle.vehicle_type || 'N/A'}</p>
