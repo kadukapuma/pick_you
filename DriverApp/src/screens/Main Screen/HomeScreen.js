@@ -79,6 +79,7 @@ const HomeScreen = () => {
     if (isOnline) {
       const timer = setTimeout(() => {
       const fakeRide = {
+            id: "RIDE-001",
             customerName: "John David",
             pickup: "Kandy City Center",
             dropoff: "Peradeniya Junction",

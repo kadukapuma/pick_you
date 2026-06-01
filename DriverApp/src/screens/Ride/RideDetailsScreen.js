@@ -33,9 +33,11 @@ const RideDetailsScreen = ({ navigation, route }) => {
   const baseFare = Math.round(parsedFare * 0.76); // ~Rs. 650 equivalent
   const distanceFare = parsedFare - baseFare;    // ~Rs. 200 balance split
 
-  const handleStartTrip = () => {
-    console.log("Trip initialized for code record ID:", ride?.id);
-  };
+ const handleStartTrip = () => {
+  navigation.navigate("PickupNavigation", {
+    ride,
+  });
+};
 
   return (
     <View style={styles.container}>
@@ -190,17 +192,21 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
       {/* --- FOOTER FIXED PRIMARY ACTION CONTAINER --- */}
       <View style={styles.stickyFooterContainer}>
-        <TouchableOpacity 
-          style={styles.primaryActionBtn}
-          onPress={handleStartTrip}
-          activeOpacity={0.9}
-        >
-          <View style={styles.innerBtnArrowCircle}>
-            <Feather name="arrow-right" size={20} color="#00A859" />
-          </View>
-          <Text style={styles.primaryActionBtnText}>Start Trip</Text>
-          <View style={{ width: 36 }} /> 
-        </TouchableOpacity>
+        <TouchableOpacity
+  style={styles.primaryActionBtn}
+  onPress={handleStartTrip}
+  activeOpacity={0.9}
+>
+  <View style={styles.innerBtnArrowCircle}>
+    <Feather name="arrow-right" size={20} color="#00A859" />
+  </View>
+
+  <Text style={styles.primaryActionBtnText}>
+    Start Trip
+  </Text>
+
+  <View style={{ width: 36 }} />
+</TouchableOpacity>
 
         {/* Safe Distance Disclaimer text overlay */}
         <View style={styles.disclaimerWrapper}>
