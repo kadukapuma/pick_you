@@ -15,6 +15,10 @@ import DocumentsScreen from "../screens/Main Screen/DocumentsScreen";
 import BankDetailsScreen from "../screens/Main Screen/BankDetailsScreen";
 import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen";
 import ComingSoonScreen from "../screens/ComingSoonScreen";
+import RideDetailsScreen from "../screens/Ride/RideDetailsScreen";
+import PickupNavigationScreen from "../screens/Ride/PickupNavigationScreen";
+
+
 import BottomTabs from "./BottomTabs";
 import { fetchMaintenanceMode } from "../services/appSettings";
 
@@ -254,6 +258,22 @@ const MainNavigator = ({
         component={BankDetailsScreen}
         options={{ animation: "slide_from_right" }}
       />
+
+      <Stack.Screen
+  name="RideDetails"
+  component={RideDetailsScreen}
+  options={{
+    animation: "slide_from_right",
+  }}
+/>
+
+     <Stack.Screen
+  name="PickupNavigation"
+  component={PickupNavigationScreen}
+  options={{
+    animation: "slide_from_right",
+  }}
+/>
     </Stack.Navigator>
   );
 };

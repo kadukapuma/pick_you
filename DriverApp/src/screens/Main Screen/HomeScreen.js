@@ -17,7 +17,7 @@ import * as Location from "expo-location";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
-import createEchoInstance from "../../services/echo";
+import IncomingRideModal from "../../components/IncomingRideModel";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -28,10 +28,12 @@ const HomeScreen = () => {
   const [isToggling, setIsToggling] = useState(false);
   const [rideRequests, setRideRequests] = useState([]);
   const [isLoadingRequests, setIsLoadingRequests] = useState(false);
-  const lastNotifiedRideIdRef = useRef(null);
-  const echoRef = useRef(null);
-  const toastTimerRef = useRef(null);
   const [activeVehicleType, setActiveVehicleType] = useState(null);
+  const [showRideModal, setShowRideModal] = useState(false);
+  const [rideData, setRideData] = useState(null);
+
+  const toastTimerRef = useRef(null);
+  const lastNotifiedRideIdRef = useRef(null);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
@@ -64,7 +66,7 @@ const HomeScreen = () => {
       StatusBar.setHidden(false);
 
       fetchDriverData();
-      return () => {};
+      return () => { };
     }, [])
   );
 
@@ -101,39 +103,18 @@ const HomeScreen = () => {
   };
 
   const fetchRideRequests = async () => {
-    if (!isOnline) {
-      setRideRequests([]);
-      return;
-    }
-
+    setIsLoadingRequests(true);
     try {
-      setIsLoadingRequests(true);
       const response = await api.get("/driver/ride-requests");
-      const payload = response.data?.data ?? response.data ?? [];
-      const requests = Array.isArray(payload) ? payload : [];
+      const requests = response.data?.data || response.data || [];
+      setRideRequests(requests);
 
-      setRideRequests((prev) => {
-        const merged = [...prev];
-
-        requests.forEach((request) => {
-          const requestId = request?.id;
-          if (!requestId) {
-            return;
-          }
-
-          const existingIndex = merged.findIndex((ride) => ride.id === requestId);
-          if (existingIndex >= 0) {
-            merged[existingIndex] = {
-              ...merged[existingIndex],
-              ...request,
-            };
-          } else {
-            merged.unshift(request);
-          }
-        });
-
-        return merged;
-      });
+      // Notify for new incoming ride if not already notified
+      if (requests.length > 0 && requests[0].id !== lastNotifiedRideIdRef.current) {
+        lastNotifiedRideIdRef.current = requests[0].id;
+        setRideData(requests[0]);
+        setShowRideModal(true);
+      }
     } catch (error) {
       console.log("Error fetching ride requests:", error);
     } finally {
@@ -143,96 +124,32 @@ const HomeScreen = () => {
 
   const handleAcceptRide = async (rideId) => {
     try {
-      await api.post(`/rides/${rideId}/accept`);
-      setRideRequests((prev) => prev.filter((ride) => ride.id !== rideId));
-      showCustomToast("success", "Ride accepted successfully.");
+      await api.put(`/driver/ride-requests/${rideId}/accept`);
+      setShowRideModal(false);
+      setRideRequests([]);
+      navigation.navigate("TripDetails", {
+        trip: {
+          id: rideId,
+          status: "accepted",
+        },
+      });
     } catch (error) {
       console.log("Error accepting ride:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        "Failed to accept the ride. Please try again.";
-      showCustomToast("error", errorMessage);
+      showCustomToast("error", error.response?.data?.message || "Failed to accept ride.");
     }
   };
 
-  useEffect(() => {
-    let isMounted = true;
-
-    const setupRideSocket = async () => {
-      if (!isOnline || !activeVehicleType) {
-        return;
-      }
-
-      try {
-        if (echoRef.current) {
-          echoRef.current.leaveChannel("driver.rides");
-          echoRef.current = null;
-        }
-
-        const echo = await createEchoInstance();
-        if (!isMounted) {
-          echo.leaveChannel("driver.rides");
-          return;
-        }
-
-        echoRef.current = echo;
-
-        echo.channel("driver.rides").listen(".RideRequested", (event) => {
-          if (!event) {
-            return;
-          }
-
-          const eventVehicleType = String(event.vehicle_type || "").toLowerCase();
-          const driverVehicleType = String(activeVehicleType || "").toLowerCase();
-
-          if (eventVehicleType && driverVehicleType && eventVehicleType !== driverVehicleType) {
-            return;
-          }
-
-          const rideId = event.ride_id || event.id;
-          if (!rideId || lastNotifiedRideIdRef.current === rideId) {
-            return;
-          }
-
-          lastNotifiedRideIdRef.current = rideId;
-
-          const newRide = {
-            id: rideId,
-            ride_id: rideId,
-            ride_code: event.ride_code,
-            vehicle_type: event.vehicle_type,
-            passenger_name: "Passenger",
-            pickup_address: event.pickup_address,
-            drop_address: event.drop_address,
-            distance_km: event.distance_km,
-            estimated_fare: event.estimated_fare,
-            requested_at: event.requested_at,
-            status: "REQUESTED",
-          };
-
-          setRideRequests((prev) => {
-            const alreadyExists = prev.some((ride) => ride.id === rideId);
-            return alreadyExists ? prev : [newRide, ...prev];
-          });
-        });
-      } catch (error) {
-        console.log("Error setting up ride websocket:", error);
-      }
-    };
-
-    setupRideSocket();
-
-    return () => {
-      isMounted = false;
-      if (toastTimerRef.current) {
-        clearTimeout(toastTimerRef.current);
-      }
-      if (echoRef.current) {
-        echoRef.current.leaveChannel("driver.rides");
-        echoRef.current = null;
-      }
-    };
-  }, [isOnline, activeVehicleType, navigation]);
+  const handleRejectRide = async (rideId) => {
+    try {
+      await api.put(`/driver/ride-requests/${rideId}/reject`);
+      setShowRideModal(false);
+      setRideData(null);
+      lastNotifiedRideIdRef.current = null;
+    } catch (error) {
+      console.log("Error rejecting ride:", error);
+      showCustomToast("error", error.response?.data?.message || "Failed to reject ride.");
+    }
+  };
 
   const handleToggleAvailability = async (newValue) => {
     setIsToggling(true);
@@ -327,7 +244,7 @@ const HomeScreen = () => {
       </SafeAreaView>
 
       {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
-      <View style={[styles.rightButtons, { bottom: 250 + insets.bottom }]}>
+      <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
         <TouchableOpacity style={styles.floatingBtn} onPress={goToMyLocation}>
           <Feather name="navigation" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -347,7 +264,7 @@ const HomeScreen = () => {
             transition={{ type: "spring", damping: 20, stiffness: 150 }}
             style={[
               styles.toastCard,
-              { bottom: Platform.OS === "android" ? 210 : 190 + insets.bottom }
+              { bottom: Platform.OS === "android" ? 225 : 205 + insets.bottom }
             ]}
           >
             <View style={[
@@ -449,7 +366,7 @@ const HomeScreen = () => {
         edges={["bottom"]}
         style={[
           styles.bottomContainer,
-          { bottom: Platform.OS === "android" ? 60 : 40 + insets.bottom },
+          { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
         ]}
       >
         <View style={styles.statusCard}>
@@ -475,6 +392,14 @@ const HomeScreen = () => {
           )}
         </View>
       </SafeAreaView>
+
+      {/* --- INCOMING RIDE REQUEST SHEET OVERLAY --- */}
+      <IncomingRideModal
+        visible={showRideModal}
+        rideData={rideData}
+        onAccept={handleAcceptRide}
+        onReject={handleRejectRide}
+      />
     </View>
   );
 };
