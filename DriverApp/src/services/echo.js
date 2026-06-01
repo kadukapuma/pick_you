@@ -10,7 +10,7 @@ const createEchoInstance = async () => {
     // Fallback logic to grab the correct constructor regardless of build bundler quirks
     const PusherConstructor = PusherModule.Pusher || PusherModule.default || PusherModule;
 
-    const wsHost = process.env.EXPO_PUBLIC_WS_HOST || "192.168.1.6";
+    const wsHost = process.env.EXPO_PUBLIC_WS_HOST || "192.168.1.7";
     const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 8080);
     const wsScheme = process.env.EXPO_PUBLIC_WS_SCHEME || "http";
     const appKey = process.env.EXPO_PUBLIC_REVERB_APP_KEY || "app-key";
