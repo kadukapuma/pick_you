@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Ride;
 use App\Models\FareConfig;
-use App\Events\RideRequested;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
+use Illuminate\Support\Facades\Log;
+use App\Events\RideRequestedTargeted;
+use App\Jobs\ProcessRideTimeout;
 
 class RideController extends Controller
 {
@@ -52,12 +55,13 @@ class RideController extends Controller
             ->with('vehicleType')
             ->first();
 
-        $vehicleTypeName = $activeVehicle?->vehicleType?->name ?? $driver->vehicle_type;
+        $vehicleTypeName = $activeVehicle?->vehicleType?->name ?? $activeVehicle?->vehicle_type ?? $driver->vehicle_type;
 
         if (!$vehicleTypeName) {
             return $this->success([], 'No active vehicle type found');
         }
 
+        // Query targeted driver from Redis for requested rides to ensure strict filtering and database query scaling
         $rides = Ride::with(['passenger.user', 'fareConfig'])
             ->where('status', 'REQUESTED')
             ->whereHas('fareConfig', function ($query) use ($vehicleTypeName) {
@@ -65,6 +69,11 @@ class RideController extends Controller
             })
             ->orderByDesc('requested_at')
             ->get()
+            ->filter(function ($ride) use ($driver) {
+                $targetedDriverId = Redis::get("ride:current_driver:{$ride->id}");
+                return $targetedDriverId !== null && (int)$targetedDriverId === (int)$driver->id;
+            })
+            ->values()
             ->map(function ($ride) {
                 $passengerUser = $ride->passenger?->user;
 
@@ -138,9 +147,49 @@ class RideController extends Controller
             'notes' => 'Passenger requested a ride.'
         ]);
 
-        event(new RideRequested($ride->load('fareConfig')));
+        // Query nearby online/approved drivers with matching active vehicle types
+        $pickupLng = (float) $request->pickup_lng;
+        $pickupLat = (float) $request->pickup_lat;
+        $vehicleType = (string) $request->vehicle_type;
 
-        // TODO: Trigger Event/WebSocket to broadcast to nearby drivers
+        $drivers = DB::table('driver_locations as dl')
+            ->join('drivers as d', 'dl.driver_id', '=', 'd.id')
+            ->where('d.availability', 1)
+            ->where('d.status', 'approved')
+            ->whereExists(function ($query) use ($vehicleType) {
+                $query->select(DB::raw(1))
+                    ->from('vehicles as v')
+                    ->join('vehicle_types as vt', 'v.vehicle_type_id', '=', 'vt.id')
+                    ->whereColumn('v.driver_id', 'd.id')
+                    ->where('v.is_active', true)
+                    ->where('vt.name', $vehicleType);
+            })
+            // PostgreSQL spatial point distance operator <->
+            ->select('d.id as driver_id', DB::raw("dl.location <-> point($pickupLng, $pickupLat) AS distance"))
+            ->orderBy('distance', 'asc')
+            ->get();
+
+        if ($drivers->isEmpty()) {
+            Log::info("Ride store: No matching drivers found for Ride {$ride->id}");
+            $ride->update([
+                'status' => 'CANCELLED',
+                'cancelled_at' => now()
+            ]);
+            $ride->statuses()->create([
+                'status' => 'CANCELLED',
+                'notes' => 'No online drivers available near passenger location.'
+            ]);
+            return $this->error('No online drivers available for vehicle type ' . $vehicleType . '.', 404);
+        }
+
+        // Push matching driver IDs into Redis matching list
+        $driverIds = $drivers->pluck('driver_id')->toArray();
+        Redis::rpush("ride:matching_drivers:{$ride->id}", ...$driverIds);
+        
+        Log::info("Ride store: Queued " . count($driverIds) . " drivers for Ride {$ride->id}. Candidates: " . implode(',', $driverIds));
+
+        // Dispatches targeted event to the first driver
+        $this->targetNextDriver($ride->id);
 
         return $this->success($ride, 'Ride requested successfully', 201);
     }
@@ -157,6 +206,13 @@ class RideController extends Controller
         }
 
         $driver = $request->user()->driver;
+
+        // Verify if this driver is indeed the targeted driver for this ride
+        $targetedDriverId = Redis::get("ride:current_driver:{$ride->id}");
+        if ($targetedDriverId === null || (int)$targetedDriverId !== (int)$driver->id) {
+            return $this->error('You are not authorized to accept this ride request.', 403);
+        }
+
         $vehicle = $driver->vehicles()->where('is_active', true)->first();
 
         if (!$vehicle) {
@@ -175,6 +231,87 @@ class RideController extends Controller
             'notes' => 'Driver accepted the ride.'
         ]);
 
+        // Clean up Redis matching keys
+        $this->cleanupRedisMatching($ride->id);
+
         return $this->success($ride, 'Ride accepted successfully');
+    }
+
+    /**
+     * Driver rejects the ride
+     */
+    public function rejectRide(Request $request, $id)
+    {
+        $ride = Ride::find($id);
+
+        if (!$ride || $ride->status !== 'REQUESTED') {
+            return $this->success([], 'Ride request is no longer available to reject.');
+        }
+
+        $driver = $request->user()->driver;
+
+        // Verify if this driver is indeed the currently targeted driver for this ride
+        $targetedDriverId = Redis::get("ride:current_driver:{$ride->id}");
+        if ($targetedDriverId !== null && (int)$targetedDriverId === (int)$driver->id) {
+            Log::info("rejectRide: Driver {$driver->id} rejected Ride {$ride->id}. Transitioning immediately.");
+            $this->targetNextDriver($ride->id);
+        }
+
+        return $this->success([], 'Ride request rejected successfully');
+    }
+
+    /**
+     * Target the next nearest driver in the Redis matching queue for the ride.
+     */
+    public function targetNextDriver(int $rideId): void
+    {
+        $ride = Ride::find($rideId);
+        if (!$ride || $ride->status !== 'REQUESTED') {
+            Log::info("targetNextDriver: Ride {$rideId} is no longer requested or not found. Cleaning up Redis.");
+            $this->cleanupRedisMatching($rideId);
+            return;
+        }
+
+        // Pop the next driver ID from Redis queue
+        $driverId = Redis::lpop("ride:matching_drivers:{$rideId}");
+        
+        if (!$driverId) {
+            Log::info("targetNextDriver: No candidate drivers left for Ride {$rideId}. Cancelling ride.");
+            $ride->update([
+                'status' => 'CANCELLED',
+                'cancelled_at' => now(),
+            ]);
+
+            $ride->statuses()->create([
+                'status' => 'CANCELLED',
+                'notes' => 'No drivers available near passenger location.'
+            ]);
+
+            $this->cleanupRedisMatching($rideId);
+            return;
+        }
+
+        $driverId = (int) $driverId;
+
+        // Set the currently targeted driver in Redis
+        Redis::set("ride:current_driver:{$rideId}", $driverId);
+
+        Log::info("targetNextDriver: Targeting Driver {$driverId} for Ride {$rideId}");
+
+        // Broadcast targeted WebSocket event
+        event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId));
+
+        // Dispatch a delayed timeout processing job
+        ProcessRideTimeout::dispatch($rideId, $driverId)->delay(now()->addSeconds(15));
+    }
+
+    /**
+     * Clean up Redis matching keys for a ride.
+     */
+    public function cleanupRedisMatching(int $rideId): void
+    {
+        Redis::del("ride:matching_drivers:{$rideId}");
+        Redis::del("ride:current_driver:{$rideId}");
+        Log::info("cleanupRedisMatching: Cleaned up Redis keys for Ride {$rideId}");
     }
 }

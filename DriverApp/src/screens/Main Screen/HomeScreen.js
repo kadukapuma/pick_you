@@ -18,6 +18,7 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
 import IncomingRideModal from "../../components/IncomingRideModel";
+import createEchoInstance from "../../services/echo";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -31,9 +32,12 @@ const HomeScreen = () => {
   const [activeVehicleType, setActiveVehicleType] = useState(null);
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
+  const [isRideHandled, setIsRideHandled] = useState(false);
+  const [driverId, setDriverId] = useState(null);
 
   const toastTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
+  const echoRef = useRef(null);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
@@ -88,14 +92,88 @@ const HomeScreen = () => {
     };
   }, [isOnline]);
 
+  // Real-time sequential ride notifications via Echo WebSockets
+  useEffect(() => {
+    let activeEcho = null;
+
+    const setupEcho = async () => {
+      if (isOnline && driverId) {
+        try {
+          console.log("🔔 Connecting to Echo for driver:", driverId);
+          const echo = await createEchoInstance();
+          activeEcho = echo;
+          echoRef.current = echo;
+
+          const channelName = `driver.rides.${driverId}`;
+          console.log("🔔 Subscribing to Echo channel:", channelName);
+
+          echo.channel(channelName)
+            .listen(".RideRequestedTargeted", (e) => {
+              console.log("🔔 Real-time ride request received via WebSocket:", e);
+              
+              if (isRideHandled || lastNotifiedRideIdRef.current === e.ride_id) {
+                return;
+              }
+
+              setRideData({
+                id: e.ride_id,
+                pickup: e.pickup_address,
+                drop: e.drop_address,
+                price: Number(e.estimated_fare || 0).toFixed(2),
+                distance: `${Number(e.distance_km || 0).toFixed(1)} km`,
+                customerName: e.passenger_name || 'Passenger',
+                vehicle_type: e.vehicle_type,
+                requested_at: e.requested_at,
+                status: 'REQUESTED',
+              });
+
+              setShowRideModal(true);
+              lastNotifiedRideIdRef.current = e.ride_id;
+              setIsRideHandled(false);
+
+              // Auto-dismiss after 15 seconds matching backend timeout
+              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+              toastTimerRef.current = setTimeout(() => {
+                setShowRideModal(false);
+                setRideData(null);
+                lastNotifiedRideIdRef.current = null;
+              }, 15000);
+            });
+        } catch (err) {
+          console.log("Echo setup error in HomeScreen:", err);
+        }
+      }
+    };
+
+    setupEcho();
+
+    return () => {
+      if (activeEcho && driverId) {
+        const channelName = `driver.rides.${driverId}`;
+        console.log("🔔 Leaving Echo channel:", channelName);
+        activeEcho.leaveChannel(channelName);
+      }
+      echoRef.current = null;
+    };
+  }, [isOnline, driverId, isRideHandled]);
+
+  // Clean up any pending timers when component unmounts
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
   const fetchDriverData = async () => {
     try {
       const response = await api.get("/user");
-      const driverAvailability = response.data?.driver?.availability;
-      const primaryVehicle = response.data?.driver?.vehicles?.[0];
+      const driverObj = response.data?.driver;
+      const driverAvailability = driverObj?.availability;
+      const primaryVehicle = driverObj?.vehicles?.[0];
       setIsOnline(driverAvailability === 1);
+      setDriverId(driverObj?.id || null);
       setActiveVehicleType(
-        primaryVehicle?.vehicle_type || response.data?.driver?.vehicle_type || null,
+        primaryVehicle?.vehicle_type || driverObj?.vehicle_type || null,
       );
     } catch (error) {
       console.log("Error fetching driver data:", error);
@@ -106,15 +184,41 @@ const HomeScreen = () => {
     setIsLoadingRequests(true);
     try {
       const response = await api.get("/driver/ride-requests");
+      console.log('🚗 fetchRideRequests response:', response.data);
       const requests = response.data?.data || response.data || [];
       setRideRequests(requests);
 
-      // Notify for new incoming ride if not already notified
-      if (requests.length > 0 && requests[0].id !== lastNotifiedRideIdRef.current) {
-        lastNotifiedRideIdRef.current = requests[0].id;
-        setRideData(requests[0]);
-        setShowRideModal(true);
-      }
+        // Notify for new incoming ride if any request exists
+        if (requests.length > 0) {
+          const r = requests[0];
+          // Skip if we have already handled a ride
+          if (isRideHandled) {
+            return;
+          }
+          // Normalize fields for modal
+          setRideData({
+            id: r.id,
+            pickup: r.pickup_address,
+            drop: r.drop_address,
+            price: Number(r.estimated_fare || 0).toFixed(2),
+            distance: `${Number(r.distance_km || 0).toFixed(1)} km`,
+            customerName: r.passenger_name || 'Passenger',
+            vehicle_type: r.vehicle_type,
+            requested_at: r.requested_at,
+            status: r.status,
+          });
+          setShowRideModal(true);
+          lastNotifiedRideIdRef.current = r.id;
+          setIsRideHandled(false); // reset handling flag for new ride
+          console.log('🔔 New ride notified, id:', r.id);
+          // Auto‑dismiss after 15 seconds if driver takes no action
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = setTimeout(() => {
+            setShowRideModal(false);
+            setRideData(null);
+            lastNotifiedRideIdRef.current = null;
+          }, 15000);
+        }
     } catch (error) {
       console.log("Error fetching ride requests:", error);
     } finally {
@@ -122,32 +226,39 @@ const HomeScreen = () => {
     }
   };
 
-  const handleAcceptRide = async (rideId) => {
+  const handleAcceptRide = async () => {
+    if (!rideData?.id) return;
+    const rideId = rideData.id;
     try {
-      await api.put(`/driver/ride-requests/${rideId}/accept`);
-      setShowRideModal(false);
-      setRideRequests([]);
-      navigation.navigate("TripDetails", {
-        trip: {
-          id: rideId,
-          status: "accepted",
-        },
-      });
-    } catch (error) {
-      console.log("Error accepting ride:", error);
-      showCustomToast("error", error.response?.data?.message || "Failed to accept ride.");
-    }
-  };
-
-  const handleRejectRide = async (rideId) => {
-    try {
-      await api.put(`/driver/ride-requests/${rideId}/reject`);
+      await api.post(`/rides/${rideId}/accept`);
+      // Clear modal and stop further notifications for this ride
       setShowRideModal(false);
       setRideData(null);
       lastNotifiedRideIdRef.current = null;
+      setIsRideHandled(true); // mark ride as handled to prevent looping
+      // Navigate to ride details screen with the ride payload
+      navigation.navigate('RideDetails', { ride: rideData });
     } catch (error) {
-      console.log("Error rejecting ride:", error);
-      showCustomToast("error", error.response?.data?.message || "Failed to reject ride.");
+      console.log('Error accepting ride:', error);
+      showCustomToast('error', error.response?.data?.message || 'Failed to accept ride.');
+    }
+  };
+
+  const handleRejectRide = async () => {
+    if (!rideData?.id) return;
+    const rideId = rideData.id;
+
+    // Dismiss modal and prevent re‑showing this ride request
+    setShowRideModal(false);
+    setRideData(null);
+    lastNotifiedRideIdRef.current = null;
+    setIsRideHandled(true); // mark as handled to stop looping
+
+    try {
+      console.log("🔔 Driver rejecting ride request:", rideId);
+      await api.post(`/rides/${rideId}/reject`);
+    } catch (error) {
+      console.log("Error rejecting ride request on backend:", error);
     }
   };
 
@@ -286,80 +397,6 @@ const HomeScreen = () => {
           </MotiView>
         )}
       </AnimatePresence>
-
-      {isOnline && rideRequests.length > 0 ? (
-        <SafeAreaView
-          edges={["bottom"]}
-          style={[
-            styles.requestContainer,
-            { bottom: Platform.OS === "android" ? 175 : 155 + insets.bottom },
-          ]}
-        >
-          <View style={styles.requestCard}>
-            <View style={styles.requestHeader}>
-              <View>
-                <Text style={styles.requestTitle}>New ride request</Text>
-                <Text style={styles.requestSubtitle}>
-                  {rideRequests[0].vehicle_type || "Matching vehicle type"}
-                </Text>
-              </View>
-              {isLoadingRequests ? (
-                <ActivityIndicator size="small" color="#00A859" />
-              ) : null}
-            </View>
-
-            <View style={styles.requestDetails}>
-              <Text style={styles.requestLabel}>Passenger</Text>
-              <Text style={styles.requestValue}>
-                {rideRequests[0].passenger_name || "Passenger"}
-              </Text>
-              <Text style={styles.requestLabel}>Pickup</Text>
-              <Text style={styles.requestValue}>
-                {rideRequests[0].pickup_address}
-              </Text>
-              <Text style={styles.requestLabel}>Drop-off</Text>
-              <Text style={styles.requestValue}>
-                {rideRequests[0].drop_address}
-              </Text>
-            </View>
-
-            <View style={styles.requestMetaRow}>
-              <Text style={styles.requestMeta}>
-                {Number(rideRequests[0].distance_km || 0).toFixed(1)} km
-              </Text>
-              <Text style={styles.requestMeta}>
-                Rs. {Number(rideRequests[0].estimated_fare || 0).toFixed(2)}
-              </Text>
-            </View>
-
-            <View style={styles.requestActions}>
-              <TouchableOpacity
-                style={styles.viewRequestBtn}
-                onPress={() =>
-                  navigation.navigate("TripDetails", {
-                    trip: {
-                      id: rideRequests[0].id,
-                      status: rideRequests[0].status,
-                      amount: `Rs. ${Number(rideRequests[0].estimated_fare || 0).toFixed(2)}`,
-                      date: rideRequests[0].requested_at,
-                      destination: rideRequests[0].drop_address,
-                      distance: `${Number(rideRequests[0].distance_km || 0).toFixed(1)} km`,
-                    },
-                  })
-                }
-              >
-                <Text style={styles.viewRequestText}>View</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.acceptRequestBtn}
-                onPress={() => handleAcceptRide(rideRequests[0].id)}
-              >
-                <Text style={styles.acceptRequestText}>Accept</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </SafeAreaView>
-      ) : null}
 
       {/* --- YOUR PERFECT POSITIONED STATUS CARD --- */}
       <SafeAreaView
