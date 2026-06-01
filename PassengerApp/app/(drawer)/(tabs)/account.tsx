@@ -33,7 +33,7 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
 }
 
 const STICKY_HEADER_HEIGHT = 56;
-const COLLAPSE_THRESHOLD = 92;
+const COLLAPSE_THRESHOLD = 50;
 
 export default function AccountScreen() {
   const { logout } = useAuth();
@@ -175,12 +175,12 @@ export default function AccountScreen() {
 
   const isShortScreen = height < 760;
   const contentBottomSpacing = tabBarHeight + insets.bottom + 20;
-  const avatarSize = 90;
+  const avatarSize = 110;
   const compactAvatarSize = 34;
-  const expandedLeft = (width - avatarSize) / 2;
+  const expandedLeft = (width - avatarSize) / 2; // Keep truly centered on the screen
   const expandedTop = insets.top + STICKY_HEADER_HEIGHT + 52;
-  const compactLeft = width - 44 - compactAvatarSize;
-  const compactTop = insets.top + 10;
+  const compactLeft = width - 20 - compactAvatarSize; // Align with the right margin of the form content (20px from screen edge)
+  const compactTop = insets.top + 11; // Align vertically with header elements
   const avatarProgress = scrollY.interpolate({
     inputRange: [0, COLLAPSE_THRESHOLD],
     outputRange: [0, 1],
@@ -188,15 +188,24 @@ export default function AccountScreen() {
   });
   const floatingAvatarTranslateX = avatarProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, compactLeft - expandedLeft],
+    outputRange: [
+      0,
+      compactLeft - expandedLeft - (avatarSize - compactAvatarSize) / 2,
+    ],
+    extrapolate: "clamp",
   });
   const floatingAvatarTranslateY = avatarProgress.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, compactTop - expandedTop],
+    outputRange: [
+      0,
+      compactTop - expandedTop - (avatarSize - compactAvatarSize) / 2,
+    ],
+    extrapolate: "clamp",
   });
   const floatingAvatarScale = avatarProgress.interpolate({
     inputRange: [0, 1],
     outputRange: [1, compactAvatarSize / avatarSize],
+    extrapolate: "clamp",
   });
 
   const handleScroll = (event: any) => {
@@ -214,12 +223,12 @@ export default function AccountScreen() {
           },
         ]}
       >
-        <Text style={styles.stickyTitle}>Passenger Profile</Text>
+        <Text style={styles.stickyTitle}>Profile</Text>
       </View>
 
       {profile?.profileImage ? (
         <Animated.View
-          pointerEvents="none"
+          pointerEvents="box-none"
           style={[
             styles.floatingAvatar,
             {
@@ -235,7 +244,22 @@ export default function AccountScreen() {
             },
           ]}
         >
-          <Image source={{ uri: profile.profileImage }} style={styles.avatar} />
+          <View style={styles.avatarRing}>
+            <Image
+              source={{ uri: profile.profileImage }}
+              style={styles.avatar}
+            />
+          </View>
+          <View style={styles.editBadge}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handlePickAndUploadImage}
+              disabled={isUploadingImage}
+              style={styles.editBadgeButton}
+            >
+              <Ionicons name="pencil" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       ) : null}
 
@@ -256,8 +280,6 @@ export default function AccountScreen() {
         scrollEventThrottle={16}
       >
         <View style={styles.pageContent}>
-          <Text style={styles.subtitle}>Your basic account information</Text>
-
           {isLoading ? (
             <View style={styles.centerBlock}>
               <ActivityIndicator size="small" color="#0EA5E9" />
@@ -276,18 +298,6 @@ export default function AccountScreen() {
           ) : (
             <View>
               <View style={styles.avatarSpacer} />
-
-              <View style={styles.avatarWrap}>
-                <TouchableOpacity
-                  style={styles.imageButton}
-                  onPress={handlePickAndUploadImage}
-                  disabled={isUploadingImage}
-                >
-                  <Text style={styles.imageButtonText}>
-                    {isUploadingImage ? "Uploading..." : "Change Photo"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>First Name</Text>
@@ -397,11 +407,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     zIndex: 30,
     borderRadius: 45,
-    overflow: "hidden",
-    backgroundColor: "#E5E7EB",
+    overflow: "visible",
   },
   avatarSpacer: {
-    height: 140,
+    height: 170,
   },
   subtitle: {
     color: "#6B7280",
@@ -416,10 +425,8 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    marginBottom: 10,
+    width: "100%",
+    height: "100%",
   },
   avatarPlaceholder: {
     width: 90,
@@ -436,6 +443,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "uppercase",
+  },
+  avatarRing: {
+    flex: 1,
+
+    borderRadius: 55,
+
+    borderWidth: 3,
+    borderColor: "#10B981",
+
+    backgroundColor: "#FFFFFF",
+
+    overflow: "hidden",
+
+    shadowColor: "#10B981",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+
+    elevation: 4,
   },
   imageButton: {
     backgroundColor: "#0EA5E9",
@@ -540,5 +569,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     marginLeft: 8,
+  },
+  editBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#10B981",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  editBadgeButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
