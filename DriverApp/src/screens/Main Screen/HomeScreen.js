@@ -18,6 +18,9 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
 
+// RIDE MODAL IMPORT
+import IncomingRideModal from "../../components/IncomingRideModel";
+
 const HomeScreen = () => {
   const mapRef = useRef(null);
   const insets = useSafeAreaInsets();
@@ -25,6 +28,10 @@ const HomeScreen = () => {
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+
+  // --- MODAL & RIDE DATA STATES ---
+  const [showRideModal, setShowRideModal] = useState(false);
+  const [rideData, setRideData] = useState(null);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
@@ -65,6 +72,39 @@ const HomeScreen = () => {
     } catch (error) {
       console.log("Error fetching driver data:", error);
     }
+  };
+
+  // --- AUTOMATED FARE DISPATCH MOCK SIMULATION ---
+  useEffect(() => {
+    if (isOnline) {
+      const timer = setTimeout(() => {
+      const fakeRide = {
+            customerName: "John David",
+            pickup: "Kandy City Center",
+            dropoff: "Peradeniya Junction",
+            distance: "4.8 km",
+            fare: "850",
+          };
+
+        setRideData(fakeRide);
+        setShowRideModal(true);
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isOnline]);
+
+  // --- RIDE MODAL ACTIONS ---
+  const handleAcceptRide = () => {
+    setShowRideModal(false);
+    navigation.navigate("RideDetails", {
+      ride: rideData,
+    });
+  };
+
+  const handleRejectRide = () => {
+    setShowRideModal(false);
+    showCustomToast("error", "Ride request declined.");
   };
 
   const handleToggleAvailability = async (newValue) => {
@@ -160,7 +200,7 @@ const HomeScreen = () => {
       </SafeAreaView>
 
       {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
-      <View style={[styles.rightButtons, { bottom: 250 + insets.bottom }]}>
+      <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
         <TouchableOpacity style={styles.floatingBtn} onPress={goToMyLocation}>
           <Feather name="navigation" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -180,7 +220,7 @@ const HomeScreen = () => {
             transition={{ type: "spring", damping: 20, stiffness: 150 }}
             style={[
               styles.toastCard,
-              { bottom: Platform.OS === "android" ? 210 : 190 + insets.bottom }
+              { bottom: Platform.OS === "android" ? 225 : 205 + insets.bottom }
             ]}
           >
             <View style={[
@@ -208,7 +248,7 @@ const HomeScreen = () => {
         edges={["bottom"]}
         style={[
           styles.bottomContainer,
-          { bottom: Platform.OS === "android" ? 60 : 40 + insets.bottom },
+         { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
         ]}
       >
         <View style={styles.statusCard}>
@@ -234,6 +274,14 @@ const HomeScreen = () => {
           )}
         </View>
       </SafeAreaView>
+
+      {/* --- INCOMING RIDE REQUEST SHEET OVERLAY --- */}
+      <IncomingRideModal
+        visible={showRideModal}
+        rideData={rideData}
+        onAccept={handleAcceptRide}
+        onReject={handleRejectRide}
+      />
     </View>
   );
 };
