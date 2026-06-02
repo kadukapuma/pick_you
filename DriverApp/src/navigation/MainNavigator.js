@@ -19,6 +19,7 @@ import RideDetailsScreen from "../screens/Ride/RideDetailsScreen";
 import PickupNavigationScreen from "../screens/Ride/PickupNavigationScreen";
 import ArrivedAtPickupScreen from "../screens/Ride/ArrivedAtPickupScreen";
 import TripInProgressScreen from "../screens/Ride/TripInProgressScreen";
+import TripCompletedScreen from "../screens/Ride/TripCompletedScreen";
 
 
 import BottomTabs from "./BottomTabs";
@@ -293,6 +294,13 @@ options={{
 }}
 />
 
+<Stack.Screen
+name="TripCompletedScreen"
+component={TripCompletedScreen}
+options={{
+  animation: "slide_from_right",
+}}
+/>
     </Stack.Navigator>
   );
 };

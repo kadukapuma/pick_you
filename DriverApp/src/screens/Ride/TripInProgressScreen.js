@@ -42,7 +42,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
   });
 
   const handleCompleteTrip = () => {
-    navigation.navigate("TripCompleted", { ride });
+    navigation.navigate("TripCompletedScreen", { ride });
   };
 
   const panResponder = useRef(
