@@ -17,6 +17,8 @@ import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen"
 import ComingSoonScreen from "../screens/ComingSoonScreen";
 import RideDetailsScreen from "../screens/Ride/RideDetailsScreen";
 import PickupNavigationScreen from "../screens/Ride/PickupNavigationScreen";
+import ArrivedAtPickupScreen from "../screens/Ride/ArrivedAtPickupScreen";
+import TripInProgressScreen from "../screens/Ride/TripInProgressScreen";
 
 
 import BottomTabs from "./BottomTabs";
@@ -274,6 +276,23 @@ const MainNavigator = ({
     animation: "slide_from_right",
   }}
 />
+
+     <Stack.Screen
+  name="ArrivedAtPickupScreen"
+  component={ArrivedAtPickupScreen}
+  options={{
+    animation: "slide_from_right",
+  }}
+/>
+
+<Stack.Screen
+name="TripInProgressScreen"
+component={TripInProgressScreen}
+options={{
+  animation: "slide_from_right",
+}}
+/>
+
     </Stack.Navigator>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -17,9 +17,9 @@ const { width, height } = Dimensions.get("window");
 
 const DRIVER_COORDS = { latitude: 7.285, longitude: 80.629 };
 const PICKUP_COORDS = { latitude: 7.2906, longitude: 80.6337 };
-const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"; // Ensure Directions API is enabled under this key
+const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
 
-const PickupNavigationScreen = ({ navigation, route }) => {
+const ArrivedAtPickupScreen = ({ navigation, route }) => {
   const mapRef = useRef(null);
   const ride = route?.params?.ride || {};
 
@@ -27,14 +27,18 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   const pickup = ride?.pickup || "Kandy City Center";
   const rating = ride?.rating || "4.9";
 
+  // 1. Setup active state for tracking elapsed seconds
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
+
+  // Map Fitting Side-Effect
   useEffect(() => {
     if (mapRef.current) {
       setTimeout(() => {
         mapRef.current?.fitToCoordinates([DRIVER_COORDS, PICKUP_COORDS], {
           edgePadding: {
-            top: 140,
+            top: 180,
             right: 70,
-            bottom: 360,
+            bottom: 300,
             left: 70,
           },
           animated: true,
@@ -43,9 +47,32 @@ const PickupNavigationScreen = ({ navigation, route }) => {
     }
   }, []);
 
-  const handleArrived = () => {
-    navigation.navigate("ArrivedAtPickupScreen", { ride });
+  // 2. Active Interval Timer Hook (Increments every 1000ms)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsElapsed((prevSeconds) => prevSeconds + 1);
+    }, 1000);
+
+    // Clean up the interval loop when component unmounts to prevent memory leaks
+    return () => clearInterval(interval);
+  }, []);
+
+  // 3. Helper function to format raw seconds integers into clean MM:SS strings
+  const formatTimer = (totalSeconds) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    const paddedMins = mins < 10 ? `0${mins}` : mins;
+    const paddedSecs = secs < 10 ? `0${secs}` : secs;
+    return `${paddedMins}:${paddedSecs}`;
   };
+
+const handlePassengerOnBoard = () => {
+  console.log("Trip Starting: Passenger is on board.");
+
+  navigation.navigate("TripInProgressScreen", {
+    ride,
+  });
+};
 
   return (
     <View style={styles.container}>
@@ -63,7 +90,6 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           longitudeDelta: 0.015,
         }}
       >
-        {/* POLYLINES ROUTE MAP PATH */}
         <MapViewDirections
           origin={DRIVER_COORDS}
           destination={PICKUP_COORDS}
@@ -71,18 +97,15 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           strokeWidth={5}
           strokeColor="#00A859"
           optimizeWaypoints={true}
-          onError={(errorMessage) => {
-            console.log("=== DIRECTIONS API ERROR LOG ===");
-            console.log(errorMessage);
-          }}
         />
 
-        {/* DRIVER CAR VEHICLE MARKER - Explicit size fixed here */}
+        {/* DRIVER CAR VEHICLE MARKER */}
         <Marker 
           coordinate={DRIVER_COORDS} 
-          anchor={{ x: 0.5, y: 0.5 }}
+          anchor={{ x: 0.5, y: 0.8 }}
+          flat={true}
           rotation={38}
-          style={styles.markerFix} // Forces native sizing map layers to allocate full container space
+          style={styles.markerFix}
         >
           <Image 
             source={require('../../assets/car3d.png')} 
@@ -99,15 +122,18 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         </Marker>
       </MapView>
 
-      {/* FLOATING CORNER ETA STATUS DETAILS */}
-      <View style={styles.etaCardContainer} pointerEvents="none">
-        <View style={styles.etaCard}>
-          <View style={styles.etaLineRow}>
-            <MaterialCommunityIcons name="car-sports" size={18} color="#00A859" style={styles.etaIconSpace} />
-            <Text style={styles.etaTitle}>Driver Heading To Pickup</Text>
+      {/* ARRIVED STATUS FLOATING ALERT BADGE UI CARD OVERLAY */}
+      <View style={styles.arrivedStatusCardContainer} pointerEvents="box-none">
+        <View style={styles.arrivedStatusCard}>
+          <View style={styles.successIconCircle}>
+            <Feather name="check" size={24} color="#FFF" />
           </View>
-          <View style={[styles.etaLineRow, { marginTop: 4, marginLeft: 28 }]}>
-            <Text style={styles.etaSubtitle}>4 min away (2.3 km remaining)</Text>
+          <Text style={styles.arrivedStatusTitle}>You ve arrived</Text>
+          <Text style={styles.arrivedStatusSubtitle}>at pickup location</Text>
+          
+          <View style={styles.inlineAddressRow}>
+            <Ionicons name="location" size={14} color="#00A859" />
+            <Text style={styles.inlineAddressText} numberOfLines={1}>{pickup}</Text>
           </View>
         </View>
       </View>
@@ -117,6 +143,10 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
           <Feather name="arrow-left" size={22} color="#0F172A" />
         </TouchableOpacity>
+        
+        <TouchableOpacity style={styles.circleBtn} activeOpacity={0.7}>
+          <Feather name="phone" size={20} color="#0F172A" />
+        </TouchableOpacity>
       </SafeAreaView>
 
       {/* INTERACTIVE ACTIONS ZONE BOTTOM SHEET */}
@@ -124,6 +154,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         <View style={styles.bottomSheetContent}>
           <View style={styles.handle} />
 
+          {/* CUSTOMER META INFO LINE ROW PANEL */}
           <View style={styles.customerRow}>
             <View style={styles.avatar}>
               <Ionicons name="person" size={26} color="#FFF" />
@@ -131,39 +162,22 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
               <View style={styles.ratingRow}>
-                <Ionicons name="star" size={14} color="#F59E0B" />
+                <Ionicons name="star" size={13} color="#0F172A" style={{ marginRight: 4 }} />
                 <Text style={styles.ratingText}>{rating} Customer Rating</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.inlineNavCircle} activeOpacity={0.7}>
-              <Feather name="navigation" size={18} color="#0F172A" />
-            </TouchableOpacity>
           </View>
 
-          <View style={styles.pickupCard}>
-            <View style={styles.pickupIndicatorColumn}>
-              <View style={styles.greenDotIndicator} />
-              <View style={styles.verticalLineIndicator} />
-            </View>
-            <View style={{ marginLeft: 12, flex: 1 }}>
-              <Text style={styles.pickupLabel}>Pickup Location</Text>
-              <Text style={styles.pickupText} numberOfLines={1}>{pickup}</Text>
-            </View>
+          {/* WAITING TIMING COUNTER METRIC BOX BAR CONTAINER */}
+          <View style={styles.waitingTimerBar}>
+            <Text style={styles.waitingLabel}>Waiting for passenger</Text>
+            {/* 4. Swapped static text out for dynamic formatting helper output */}
+            <Text style={styles.waitingClockTimer}>{formatTimer(secondsElapsed)}</Text>
           </View>
 
-          <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-              <Feather name="phone" size={18} color="#0F172A" />
-              <Text style={styles.actionText}>Call</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-              <Feather name="message-square" size={18} color="#0F172A" />
-              <Text style={styles.actionText}>Message</Text>
-            </TouchableOpacity>
-          </View>
-
-          <TouchableOpacity style={styles.arrivedBtn} onPress={handleArrived} activeOpacity={0.9}>
-            <Text style={styles.arrivedText}>Arrived at Pickup</Text>
+          {/* PROGRESSIVE PRIMARY CTA SUBMIT WORKFLOW ELEMENT */}
+          <TouchableOpacity style={styles.actionBtnPrimary} onPress={handlePassengerOnBoard} activeOpacity={0.9}>
+            <Text style={styles.actionBtnPrimaryText}>Passenger On Board</Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />
             </View>
@@ -175,7 +189,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   );
 };
 
-export default PickupNavigationScreen;
+export default ArrivedAtPickupScreen;
 
 const styles = StyleSheet.create({
   container: {
@@ -208,14 +222,14 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   markerFix: {
-    width: 80, // Giving explicit structural sizing constraints directly to the Marker component
-    height: 80,
+    width: 120,
+    height: 120,
     justifyContent: "center",
     alignItems: "center",
   },
   driver3DVehicle: {
-    width: 75,
-    height: 75,
+    width: 100,
+    height: 100,
   },
   pickupMarkerOuter: {
     width: 26,
@@ -238,42 +252,66 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 5,
   },
-  etaCardContainer: {
+  arrivedStatusCardContainer: {
     position: "absolute",
     top: 130,
     left: 20,
     right: 20,
     zIndex: 99,
-  },
-  etaCard: {
-    backgroundColor: "#0D1B1E",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 18,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 8,
-    alignSelf: "flex-start",
-  },
-  etaLineRow: {
-    flexDirection: "row",
     alignItems: "center",
   },
-  etaIconSpace: {
-    marginRight: 10,
+  arrivedStatusCard: {
+    backgroundColor: "#FFFFFF",
+    width: "100%",
+    maxWidth: 340,
+    paddingHorizontal: 20,
+    paddingTop: 24,
+    paddingBottom: 18,
+    borderRadius: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 10,
   },
-  etaTitle: {
-    color: "#FFF",
-    fontWeight: "700",
+  successIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#00A859",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  arrivedStatusTitle: {
+    color: "#0F172A",
+    fontWeight: "800",
+    fontSize: 22,
+    letterSpacing: -0.3,
+  },
+  arrivedStatusSubtitle: {
+    color: "#64748B",
     fontSize: 15,
-    letterSpacing: -0.1,
+    fontWeight: "500",
+    marginTop: 2,
   },
-  etaSubtitle: {
-    color: "#94A3B8",
-    fontSize: 13,
+  inlineAddressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    marginTop: 16,
+    width: "100%",
+  },
+  inlineAddressText: {
+    marginLeft: 6,
+    color: "#334155",
     fontWeight: "600",
+    fontSize: 13,
   },
   bottomSheetWrapper: {
     position: "absolute",
@@ -289,9 +327,9 @@ const styles = StyleSheet.create({
     elevation: 24,
   },
   bottomSheetContent: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 14,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   handle: {
     width: 48,
@@ -299,24 +337,24 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
     borderRadius: 3,
     alignSelf: "center",
-    marginBottom: 18,
+    marginBottom: 20,
   },
   customerRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 20,
   },
   avatar: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#00A859",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
   },
   customerName: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: "800",
     color: "#0F172A",
     letterSpacing: -0.4,
@@ -324,103 +362,50 @@ const styles = StyleSheet.create({
   ratingRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
+    marginTop: 3,
   },
   ratingText: {
-    marginLeft: 5,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "600",
     color: "#64748B",
   },
-  inlineNavCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  pickupCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    padding: 16,
-    borderRadius: 20,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  pickupIndicatorColumn: {
-    alignItems: "center",
-    justifyContent: "center",
-    width: 16,
-  },
-  greenDotIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#00A859",
-  },
-  verticalLineIndicator: {
-    width: 1.5,
-    height: 12,
-    backgroundColor: "#E2E8F0",
-    marginTop: 4,
-  },
-  pickupLabel: {
-    fontSize: 11,
-    color: "#64748B",
-    fontWeight: "700",
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-  },
-  pickupText: {
-    fontSize: 15,
-    fontWeight: "800",
-    color: "#0F172A",
-    marginTop: 2,
-  },
-  actionRow: {
+  waitingTimerBar: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 18,
-  },
-  actionBtn: {
-    width: "48%",
-    height: 52,
-    borderRadius: 16,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    flexDirection: "row",
-    justifyContent: "center",
     alignItems: "center",
+    paddingVertical: 4,
+    marginBottom: 24,
   },
-  actionText: {
-    marginLeft: 8,
-    fontWeight: "700",
+  waitingLabel: {
     fontSize: 14,
-    color: "#0F172A",
+    color: "#64748B",
+    fontWeight: "600",
   },
-  arrivedBtn: {
-    height: 56,
+  waitingClockTimer: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#00A859",
+    fontVariant: ["tabular-nums"], // Keeps numbers stable and stops visual shifting layout jitters as text increments
+  },
+  actionBtnPrimary: {
+    height: 58,
     backgroundColor: "#00A859",
-    borderRadius: 16,
+    borderRadius: 18,
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     position: "relative",
   },
-  arrivedText: {
+  actionBtnPrimaryText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 0.2,
+    letterSpacing: 0.1,
   },
   innerBtnArrowCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: "#FFF",
     justifyContent: "center",
     alignItems: "center",
