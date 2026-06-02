@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -6,19 +6,44 @@ import {
   TouchableOpacity,
   StatusBar,
   Dimensions,
+  Image,
 } from "react-native";
-import MapView, { Marker } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+
+// Coords configuration definitions (Kandy, Sri Lanka area)
+const DRIVER_COORDS = { latitude: 7.285, longitude: 80.629 };
+const PICKUP_COORDS = { latitude: 7.2906, longitude: 80.6337 };
+const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"; // Replace with your working API key
 
 const PickupNavigationScreen = ({ navigation, route }) => {
+  const mapRef = useRef(null);
   const ride = route?.params?.ride || {};
 
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Kandy City Center";
   const rating = ride?.rating || "4.9";
+
+  // Force fits the view bounds over the active path markers
+  useEffect(() => {
+    if (mapRef.current) {
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates([DRIVER_COORDS, PICKUP_COORDS], {
+          edgePadding: {
+            top: 140,
+            right: 70,
+            bottom: 360, // Clearance for the bottom sheet card UI element
+            left: 70,
+          },
+          animated: true,
+        });
+      }, 600); // Small delay guarantees native map layout instantiation completes first
+    }
+  }, []);
 
   const handleArrived = () => {
     navigation.navigate("PickupArrived", {
@@ -34,50 +59,77 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         translucent={true}
       />
 
-      {/* MAP */}
+      {/* MAP VIEWPORT */}
       <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude: 7.2906,
-          longitude: 80.6337,
-          latitudeDelta: 0.02,
-          longitudeDelta: 0.02,
+          latitude: (DRIVER_COORDS.latitude + PICKUP_COORDS.latitude) / 2,
+          longitude: (DRIVER_COORDS.longitude + PICKUP_COORDS.longitude) / 2,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015,
         }}
       >
-        <Marker
-          coordinate={{
-            latitude: 7.2906,
-            longitude: 80.6337,
+        {/* POLYLINES ROUTE MAP PATH */}
+        <MapViewDirections
+          origin={DRIVER_COORDS}
+          destination={PICKUP_COORDS}
+          apikey={GOOGLE_MAPS_API_KEY}
+          strokeWidth={5}
+          strokeColor="#00A859"
+          optimizeWaypoints={true}
+          onError={(errorMessage) => {
+            console.log("Directions Error: ", errorMessage);
           }}
         />
+
+        {/* DRIVER CAR VEHICLE MARKER - UPDATED PROPS */}
+        <Marker
+          coordinate={DRIVER_COORDS}
+          anchor={{ x: 0.5, y: 0.8 }}
+          flat={true}
+          rotation={38}
+          tracksViewChanges={false}
+        >
+          <View style={styles.driver3DContainer}>
+            <Image
+              source={require("../../assets/car3d.png")}
+              style={styles.driver3DVehicle}
+              resizeMode="contain"
+              fadeDuration={0}
+            />
+          </View>
+        </Marker>
+
+        {/* PICKUP TARGET LOCATION MARKER */}
+        <Marker coordinate={PICKUP_COORDS} anchor={{ x: 0.5, y: 0.5 }}>
+          <View style={styles.pickupMarkerOuter}>
+            <View style={styles.pickupMarkerInner} />
+          </View>
+        </Marker>
       </MapView>
 
-      {/* FIXED ETA FLOATING CARD OVERLAY (Bypasses headers completely) */}
+      {/* FLOATING CORNER ETA STATUS DETAILS */}
       <View style={styles.etaCardContainer} pointerEvents="none">
         <View style={styles.etaCard}>
           <View style={styles.etaLineRow}>
-            <MaterialCommunityIcons 
-              name="navigation-variant" 
-              size={18} 
-              color="#00A859" 
-              style={styles.etaIconSpace} 
+            <MaterialCommunityIcons
+              name="car-sports"
+              size={18}
+              color="#00A859"
+              style={styles.etaIconSpace}
             />
-            <Text style={styles.etaTitle}>4 min away</Text>
+            <Text style={styles.etaTitle}>Driver Heading To Pickup</Text>
           </View>
 
-          <View style={[styles.etaLineRow, { marginTop: 6 }]}>
-            <MaterialCommunityIcons 
-              name="car-sports" 
-              size={18} 
-              color="#00A859" 
-              style={styles.etaIconSpace} 
-            />
-            <Text style={styles.etaSubtitle}>2.3 km remaining</Text>
+          <View style={[styles.etaLineRow, { marginTop: 4, marginLeft: 28 }]}>
+            <Text style={styles.etaSubtitle}>4 min away (2.3 km remaining)</Text>
           </View>
         </View>
       </View>
 
-      {/* HEADER - ONLY THE BACK BUTTON */}
+      {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
         <TouchableOpacity
           style={styles.circleBtn}
@@ -88,7 +140,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </SafeAreaView>
 
-      {/* BOTTOM SHEET INTERFACE CONTAINER */}
+      {/* INTERACTIVE ACTIONS ZONE BOTTOM SHEET */}
       <View style={styles.bottomSheetWrapper}>
         <View style={styles.bottomSheetContent}>
           <View style={styles.handle} />
@@ -105,13 +157,13 @@ const PickupNavigationScreen = ({ navigation, route }) => {
                 <Text style={styles.ratingText}>{rating} Customer Rating</Text>
               </View>
             </View>
-            
+
             <TouchableOpacity style={styles.inlineNavCircle} activeOpacity={0.7}>
               <Feather name="navigation" size={18} color="#0F172A" />
             </TouchableOpacity>
           </View>
 
-          {/* PICKUP ADDRESS */}
+          {/* PICKUP LOCATION HOUSING FIELD */}
           <View style={styles.pickupCard}>
             <View style={styles.pickupIndicatorColumn}>
               <View style={styles.greenDotIndicator} />
@@ -120,11 +172,13 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={styles.pickupLabel}>Pickup Location</Text>
-              <Text style={styles.pickupText} numberOfLines={1}>{pickup}</Text>
+              <Text style={styles.pickupText} numberOfLines={1}>
+                {pickup}
+              </Text>
             </View>
           </View>
 
-          {/* ACTION UTILITIES ROW */}
+          {/* CONTACT ACTIONS BAR */}
           <View style={styles.actionRow}>
             <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
               <Feather name="phone" size={18} color="#0F172A" />
@@ -137,7 +191,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          {/* MAIN FOOTER SUBMIT BUTTON */}
+          {/* DRIVER CONFIRMATION WORKFLOW SUBMIT ACTION */}
           <TouchableOpacity
             style={styles.arrivedBtn}
             onPress={handleArrived}
@@ -150,7 +204,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
 
-        {/* PURE BLACK BOTTOM GESTURE ZONE MASK */}
+        {/* BOTTOM DEVICE BAR FILLER OVERLAY */}
         <SafeAreaView edges={["bottom"]} style={styles.blackBottomSafeArea} />
       </View>
     </View>
@@ -189,23 +243,58 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
+  // UPDATED DRIVER STYLES
+  driver3DContainer: {
+    width: 120,
+    height: 120,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "visible",
+    backgroundColor: "transparent",
+  },
+  driver3DVehicle: {
+    width: 100,
+    height: 100,
+  },
+  pickupMarkerOuter: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(0, 168, 89, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pickupMarkerInner: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#00A859",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 5,
+  },
   etaCardContainer: {
     position: "absolute",
-    top: 130, // Safely drops it below the top left back button layer
+    top: 130,
     left: 20,
-    zIndex: 99, // Guarantees placement over the map layer hierarchy
+    right: 20,
+    zIndex: 99,
   },
   etaCard: {
-    backgroundColor: "#0F1E1C", // Deep dark forest black tone matching the image asset
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderRadius: 22,
+    backgroundColor: "#0D1B1E",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 18,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
     elevation: 8,
-    minWidth: 190,
+    alignSelf: "flex-start",
   },
   etaLineRow: {
     flexDirection: "row",
@@ -216,9 +305,9 @@ const styles = StyleSheet.create({
   },
   etaTitle: {
     color: "#FFF",
-    fontWeight: "800",
-    fontSize: 16,
-    letterSpacing: -0.2,
+    fontWeight: "700",
+    fontSize: 15,
+    letterSpacing: -0.1,
   },
   etaSubtitle: {
     color: "#94A3B8",
