@@ -6,16 +6,27 @@ const createEchoInstance = async () => {
 
     console.log("Requiring Pusher...");
     const PusherModule = require("pusher-js/react-native");
-    
+
     // Fallback logic to grab the correct constructor regardless of build bundler quirks
     const PusherConstructor = PusherModule.Pusher || PusherModule.default || PusherModule;
+
+    const wsHost = process.env.EXPO_PUBLIC_WS_HOST || "192.168.1.7";
+    const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 8080);
+    const wsScheme = process.env.EXPO_PUBLIC_WS_SCHEME || "http";
+    const appKey = process.env.EXPO_PUBLIC_REVERB_APP_KEY || "app-key";
+    const wsCluster = process.env.EXPO_PUBLIC_PUSHER_CLUSTER || "mt1";
 
     console.log("Creating Pusher instance with config...");
 
     // Create Pusher instance with proper config
-    const pusher = new PusherConstructor("app-key", {
-      cluster: "mt1",
-      forceTLS: false,
+    const pusher = new PusherConstructor(appKey, {
+      wsHost,
+      wsPort,
+      wssPort: wsPort,
+      cluster: wsCluster,
+      forceTLS: wsScheme === "https",
+      enabledTransports: ["ws", "wss"],
+      disableStats: true,
     });
 
     console.log("Pusher instance created successfully");
@@ -25,9 +36,8 @@ const createEchoInstance = async () => {
       return {
         listen(event, callback) {
           console.log("Listening for event:", event);
-          // Pusher events start with '.' so add it if not present
-          const eventName = event.startsWith('.') ? event : '.' + event;
-          
+          const eventName = event.startsWith('.') ? event.slice(1) : event;
+
           // Safe resolution: Direct method check vs internal emitter routing
           if (typeof pusherChannel.bind === 'function') {
             pusherChannel.bind(eventName, callback);
@@ -41,8 +51,8 @@ const createEchoInstance = async () => {
 
         unbind(event, callback) {
           console.log("Unbinding event:", event);
-          const eventName = event.startsWith('.') ? event : '.' + event;
-          
+          const eventName = event.startsWith('.') ? event.slice(1) : event;
+
           if (typeof pusherChannel.unbind === 'function') {
             pusherChannel.unbind(eventName, callback);
           } else if (pusherChannel.emitter && typeof pusherChannel.emitter.unbind === 'function') {
