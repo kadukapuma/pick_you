@@ -6,10 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    allowedHosts: ['192.168.1.6'],
+    allowedHosts: ['192.168.1.7'],
   },
   preview: {
     host: '0.0.0.0',
-    allowedHosts: ['192.168.1.6'],
+    allowedHosts: ['192.168.1.7'],
   },
 })

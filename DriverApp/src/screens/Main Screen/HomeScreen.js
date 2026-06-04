@@ -17,6 +17,8 @@ import * as Location from "expo-location";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
+import IncomingRideModal from "../../components/IncomingRideModel";
+import createEchoInstance from "../../services/echo";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -25,15 +27,30 @@ const HomeScreen = () => {
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
+  const [rideRequests, setRideRequests] = useState([]);
+  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [activeVehicleType, setActiveVehicleType] = useState(null);
+  const [showRideModal, setShowRideModal] = useState(false);
+  const [rideData, setRideData] = useState(null);
+  const [isRideHandled, setIsRideHandled] = useState(false);
+  const [driverId, setDriverId] = useState(null);
+
+  const toastTimerRef = useRef(null);
+  const lastNotifiedRideIdRef = useRef(null);
+  const echoRef = useRef(null);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
 
-  const showCustomToast = (type, message) => {
+  const showCustomToast = (type, message, duration = 35000) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
     setToast({ visible: true, type, message });
-    setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToast((prev) => ({ ...prev, visible: false }));
-    }, 3500);
+    }, duration);
   };
 
   const [region] = useState(
@@ -53,17 +70,195 @@ const HomeScreen = () => {
       StatusBar.setHidden(false);
 
       fetchDriverData();
-      return () => {};
+      return () => { };
     }, [])
   );
+
+  useEffect(() => {
+    let intervalId;
+
+    if (isOnline) {
+      fetchRideRequests();
+      intervalId = setInterval(fetchRideRequests, 5000);
+    } else {
+      setRideRequests([]);
+      lastNotifiedRideIdRef.current = null;
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [isOnline]);
+
+  // Real-time sequential ride notifications via Echo WebSockets
+  useEffect(() => {
+    let activeEcho = null;
+
+    const setupEcho = async () => {
+      if (isOnline && driverId) {
+        try {
+          console.log("🔔 Connecting to Echo for driver:", driverId);
+          const echo = await createEchoInstance();
+          activeEcho = echo;
+          echoRef.current = echo;
+
+          const channelName = `driver.rides.${driverId}`;
+          console.log("🔔 Subscribing to Echo channel:", channelName);
+
+          echo.channel(channelName)
+            .listen(".RideRequestedTargeted", (e) => {
+              console.log("🔔 Real-time ride request received via WebSocket:", e);
+              
+              if (isRideHandled || lastNotifiedRideIdRef.current === e.ride_id) {
+                return;
+              }
+
+              setRideData({
+                id: e.ride_id,
+                pickup: e.pickup_address,
+                drop: e.drop_address,
+                price: Number(e.estimated_fare || 0).toFixed(2),
+                distance: `${Number(e.distance_km || 0).toFixed(1)} km`,
+                customerName: e.passenger_name || 'Passenger',
+                vehicle_type: e.vehicle_type,
+                requested_at: e.requested_at,
+                status: 'REQUESTED',
+              });
+
+              setShowRideModal(true);
+              lastNotifiedRideIdRef.current = e.ride_id;
+              setIsRideHandled(false);
+
+              // Auto-dismiss after 15 seconds matching backend timeout
+              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+              toastTimerRef.current = setTimeout(() => {
+                setShowRideModal(false);
+                setRideData(null);
+                lastNotifiedRideIdRef.current = null;
+              }, 15000);
+            });
+        } catch (err) {
+          console.log("Echo setup error in HomeScreen:", err);
+        }
+      }
+    };
+
+    setupEcho();
+
+    return () => {
+      if (activeEcho && driverId) {
+        const channelName = `driver.rides.${driverId}`;
+        console.log("🔔 Leaving Echo channel:", channelName);
+        activeEcho.leaveChannel(channelName);
+      }
+      echoRef.current = null;
+    };
+  }, [isOnline, driverId, isRideHandled]);
+
+  // Clean up any pending timers when component unmounts
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const fetchDriverData = async () => {
     try {
       const response = await api.get("/user");
-      const driverAvailability = response.data?.driver?.availability;
+      const driverObj = response.data?.driver;
+      const driverAvailability = driverObj?.availability;
+      const primaryVehicle = driverObj?.vehicles?.[0];
       setIsOnline(driverAvailability === 1);
+      setDriverId(driverObj?.id || null);
+      setActiveVehicleType(
+        primaryVehicle?.vehicle_type || driverObj?.vehicle_type || null,
+      );
     } catch (error) {
       console.log("Error fetching driver data:", error);
+    }
+  };
+
+  const fetchRideRequests = async () => {
+    setIsLoadingRequests(true);
+    try {
+      const response = await api.get("/driver/ride-requests");
+      console.log('🚗 fetchRideRequests response:', response.data);
+      const requests = response.data?.data || response.data || [];
+      setRideRequests(requests);
+
+        // Notify for new incoming ride if any request exists
+        if (requests.length > 0) {
+          const r = requests[0];
+          // Skip if we have already handled a ride
+          if (isRideHandled) {
+            return;
+          }
+          // Normalize fields for modal
+          setRideData({
+            id: r.id,
+            pickup: r.pickup_address,
+            drop: r.drop_address,
+            price: Number(r.estimated_fare || 0).toFixed(2),
+            distance: `${Number(r.distance_km || 0).toFixed(1)} km`,
+            customerName: r.passenger_name || 'Passenger',
+            vehicle_type: r.vehicle_type,
+            requested_at: r.requested_at,
+            status: r.status,
+          });
+          setShowRideModal(true);
+          lastNotifiedRideIdRef.current = r.id;
+          setIsRideHandled(false); // reset handling flag for new ride
+          console.log('🔔 New ride notified, id:', r.id);
+          // Auto‑dismiss after 15 seconds if driver takes no action
+          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+          toastTimerRef.current = setTimeout(() => {
+            setShowRideModal(false);
+            setRideData(null);
+            lastNotifiedRideIdRef.current = null;
+          }, 15000);
+        }
+    } catch (error) {
+      console.log("Error fetching ride requests:", error);
+    } finally {
+      setIsLoadingRequests(false);
+    }
+  };
+
+  const handleAcceptRide = async () => {
+    if (!rideData?.id) return;
+    const rideId = rideData.id;
+    try {
+      await api.post(`/rides/${rideId}/accept`);
+      // Clear modal and stop further notifications for this ride
+      setShowRideModal(false);
+      setRideData(null);
+      lastNotifiedRideIdRef.current = null;
+      setIsRideHandled(true); // mark ride as handled to prevent looping
+      // Navigate to ride details screen with the ride payload
+      navigation.navigate('RideDetails', { ride: rideData });
+    } catch (error) {
+      console.log('Error accepting ride:', error);
+      showCustomToast('error', error.response?.data?.message || 'Failed to accept ride.');
+    }
+  };
+
+  const handleRejectRide = async () => {
+    if (!rideData?.id) return;
+    const rideId = rideData.id;
+
+    // Dismiss modal and prevent re‑showing this ride request
+    setShowRideModal(false);
+    setRideData(null);
+    lastNotifiedRideIdRef.current = null;
+    setIsRideHandled(true); // mark as handled to stop looping
+
+    try {
+      console.log("🔔 Driver rejecting ride request:", rideId);
+      await api.post(`/rides/${rideId}/reject`);
+    } catch (error) {
+      console.log("Error rejecting ride request on backend:", error);
     }
   };
 
@@ -160,7 +355,7 @@ const HomeScreen = () => {
       </SafeAreaView>
 
       {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
-      <View style={[styles.rightButtons, { bottom: 250 + insets.bottom }]}>
+      <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
         <TouchableOpacity style={styles.floatingBtn} onPress={goToMyLocation}>
           <Feather name="navigation" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -180,11 +375,11 @@ const HomeScreen = () => {
             transition={{ type: "spring", damping: 20, stiffness: 150 }}
             style={[
               styles.toastCard,
-              { bottom: Platform.OS === "android" ? 210 : 190 + insets.bottom }
+              { bottom: Platform.OS === "android" ? 225 : 205 + insets.bottom }
             ]}
           >
             <View style={[
-              styles.statusIndicatorIndicator, 
+              styles.statusIndicatorIndicator,
               { backgroundColor: toast.type === "error" ? "#EF4444" : "#00A859" }
             ]} />
             <View style={styles.toastContentContainer}>
@@ -193,8 +388,8 @@ const HomeScreen = () => {
               </Text>
               <Text style={styles.toastBodyText}>{toast.message}</Text>
             </View>
-            <TouchableOpacity 
-              onPress={() => setToast((prev) => ({ ...prev, visible: false }))} 
+            <TouchableOpacity
+              onPress={() => setToast((prev) => ({ ...prev, visible: false }))}
               style={styles.toastCloseBtn}
             >
               <Ionicons name="close" size={16} color="#94A3B8" />
@@ -208,7 +403,7 @@ const HomeScreen = () => {
         edges={["bottom"]}
         style={[
           styles.bottomContainer,
-          { bottom: Platform.OS === "android" ? 60 : 40 + insets.bottom },
+          { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
         ]}
       >
         <View style={styles.statusCard}>
@@ -234,6 +429,14 @@ const HomeScreen = () => {
           )}
         </View>
       </SafeAreaView>
+
+      {/* --- INCOMING RIDE REQUEST SHEET OVERLAY --- */}
+      <IncomingRideModal
+        visible={showRideModal}
+        rideData={rideData}
+        onAccept={handleAcceptRide}
+        onReject={handleRejectRide}
+      />
     </View>
   );
 };
@@ -256,7 +459,7 @@ const styles = StyleSheet.create({
     left: "5%",
     right: "5%",
     width: "90%",
-    backgroundColor: "#1E293B", 
+    backgroundColor: "#1E293B",
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -378,6 +581,93 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     elevation: 6,
+  },
+  requestContainer: {
+    position: "absolute",
+    width: "100%",
+    alignItems: "center",
+  },
+  requestCard: {
+    width: "90%",
+    backgroundColor: "#0F172A",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    elevation: 8,
+  },
+  requestHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  requestTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  requestSubtitle: {
+    marginTop: 2,
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  requestDetails: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    padding: 14,
+  },
+  requestLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginTop: 10,
+  },
+  requestValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  requestMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  requestMeta: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  requestActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  viewRequestBtn: {
+    flex: 1,
+    backgroundColor: "#1E293B",
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  viewRequestText: {
+    color: "#E2E8F0",
+    fontWeight: "800",
+  },
+  acceptRequestBtn: {
+    flex: 1,
+    backgroundColor: "#00A859",
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  acceptRequestText: {
+    color: "#FFF",
+    fontWeight: "800",
   },
   statusTitle: {
     fontSize: 18,
