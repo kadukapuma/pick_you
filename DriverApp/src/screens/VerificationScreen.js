@@ -2,7 +2,6 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   StatusBar,
   StyleSheet,
   Text,
@@ -11,12 +10,13 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import LottieView from "lottie-react-native"; 
 import api from "../services/api";
 import createEchoInstance from "../services/echo";
 
 const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNewUser }) => {
   /* =========================
-     BRAND COLORS
+      BRAND COLORS
   ========================= */
   const BRAND_GREEN = "#00A859";
   const BRAND_YELLOW = "#FDE047";
@@ -24,16 +24,11 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   const DARK_BG = "#0B1220";
 
   /* =========================
-     TEMP STATUS
-     later this comes from backend
-
-     possible values:
-     pending
-     approved
-     rejected
+      STATES
   ========================= */
   const [verificationStatus, setVerificationStatus] = useState("pending");
   const [loading, setLoading] = useState(true);
+  const [isTransitioning, setIsTransitioning] = useState(false); // New state to handle loading after approval click
   const [driver, setDriver] = useState(null);
 
   useEffect(() => {
@@ -116,14 +111,14 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   };
 
   /* =========================
-     STATE EFFECTS
+      STATE EFFECTS
   ========================= */
   useEffect(() => {
     // Other effects can go here if needed
   }, [verificationStatus]);
 
   /* =========================
-     STATUS CONFIG
+      STATUS CONFIG
   ========================= */
   const currentStatus = verificationStatus?.toLowerCase() || "pending";
 
@@ -189,7 +184,7 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   const current = statusConfig[currentStatus] || statusConfig.pending;
 
   /* =========================
-     STATUS ITEM COMPONENT
+      STATUS ITEM COMPONENT
   ========================= */
   const StatusItem = ({
     title,
@@ -249,18 +244,23 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   );
 
   /* =========================
-     LOADING SCREEN
+      LOADING & TRANSITION SCREEN
   ========================= */
-  if (loading) {
+  if (loading || isTransitioning) {
     return (
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" />
 
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color={BRAND_GREEN} />
+          <LottieView
+            source={require("../assets/Upload Complete.json")}
+            autoPlay
+            loop={true}
+            style={styles.loadingLottieCanvas}
+          />
 
           <Text style={styles.loadingText}>
-            Checking verification status...
+            {isTransitioning ? "Setting up your workspace..." : "Checking verification status..."}
           </Text>
         </View>
       </SafeAreaView>
@@ -405,16 +405,22 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
         ]}
         onPress={async () => {
           if (verificationStatus === "rejected") {
-            // Set driver status to "rejected" so that they start re-uploading documents.
             setDriverStatus?.("rejected");
             navigation.navigate("Documentscreen");
           } else if (verificationStatus === "approved") {
-            const hasSeenKey = driver ? `hasSeenApproved_${driver.id}` : "hasSeenApproved";
-            await AsyncStorage.setItem(hasSeenKey, "true");
-            setDriverStatus?.("approved");
-            setIsNewUser?.(false);
-            // navigation.replace("ComingSoon");
-            navigation.replace("MainTabs");
+            // Trigger Lottie transition indicator before replacing screen layout contexts
+            setIsTransitioning(true);
+
+            try {
+              const hasSeenKey = driver ? `hasSeenApproved_${driver.id}` : "hasSeenApproved";
+              await AsyncStorage.setItem(hasSeenKey, "true");
+              setDriverStatus?.("approved");
+              setIsNewUser?.(false);
+              navigation.replace("MainTabs");
+            } catch (error) {
+              console.log("Error processing post-approval logic:", error);
+              setIsTransitioning(false); // Reset if storage configuration fails
+            }
           }
         }}
       >
@@ -434,9 +440,8 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
 export default VerificationStatusScreen;
 
 /* =========================
-   STYLES
+    STYLES
 ========================= */
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -482,9 +487,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
+  loadingLottieCanvas: {
+    width: 140,
+    height: 140,
+  },
+
   loadingText: {
     color: "#FFF",
-    marginTop: 20,
+    marginTop: 12,
     fontSize: 15,
     fontWeight: "600",
   },

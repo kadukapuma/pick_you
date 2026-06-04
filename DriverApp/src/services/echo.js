@@ -17,7 +17,7 @@ const createEchoInstance = async () => {
       cluster: "mt1",
       forceTLS: false,
     });
-
+    
     console.log("Pusher instance created successfully");
 
     // Wrapper for Pusher channel to provide Echo-like API
