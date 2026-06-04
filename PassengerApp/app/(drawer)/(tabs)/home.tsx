@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import {
   Image,
   NativeScrollEvent,
@@ -11,6 +11,7 @@ import {
   Text,
   useWindowDimensions,
   View,
+  Animated,
 } from "react-native";
 
 import FeatureRow from "../../components/home/FeatureRow";
@@ -45,12 +46,21 @@ export default function HomeScreen() {
   const heroMapHeight = isVeryShortScreen ? 300 : isShortScreen ? 350 : 410;
 
   const [headerActive, setHeaderActive] = useState(true);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const isAtTop = event.nativeEvent.contentOffset.y <= 2;
-
+    const offsetY = event.nativeEvent.contentOffset.y;
+    const isAtTop = offsetY <= 2;
     setHeaderActive((current) => (current === isAtTop ? current : isAtTop));
+    scrollY.setValue(offsetY);
   };
+
+  // Calculate blur/white overlay opacity based on scroll position
+  const mapOverlayOpacity = scrollY.interpolate({
+    inputRange: [0, 100],
+    outputRange: [0, 0.85],
+    extrapolate: "clamp",
+  });
 
   return (
     <View style={styles.screen}>
@@ -68,7 +78,17 @@ export default function HomeScreen() {
           style={styles.mapImage}
         />
 
-        {/* MAP OVERLAY */}
+        {/* DYNAMIC BLUR/WHITE OVERLAY - THIS CREATES THE BLUR EFFECT ON SCROLL */}
+        <Animated.View
+          style={[
+            styles.mapBlurOverlay,
+            {
+              opacity: mapOverlayOpacity,
+            },
+          ]}
+        />
+
+        {/* BOTTOM GRADIENT OVERLAY */}
         <View style={styles.mapOverlay} />
       </View>
 
@@ -99,7 +119,7 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         bounces
       >
-        {/* HERO TEXT */}
+        {/* HERO TEXT - NO BLUR, ALWAYS VISIBLE */}
         <View
           style={[
             styles.heroSection,
@@ -110,12 +130,6 @@ export default function HomeScreen() {
         >
           <View style={styles.heroContent}>
             <Text
-              style={[styles.greeting, isVeryShortScreen && styles.smallText]}
-            >
-              Vanakkam! 🙏
-            </Text>
-
-            <Text
               style={[
                 styles.heroTitle,
                 isShortScreen && styles.compactHeroTitle,
@@ -124,19 +138,10 @@ export default function HomeScreen() {
             >
               Where do you{"\n"}want to go today?
             </Text>
-
-            <Text
-              style={[
-                styles.heroSubtitle,
-                isVeryShortScreen && styles.smallText,
-              ]}
-            >
-              Fast • Safe • Affordable
-            </Text>
           </View>
         </View>
 
-        {/* MAIN CONTENT CARD */}
+        {/* MAIN CONTENT CARD - REMOVED SHADOW */}
         <View
           style={[
             styles.contentCard,
@@ -193,6 +198,15 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     resizeMode: "cover",
+  },
+
+  mapBlurOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#FFFFFF", // White overlay creates blur effect on map
   },
 
   mapOverlay: {
@@ -266,17 +280,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     minHeight: 500,
-
-    // iOS shadow
-    shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: -3,
-    },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-
-    // Android shadow
-    elevation: 8,
+    // REMOVED SHADOW PROPERTIES - no more shadow/elevation
   },
 });

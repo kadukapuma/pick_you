@@ -71,7 +71,7 @@ class RideController extends Controller
             ->get()
             ->filter(function ($ride) use ($driver) {
                 $targetedDriverId = Redis::get("ride:current_driver:{$ride->id}");
-                return $targetedDriverId !== null && (int)$targetedDriverId === (int)$driver->id;
+                return $targetedDriverId !== null && (int) $targetedDriverId === (int) $driver->id;
             })
             ->values()
             ->map(function ($ride) {
@@ -189,7 +189,7 @@ class RideController extends Controller
         // Push matching driver IDs into Redis matching list
         $driverIds = $drivers->pluck('driver_id')->toArray();
         Redis::rpush("ride:matching_drivers:{$ride->id}", ...$driverIds);
-        
+
         Log::info("Ride store: Queued " . count($driverIds) . " drivers for Ride {$ride->id}. Candidates: " . implode(',', $driverIds));
 
         // Dispatches targeted event to the first driver
@@ -213,7 +213,7 @@ class RideController extends Controller
 
         // Verify if this driver is indeed the targeted driver for this ride
         $targetedDriverId = Redis::get("ride:current_driver:{$ride->id}");
-        if ($targetedDriverId === null || (int)$targetedDriverId !== (int)$driver->id) {
+        if ($targetedDriverId === null || (int) $targetedDriverId !== (int) $driver->id) {
             return $this->error('You are not authorized to accept this ride request.', 403);
         }
 
@@ -256,7 +256,7 @@ class RideController extends Controller
 
         // Verify if this driver is indeed the currently targeted driver for this ride
         $targetedDriverId = Redis::get("ride:current_driver:{$ride->id}");
-        if ($targetedDriverId !== null && (int)$targetedDriverId === (int)$driver->id) {
+        if ($targetedDriverId !== null && (int) $targetedDriverId === (int) $driver->id) {
             Log::info("rejectRide: Driver {$driver->id} rejected Ride {$ride->id}. Transitioning immediately.");
             $this->targetNextDriver($ride->id);
         }
@@ -278,7 +278,7 @@ class RideController extends Controller
 
         // Pop the next driver ID from Redis queue
         $driverId = Redis::lpop("ride:matching_drivers:{$rideId}");
-        
+
         if (!$driverId) {
             Log::info("targetNextDriver: No candidate drivers left for Ride {$rideId}. Cancelling ride.");
             $ride->update([
@@ -321,5 +321,32 @@ class RideController extends Controller
         Redis::del("ride:matching_drivers:{$rideId}");
         Redis::del("ride:current_driver:{$rideId}");
         Log::info("cleanupRedisMatching: Cleaned up Redis keys for Ride {$rideId}");
+    }
+
+    /**
+     * Cancel/Destroy the ride.
+     */
+    public function destroy($id)
+    {
+        $ride = Ride::find($id);
+
+        if (!$ride || in_array($ride->status, ['COMPLETED', 'CANCELLED'])) {
+            return $this->error('Ride cannot be cancelled', 400);
+        }
+
+        $ride->update([
+            'status' => 'CANCELLED',
+            'cancelled_at' => now()
+        ]);
+
+        $ride->statuses()->create([
+            'status' => 'CANCELLED',
+            'notes' => 'Ride was cancelled.'
+        ]);
+
+        // Clean up Redis matching keys
+        $this->cleanupRedisMatching($ride->id);
+
+        return $this->success($ride, 'Ride cancelled successfully');
     }
 }
