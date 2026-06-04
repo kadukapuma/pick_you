@@ -63,7 +63,7 @@ export default function ActivitiesScreen() {
           text: "Yes, Cancel",
           style: "destructive",
           onPress: async () => {
-            const response = await apiClient.post(`/rides/${activeRideId}/cancel`);
+            const response = await apiClient.delete(`/rides/${activeRideId}`);
             if (response.success) {
               resetTrip();
               Alert.alert("Cancelled", "Your ride has been cancelled.");
