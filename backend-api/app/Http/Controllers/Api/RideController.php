@@ -316,9 +316,9 @@ class RideController extends Controller
     }
 
     /**
-     * Cancel the ride (by passenger or system).
+     * Cancel/Destroy the ride.
      */
-    public function cancel(Request $request, $id)
+    public function destroy($id)
     {
         $ride = Ride::find($id);
 
