@@ -17,7 +17,11 @@ class RideRequestedTargeted implements ShouldBroadcastNow
     public string $ride_code;
     public string $vehicle_type;
     public string $pickup_address;
+    public ?float $pickup_lat;
+    public ?float $pickup_lng;
     public string $drop_address;
+    public ?float $drop_lat;
+    public ?float $drop_lng;
     public float $distance_km;
     public float $estimated_fare;
     public string $passenger_name;
@@ -30,7 +34,11 @@ class RideRequestedTargeted implements ShouldBroadcastNow
         $this->ride_code = $ride->ride_code;
         $this->vehicle_type = (string) optional($ride->fareConfig)->vehicle_type;
         $this->pickup_address = (string) $ride->pickup_address;
+        $this->pickup_lat = $ride->pickup_latitude;
+        $this->pickup_lng = $ride->pickup_longitude;
         $this->drop_address = (string) $ride->drop_address;
+        $this->drop_lat = $ride->drop_latitude;
+        $this->drop_lng = $ride->drop_longitude;
         $this->distance_km = (float) $ride->distance_km;
         $this->estimated_fare = (float) $ride->estimated_fare;
         

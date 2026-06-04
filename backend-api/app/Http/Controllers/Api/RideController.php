@@ -84,7 +84,11 @@ class RideController extends Controller
                     'vehicle_type' => $ride->fareConfig?->vehicle_type,
                     'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger') . ' ' . ($passengerUser?->last_name ?? '')),
                     'pickup_address' => $ride->pickup_address,
+                    'pickup_lat' => $ride->pickup_latitude,
+                    'pickup_lng' => $ride->pickup_longitude,
                     'drop_address' => $ride->drop_address,
+                    'drop_lat' => $ride->drop_latitude,
+                    'drop_lng' => $ride->drop_longitude,
                     'distance_km' => (float) $ride->distance_km,
                     'estimated_fare' => (float) $ride->estimated_fare,
                     'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
@@ -298,11 +302,15 @@ class RideController extends Controller
 
         Log::info("targetNextDriver: Targeting Driver {$driverId} for Ride {$rideId}");
 
+        $ride->refresh();
+
         // Broadcast targeted WebSocket event
         event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId));
 
-        // Dispatch a delayed timeout processing job
-        ProcessRideTimeout::dispatch($rideId, $driverId)->delay(now()->addSeconds(15));
+        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 12));
+
+        ProcessRideTimeout::dispatch($rideId, $driverId)
+            ->delay(now()->addSeconds($offerSeconds));
     }
 
     /**

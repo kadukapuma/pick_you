@@ -10,7 +10,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 
-import MapView, { PROVIDER_GOOGLE, Marker, AnimatedRegion } from "react-native-maps";
+import MapView, { Marker, AnimatedRegion } from "react-native-maps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
@@ -18,7 +18,17 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
 import IncomingRideModal from "../../components/IncomingRideModel";
-import createEchoInstance from "../../services/echo";
+import { normalizeRidePayload } from "../../utils/rideLocation";
+import {
+  connectRideRealtime,
+  disconnectRideRealtime,
+  enableRideFallbackSync,
+  syncPendingRideOnce,
+} from "../../services/rideRealtime";
+import {
+  startDriverLocationSync,
+  stopDriverLocationSync,
+} from "../../services/driverLocationSync";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -27,8 +37,7 @@ const HomeScreen = () => {
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
-  const [rideRequests, setRideRequests] = useState([]);
-  const [isLoadingRequests, setIsLoadingRequests] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
   const [activeVehicleType, setActiveVehicleType] = useState(null);
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
@@ -37,7 +46,11 @@ const HomeScreen = () => {
 
   const toastTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
-  const echoRef = useRef(null);
+  const isRideHandledRef = useRef(false);
+
+  useEffect(() => {
+    isRideHandledRef.current = isRideHandled;
+  }, [isRideHandled]);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
@@ -74,88 +87,82 @@ const HomeScreen = () => {
     }, [])
   );
 
-  useEffect(() => {
-    let intervalId;
-
-    if (isOnline) {
-      fetchRideRequests();
-      intervalId = setInterval(fetchRideRequests, 5000);
-    } else {
-      setRideRequests([]);
-      lastNotifiedRideIdRef.current = null;
+  const presentIncomingRide = useCallback((ride) => {
+    if (!ride?.id) {
+      if (__DEV__) console.warn("presentIncomingRide: missing ride id", ride);
+      return;
     }
 
-    return () => {
-      if (intervalId) {
-        clearInterval(intervalId);
+    const rideId = Number(ride.id);
+    if (
+      isRideHandledRef.current ||
+      Number(lastNotifiedRideIdRef.current) === rideId
+    ) {
+      if (__DEV__) {
+        console.log("presentIncomingRide: skipped duplicate/handled", rideId);
       }
-    };
-  }, [isOnline]);
+      return;
+    }
 
-  // Real-time sequential ride notifications via Echo WebSockets
+    if (__DEV__) console.log("presentIncomingRide: showing modal for ride", rideId);
+
+    // Show UI first — do not wait for sound or network
+    setShowRideModal(true);
+    setRideData(ride);
+    lastNotifiedRideIdRef.current = rideId;
+    setIsRideHandled(false);
+
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setShowRideModal(false);
+      setRideData(null);
+      lastNotifiedRideIdRef.current = null;
+    }, 12000);
+  }, []);
+
+  // WebSocket-first ride delivery (no 5s polling — scales to large fleets)
+  // WebSocket + GPS while online (socket stays warm — popup is instant when a ride is broadcast)
   useEffect(() => {
-    let activeEcho = null;
+    if (!isOnline || !driverId) {
+      disconnectRideRealtime();
+      stopDriverLocationSync();
+      setWsConnected(false);
+      lastNotifiedRideIdRef.current = null;
+      return;
+    }
 
-    const setupEcho = async () => {
-      if (isOnline && driverId) {
-        try {
-          console.log("🔔 Connecting to Echo for driver:", driverId);
-          const echo = await createEchoInstance();
-          activeEcho = echo;
-          echoRef.current = echo;
+    let cancelled = false;
 
-          const channelName = `driver.rides.${driverId}`;
-          console.log("🔔 Subscribing to Echo channel:", channelName);
+    const startOnlineServices = async () => {
+      startDriverLocationSync();
 
-          echo.channel(channelName)
-            .listen(".RideRequestedTargeted", (e) => {
-              console.log("🔔 Real-time ride request received via WebSocket:", e);
-              
-              if (isRideHandled || lastNotifiedRideIdRef.current === e.ride_id) {
-                return;
-              }
-
-              setRideData({
-                id: e.ride_id,
-                pickup: e.pickup_address,
-                drop: e.drop_address,
-                price: Number(e.estimated_fare || 0).toFixed(2),
-                distance: `${Number(e.distance_km || 0).toFixed(1)} km`,
-                customerName: e.passenger_name || 'Passenger',
-                vehicle_type: e.vehicle_type,
-                requested_at: e.requested_at,
-                status: 'REQUESTED',
-              });
-
-              setShowRideModal(true);
-              lastNotifiedRideIdRef.current = e.ride_id;
-              setIsRideHandled(false);
-
-              // Auto-dismiss after 15 seconds matching backend timeout
-              if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-              toastTimerRef.current = setTimeout(() => {
-                setShowRideModal(false);
-                setRideData(null);
-                lastNotifiedRideIdRef.current = null;
-              }, 15000);
-            });
-        } catch (err) {
-          console.log("Echo setup error in HomeScreen:", err);
+      try {
+        await connectRideRealtime(driverId, {
+          onRide: (ride) => {
+            if (!cancelled) presentIncomingRide(ride);
+          },
+          onConnectionChange: (connected) => {
+            if (!cancelled) setWsConnected(connected);
+          },
+        });
+      } catch (err) {
+        console.log("Ride realtime connect error:", err?.message || err);
+        if (!cancelled) {
+          setWsConnected(false);
+          enableRideFallbackSync();
+          await syncPendingRideOnce();
         }
       }
     };
 
-    setupEcho();
+    startOnlineServices();
 
     return () => {
-      if (activeEcho && driverId) {
-        const channelName = `driver.rides.${driverId}`;
-        console.log("🔔 Leaving Echo channel:", channelName);
-        activeEcho.leaveChannel(channelName);
-      }
-      echoRef.current = null;
+      cancelled = true;
+      disconnectRideRealtime();
+      stopDriverLocationSync();
     };
-  }, [isOnline, driverId, isRideHandled]);
+  }, [isOnline, driverId, presentIncomingRide]);
 
   // Clean up any pending timers when component unmounts
   useEffect(() => {
@@ -180,67 +187,34 @@ const HomeScreen = () => {
     }
   };
 
-  const fetchRideRequests = async () => {
-    setIsLoadingRequests(true);
-    try {
-      const response = await api.get("/driver/ride-requests");
-      console.log('🚗 fetchRideRequests response:', response.data);
-      const requests = response.data?.data || response.data || [];
-      setRideRequests(requests);
-
-        // Notify for new incoming ride if any request exists
-        if (requests.length > 0) {
-          const r = requests[0];
-          // Skip if we have already handled a ride
-          if (isRideHandled) {
-            return;
-          }
-          // Normalize fields for modal
-          setRideData({
-            id: r.id,
-            pickup: r.pickup_address,
-            drop: r.drop_address,
-            price: Number(r.estimated_fare || 0).toFixed(2),
-            distance: `${Number(r.distance_km || 0).toFixed(1)} km`,
-            customerName: r.passenger_name || 'Passenger',
-            vehicle_type: r.vehicle_type,
-            requested_at: r.requested_at,
-            status: r.status,
-          });
-          setShowRideModal(true);
-          lastNotifiedRideIdRef.current = r.id;
-          setIsRideHandled(false); // reset handling flag for new ride
-          console.log('🔔 New ride notified, id:', r.id);
-          // Auto‑dismiss after 15 seconds if driver takes no action
-          if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-          toastTimerRef.current = setTimeout(() => {
-            setShowRideModal(false);
-            setRideData(null);
-            lastNotifiedRideIdRef.current = null;
-          }, 15000);
-        }
-    } catch (error) {
-      console.log("Error fetching ride requests:", error);
-    } finally {
-      setIsLoadingRequests(false);
-    }
-  };
-
   const handleAcceptRide = async () => {
     if (!rideData?.id) return;
     const rideId = rideData.id;
     try {
       await api.post(`/rides/${rideId}/accept`);
-      // Clear modal and stop further notifications for this ride
+
+      let rideForNav = rideData;
+      try {
+        const detailRes = await api.get(`/rides/${rideId}`);
+        const detail = detailRes.data?.data ?? detailRes.data;
+        if (detail) {
+          rideForNav = normalizeRidePayload({ ...rideData, ...detail });
+        }
+      } catch (detailErr) {
+        console.log("Could not refresh ride details:", detailErr);
+      }
+
       setShowRideModal(false);
       setRideData(null);
       lastNotifiedRideIdRef.current = null;
-      setIsRideHandled(true); // mark ride as handled to prevent looping
-      // Navigate to ride details screen with the ride payload
-      navigation.navigate('RideDetails', { ride: rideData });
+      setIsRideHandled(true);
+      navigation.navigate("RideDetails", { ride: rideForNav });
     } catch (error) {
-      console.log('Error accepting ride:', error);
-      showCustomToast('error', error.response?.data?.message || 'Failed to accept ride.');
+      console.log("Error accepting ride:", error);
+      showCustomToast(
+        "error",
+        error.response?.data?.message || "Failed to accept ride.",
+      );
     }
   };
 
@@ -316,7 +290,6 @@ const HomeScreen = () => {
 
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
           latitude: 6.9271,
@@ -412,7 +385,11 @@ const HomeScreen = () => {
               {isOnline ? "You're Online" : "You're Offline"}
             </Text>
             <Text style={styles.statusSubtitle}>
-              {isOnline ? "Searching for trips..." : "Go online to start earning"}
+              {isOnline
+                ? wsConnected
+                  ? "Live — trips arrive instantly"
+                  : "Reconnecting… (backup sync active)"
+                : "Go online to start earning"}
             </Text>
           </View>
 
