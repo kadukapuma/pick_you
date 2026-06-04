@@ -1,18 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   Image,
   StyleSheet,
   TextInput,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
-import HomeHeader from "../../components/home/HomeHeader";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../hooks/useAuth";
 import {
   PassengerProfile,
@@ -28,8 +32,14 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+const STICKY_HEADER_HEIGHT = 56;
+const COLLAPSE_THRESHOLD = 50;
+
 export default function AccountScreen() {
   const { logout } = useAuth();
+  const tabBarHeight = useBottomTabBarHeight();
+  const insets = useSafeAreaInsets();
+  const { height, width } = useWindowDimensions();
   const [profile, setProfile] = useState<PassengerProfile | null>(null);
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -38,6 +48,7 @@ export default function AccountScreen() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   const loadProfile = async () => {
     try {
@@ -162,15 +173,113 @@ export default function AccountScreen() {
     ]);
   };
 
+  const isShortScreen = height < 760;
+  const contentBottomSpacing = tabBarHeight + insets.bottom + 20;
+  const avatarSize = 110;
+  const compactAvatarSize = 34;
+  const expandedLeft = (width - avatarSize) / 2; // Keep truly centered on the screen
+  const expandedTop = insets.top + STICKY_HEADER_HEIGHT + 52;
+  const compactLeft = width - 20 - compactAvatarSize; // Align with the right margin of the form content (20px from screen edge)
+  const compactTop = insets.top + 11; // Align vertically with header elements
+  const avatarProgress = scrollY.interpolate({
+    inputRange: [0, COLLAPSE_THRESHOLD],
+    outputRange: [0, 1],
+    extrapolate: "clamp",
+  });
+  const floatingAvatarTranslateX = avatarProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      0,
+      compactLeft - expandedLeft - (avatarSize - compactAvatarSize) / 2,
+    ],
+    extrapolate: "clamp",
+  });
+  const floatingAvatarTranslateY = avatarProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      0,
+      compactTop - expandedTop - (avatarSize - compactAvatarSize) / 2,
+    ],
+    extrapolate: "clamp",
+  });
+  const floatingAvatarScale = avatarProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, compactAvatarSize / avatarSize],
+    extrapolate: "clamp",
+  });
+
+  const handleScroll = (event: any) => {
+    const offsetY = event?.nativeEvent?.contentOffset?.y ?? 0;
+    scrollY.setValue(offsetY);
+  };
+
   return (
-    <View className="flex-1 bg-[#F4FBFF] px-5 pt-12">
-      <HomeHeader />
+    <View className="flex-1 bg-[#F4FBFF] px-5">
+      <View
+        style={[
+          styles.stickyHeader,
+          {
+            top: insets.top + 2,
+          },
+        ]}
+      >
+        <Text style={styles.stickyTitle}>Profile</Text>
+      </View>
 
-      <View className="flex-1 justify-center">
-        <View style={styles.card}>
-          <Text style={styles.title}>Passenger Profile</Text>
-          <Text style={styles.subtitle}>Your basic account information</Text>
+      {profile?.profileImage ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            styles.floatingAvatar,
+            {
+              width: avatarSize,
+              height: avatarSize,
+              top: expandedTop,
+              left: expandedLeft,
+              transform: [
+                { translateX: floatingAvatarTranslateX },
+                { translateY: floatingAvatarTranslateY },
+                { scale: floatingAvatarScale },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.avatarRing}>
+            <Image
+              source={{ uri: profile.profileImage }}
+              style={styles.avatar}
+            />
+          </View>
+          <View style={styles.editBadge}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handlePickAndUploadImage}
+              disabled={isUploadingImage}
+              style={styles.editBadgeButton}
+            >
+              <Ionicons name="pencil" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
+      ) : null}
 
+      <KeyboardAwareScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          justifyContent: "flex-start",
+          paddingTop:
+            insets.top + STICKY_HEADER_HEIGHT + (isShortScreen ? 20 : 12),
+          paddingBottom: contentBottomSpacing,
+        }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid
+        extraScrollHeight={24}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        <View style={styles.pageContent}>
           {isLoading ? (
             <View style={styles.centerBlock}>
               <ActivityIndicator size="small" color="#0EA5E9" />
@@ -187,28 +296,8 @@ export default function AccountScreen() {
               </TouchableOpacity>
             </View>
           ) : (
-            <View style={styles.profileBlock}>
-              <View style={styles.avatarWrap}>
-                {profile?.profileImage ? (
-                  <Image
-                    source={{ uri: profile.profileImage }}
-                    style={styles.avatar}
-                  />
-                ) : (
-                  <View style={styles.avatarPlaceholder}>
-                    <Ionicons name="person" size={30} color="#9CA3AF" />
-                  </View>
-                )}
-                <TouchableOpacity
-                  style={styles.imageButton}
-                  onPress={handlePickAndUploadImage}
-                  disabled={isUploadingImage}
-                >
-                  <Text style={styles.imageButtonText}>
-                    {isUploadingImage ? "Uploading..." : "Change Photo"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
+            <View>
+              <View style={styles.avatarSpacer} />
 
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>First Name</Text>
@@ -274,26 +363,54 @@ export default function AccountScreen() {
             <Text style={styles.logoutText}>Logout</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
-    paddingHorizontal: 22,
-    paddingVertical: 22,
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.08,
-    shadowRadius: 18,
+  pageContent: {
+    paddingHorizontal: 2,
+    paddingBottom: 8,
   },
-  title: {
+  stickyHeader: {
+    position: "absolute",
+    left: 2,
+    right: 2,
+    zIndex: 20,
+    height: STICKY_HEADER_HEIGHT,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  stickyTitle: {
     color: "#111827",
     fontSize: 20,
     fontWeight: "800",
+  },
+  topAvatarWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    overflow: "hidden",
+    backgroundColor: "#E5E7EB",
+  },
+  topAvatar: {
+    width: "100%",
+    height: "100%",
+  },
+  topAvatarPlaceholder: {
+    flex: 1,
+    backgroundColor: "#D1D5DB",
+  },
+  floatingAvatar: {
+    position: "absolute",
+    zIndex: 30,
+    borderRadius: 45,
+    overflow: "visible",
+  },
+  avatarSpacer: {
+    height: 170,
   },
   subtitle: {
     color: "#6B7280",
@@ -302,24 +419,14 @@ const styles = StyleSheet.create({
     marginTop: 6,
     marginBottom: 16,
   },
-  profileBlock: {
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    backgroundColor: "#F9FAFB",
-  },
   avatarWrap: {
     alignItems: "center",
     marginBottom: 14,
     paddingTop: 8,
   },
   avatar: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    marginBottom: 10,
+    width: "100%",
+    height: "100%",
   },
   avatarPlaceholder: {
     width: 90,
@@ -329,6 +436,35 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#E5E7EB",
+  },
+  avatarPlaceholderText: {
+    color: "#6B7280",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  avatarRing: {
+    flex: 1,
+
+    borderRadius: 55,
+
+    borderWidth: 3,
+    borderColor: "#10B981",
+
+    backgroundColor: "#FFFFFF",
+
+    overflow: "hidden",
+
+    shadowColor: "#10B981",
+    shadowOffset: {
+      width: 0,
+      height: 3,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+
+    elevation: 4,
   },
   imageButton: {
     backgroundColor: "#0EA5E9",
@@ -433,5 +569,26 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     marginLeft: 8,
+  },
+  editBadge: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#10B981",
+    borderWidth: 2,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  editBadgeButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
   },
 });

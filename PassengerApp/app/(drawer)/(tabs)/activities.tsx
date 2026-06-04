@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { View, Text, ActivityIndicator, Alert } from "react-native";
+import { View, Text, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
 import HomeHeader from "../../components/home/HomeHeader";
 import { useRideSearch } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
@@ -11,6 +11,7 @@ export default function ActivitiesScreen() {
     activeRideStatus,
     setIsSearchingForDriver,
     setActiveRide,
+    resetTrip,
   } = useRideSearch();
   const approvalAlertShownRef = useRef(false);
 
@@ -50,6 +51,31 @@ export default function ActivitiesScreen() {
     };
   }, [activeRideId, isSearchingForDriver, setActiveRide, setIsSearchingForDriver]);
 
+  const handleCancel = async () => {
+    if (!activeRideId) return;
+
+    Alert.alert(
+      "Cancel Ride",
+      "Are you sure you want to cancel this ride request?",
+      [
+        { text: "No", style: "cancel" },
+        {
+          text: "Yes, Cancel",
+          style: "destructive",
+          onPress: async () => {
+            const response = await apiClient.post(`/rides/${activeRideId}/cancel`);
+            if (response.success) {
+              resetTrip();
+              Alert.alert("Cancelled", "Your ride has been cancelled.");
+            } else {
+              Alert.alert("Error", response.message || "Failed to cancel ride.");
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const waiting = isSearchingForDriver && activeRideStatus !== "ACCEPTED";
 
   return (
@@ -72,6 +98,14 @@ export default function ActivitiesScreen() {
                 </Text>
               </View>
             </View>
+            <TouchableOpacity
+              onPress={handleCancel}
+              className="mt-6 rounded-xl bg-white/10 py-3 items-center border border-white/20"
+            >
+              <Text className="font-bold text-white uppercase tracking-wider">
+                Cancel Ride
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : activeRideStatus === "ACCEPTED" ? (
           <View className="mt-6 rounded-3xl bg-emerald-950 px-5 py-6">
@@ -79,6 +113,14 @@ export default function ActivitiesScreen() {
             <Text className="mt-1 text-sm text-emerald-200">
               Your driver is on the way.
             </Text>
+            <TouchableOpacity
+              onPress={handleCancel}
+              className="mt-6 rounded-xl bg-white/10 py-3 items-center border border-emerald-400/20"
+            >
+              <Text className="font-bold text-white uppercase tracking-wider">
+                Cancel Ride
+              </Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <View className="flex-1 items-center justify-center">

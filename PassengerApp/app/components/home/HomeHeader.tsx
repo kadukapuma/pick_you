@@ -1,12 +1,40 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
+import { useCallback, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
+import { ProfileService } from "../../services/auth/profileService";
 
 type HomeHeaderProps = {
   compact?: boolean;
 };
 
 export default function HomeHeader({ compact = false }: HomeHeaderProps) {
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  useFocusEffect(
+    useCallback(() => {
+      let isMounted = true;
+
+      const run = async () => {
+        const result = await ProfileService.getProfile();
+        if (!isMounted) {
+          return;
+        }
+
+        setProfileImage(
+          result.success ? (result.data?.profileImage ?? null) : null,
+        );
+      };
+
+      run();
+
+      return () => {
+        isMounted = false;
+      };
+    }, []),
+  );
+
   return (
     <View
       style={{
@@ -114,13 +142,23 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
             borderColor: "#D1D5DB",
           }}
         >
-          <Image
-            source={{ uri: "https://i.pravatar.cc/100" }}
-            style={{
-              width: "100%",
-              height: "100%",
-            }}
-          />
+          {profileImage ? (
+            <Image
+              source={{ uri: profileImage }}
+              style={{
+                width: "100%",
+                height: "100%",
+              }}
+            />
+          ) : (
+            <View
+              style={{
+                width: "100%",
+                height: "100%",
+                backgroundColor: "#E5E7EB",
+              }}
+            />
+          )}
         </TouchableOpacity>
       </View>
     </View>
