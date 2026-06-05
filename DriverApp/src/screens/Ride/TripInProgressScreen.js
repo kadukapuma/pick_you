@@ -8,6 +8,7 @@ import {
   Dimensions,
   Animated,
   PanResponder,
+  ActivityIndicator,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -16,6 +17,7 @@ import * as Haptics from "expo-haptics";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { getDropCoordinate, getPickupCoordinate } from "../../utils/rideLocation";
+import api from "../../services/api";
 
 const { width, height } = Dimensions.get("window");
 
@@ -63,6 +65,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
   // --- SLIDER MECHANICS & ANIMATIONS ---
   const slideX = useRef(new Animated.Value(0)).current;
   const [completed, setCompleted] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const progressWidth = slideX.interpolate({
     inputRange: [0, SLIDER_WIDTH - THUMB_SIZE - 10],
@@ -70,8 +73,21 @@ const TripInProgressScreen = ({ navigation, route }) => {
     extrapolate: "clamp",
   });
 
-  const handleCompleteTrip = () => {
-    navigation.navigate("TripCompletedScreen", { ride });
+  const handleCompleteTrip = async () => {
+    if (!ride?.id || isCompleting) return;
+
+    setIsCompleting(true);
+    try {
+      await api.post(`/rides/${ride.id}/complete`);
+      navigation.navigate("TripCompletedScreen", { ride });
+    } catch (error) {
+      console.log("Error completing ride:", error);
+      alert(error.response?.data?.message || "Failed to complete ride. Please try again.");
+      setCompleted(false);
+      slideX.setValue(0);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const panResponder = useRef(
@@ -92,7 +108,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       },
 
       onPanResponderRelease: (_, gestureState) => {
-        if (completed) return;
+        if (completed || isCompleting) return;
 
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10;
         const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.70;
@@ -268,7 +284,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
               ]}
               {...panResponder.panHandlers}
             >
-              <Feather name="chevrons-right" size={22} color="#00A859" />
+              {isCompleting ? (
+                <ActivityIndicator size="small" color="#00A859" />
+              ) : (
+                <Feather name="chevrons-right" size={22} color="#00A859" />
+              )}
             </Animated.View>
           </View>
         </View>

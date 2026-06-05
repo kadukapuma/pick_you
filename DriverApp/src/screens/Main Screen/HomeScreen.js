@@ -82,6 +82,11 @@ const HomeScreen = () => {
       StatusBar.setTranslucent(false);
       StatusBar.setHidden(false);
 
+      // Reset ride handling refs when screen comes into focus
+      lastNotifiedRideIdRef.current = null;
+      setIsRideHandled(false);
+      isRideHandledRef.current = false;
+
       fetchDriverData();
       return () => { };
     }, [])

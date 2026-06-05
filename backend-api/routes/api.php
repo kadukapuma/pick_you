@@ -52,6 +52,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/driver/ride-requests', [App\Http\Controllers\Api\RideController::class, 'driverRideRequests']);
     Route::post('/rides/{id}/accept', [App\Http\Controllers\Api\RideController::class, 'acceptRide']);
     Route::post('/rides/{id}/reject', [App\Http\Controllers\Api\RideController::class, 'rejectRide']);
+    Route::post('/rides/{id}/start', [App\Http\Controllers\Api\RideController::class, 'startRide']);
+    Route::post('/rides/{id}/complete', [App\Http\Controllers\Api\RideController::class, 'completeRide']);
     Route::apiResource('ride-statuses', App\Http\Controllers\Api\RideStatusController::class);
     Route::post('/payments/{ride_id}', [App\Http\Controllers\Api\PaymentController::class, 'processPayment']);
     Route::apiResource('wallet-transactions', App\Http\Controllers\Api\WalletTransactionController::class);

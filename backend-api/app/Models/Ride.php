@@ -10,7 +10,7 @@ class Ride extends Model
 
     protected $fillable = [
         'ride_code', 'passenger_id', 'driver_id', 'vehicle_id', 'fare_id',
-        'pickup_address', 'pickup_point', 'drop_address', 'drop_point',
+        'pickup_address', 'pickup_point', 'pickup_geog', 'drop_address', 'drop_point', 'drop_geog',
         'distance_km', 'estimated_fare', 'final_fare', 'status',
         'requested_at', 'accepted_at', 'started_at', 'completed_at', 'cancelled_at'
     ];
