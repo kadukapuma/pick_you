@@ -15,14 +15,15 @@ import { Audio } from "expo-av";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
-  const [countdown, setCountdown] = useState(15);
+  const OFFER_SECONDS = 12;
+  const [countdown, setCountdown] = useState(OFFER_SECONDS);
   const soundRef = useRef(null);
 
   // Sound Handler
   useEffect(() => {
     if (visible) {
       playSound();
-      setCountdown(15); // Reset timer whenever modal becomes visible
+      setCountdown(OFFER_SECONDS);
     } else {
       stopSound();
     }
@@ -77,12 +78,12 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
   };
 
   return (
-    <Modal transparent visible={visible} animationType="slide">
+    <Modal transparent visible={visible} animationType="none">
       <View style={styles.overlay}>
         <MotiView
-          from={{ translateY: SCREEN_HEIGHT * 0.6 }}
+          from={{ translateY: visible ? 0 : SCREEN_HEIGHT * 0.15 }}
           animate={{ translateY: 0 }}
-          transition={{ type: "spring", damping: 22, stiffness: 110 }}
+          transition={{ type: "timing", duration: 180 }}
           style={styles.container}
         >
           {/* --- TOP GRADIENT HEADER SECTION --- */}
