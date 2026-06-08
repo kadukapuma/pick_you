@@ -1,8 +1,12 @@
-import React, { useEffect, useRef } from "react";
-import { View, Text, ActivityIndicator, Alert, TouchableOpacity } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Dimensions } from "react-native";
 import { useRideSearch } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
 import EmptyState from "./EmptyState";
+import RideMap from "../ride/RideMap";
+import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 export default function OngoingTab() {
     const {
@@ -14,10 +18,13 @@ export default function OngoingTab() {
         resetTrip,
     } = useRideSearch();
 
+    const [rideData, setRideData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(false);
     const approvalAlertShownRef = useRef(false);
 
     useEffect(() => {
-        if (!isSearchingForDriver || !activeRideId) {
+        if (!activeRideId) {
+            setRideData(null);
             return;
         }
 
@@ -31,7 +38,10 @@ export default function OngoingTab() {
                     return;
                 }
 
-                const rideStatus = String(response.data.status || "").toUpperCase();
+                const ride = response.data;
+                const rideStatus = String(ride.status || "").toUpperCase();
+
+                setRideData(ride);
                 setActiveRide(activeRideId, rideStatus);
 
                 if (rideStatus === "ACCEPTED" && !approvalAlertShownRef.current) {
@@ -54,7 +64,7 @@ export default function OngoingTab() {
             cancelled = true;
             clearInterval(intervalId);
         };
-    }, [activeRideId, isSearchingForDriver, setActiveRide, setIsSearchingForDriver]);
+    }, [activeRideId, setActiveRide, setIsSearchingForDriver]);
 
     const handleCancel = async () => {
         if (!activeRideId) return;
@@ -88,6 +98,105 @@ export default function OngoingTab() {
         return <EmptyState message="You don't have any ongoing trips" />;
     }
 
+    if (activeRideStatus === "ACCEPTED" && rideData) {
+        const driver = rideData.driver;
+        const vehicle = rideData.vehicle;
+        const driverLocation = driver?.locations?.[0]; // Current location if backend changes, or null.
+
+        return (
+            <View className="flex-1 -mx-4 -mb-4">
+                {/* MAP SECTION */}
+                <View style={{ height: SCREEN_HEIGHT * 0.45 }}>
+                    <RideMap
+                        location={{
+                            latitude: parseFloat(rideData.pickup_latitude),
+                            longitude: parseFloat(rideData.pickup_longitude)
+                        }}
+                        destination={{
+                            latitude: parseFloat(rideData.drop_latitude),
+                            longitude: parseFloat(rideData.drop_longitude)
+                        }}
+                        driverLocation={driverLocation ? {
+                            latitude: driverLocation.latitude,
+                            longitude: driverLocation.longitude,
+                            heading: driverLocation.heading
+                        } : null}
+                    />
+                </View>
+
+                {/* INFO CARD */}
+                <View className="flex-1 bg-white rounded-t-[32px] -mt-8 px-6 pt-8 shadow-2xl">
+                    <ScrollView showsVerticalScrollIndicator={false}>
+                        <View className="flex-row justify-between items-start mb-6">
+                            <View>
+                                <Text className="text-2xl font-black text-slate-900">
+                                    Driver is on the way
+                                </Text>
+                                <Text className="text-slate-500 font-medium mt-1">
+                                    Estimated arrival: 5-8 mins
+                                </Text>
+                            </View>
+                            <View className="bg-emerald-100 px-3 py-1 rounded-full">
+                                <Text className="text-emerald-700 font-bold text-xs">ON THE WAY</Text>
+                            </View>
+                        </View>
+
+                        {/* DRIVER INFO */}
+                        <View className="flex-row items-center bg-slate-50 p-4 rounded-2xl mb-6 border border-slate-100">
+                            <View className="w-14 h-14 bg-emerald-500 rounded-full items-center justify-center">
+                                <Ionicons name="person" size={28} color="white" />
+                            </View>
+                            <View className="flex-1 ml-4">
+                                <Text className="text-lg font-bold text-slate-900">
+                                    {driver?.user?.first_name || "John"} {driver?.user?.last_name || "Driver"}
+                                </Text>
+                                <View className="flex-row items-center mt-1">
+                                    <Ionicons name="star" size={14} color="#F59E0B" />
+                                    <Text className="text-slate-500 text-sm ml-1 font-medium">{driver?.rating || "4.9"} • {vehicle?.brand || "Toyota"} {vehicle?.model || "Aqua"}</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity className="w-12 h-12 bg-white rounded-full items-center justify-center shadow-sm border border-slate-100">
+                                <Feather name="phone" size={20} color="#0F172A" />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* TRIP DETAILS */}
+                        <View className="space-y-4 mb-8">
+                            <View className="flex-row items-center">
+                                <View className="w-8 items-center">
+                                    <View className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                                </View>
+                                <View className="flex-1 ml-2">
+                                    <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pickup</Text>
+                                    <Text className="text-slate-900 font-semibold truncate">{rideData.pickup_address}</Text>
+                                </View>
+                            </View>
+
+                            <View className="flex-row items-center">
+                                <View className="w-8 items-center">
+                                    <View className="w-2.5 h-2.5 rounded-full bg-orange-500" />
+                                </View>
+                                <View className="flex-1 ml-2">
+                                    <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Drop-off</Text>
+                                    <Text className="text-slate-900 font-semibold truncate">{rideData.drop_address}</Text>
+                                </View>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={handleCancel}
+                            className="bg-rose-50 py-4 rounded-2xl items-center border border-rose-100 mb-8"
+                        >
+                            <Text className="font-bold text-rose-600 uppercase tracking-widest">
+                                Cancel Ride
+                            </Text>
+                        </TouchableOpacity>
+                    </ScrollView>
+                </View>
+            </View>
+        );
+    }
+
     return (
         <View className="flex-1">
             {waiting ? (
@@ -106,21 +215,6 @@ export default function OngoingTab() {
                     <TouchableOpacity
                         onPress={handleCancel}
                         className="mt-6 rounded-xl bg-white/10 py-3 items-center border border-white/20"
-                    >
-                        <Text className="font-bold text-white uppercase tracking-wider">
-                            Cancel Ride
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-            ) : activeRideStatus === "ACCEPTED" ? (
-                <View className="mt-2 rounded-3xl bg-emerald-950 px-5 py-6 shadow-lg">
-                    <Text className="text-lg font-bold text-white">Driver approved</Text>
-                    <Text className="mt-1 text-sm text-emerald-200">
-                        Your driver is on the way.
-                    </Text>
-                    <TouchableOpacity
-                        onPress={handleCancel}
-                        className="mt-6 rounded-xl bg-white/10 py-3 items-center border border-emerald-400/20"
                     >
                         <Text className="font-bold text-white uppercase tracking-wider">
                             Cancel Ride
