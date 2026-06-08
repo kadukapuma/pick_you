@@ -4,23 +4,42 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PassengerAuthController;
+use App\Http\Controllers\Api\PassengerProfileController;
+
+// Passenger App Auth routes
+Route::prefix('passenger/auth')->group(function () {
+    Route::post('/otp/send', [PassengerAuthController::class, 'sendOtp']);
+    Route::post('/otp/verify', [PassengerAuthController::class, 'verifyOtp']);
+    Route::post('/register', [PassengerAuthController::class, 'completeRegistration']);
+    Route::middleware('auth:sanctum')->post('/logout', [PassengerAuthController::class, 'logout']);
+});
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/otp/send', [AuthController::class, 'sendOtp']);
 Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+Route::post('/reset-password', [AuthController::class, 'resetPassword']);
 Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA']);
+
+// Public app settings (maintenance mode check for all users)
+Route::get('/app-settings/maintenance-mode', [App\Http\Controllers\Api\AppSettingsController::class, 'getMaintenanceMode']);
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user()->load(['driver.vehicles', 'rolePermissions']);
     });
+    Route::get('/passenger/profile', [PassengerProfileController::class, 'getProfile']);
+    Route::put('/passenger/profile', [PassengerProfileController::class, 'updateProfile']);
+    Route::post('/passenger/profile-picture', [PassengerProfileController::class, 'updateProfilePicture']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
+    Route::get('/driver/profile', [App\Http\Controllers\Api\DriverProfileController::class, 'getProfile']);
     Route::post('/driver/complete-profile', [App\Http\Controllers\Api\DriverController::class, 'completeProfile']);
     Route::post('/driver/license-images', [App\Http\Controllers\Api\DriverController::class, 'updateLicenseImages']);
+    Route::put('/driver/availability', [App\Http\Controllers\Api\DriverController::class, 'updateOwnAvailability']);
 
     // Resource routes
     Route::apiResource('passengers', App\Http\Controllers\Api\PassengerController::class);
@@ -30,7 +49,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/vehicle-types', [App\Http\Controllers\Api\VehicleTypeController::class, 'index']);
     Route::apiResource('driver-documents', App\Http\Controllers\Api\DriverDocumentController::class);
     Route::apiResource('rides', App\Http\Controllers\Api\RideController::class);
+    Route::get('/driver/ride-requests', [App\Http\Controllers\Api\RideController::class, 'driverRideRequests']);
     Route::post('/rides/{id}/accept', [App\Http\Controllers\Api\RideController::class, 'acceptRide']);
+    Route::post('/rides/{id}/reject', [App\Http\Controllers\Api\RideController::class, 'rejectRide']);
+    Route::post('/rides/{id}/start', [App\Http\Controllers\Api\RideController::class, 'startRide']);
+    Route::post('/rides/{id}/complete', [App\Http\Controllers\Api\RideController::class, 'completeRide']);
     Route::apiResource('ride-statuses', App\Http\Controllers\Api\RideStatusController::class);
     Route::post('/payments/{ride_id}', [App\Http\Controllers\Api\PaymentController::class, 'processPayment']);
     Route::apiResource('wallet-transactions', App\Http\Controllers\Api\WalletTransactionController::class);
@@ -74,6 +97,13 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/dashboard/stats', [App\Http\Controllers\Api\DashboardController::class, 'getStats']);
         Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
+
+        // App Settings routes (Super Admin only)
+        Route::middleware('super_admin')->group(function () {
+            Route::get('/app-settings', [App\Http\Controllers\Api\AppSettingsController::class, 'index']);
+            Route::get('/app-settings/{key}', [App\Http\Controllers\Api\AppSettingsController::class, 'show']);
+            Route::put('/app-settings/{key}', [App\Http\Controllers\Api\AppSettingsController::class, 'update']);
+        });
 
         // Super Admin only routes
         Route::middleware('super_admin')->group(function () {

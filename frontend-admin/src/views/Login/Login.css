@@ -10,7 +10,7 @@
 .login-left {
     flex: 1.5;
     position: relative;
-    background-color: #07a107;
+    background-color: #0c0c0c;
     background-image: url('/fleet_illustration_modern_1778233174068.png');
     background-size: cover;
     background-position: center;
@@ -45,7 +45,7 @@
 .login-brand-overlay .brand-icon {
     width: 48px;
     height: 48px;
-    background-color: #000000;
+    background-color: #ffffff;
     color: #03d803;
     border-radius: 50%;
     display: flex;
@@ -56,7 +56,7 @@
 .login-brand-overlay h1 {
     font-size: 24px;
     font-weight: 800;
-    color: #000000;
+    color: #08f114;
     margin: 0;
 }
 
@@ -121,26 +121,43 @@
     position: relative;
     display: flex;
     align-items: center;
+    gap: 12px;
+    padding: 0 22px;
+    min-height: 56px;
+    border-radius: 100px;
+    background-color: #000000;
 }
 
 .input-wrapper .material-icons {
-    position: absolute;
-    left: 24px;
-    color: #ffffff;
+    color: #3bfd00;
     font-size: 20px;
-    z-index: 2;
+    line-height: 1;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 24px;
+    pointer-events: none;
 }
 
 .input-wrapper input {
+    all: unset;
+    flex: 1;
     width: 100%;
-    padding: 16px 24px 16px 60px;
-    border: none;
-    border-radius: 100px;
+    min-width: 0;
+    padding: 0;
     font-size: 14px;
-    background-color: #03d803;
     color: #ffffff;
     font-weight: 600;
-    transition: all 0.2s;
+    line-height: 1.2;
+    cursor: text;
+    transition: color 0.2s;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    border-radius: inherit !important;
 }
 
 .input-wrapper input::placeholder {
@@ -151,16 +168,49 @@
 
 .input-wrapper input:focus {
     outline: none;
-    background-color: #03d803;
-    box-shadow: 0 4px 12px rgba(8, 214, 18, 0.3);
+    box-shadow: none;
+}
+
+.input-wrapper input:focus-visible {
+    outline: none;
+    box-shadow: none;
+}
+
+.input-wrapper:focus-within {
+    outline: none;
+    box-shadow: none;
+}
+
+.input-wrapper input:-webkit-autofill,
+.input-wrapper input:-webkit-autofill:hover,
+.input-wrapper input:-webkit-autofill:focus,
+.input-wrapper input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #000000 inset;
+    -webkit-text-fill-color: #0bf317;
+    caret-color: #ffffff;
+    transition: background-color 9999s ease-in-out 0s;
+}
+
+/* Ensure no inner border/outline appears in various browsers */
+.input-wrapper input::-moz-focus-inner {
+    border: 0 !important;
+}
+.input-wrapper input,
+.input-wrapper input:focus,
+.input-wrapper input:focus-visible,
+.input-wrapper input:-webkit-autofill {
+    border: 0 !important;
+    outline: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
 }
 
 .input-wrapper .toggle-password {
-    position: absolute;
-    right: 24px;
-    left: auto;
+    position: static;
     color: #ffffff;
     cursor: pointer;
+    flex: 0 0 auto;
+    pointer-events: auto;
 }
 
 .form-options {

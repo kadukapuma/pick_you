@@ -10,10 +10,24 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Start the app
+2. Configure Mapbox (same token as Passenger app)
 
    ```bash
-   npx expo start
+   cp .env.example .env
+   ```
+
+   Edit `DriverApp/.env` and set your public token:
+
+   ```env
+   EXPO_PUBLIC_MAPBOX_API_KEY=pk.your_mapbox_public_token_here
+   ```
+
+3. Configure WebSockets (see [REALTIME_SETUP.md](./REALTIME_SETUP.md)) — ride requests use Reverb, not HTTP polling.
+
+4. Start the app
+
+   ```bash
+   npx expo start --clear
    ```
 
 In the output, you'll find options to open the app in a

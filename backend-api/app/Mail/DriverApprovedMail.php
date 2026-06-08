@@ -11,7 +11,7 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use App\Models\Driver;
 
-class DriverApprovedMail extends Mailable
+class DriverApprovedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
 
@@ -23,6 +23,7 @@ class DriverApprovedMail extends Mailable
     public function __construct(Driver $driver)
     {
         $this->driver = $driver;
+        $this->onQueue(config('ride.queues.notifications', 'notifications'));
     }
 
     /**

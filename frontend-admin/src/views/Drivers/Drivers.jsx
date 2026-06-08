@@ -7,6 +7,8 @@ import Swal from 'sweetalert2'
 import DataTable from '../../components/DataTable/DataTable'
 import SearchBar from '../../components/SearchBar/SearchBar'
 
+const isDriverOnline = (driver) => Number(driver?.availability) === 1
+
 const Drivers = () => {
     const { token } = useAdmin()
     const { driversState } = useOutletContext()
@@ -127,6 +129,7 @@ const Drivers = () => {
                                     ) : (
                                         driver.name?.charAt(0) || 'D'
                                     )}
+                                    <span className={`presence-dot ${isDriverOnline(driver) ? 'online' : 'offline'}`} />
                                 </div>
                                 <div className="driver-info">
                                     <h4>{driver.name}</h4>

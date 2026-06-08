@@ -1,6 +1,7 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ||
-  'http://localhost:8000/api'
+  'http://192.168.1.7:8000/api'
+  // 'http://localhost:8000/api'
 const TOKEN_KEY = 'admin_token'
 
 const statusOptions = ['pending', 'approved', 'suspended', 'updated', 'rejected']
@@ -55,8 +56,22 @@ const clearToken = () => {
 
 const mapDriver = (d) => {
   if (!d) return d;
+
+  // Ensure availability is converted to integer (1 or 0)
+  let availability = 0;
+  if (d.availability) {
+    if (typeof d.availability === 'number') {
+      availability = d.availability;
+    } else if (d.availability === '1' || d.availability === 'online') {
+      availability = 1;
+    } else if (d.availability === 'true') {
+      availability = 1;
+    }
+  }
+
   return {
     ...d,
+    availability: availability,
     name: d.user ? `${d.user.first_name || ''} ${d.user.last_name || ''}`.trim() : 'Unknown',
     email: d.user?.email,
     phone: d.user?.phone,
@@ -372,6 +387,26 @@ const deleteVehicleType = async (token, vehicleTypeId) => {
   return payload
 }
 
+// App Settings
+const fetchAppSettings = async (token) => {
+  const payload = await apiFetch('/app-settings', { token })
+  return { settings: payload.settings || {} }
+}
+
+const fetchMaintenanceMode = async () => {
+  const payload = await apiFetch('/app-settings/maintenance-mode')
+  return { maintenanceMode: Boolean(payload.maintenance_mode) }
+}
+
+const updateAppSetting = async (token, key, value, type = 'string') => {
+  const payload = await apiFetch(`/app-settings/${key}`, {
+    method: 'PUT',
+    token,
+    body: { value, type },
+  })
+  return { setting: payload.setting }
+}
+
 export {
   API_BASE,
   TOKEN_KEY,
@@ -420,4 +455,7 @@ export {
   deleteOperator,
   fetchRolePermissions,
   updateRolePermissions,
+  fetchAppSettings,
+  fetchMaintenanceMode,
+  updateAppSetting,
 }

@@ -1,14 +1,24 @@
 import { Feather } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import {
+  StyleSheet,
+  TouchableOpacity,
+  View,
+  Text,
+  Platform,
+} from "react-native";
+
 import Animated, {
   FadeIn,
   FadeOut,
   useAnimatedStyle,
   withSpring,
 } from "react-native-reanimated";
+
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useCallback } from "react";
 
 import ActivityScreen from "../screens/Main Screen/ActivityScreen";
 import EarningsScreen from "../screens/Main Screen/EarningScreen";
@@ -20,18 +30,18 @@ const Tab = createBottomTabNavigator();
 /* =========================
    ANIMATED TAB ICON
 ========================= */
-const AnimatedTabIcon = ({ focused, iconName }) => {
+const AnimatedTabIcon = ({ focused, iconName, label }) => {
   const animatedStyle = useAnimatedStyle(() => {
     return {
       transform: [
         {
-          translateY: withSpring(focused ? -8 : 0, {
+          translateY: withSpring(focused ? -2 : 0, {
             damping: 12,
             stiffness: 120,
           }),
         },
         {
-          scale: withSpring(focused ? 1.15 : 1, {
+          scale: withSpring(focused ? 1.08 : 1, {
             damping: 12,
             stiffness: 120,
           }),
@@ -42,12 +52,27 @@ const AnimatedTabIcon = ({ focused, iconName }) => {
   });
 
   return (
-    <Animated.View style={[animatedStyle, { zIndex: 1 }]}>
+    <Animated.View style={[animatedStyle, styles.iconWrapper]}>
+      {focused && (
+        <Animated.View
+          entering={FadeIn.duration(180)}
+          exiting={FadeOut.duration(180)}
+          style={styles.activeBackground}
+        />
+      )}
+
       <Feather
         name={iconName}
-        size={22}
-        color={focused ? "#00A859" : "#94A3B8"}
+        size={20}
+        color={focused ? "#00D26A" : "#8E9BAE"}
+        style={{ zIndex: 2 }}
       />
+
+      {focused && (
+        <Text style={styles.activeLabel}>
+          {label}
+        </Text>
+      )}
     </Animated.View>
   );
 };
@@ -58,7 +83,10 @@ const AnimatedTabIcon = ({ focused, iconName }) => {
 const CustomTabBar = ({ state, navigation }) => {
   return (
     <View style={styles.wrapper}>
-      <BlurView intensity={80} tint="dark" style={styles.tabBar}>
+      <BlurView intensity={90} tint="dark" style={styles.tabBar}>
+        {/* PREMIUM TOP SHINE */}
+        <View style={styles.topGlow} />
+
         {state.routes.map((route, index) => {
           const focused = state.index === index;
 
@@ -78,10 +106,10 @@ const CustomTabBar = ({ state, navigation }) => {
             route.name === "Home"
               ? "home"
               : route.name === "Earnings"
-                ? "dollar-sign"
-                : route.name === "Activity"
-                  ? "clock"
-                  : "user";
+              ? "dollar-sign"
+              : route.name === "Activity"
+              ? "clock"
+              : "user";
 
           return (
             <TouchableOpacity
@@ -90,18 +118,10 @@ const CustomTabBar = ({ state, navigation }) => {
               activeOpacity={0.8}
               style={styles.tabItem}
             >
-              {/* ACTIVE GREEN PILL */}
-              {focused && (
-                <Animated.View
-                  entering={FadeIn.duration(200)}
-                  exiting={FadeOut.duration(200)}
-                  style={styles.activePill}
-                />
-              )}
-
               <AnimatedTabIcon
                 focused={focused}
                 iconName={iconName}
+                label={route.name}
               />
             </TouchableOpacity>
           );
@@ -114,7 +134,23 @@ const CustomTabBar = ({ state, navigation }) => {
 /* =========================
    NAVIGATION
 ========================= */
-const BottomTabs = ({ setIsLoggedIn, setIsNewUser, setDriverStatus }) => {
+const BottomTabs = ({
+  setIsLoggedIn,
+  setIsNewUser,
+  setDriverStatus,
+  maintenanceMode,
+  driverStatus,
+}) => {
+  const navigation = useNavigation();
+
+  useFocusEffect(
+    useCallback(() => {
+      if (maintenanceMode && driverStatus?.toLowerCase() === "approved") {
+        navigation.replace("ComingSoon");
+      }
+    }, [maintenanceMode, driverStatus, navigation])
+  );
+
   return (
     <SafeAreaView
       edges={["bottom"]}
@@ -123,11 +159,8 @@ const BottomTabs = ({ setIsLoggedIn, setIsNewUser, setDriverStatus }) => {
       <Tab.Navigator
         screenOptions={{
           headerShown: false,
-
-          // SCREEN ANIMATION
           animation: "shift",
 
-          // REMOVE DEFAULT TAB BAR
           tabBarStyle: {
             display: "none",
           },
@@ -177,54 +210,102 @@ const styles = StyleSheet.create({
 
   wrapper: {
     position: "absolute",
-    bottom: 25,
+    bottom: Platform.OS === "ios" ? 22 : 18,
     left: 0,
     right: 0,
     alignItems: "center",
   },
 
   tabBar: {
+    width: "92%",
+    height: 74,
+
     flexDirection: "row",
-    width: "90%",
-    height: 68,
+    alignItems: "center",
+    justifyContent: "space-around",
+
     borderRadius: 34,
 
-    backgroundColor: "rgba(0,0,0,0.92)",
-
-    alignItems: "center",
-    justifyContent: "space-evenly",
+    backgroundColor: "rgba(10,10,10,0.92)",
 
     overflow: "hidden",
 
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(255,255,255,0.06)",
+
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: {
+          width: 0,
+          height: 10,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 18,
+      },
+      android: {
+        elevation: 18,
+      },
+    }),
+  },
+
+  topGlow: {
+    position: "absolute",
+    top: 0,
+    width: "100%",
+    height: 1,
+
+    backgroundColor: "rgba(255,255,255,0.18)",
   },
 
   tabItem: {
-    width: 60,
-    height: 60,
-
+    flex: 1,
+    height: "100%",
     justifyContent: "center",
     alignItems: "center",
-
-    position: "relative",
   },
 
-  activePill: {
+  iconWrapper: {
+  minWidth: 90,
+  height: 48,
+
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+
+  borderRadius: 18,
+  position: "relative",
+},
+
+  activeBackground: {
     position: "absolute",
 
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 58,
+    height: 44,
 
-    backgroundColor: "rgba(0,168,89,0.18)",
+    borderRadius: 16,
 
-    top: "50%",
-    left: "50%",
+    backgroundColor: "rgba(0,210,106,0.14)",
 
-    marginTop: -23,
-    marginLeft: -23,
+    borderWidth: 1,
+    borderColor: "rgba(0,210,106,0.25)",
 
-    zIndex: 0,
+    shadowColor: "#00D26A",
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    shadowOffset: {
+      width: 0,
+      height: 0,
+    },
+  },
+
+  activeLabel: {
+    position: "absolute",
+    bottom: -6,
+
+    fontSize: 10,
+    fontWeight: "700",
+
+    color: "#00D26A",
   },
 });

@@ -52,7 +52,7 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   const setupEcho = async () => {
     try {
       console.log("Initializing Echo connection...");
-      const echo = await createEchoInstance();
+      const { echo } = await createEchoInstance();
       console.log("Echo instance created successfully");
 
       const response = await api.get("/user");
@@ -413,8 +413,8 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
             await AsyncStorage.setItem(hasSeenKey, "true");
             setDriverStatus?.("approved");
             setIsNewUser?.(false);
-            navigation.replace("ComingSoon");
-            // navigation.replace("MainTabs");
+            // navigation.replace("ComingSoon");
+            navigation.replace("MainTabs");
           }
         }}
       >

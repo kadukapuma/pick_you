@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Modal,
   ScrollView,
@@ -9,26 +9,37 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import api from "../../services/api";
 
 const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const user = {
-    name: "John Driver",
-    email: "ayeshanthoythasan@gmail.com",
-    trips: 247,
-    rating: 4.9,
-    acceptance: "94%",
-    cancellation: "2%",
-    vehicle: { plateNumber: "Not set" },
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await api.get("/driver/profile");
+      if (response.data.status === 'success') {
+        setUser(response.data.data);
+      }
+    } catch (error) {
+      console.log("Error fetching profile:", error);
+    } finally {
+      loading && setLoading(false);
+    }
   };
 
   const confirmLogout = async () => {
     setShowLogoutModal(false);
-    // Clear your local storage/auth state here
     try {
       await AsyncStorage.removeItem("userToken");
     } catch (e) {
@@ -46,14 +57,18 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     </View>
   );
 
-  const MenuItem = ({ icon, label, value, showBadge, onPress, isLast }) => (
+  const MenuItem = ({ icon, label, value, showBadge, onPress, isLast, image }) => (
     <TouchableOpacity
       style={[styles.menuItem, isLast && { borderBottomWidth: 0 }]}
       onPress={onPress}
       activeOpacity={0.7}
     >
       <View style={styles.menuIconContainer}>
-        <Feather name={icon} size={20} color="#64748B" />
+        {image ? (
+          <Image source={{ uri: image }} style={{ width: 40, height: 40, borderRadius: 10 }} />
+        ) : (
+          <Feather name={icon} size={20} color="#64748B" />
+        )}
       </View>
       <View style={styles.menuTextContainer}>
         <Text style={styles.menuLabel}>{label}</Text>
@@ -69,123 +84,172 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     </TouchableOpacity>
   );
 
+  const getVehicleDetailsText = () => {
+    if (!user.vehicle || user.vehicle.plateNumber === 'Not set') return 'Not set';
+    const parts = [];
+    if (user.vehicle.brand) parts.push(user.vehicle.brand);
+    if (user.vehicle.model) parts.push(user.vehicle.model);
+    
+    let text = parts.join(' ');
+    if (user.vehicle.plateNumber) {
+        text = text ? `${text} • ${user.vehicle.plateNumber}` : user.vehicle.plateNumber;
+    }
+    return text;
+  };
+
+  // Helper text formulation to map bank name and masked account number
+  const getBankDetailsText = () => {
+    if (!user?.bank || !user.bank.accountNumber || user.bank.accountNumber === 'Not set') {
+      return 'Not set';
+    }
+    const bankName = user.bank.name || 'Bank Account';
+    const accNum = user.bank.accountNumber;
+    // Mask all but last 4 digits cleanly
+    const maskedNum = accNum.length > 4 ? `•••• ${accNum.slice(-4)}` : accNum;
+    return `${bankName} • ${maskedNum}`;
+  };
+
   return (
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" />
 
-      <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
-        {/* Header Section - Updated to Green Gradient */}
-        <LinearGradient
-          colors={["#00A859", "#007A41"]}
-          style={styles.headerGradient}
-        >
-          <SafeAreaView edges={["top"]}>
-            <View style={styles.profileHeader}>
-              <LinearGradient
-                colors={["#A855F7", "#EC4899"]}
-                style={styles.avatarCircle}
-              >
-                <Text style={styles.avatarText}>{user.name.charAt(0)}</Text>
-              </LinearGradient>
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <ActivityIndicator size="large" color="#00A859" />
+        </View>
+      ) : !user ? (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+          <Text style={{ color: "#1E293B", fontSize: 16 }}>Failed to load profile.</Text>
+        </View>
+      ) : (
+        <>
+          <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+            {/* Header Section */}
+            <LinearGradient
+              colors={["#00A859", "#007A41"]}
+              style={styles.headerGradient}
+            >
+              <SafeAreaView edges={["top"]}>
+                <View style={styles.profileHeader}>
+                  {user.profile_picture ? (
+                    <Image source={{ uri: user.profile_picture }} style={styles.avatarCircle} />
+                  ) : (
+                    <LinearGradient
+                      colors={["#A855F7", "#EC4899"]}
+                      style={styles.avatarCircle}
+                    >
+                      <Text style={styles.avatarText}>{user.name.charAt(0).toUpperCase()}</Text>
+                    </LinearGradient>
+                  )}
 
-              <View style={styles.profileInfo}>
-                <Text style={styles.userName}>{user.name}</Text>
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <MaterialCommunityIcons
-                    name="star"
-                    size={18}
-                    color="#FACC15"
-                  />
-                  <Text style={styles.ratingText}> {user.rating}</Text>
-                  <Text style={styles.tripsCount}> ({user.trips} trips)</Text>
+                  <View style={styles.profileInfo}>
+                    <Text style={styles.userName}>{user.name}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center" }}>
+                      <MaterialCommunityIcons
+                        name="star"
+                        size={18}
+                        color="#FACC15"
+                      />
+                      <Text style={styles.ratingText}> {user.rating}</Text>
+                      <Text style={styles.tripsCount}> ({user.trips} trips)</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.statsContainer}>
+                  <StatBox label="Acceptance" value={user.acceptance} />
+                  <StatBox label="Cancellation" value={user.cancellation} />
+                  <StatBox label="Rating" value={user.rating} />
+                </View>
+              </SafeAreaView>
+            </LinearGradient>
+
+            <View style={styles.content}>
+              <Text style={styles.sectionTitle}>Account</Text>
+              <View style={styles.menuGroup}>
+                <MenuItem
+                  icon="user"
+                  label="Personal Info"
+                  value={user.email}
+                  onPress={() => navigation.navigate("EditProfile")}
+                />
+                <MenuItem
+                  icon="truck"
+                  label="Vehicle Details"
+                  value={getVehicleDetailsText()}
+                  image={user.vehicle?.image}
+                  onPress={() => navigation.navigate("EditVehicle")}
+                />
+                <MenuItem
+                  icon="file-text"
+                  label="Documents"
+                  value="Verified"
+                  showBadge
+                  onPress={() => navigation.navigate("Documents")}
+                />
+                {/* NEW: Bank Details menu option item added at the bottom of the stack */}
+                <MenuItem
+                  icon="credit-card"
+                  label="Bank Details"
+                  value={getBankDetailsText()}
+                  onPress={() => navigation.navigate("BankDetails")}
+                  isLast
+                />
+              </View>
+
+              <Text style={styles.sectionTitle}>Preferences</Text>
+              <View style={styles.menuGroup}>
+                <MenuItem
+                  icon="settings"
+                  label="Settings"
+                  onPress={() => navigation.navigate("Settings")}
+                  isLast
+                />
+              </View>
+
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={() => setShowLogoutModal(true)}
+                activeOpacity={0.8}
+              >
+                <Feather name="log-out" size={20} color="#EF4444" />
+                <Text style={styles.logoutText}>Sign Out</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+
+          {/* Modern Custom Sign Out Modal */}
+          <Modal visible={showLogoutModal} transparent={true} animationType="fade">
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalIconBg}>
+                  <Feather name="log-out" size={30} color="#EF4444" />
+                </View>
+                <Text style={styles.modalTitle}>Sign Out</Text>
+                <Text style={styles.modalSubTitle}>
+                  Are you sure you want to sign out of your account?
+                </Text>
+
+                <View style={styles.modalActionRow}>
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.cancelBtn]}
+                    onPress={() => setShowLogoutModal(false)}
+                  >
+                    <Text style={styles.cancelBtnText}>No</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalBtn, styles.confirmBtn]}
+                    onPress={confirmLogout}
+                  >
+                    <Text style={styles.confirmBtnText}>Yes, Sign Out</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
             </View>
-
-            <View style={styles.statsContainer}>
-              <StatBox label="Acceptance" value={user.acceptance} />
-              <StatBox label="Cancellation" value={user.cancellation} />
-              <StatBox label="Rating" value={user.rating} />
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-
-        <View style={styles.content}>
-          <Text style={styles.sectionTitle}>Account</Text>
-          <View style={styles.menuGroup}>
-            <MenuItem
-              icon="user"
-              label="Personal Info"
-              value={user.email}
-              onPress={() => navigation.navigate("EditProfile")}
-            />
-            <MenuItem
-              icon="truck"
-              label="Vehicle Details"
-              value={user.vehicle.plateNumber}
-              onPress={() => navigation.navigate("EditVehicle")}
-            />
-            <MenuItem
-              icon="file-text"
-              label="Documents"
-              value="Verified"
-              showBadge
-              onPress={() => navigation.navigate("Documents")}
-              isLast
-            />
-          </View>
-
-          <Text style={styles.sectionTitle}>Preferences</Text>
-          <View style={styles.menuGroup}>
-            <MenuItem
-              icon="settings"
-              label="Settings"
-              onPress={() => navigation.navigate("Settings")}
-              isLast
-            />
-          </View>
-
-          <TouchableOpacity
-            style={styles.logoutButton}
-            onPress={() => setShowLogoutModal(true)}
-            activeOpacity={0.8}
-          >
-            <Feather name="log-out" size={20} color="#EF4444" />
-            <Text style={styles.logoutText}>Sign Out</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-
-      {/* Modern Custom Sign Out Modal */}
-      <Modal visible={showLogoutModal} transparent={true} animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalIconBg}>
-              <Feather name="log-out" size={30} color="#EF4444" />
-            </View>
-            <Text style={styles.modalTitle}>Sign Out</Text>
-            <Text style={styles.modalSubTitle}>
-              Are you sure you want to sign out of your account?
-            </Text>
-
-            <View style={styles.modalActionRow}>
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.cancelBtn]}
-                onPress={() => setShowLogoutModal(false)}
-              >
-                <Text style={styles.cancelBtnText}>No</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.modalBtn, styles.confirmBtn]}
-                onPress={confirmLogout}
-              >
-                <Text style={styles.confirmBtnText}>Yes, Sign Out</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+          </Modal>
+        </>
+      )}
     </View>
   );
 };

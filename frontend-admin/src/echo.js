@@ -3,10 +3,12 @@ import Pusher from "pusher-js";
 
 window.Pusher = Pusher;
 
+const wsHost = import.meta.env.VITE_WS_HOST || '192.168.1.7';
+
 const echo = new Echo({
     broadcaster: "reverb",
     key: "app-key",
-    wsHost: "127.0.0.1",
+    wsHost,
     wsPort: 8080,
     forceTLS: false,
     enabledTransports: ["ws"],
