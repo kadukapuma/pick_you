@@ -5,7 +5,7 @@ import {
   Text,
   ScrollView,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
 } from "react-native";
 import { useState } from "react";
 import { apiClient } from "../services/api/apiClient";
@@ -16,7 +16,13 @@ import { useRideSearch } from "../context/RideSearchContext";
 
 export default function ConfirmationScreen() {
   const [isBooking, setIsBooking] = useState(false);
-  const { tripType, outboundTrip, returnTrip, setIsSearchingForDriver, setActiveRide } = useRideSearch();
+  const {
+    tripType,
+    outboundTrip,
+    returnTrip,
+    setIsSearchingForDriver,
+    setActiveRide,
+  } = useRideSearch();
 
   if (
     !outboundTrip.pickup ||
@@ -44,10 +50,12 @@ export default function ConfirmationScreen() {
         outboundTrip.pickup!.latitude,
         outboundTrip.pickup!.longitude,
         outboundTrip.dropoff!.latitude,
-        outboundTrip.dropoff!.longitude
+        outboundTrip.dropoff!.longitude,
       );
 
-      const distance_km = directions ? parseFloat((directions.distance / 1000).toFixed(2)) : 5.0;
+      const distance_km = directions
+        ? parseFloat((directions.distance / 1000).toFixed(2))
+        : 5.0;
 
       const payload = {
         vehicle_type: outboundTrip.selectedRide!.id,
@@ -57,7 +65,7 @@ export default function ConfirmationScreen() {
         drop_address: outboundTrip.dropoff!.address || "Unknown Drop",
         drop_lat: outboundTrip.dropoff!.latitude,
         drop_lng: outboundTrip.dropoff!.longitude,
-        distance_km
+        distance_km,
       };
 
       const response = await apiClient.post("/rides", payload);
@@ -66,10 +74,17 @@ export default function ConfirmationScreen() {
         const rideId = response.data?.id ? Number(response.data.id) : null;
         setIsSearchingForDriver(true);
         setActiveRide(rideId, "REQUESTED");
-        // Stay inside the authenticated app shell after booking
-        router.replace("/(drawer)/(tabs)/activities");
+
+        // Navigate to the live tracker immediately after booking
+        router.replace({
+          pathname: "/live-tracker",
+          params: { rideData: JSON.stringify(response.data) }
+        });
       } else {
-        const errorMsg = typeof response.message === 'string' ? response.message : JSON.stringify(response.errors);
+        const errorMsg =
+          typeof response.message === "string"
+            ? response.message
+            : JSON.stringify(response.errors);
         Alert.alert("Error booking ride", errorMsg || "Unknown error");
       }
     } catch (e: any) {
