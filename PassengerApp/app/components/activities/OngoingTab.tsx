@@ -4,6 +4,7 @@ import { useRideSearch } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
 import EmptyState from "./EmptyState";
 import RideMap from "../ride/RideMap";
+import { router } from "expo-router";
 import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -105,27 +106,44 @@ export default function OngoingTab() {
 
         return (
             <View className="flex-1 -mx-4 -mb-4">
-                {/* MAP SECTION */}
-                <View style={{ height: SCREEN_HEIGHT * 0.45 }}>
-                    <RideMap
-                        location={{
-                            latitude: parseFloat(rideData.pickup_latitude),
-                            longitude: parseFloat(rideData.pickup_longitude)
-                        }}
-                        destination={{
-                            latitude: parseFloat(rideData.drop_latitude),
-                            longitude: parseFloat(rideData.drop_longitude)
-                        }}
-                        driverLocation={driverLocation ? {
-                            latitude: driverLocation.latitude,
-                            longitude: driverLocation.longitude,
-                            heading: driverLocation.heading
-                        } : null}
-                    />
-                </View>
+                {/* LIVE TRACKING CARD - REPLACE LARGE MAP */}
+                <TouchableOpacity
+                    activeOpacity={0.9}
+                    onPress={() => router.push({
+                        pathname: "/live-tracker",
+                        params: { rideData: JSON.stringify(rideData) }
+                    })}
+                    className="mx-4 mt-4 bg-slate-900 rounded-2xl p-4 shadow-xl border border-slate-800"
+                >
+                    <View className="flex-row items-center justify-between mb-3">
+                        <View className="flex-row items-center gap-3">
+                            <View className="w-10 h-10 bg-emerald-500 rounded-full items-center justify-center">
+                                <Ionicons name="car" size={24} color="white" />
+                            </View>
+                            <View>
+                                <Text className="text-white font-bold text-lg">Ongoing Ride</Text>
+                                <Text className="text-slate-400 text-xs">Tracking live session</Text>
+                            </View>
+                        </View>
+
+                        {/* RED LIVE INDICATOR */}
+                        <View className="bg-rose-500 flex-row items-center gap-1.5 px-3 py-1.5 rounded-full">
+                            <View className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                            <Text className="text-white font-black text-[10px] tracking-tighter">LIVE</Text>
+                        </View>
+                    </View>
+
+                    <View className="bg-slate-800/50 rounded-xl p-3 flex-row items-center justify-between">
+                        <View className="flex-row items-center gap-2">
+                            <Ionicons name="map-outline" size={18} color="#94A3B8" />
+                            <Text className="text-slate-300 text-sm font-medium">Click to view full map</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color="#94A3B8" />
+                    </View>
+                </TouchableOpacity>
 
                 {/* INFO CARD */}
-                <View className="flex-1 bg-white rounded-t-[32px] -mt-8 px-6 pt-8 shadow-2xl">
+                <View className="flex-1 bg-white rounded-t-[32px] mt-6 px-6 pt-8 shadow-2xl">
                     <ScrollView showsVerticalScrollIndicator={false}>
                         <View className="flex-row justify-between items-start mb-6">
                             <View>
@@ -193,7 +211,7 @@ export default function OngoingTab() {
                         </TouchableOpacity>
                     </ScrollView>
                 </View>
-            </View>
+            </View >
         );
     }
 
