@@ -8,25 +8,22 @@
     "scheme": "driverapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-
     "ios": {
       "supportsTablet": true
     },
-
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/icon.png",
         "backgroundColor": "#0B1220"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.ayeshalexan.DriverApp"
     },
-
     "web": {
       "output": "static",
       "favicon": "./src/assets/icon.png"
     },
-
     "plugins": [
       "expo-router",
       [
@@ -41,12 +38,18 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "expo-font"
     ],
-
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4badf947-580a-4d8b-a22a-52a5ac569ef8"
+      }
     }
   }
 }
