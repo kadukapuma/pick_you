@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Image,
   NativeScrollEvent,
@@ -12,6 +12,7 @@ import {
   useWindowDimensions,
   View,
   Animated,
+  Easing,
 } from "react-native";
 
 import FeatureRow from "../../components/home/FeatureRow";
@@ -48,6 +49,25 @@ export default function HomeScreen() {
   const [headerActive, setHeaderActive] = useState(true);
   const scrollY = useRef(new Animated.Value(0)).current;
 
+  // ============ PREMIUM ENTRANCE ANIMATIONS ============
+  // Map animations
+  const mapScale = useRef(new Animated.Value(1.15)).current;
+  const mapTranslateY = useRef(new Animated.Value(-20)).current;
+
+  // UI element animations
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerTranslateY = useRef(new Animated.Value(-15)).current;
+
+  const heroOpacity = useRef(new Animated.Value(0)).current;
+  const heroTranslateY = useRef(new Animated.Value(40)).current;
+  const heroScale = useRef(new Animated.Value(0.95)).current;
+
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const cardTranslateY = useRef(new Animated.Value(150)).current;
+
+  // Subtle shine effect for search bar
+  const searchGlow = useRef(new Animated.Value(0)).current;
+
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y;
     const isAtTop = offsetY <= 2;
@@ -62,23 +82,130 @@ export default function HomeScreen() {
     extrapolate: "clamp",
   });
 
+  // Parallax effect on scroll
+  const mapParallax = scrollY.interpolate({
+    inputRange: [0, 200],
+    outputRange: [0, -30],
+    extrapolate: "clamp",
+  });
+
+  useEffect(() => {
+    // Staggered sequence for cinematic feel
+    Animated.sequence([
+      // Step 1: Map zoom out + subtle parallax
+      Animated.parallel([
+        Animated.timing(mapScale, {
+          toValue: 1,
+          duration: 1800,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(mapTranslateY, {
+          toValue: 0,
+          duration: 1800,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+
+      // Step 2: Header slides in from top
+      Animated.parallel([
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerTranslateY, {
+          toValue: 0,
+          duration: 500,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+
+      // Step 3: Hero text with elastic bounce effect
+      Animated.parallel([
+        Animated.timing(heroOpacity, {
+          toValue: 1,
+          duration: 800,
+          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+          useNativeDriver: true,
+        }),
+        Animated.spring(heroTranslateY, {
+          toValue: 0,
+          friction: 12,
+          tension: 60,
+          useNativeDriver: true,
+        }),
+        Animated.spring(heroScale, {
+          toValue: 1,
+          friction: 14,
+          tension: 50,
+          useNativeDriver: true,
+        }),
+      ]),
+
+      // Step 4: Card rises with spring + subtle glow pulse on search
+      Animated.parallel([
+        Animated.spring(cardTranslateY, {
+          toValue: 0,
+          friction: 7,
+          tension: 65,
+          useNativeDriver: true,
+        }),
+        Animated.timing(cardOpacity, {
+          toValue: 1,
+          duration: 700,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        // Subtle glow pulse animation for attention
+        Animated.sequence([
+          Animated.timing(searchGlow, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: false,
+          }),
+          Animated.timing(searchGlow, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: false,
+          }),
+        ]),
+      ]),
+    ]).start();
+  }, []);
+
+  // Interpolate glow effect for search bar
+  const searchGlowIntensity = searchGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 8],
+  });
+
   return (
     <View style={styles.screen}>
-      {/* MAP BACKGROUND */}
-      <View
+      {/* MAP BACKGROUND WITH PARALLAX */}
+      <Animated.View
         style={[
           styles.mapContainer,
           {
             height: heroMapHeight,
+            transform: [{ translateY: mapParallax }],
           },
         ]}
       >
-        <Image
+        <Animated.Image
           source={require("../../../assets/images/map.png")}
-          style={styles.mapImage}
+          style={[
+            styles.mapImage,
+            {
+              transform: [{ scale: mapScale }, { translateY: mapTranslateY }],
+            },
+          ]}
         />
 
-        {/* DYNAMIC BLUR/WHITE OVERLAY - THIS CREATES THE BLUR EFFECT ON SCROLL */}
+        {/* DYNAMIC BLUR/WHITE OVERLAY */}
         <Animated.View
           style={[
             styles.mapBlurOverlay,
@@ -90,10 +217,10 @@ export default function HomeScreen() {
 
         {/* BOTTOM GRADIENT OVERLAY */}
         <View style={styles.mapOverlay} />
-      </View>
+      </Animated.View>
 
-      {/* HEADER */}
-      <View
+      {/* HEADER WITH SLIDE DOWN */}
+      <Animated.View
         pointerEvents={headerActive ? "auto" : "none"}
         style={[
           styles.header,
@@ -101,11 +228,13 @@ export default function HomeScreen() {
             paddingTop: headerTopPadding,
             paddingHorizontal: horizontalPadding,
             zIndex: 20,
+            opacity: headerOpacity,
+            transform: [{ translateY: headerTranslateY }],
           },
         ]}
       >
         <HomeHeader compact={isShortScreen} />
-      </View>
+      </Animated.View>
 
       {/* CONTENT */}
       <ScrollView
@@ -119,7 +248,7 @@ export default function HomeScreen() {
         onScroll={handleScroll}
         bounces
       >
-        {/* HERO TEXT - NO BLUR, ALWAYS VISIBLE */}
+        {/* HERO TEXT WITH BOUNCE EFFECT */}
         <View
           style={[
             styles.heroSection,
@@ -128,7 +257,18 @@ export default function HomeScreen() {
             },
           ]}
         >
-          <View style={styles.heroContent}>
+          <Animated.View
+            style={[
+              styles.heroContent,
+              {
+                opacity: heroOpacity,
+                transform: [
+                  { translateY: heroTranslateY },
+                  { scale: heroScale },
+                ],
+              },
+            ]}
+          >
             <Text
               style={[
                 styles.heroTitle,
@@ -138,43 +278,57 @@ export default function HomeScreen() {
             >
               Where do you{"\n"}want to go today?
             </Text>
-          </View>
+          </Animated.View>
         </View>
 
-        {/* MAIN CONTENT CARD - REMOVED SHADOW */}
-        <View
+        {/* MAIN CONTENT CARD */}
+        <Animated.View
           style={[
             styles.contentCard,
             {
               marginTop: sectionGap + 10,
               paddingHorizontal: horizontalPadding,
               paddingTop: 22,
+              opacity: cardOpacity,
+              transform: [{ translateY: cardTranslateY }],
             },
           ]}
         >
-          {/* SERVICES */}
-          <View>
+          {/* SERVICES WITH STAGGERED CHILDREN */}
+          <Animated.View style={{ opacity: cardOpacity }}>
             <ServiceGridnew compact={isShortScreen} />
-          </View>
+          </Animated.View>
 
-          {/* SEARCH */}
-          <View style={{ marginTop: sectionGap }}>
+          {/* SEARCH WITH GLOW EFFECT */}
+          <Animated.View
+            style={{
+              marginTop: sectionGap,
+              shadowColor: "#00A884",
+              shadowRadius: searchGlowIntensity,
+              shadowOpacity: 0.3,
+              elevation: searchGlowIntensity,
+            }}
+          >
             <SearchBar
               compact={isShortScreen}
               onPress={() => router.push("/ride-search")}
             />
-          </View>
+          </Animated.View>
 
           {/* FEATURES */}
-          <View style={{ marginTop: sectionGap }}>
+          <Animated.View
+            style={{ marginTop: sectionGap, opacity: cardOpacity }}
+          >
             <FeatureRow compact={isShortScreen} />
-          </View>
+          </Animated.View>
 
           {/* SAVED PLACES */}
-          <View style={{ marginTop: sectionGap }}>
+          <Animated.View
+            style={{ marginTop: sectionGap, opacity: cardOpacity }}
+          >
             <SavedPlaces compact={isShortScreen} />
-          </View>
-        </View>
+          </Animated.View>
+        </Animated.View>
       </ScrollView>
     </View>
   );
@@ -206,7 +360,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "#FFFFFF", // White overlay creates blur effect on map
+    backgroundColor: "#FFFFFF",
   },
 
   mapOverlay: {
@@ -280,6 +434,5 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 30,
     borderTopRightRadius: 30,
     minHeight: 500,
-    // REMOVED SHADOW PROPERTIES - no more shadow/elevation
   },
 });
