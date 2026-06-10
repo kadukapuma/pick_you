@@ -1,58 +1,134 @@
-import { useState } from "react";
-import { View, Text, TouchableOpacity, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import ActivityTabHeader, {
-  ActivityTab,
-} from "../../components/activities/ActivityTabHeader";
-import OngoingTab from "../../components/activities/OngoingTab";
-import CompletedTab from "../../components/activities/CompletedTab";
-import ComplaintTab from "../../components/activities/ComplaintTab";
-import CancelledTab from "../../components/activities/CancelledTab";
+import ActivityTabHeader from "../../components/activities/ActivityTabHeader";
 
 export default function ActivitiesScreen() {
-  const [activeTab, setActiveTab] = useState<ActivityTab>("Ongoing");
-
-  const renderTabContent = () => {
-    switch (activeTab) {
-      case "Ongoing":
-        return <OngoingTab />;
-      case "Completed":
-        return <CompletedTab />;
-      case "Complaint":
-        return <ComplaintTab />;
-      case "Cancelled":
-        return <CancelledTab />;
-      default:
-        return <OngoingTab />;
-    }
-  };
-
   return (
-    <View className="flex-1 bg-gray-50/50">
-      {/* HEADER SECTION */}
-      <View className="bg-white pt-14 px-5 pb-4 shadow-sm">
-        <View className="flex-row items-center justify-between mb-6">
-          <Text className="text-2xl font-bold text-slate-900 tracking-tight">
-            Your activities
-          </Text>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            className="w-10 h-10 items-center justify-center bg-gray-100 rounded-full"
+    <View style={{ flex: 1, backgroundColor: "#F0FAF5" }}>
+      {/* Header */}
+      <View
+        style={{
+          backgroundColor: "#FFFFFF",
+          paddingTop: 48,
+          paddingHorizontal: 20,
+          paddingBottom: 8,
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.05,
+          shadowRadius: 4,
+          elevation: 2,
+        }}
+      >
+        {/* Title Row */}
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "space-between",
+            marginBottom: 12,
+          }}
+        >
+          <Text
+            style={{
+              fontSize: 20,
+              fontWeight: "bold",
+              color: "#0D4F3C",
+            }}
           >
-            <Ionicons name="options-outline" size={20} color="#334155" />
+            Your Activities
+          </Text>
+
+          <TouchableOpacity
+            style={{
+              width: 32,
+              height: 32,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "#D6F2E7",
+              borderRadius: 16,
+            }}
+          >
+            <Ionicons name="options-outline" size={18} color="#1B9E6E" />
           </TouchableOpacity>
         </View>
 
-        {/* TAB BAR */}
-        <ActivityTabHeader activeTab={activeTab} onTabChange={setActiveTab} />
+        {/* Stats Cards */}
+        <View style={{ flexDirection: "row", gap: 8, marginBottom: 12 }}>
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#D6F2E7",
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: "500", color: "#6B9E8E" }}>
+              Total Rides
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                marginTop: 2,
+              }}
+            >
+              <Text
+                style={{ fontSize: 20, fontWeight: "bold", color: "#0D4F3C" }}
+              >
+                42
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="trending-up" size={10} color="#1B9E6E" />
+                <Text style={{ fontSize: 10, color: "#1B9E6E", marginLeft: 2 }}>
+                  +12%
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#D6F2E7",
+              borderRadius: 12,
+              paddingHorizontal: 12,
+              paddingVertical: 8,
+            }}
+          >
+            <Text style={{ fontSize: 10, fontWeight: "500", color: "#6B9E8E" }}>
+              Total Spent
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "baseline",
+                justifyContent: "space-between",
+                marginTop: 2,
+              }}
+            >
+              <Text
+                style={{ fontSize: 20, fontWeight: "bold", color: "#0D4F3C" }}
+              >
+                ₿ 2.4k
+              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                <Ionicons name="calendar" size={10} color="#6B9E8E" />
+                <Text style={{ fontSize: 10, color: "#6B9E8E", marginLeft: 2 }}>
+                  Month
+                </Text>
+              </View>
+            </View>
+          </View>
+        </View>
       </View>
 
-      {/* TAB CONTENT */}
-      <View className="flex-1 px-5 pt-4">
-        <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
-          {renderTabContent()}
-        </ScrollView>
-      </View>
+      {/* Tab View - This handles everything automatically */}
+      <ActivityTabHeader
+        activeTab="Ongoing"
+        onTabChange={(tab) => console.log(tab)}
+      />
     </View>
   );
 }

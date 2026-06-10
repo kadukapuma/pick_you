@@ -1,15 +1,21 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Animated,
+  Easing,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
   StyleSheet,
-  View,
   Text,
   TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
+  View,
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useState } from "react";
+
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
@@ -17,6 +23,7 @@ import {
 import { useRideSearch, type RideOption } from "../context/RideSearchContext";
 import { apiClient } from "../services/api/apiClient";
 
+// ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
   id: number;
   name: string;
@@ -34,6 +41,11 @@ interface DBVehicleType {
   } | null;
 }
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+const GREEN = "#20B768";
+const GREEN_LIGHT = "#E8F8F0";
+const GREEN_DARK = "#178A50";
+
 const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
   {
     id: 1,
@@ -49,7 +61,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
+    },
   },
   {
     id: 2,
@@ -65,13 +77,13 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
+    },
   },
   {
     id: 3,
     name: "bike",
     display_name: "Motorbike",
-    description: "Fast and efficient single-passenger motorbikes",
+    description: "Fast single-passenger motorbikes",
     is_active: true,
     fare_config: {
       id: 3,
@@ -81,13 +93,13 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
+    },
   },
   {
     id: 4,
     name: "suv",
     display_name: "SUV",
-    description: "Large 6-seater utility and family vehicles",
+    description: "Large 6-seater family vehicles",
     is_active: true,
     fare_config: {
       id: 4,
@@ -97,73 +109,247 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
-  }
+    },
+  },
 ];
 
-const mapDBVehicleToOption = (vt: DBVehicleType, distanceMeters: number, durationSeconds: number): RideOption => {
-  const iconMap: Record<string, "car" | "bicycle" | "bus"> = {
-    car: "car",
-    tuk: "car",
-    bike: "bicycle",
-    suv: "bus",
-  };
-  const icon = iconMap[vt.name] || "car";
+const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
+  car: "car",
+  tuk: "car",
+  bike: "bicycle",
+  suv: "bus",
+};
+const ETA_MAP: Record<string, string> = {
+  bike: "1 min",
+  tuk: "2 mins",
+  car: "3 mins",
+  suv: "5 mins",
+};
+const RATING_MAP: Record<string, number> = {
+  bike: 4.5,
+  tuk: 4.7,
+  car: 4.8,
+  suv: 4.9,
+};
+// Approx stars earned per LKR spent
+const STARS_PER_LKR = 0.01;
 
+function mapDBVehicleToOption(
+  vt: DBVehicleType,
+  distanceMeters: number,
+  durationSeconds: number,
+): RideOption {
   let price = 0;
   if (vt.fare_config) {
-    const baseFare = parseFloat(vt.fare_config.base_fare);
-    const perKmRate = parseFloat(vt.fare_config.per_km_rate);
-    const perMinRate = parseFloat(vt.fare_config.per_minute_rate);
-    const distanceKm = distanceMeters / 1000;
-    const durationMin = durationSeconds / 60;
-    price = baseFare + (distanceKm * perKmRate) + (durationMin * perMinRate);
+    const { base_fare, per_km_rate, per_minute_rate } = vt.fare_config;
+    price =
+      parseFloat(base_fare) +
+      (distanceMeters / 1000) * parseFloat(per_km_rate) +
+      (durationSeconds / 60) * parseFloat(per_minute_rate);
   } else {
-    const distanceKm = distanceMeters / 1000;
-    price = 150 + (distanceKm * 60);
+    price = 150 + (distanceMeters / 1000) * 60;
   }
-
-  const etaMap: Record<string, string> = {
-    bike: "1 min",
-    tuk: "2 mins",
-    car: "3 mins",
-    suv: "5 mins",
-  };
-  const ratingMap: Record<string, number> = {
-    bike: 4.5,
-    tuk: 4.7,
-    car: 4.8,
-    suv: 4.9,
-  };
-
   return {
-    id: vt.name, // The backend expects string name in vehicle_type
+    id: vt.name,
     name: vt.display_name,
-    icon,
+    icon: ICON_MAP[vt.name] ?? "car",
     price: parseFloat(price.toFixed(2)),
-    eta: etaMap[vt.name] || "4 mins",
-    rating: ratingMap[vt.name] || 4.6,
+    eta: ETA_MAP[vt.name] ?? "4 mins",
+    rating: RATING_MAP[vt.name] ?? 4.6,
   };
+}
+
+// ─── Animated ride card ───────────────────────────────────────────────────────
+type RideCardProps = {
+  ride: RideOption;
+  selected: boolean;
+  onSelect: () => void;
+  index: number;
+  directions: DirectionsResult | null;
 };
 
+function RideCard({
+  ride,
+  selected,
+  onSelect,
+  index,
+  directions,
+}: RideCardProps) {
+  const scale = useRef(new Animated.Value(selected ? 1 : 0.97)).current;
+  const borderAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
+
+  // Staggered entrance
+  const entranceY = useRef(new Animated.Value(30)).current;
+  const entranceOpacity = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(entranceOpacity, {
+        toValue: 1,
+        duration: 360,
+        delay: index * 80,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(entranceY, {
+        toValue: 0,
+        duration: 360,
+        delay: index * 80,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Selection animation
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(scale, {
+        toValue: selected ? 1 : 0.97,
+        useNativeDriver: true,
+        damping: 16,
+        stiffness: 200,
+      }),
+      Animated.timing(borderAnim, {
+        toValue: selected ? 1 : 0,
+        duration: 180,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: false, // borderColor cannot use native driver
+      }),
+    ]).start();
+  }, [selected]);
+
+  const borderColor = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["#E5E7EB", GREEN],
+  });
+
+  const stars = (ride.price * STARS_PER_LKR).toFixed(1);
+
+  return (
+    <Animated.View
+      style={{
+        opacity: entranceOpacity,
+        transform: [{ translateY: entranceY }, { scale }],
+      }}
+    >
+      <Pressable onPress={onSelect} style={{ borderRadius: 16 }}>
+        <Animated.View
+          style={[
+            styles.rideCard,
+            { borderColor },
+            selected && styles.rideCardSelected,
+          ]}
+        >
+          {/* Icon area */}
+          <View
+            style={[
+              styles.cardIconWrap,
+              selected && styles.cardIconWrapSelected,
+            ]}
+          >
+            <Ionicons
+              name={ride.icon as any}
+              size={26}
+              color={selected ? "#fff" : GREEN}
+            />
+          </View>
+
+          {/* Name + seats row */}
+          <Text style={[styles.cardName, selected && styles.cardTextWhite]}>
+            {ride.name}
+          </Text>
+
+          <View style={styles.cardMeta}>
+            <Ionicons
+              name="person-outline"
+              size={11}
+              color={selected ? "rgba(255,255,255,0.75)" : "#9CA3AF"}
+            />
+            <Text
+              style={[
+                styles.cardEta,
+                selected && { color: "rgba(255,255,255,0.8)" },
+              ]}
+            >
+              {ride.eta}
+            </Text>
+          </View>
+
+          {/* Price */}
+          <Text style={[styles.cardPrice, selected && styles.cardTextWhite]}>
+            LKR {ride.price.toFixed(2)}
+          </Text>
+
+          {/* Stars earned */}
+          <View style={styles.starsRow}>
+            <Ionicons name="star" size={11} color="#FBBF24" />
+            <Text
+              style={[
+                styles.starsText,
+                selected && { color: "rgba(255,255,255,0.85)" },
+              ]}
+            >
+              Earn {stars}
+            </Text>
+          </View>
+
+          {/* Route info */}
+          {directions && (
+            <Text
+              style={[
+                styles.cardRoute,
+                selected && { color: "rgba(255,255,255,0.7)" },
+              ]}
+            >
+              {directions.distanceText} · {directions.durationText}
+            </Text>
+          )}
+        </Animated.View>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { tripType, setOutboundRide, setOutboundPickup, setOutboundDropoff } = useRideSearch();
-  
-  const [selectedRide, setSelectedRide] = React.useState<string | null>(null);
+  const { tripType, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
+    useRideSearch();
+
+  const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
-  const [dbVehicles, setDbVehicles] = useState<DBVehicleType[]>([]);
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
 
-  // Fetch real directions when component loads
+  // Bottom sheet slide-up entrance
+  const sheetY = useRef(new Animated.Value(200)).current;
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
+  const animateSheetIn = useCallback(() => {
+    Animated.parallel([
+      Animated.timing(sheetY, {
+        toValue: 0,
+        duration: 480,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetOpacity, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Fetch directions
   useEffect(() => {
-    const fetchDirections = async () => {
+    let cancelled = false;
+    (async () => {
       setLoadingRoute(true);
       try {
         const result = await getCachedDirections_withCache(
@@ -172,96 +358,105 @@ export default function SelectRideScreen() {
           destination.latitude,
           destination.longitude,
         );
-        setDirections(result);
-      } catch (error) {
-        console.error("Error fetching directions:", error);
+        if (!cancelled) setDirections(result);
+      } catch (e) {
+        console.error("Directions error:", e);
       } finally {
-        setLoadingRoute(false);
+        if (!cancelled) setLoadingRoute(false);
       }
+    })();
+    return () => {
+      cancelled = true;
     };
-
-    fetchDirections();
-  }, [pickup, destination]);
-
-  // Fetch active vehicle types from the API database
-  useEffect(() => {
-    const fetchVehicles = async () => {
-      setLoadingVehicles(true);
-      try {
-        const response = await apiClient.get<DBVehicleType[]>("/vehicle-types");
-        if (response.success && response.data && response.data.length > 0) {
-          const active = response.data.filter(vt => vt.is_active);
-          setDbVehicles(active);
-        } else {
-          console.warn("API returned empty vehicle list or failed, falling back to mock data.");
-          setDbVehicles(MOCK_VEHICLE_TYPES);
-        }
-      } catch (error) {
-        console.error("Error fetching vehicle types, using mock fallback:", error);
-        setDbVehicles(MOCK_VEHICLE_TYPES);
-      } finally {
-        setLoadingVehicles(false);
-      }
-    };
-    fetchVehicles();
   }, []);
 
-  // Compute dyn pricing once both vehicle types and routing directions are ready
+  // Fetch vehicles
   useEffect(() => {
-    if (directions && dbVehicles.length > 0) {
-      const mapped = dbVehicles.map(vt => 
-        mapDBVehicleToOption(vt, directions.distance, directions.duration)
-      );
-      setRideOptions(mapped);
-      // Auto select first option if none is selected
-      if (mapped.length > 0 && !selectedRide) {
-        setSelectedRide(mapped[0].id);
+    let cancelled = false;
+    (async () => {
+      setLoadingVehicles(true);
+      try {
+        const res = await apiClient.get<DBVehicleType[]>("/vehicle-types");
+        const data =
+          res.success && res.data && res.data.length > 0
+            ? res.data.filter((v) => v.is_active)
+            : MOCK_VEHICLE_TYPES;
+        if (!cancelled) {
+          // Store vehicles; pricing computed in next effect
+          (async () => {})(); // no-op placeholder
+          setLoadingVehicles(false);
+          // trigger pricing effect via a local temp state
+          if (!cancelled) _setRawVehicles(data);
+        }
+      } catch {
+        if (!cancelled) {
+          _setRawVehicles(MOCK_VEHICLE_TYPES);
+          setLoadingVehicles(false);
+        }
       }
-    }
-  }, [directions, dbVehicles]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
-  const handleBookNow = () => {
+  const [_rawVehicles, _setRawVehicles] = useState<DBVehicleType[]>([]);
+
+  // Compute pricing once both are ready
+  useEffect(() => {
+    if (!directions || _rawVehicles.length === 0) return;
+    const mapped = _rawVehicles.map((v) =>
+      mapDBVehicleToOption(v, directions.distance, directions.duration),
+    );
+    setRideOptions(mapped);
+    if (mapped.length > 0) setSelectedRide(mapped[0].id);
+    animateSheetIn();
+    setLoadingVehicles(false);
+  }, [directions, _rawVehicles]);
+
+  const handleBookNow = useCallback(() => {
     if (!selectedRide || rideOptions.length === 0) return;
-
-    const selectedRideOption = rideOptions.find((r) => r.id === selectedRide);
-    if (!selectedRideOption) return;
-
-    // Save outbound trip details to centralized context
+    const opt = rideOptions.find((r) => r.id === selectedRide);
+    if (!opt) return;
     setOutboundPickup(pickup);
     setOutboundDropoff(destination);
-    setOutboundRide(selectedRideOption);
+    setOutboundRide(opt);
+    router.push(
+      tripType === "return"
+        ? "/ride-search/return-trip-location"
+        : "/ride-search/confirmation",
+    );
+  }, [selectedRide, rideOptions]);
 
-    if (tripType === "return") {
-      router.push({
-        pathname: "/ride-search/return-trip-location",
-      });
-    } else {
-      router.push("/ride-search/confirmation");
-    }
-  };
+  const loading = loadingRoute || loadingVehicles;
 
   return (
     <View style={styles.container}>
-      {/* MapView */}
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
+
+      {/* ── MAP ──────────────────────────────────────────────────────────── */}
       <MapView
         style={styles.map}
         initialRegion={{
-          latitude: pickup.latitude,
-          longitude: pickup.longitude,
-          latitudeDelta: 0.05,
-          longitudeDelta: 0.05,
+          latitude: (pickup.latitude + destination.latitude) / 2,
+          longitude: (pickup.longitude + destination.longitude) / 2,
+          latitudeDelta:
+            Math.abs(pickup.latitude - destination.latitude) * 2.4 + 0.02,
+          longitudeDelta:
+            Math.abs(pickup.longitude - destination.longitude) * 2.4 + 0.02,
         }}
       >
-        {/* Blue Route Line - Using actual road route */}
         {directions && directions.polyline.length > 0 ? (
           <Polyline
             coordinates={directions.polyline}
-            strokeColor="#2563EB"
+            strokeColor={GREEN}
             strokeWidth={4}
-            lineDashPattern={[0]}
           />
         ) : (
-          /* Fallback straight line if directions not loaded */
           <Polyline
             coordinates={[
               { latitude: pickup.latitude, longitude: pickup.longitude },
@@ -270,9 +465,9 @@ export default function SelectRideScreen() {
                 longitude: destination.longitude,
               },
             ]}
-            strokeColor="#2563EB"
-            strokeWidth={4}
-            lineDashPattern={[0]}
+            strokeColor={GREEN}
+            strokeWidth={3}
+            lineDashPattern={[6, 4]}
           />
         )}
 
@@ -282,9 +477,8 @@ export default function SelectRideScreen() {
             longitude: pickup.longitude,
           }}
           title="Pickup"
-          pinColor="#2563EB"
+          pinColor={GREEN}
         />
-
         <Marker
           coordinate={{
             latitude: destination.latitude,
@@ -295,433 +489,400 @@ export default function SelectRideScreen() {
         />
       </MapView>
 
-      {/* Distance Info Overlay */}
-      {loadingRoute ? (
-        <View style={styles.distanceOverlay}>
-          <View style={styles.distanceCard}>
-            <ActivityIndicator size="small" color="#2563EB" />
-            <Text style={styles.distanceLabel}>Loading route...</Text>
-          </View>
+      {/* ── BACK BUTTON ─────────────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => router.back()}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <Ionicons name="arrow-back" size={20} color="#111827" />
+      </TouchableOpacity>
+
+      {/* ── ROUTE PILL ──────────────────────────────────────────────────── */}
+      {!loadingRoute && directions && (
+        <View style={styles.routePill}>
+          <Ionicons name="navigate" size={14} color={GREEN} />
+          <Text style={styles.routePillText}>
+            {directions.distanceText} · {directions.durationText}
+          </Text>
         </View>
-      ) : directions ? (
-        <View style={styles.distanceOverlay}>
-          <View style={styles.distanceCard}>
-            <Ionicons name="navigate" size={18} color="#2563EB" />
-            <View style={styles.distanceTextContainer}>
-              <Text style={styles.distanceValue}>
-                {directions.distanceText}
-              </Text>
-              <Text style={styles.distanceLabel}>
-                {directions.durationText} away
-              </Text>
+      )}
+      {loadingRoute && (
+        <View style={styles.routePill}>
+          <ActivityIndicator size="small" color={GREEN} />
+          <Text style={styles.routePillText}>Getting route…</Text>
+        </View>
+      )}
+
+      {/* ── BOTTOM SHEET ─────────────────────────────────────────────────── */}
+      <Animated.View
+        style={[
+          styles.sheet,
+          { opacity: sheetOpacity, transform: [{ translateY: sheetY }] },
+        ]}
+      >
+        {/* Handle */}
+        <View style={styles.handle} />
+
+        {/* Title row */}
+        <View style={styles.sheetHeader}>
+          <Text style={styles.sheetTitle}>Choose a Ride</Text>
+          {!loading && directions && (
+            <View style={styles.fareNote}>
+              <Ionicons
+                name="information-circle-outline"
+                size={13}
+                color="#9CA3AF"
+              />
+              <Text style={styles.fareNoteText}>Dynamic fares</Text>
             </View>
-          </View>
-        </View>
-      ) : null}
-
-      {/* Bottom Sheet - Ride Selection */}
-      <View style={styles.bottomSheet}>
-        {/* Header with Close */}
-        <View style={styles.header}>
-          <Text style={styles.title}>Choose a Ride</Text>
-          <TouchableOpacity onPress={() => router.back()}>
-            <Ionicons name="close" size={24} color="#000" />
-          </TouchableOpacity>
+          )}
         </View>
 
-        {/* Ride Cards - Horizontal Scroll */}
-        {loadingRoute || loadingVehicles ? (
-          <View style={{ height: 170, justifyContent: "center", alignItems: "center" }}>
-            <ActivityIndicator size="large" color="#0B7BDC" />
-            <Text style={{ marginTop: 8, color: "#6B7280", fontSize: 13, fontWeight: "500" }}>Calculating fares...</Text>
+        {/* ── RIDE CARDS ─────────────────────────────────────────────────── */}
+        {loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={GREEN} />
+            <Text style={styles.loadingText}>Calculating fares…</Text>
           </View>
         ) : rideOptions.length === 0 ? (
-          <View style={{ height: 170, justifyContent: "center", alignItems: "center" }}>
-            <Ionicons name="alert-circle-outline" size={32} color="#EF4444" />
-            <Text style={{ marginTop: 8, color: "#EF4444", fontSize: 13, fontWeight: "500" }}>No vehicles available</Text>
+          <View style={styles.loadingBox}>
+            <Ionicons name="alert-circle-outline" size={30} color="#EF4444" />
+            <Text style={[styles.loadingText, { color: "#EF4444" }]}>
+              No vehicles available
+            </Text>
           </View>
         ) : (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            style={styles.ridesContainer}
-            contentContainerStyle={styles.ridesContent}
+            contentContainerStyle={styles.cardsRow}
+            style={styles.cardsScroll}
           >
-            {rideOptions.map((ride) => (
-              <TouchableOpacity
+            {rideOptions.map((ride, i) => (
+              <RideCard
                 key={ride.id}
-                style={[
-                  styles.rideCard,
-                  selectedRide === ride.id && styles.rideCardSelected,
-                ]}
-                onPress={() => setSelectedRide(ride.id)}
-                activeOpacity={0.7}
-              >
-                {/* Icon */}
-                <View
-                  style={[
-                    styles.iconContainer,
-                    selectedRide === ride.id && styles.iconContainerSelected,
-                  ]}
-                >
-                  <Ionicons
-                    name={ride.icon as any}
-                    size={28}
-                    color={selectedRide === ride.id ? "#fff" : "#0B7BDC"}
-                  />
-                </View>
-
-                {/* Ride Info */}
-                <Text
-                  style={[
-                    styles.rideName,
-                    selectedRide === ride.id && { color: "#fff" },
-                  ]}
-                >
-                  {ride.name}
-                </Text>
-                <Text
-                  style={[
-                    styles.eta,
-                    selectedRide === ride.id && { color: "#D1FAE5" },
-                  ]}
-                >
-                  {ride.eta}
-                </Text>
-
-                {/* Rating */}
-                <View style={styles.ratingBox}>
-                  <Ionicons name="star" size={12} color="#FCD34D" />
-                  <Text
-                    style={[
-                      styles.rating,
-                      selectedRide === ride.id && { color: "#fff" },
-                    ]}
-                  >
-                    {ride.rating}
-                  </Text>
-                </View>
-
-                {/* Price */}
-                <Text
-                  style={[
-                    styles.price,
-                    selectedRide === ride.id && { color: "#fff" },
-                  ]}
-                >
-                  LKR {ride.price.toFixed(2)}
-                </Text>
-
-                {/* Distance & Duration */}
-                {directions && (
-                  <View style={styles.routeInfo}>
-                    <Text
-                      style={[
-                        styles.routeDistance,
-                        selectedRide === ride.id && { color: "#fff" },
-                      ]}
-                    >
-                      {directions.distanceText}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.routeDuration,
-                        selectedRide === ride.id && { color: "rgba(255, 255, 255, 0.8)" },
-                      ]}
-                    >
-                      {directions.durationText}
-                    </Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+                ride={ride}
+                selected={selectedRide === ride.id}
+                onSelect={() => setSelectedRide(ride.id)}
+                index={i}
+                directions={directions}
+              />
             ))}
           </ScrollView>
         )}
 
-        {/* Cash & Options */}
-        <View style={styles.optionsBar}>
-          <View style={styles.cashOption}>
-            <Ionicons name="cash-outline" size={18} color="#6B7280" />
-            <Text style={styles.optionText}>Cash</Text>
-          </View>
-          <TouchableOpacity>
-            <Ionicons name="add-circle-outline" size={24} color="#0B7BDC" />
+        {/* ── OPTIONS ROW ────────────────────────────────────────────────── */}
+        <View style={styles.optionsRow}>
+          <TouchableOpacity style={styles.optionChip}>
+            <Ionicons name="cash-outline" size={16} color={GREEN} />
+            <Text style={styles.optionChipText}>Cash</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.optionChip}>
+            <Ionicons name="pencil-outline" size={15} color="#6B7280" />
+            <Text style={[styles.optionChipText, { color: "#6B7280" }]}>
+              Add note
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.optionChip}>
+            <Ionicons name="ticket-outline" size={15} color="#6B7280" />
+            <Text style={[styles.optionChipText, { color: "#6B7280" }]}>
+              Add Promo
+            </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.secondaryButton}>
-            <Ionicons name="pencil" size={16} color="#000" />
-            <Text style={styles.secondaryText}>Add note</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.promoButton}>
-            <Ionicons name="ticket" size={16} color="#0B7BDC" />
-            <Text style={styles.promoText}>Add Promo</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Book Button */}
+        {/* ── BOOK BUTTON ────────────────────────────────────────────────── */}
         <TouchableOpacity
           style={[
-            styles.bookButton,
-            !selectedRide && styles.bookButtonDisabled,
+            styles.bookBtn,
+            (!selectedRide || loading) && styles.bookBtnDisabled,
           ]}
           onPress={handleBookNow}
-          disabled={!selectedRide}
+          disabled={!selectedRide || loading}
+          activeOpacity={0.82}
         >
-          <Text style={styles.bookText}>
-            {tripType === "return" ? "Continue to Return" : "Book Now"}
+          <Text style={styles.bookBtnText}>
+            {tripType === "return" ? "Continue to Return →" : "Book Now"}
           </Text>
         </TouchableOpacity>
-      </View>
+      </Animated.View>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
+  container: { flex: 1, backgroundColor: "#F4FBFF" },
+
+  map: { flex: 1 },
+
+  // ── Map overlays ────────────────────────────────────────────────────────────
+  backBtn: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 58 : (StatusBar.currentHeight ?? 24) + 12,
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.12,
+        shadowRadius: 6,
+      },
+      android: { elevation: 6 },
+    }),
   },
 
-  map: {
-    flex: 1,
+  routePill: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 58 : (StatusBar.currentHeight ?? 24) + 12,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: { elevation: 5 },
+    }),
   },
 
-  bottomSheet: {
+  routePillText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111827",
+  },
+
+  // ── Bottom sheet ────────────────────────────────────────────────────────────
+  sheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: "#fff",
-    borderTopLeftRadius: 30,
-    borderTopRightRadius: 30,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
-    elevation: 10,
+    paddingTop: 10,
+    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 16,
+      },
+      android: { elevation: 14 },
+    }),
   },
 
-  header: {
+  handle: {
+    alignSelf: "center",
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 14,
+  },
+
+  sheetHeader: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    justifyContent: "space-between",
+    marginBottom: 14,
   },
 
-  title: {
-    fontSize: 18,
+  sheetTitle: {
+    fontSize: 17,
     fontWeight: "700",
     color: "#111827",
   },
 
-  ridesContainer: {
-    marginBottom: 12,
-    marginHorizontal: -16,
-    paddingHorizontal: 16,
+  fareNote: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
 
-  ridesContent: {
-    gap: 12,
-    paddingRight: 16,
+  fareNoteText: {
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "500",
+  },
+
+  // ── Loading ─────────────────────────────────────────────────────────────────
+  loadingBox: {
+    height: 150,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+
+  loadingText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+
+  // ── Ride cards ──────────────────────────────────────────────────────────────
+  cardsScroll: {
+    marginHorizontal: -16,
+  },
+
+  cardsRow: {
+    paddingHorizontal: 16,
+    gap: 10,
+    paddingBottom: 4,
   },
 
   rideCard: {
-    minWidth: 110,
-    backgroundColor: "#F9FAFB",
+    width: 106,
     borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 12,
-    alignItems: "center",
     borderWidth: 2,
     borderColor: "#E5E7EB",
+    backgroundColor: "#FAFAFA",
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    alignItems: "center",
+    gap: 3,
   },
 
   rideCardSelected: {
-    backgroundColor: "#0B7BDC",
-    borderColor: "#0B7BDC",
+    backgroundColor: GREEN,
+    borderColor: GREEN,
   },
 
-  iconContainer: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: "#F0F7FF",
-    justifyContent: "center",
+  cardIconWrap: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: GREEN_LIGHT,
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "center",
+    marginBottom: 4,
   },
 
-  iconContainerSelected: {
-    backgroundColor: "#1E40AF",
+  cardIconWrapSelected: {
+    backgroundColor: GREEN_DARK,
   },
 
-  rideName: {
-    fontSize: 14,
-    fontWeight: "600",
+  cardName: {
+    fontSize: 13,
+    fontWeight: "700",
     color: "#111827",
-    marginBottom: 2,
   },
 
-  eta: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginBottom: 6,
+  cardTextWhite: {
+    color: "#fff",
   },
 
-  ratingBox: {
+  cardMeta: {
     flexDirection: "row",
     alignItems: "center",
     gap: 3,
-    marginBottom: 6,
   },
 
-  rating: {
+  cardEta: {
     fontSize: 11,
-    color: "#6B7280",
-  },
-
-  price: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  optionsBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 12,
-  },
-
-  cashOption: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-
-  optionText: {
-    fontSize: 14,
-    color: "#111827",
+    color: "#9CA3AF",
     fontWeight: "500",
   },
 
-  actionButtons: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
-
-  secondaryButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-  },
-
-  secondaryText: {
-    fontSize: 13,
-    color: "#111827",
-    fontWeight: "500",
-  },
-
-  promoButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 12,
-    backgroundColor: "#F0F7FF",
-    borderRadius: 12,
-  },
-
-  promoText: {
-    fontSize: 13,
-    color: "#0B7BDC",
-    fontWeight: "500",
-  },
-
-  bookButton: {
-    backgroundColor: "#FBBF24",
-    paddingVertical: 16,
-    borderRadius: 20,
-    alignItems: "center",
-    elevation: 2,
-  },
-
-  bookButtonDisabled: {
-    opacity: 0.5,
-  },
-
-  bookText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#000",
-  },
-
-  distanceOverlay: {
-    position: "absolute",
-    top: 60,
-    left: 16,
-    right: 16,
-    zIndex: 10,
-  },
-
-  distanceCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    elevation: 5,
-    gap: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-  },
-
-  distanceTextContainer: {
-    flex: 1,
-  },
-
-  distanceValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#2563EB",
-  },
-
-  distanceLabel: {
+  cardPrice: {
     fontSize: 12,
-    color: "#6B7280",
+    fontWeight: "700",
+    color: "#111827",
     marginTop: 2,
   },
 
-  routeInfo: {
+  starsRow: {
+    flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    marginVertical: 6,
+    gap: 3,
+    marginTop: 1,
   },
 
-  routeDistance: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#2563EB",
-  },
-
-  routeDuration: {
+  starsText: {
     fontSize: 10,
     color: "#6B7280",
+    fontWeight: "500",
+  },
+
+  cardRoute: {
+    fontSize: 9,
+    color: "#9CA3AF",
+    marginTop: 2,
+    textAlign: "center",
+  },
+
+  // ── Options row ─────────────────────────────────────────────────────────────
+  optionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 14,
+    marginBottom: 12,
+  },
+
+  optionChip: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    backgroundColor: "#FAFAFA",
+  },
+
+  optionChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: GREEN,
+  },
+
+  // ── Book button ─────────────────────────────────────────────────────────────
+  bookBtn: {
+    backgroundColor: GREEN,
+    paddingVertical: 15,
+    borderRadius: 22,
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: GREEN,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+
+  bookBtnDisabled: {
+    opacity: 0.45,
+  },
+
+  bookBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.2,
   },
 });
