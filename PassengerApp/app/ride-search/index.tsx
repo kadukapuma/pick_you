@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
   TouchableOpacity,
   Text,
   ActivityIndicator,
+  Animated,
+  Dimensions,
 } from "react-native";
 
 import * as Location from "expo-location";
@@ -15,58 +17,121 @@ import LocationPicker from "../components/ride/LocationPicker";
 import { LocationSuggestion } from "../services/location/locationSuggestionsService";
 import { useRideSearch } from "../context/RideSearchContext";
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const TRIP_TYPES = {
+  ONE_WAY: "one-way",
+  RETURN_TRIP: "return-trip",
+} as const;
+
+type TripType = (typeof TRIP_TYPES)[keyof typeof TRIP_TYPES];
+
+const TOGGLE_WIDTH = Dimensions.get("window").width - 32; // full-width minus horizontal padding
+const PILL_WIDTH = TOGGLE_WIDTH / 2;
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export default function RideSearchScreen() {
-  const { setOutboundPickup, setOutboundDropoff, setTripType: setContextTripType } = useRideSearch();
+  const {
+    setOutboundPickup,
+    setOutboundDropoff,
+    setTripType: setContextTripType,
+  } = useRideSearch();
+
   const [currentLocation, setCurrentLocation] =
     useState<LocationSuggestion | null>(null);
-
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [tripType, setTripType] = useState<TripType>(TRIP_TYPES.ONE_WAY);
 
-  const [tripType, setTripType] = useState<"one-way" | "return-trip">(
-    "one-way",
-  );
+  // Animated pill slider
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  // Subtle fade for content swap
+  const contentOpacity = useRef(new Animated.Value(1)).current;
+
+  // ── Location ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
+    let cancelled = false;
+
+    const getCurrentLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted" || cancelled) return;
+
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced, // lighter on battery than High
+        });
+
+        if (!cancelled) {
+          setCurrentLocation({
+            id: "current",
+            address: "Your Location",
+            details: "Current position",
+            latitude: current.coords.latitude,
+            longitude: current.coords.longitude,
+            placeType: "address",
+          });
+        }
+      } catch (error) {
+        // silently fall through — LocationPicker handles missing origin
+      } finally {
+        if (!cancelled) setIsLoadingLocation(false);
+      }
+    };
+
     getCurrentLocation();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const getCurrentLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+  // ── Trip type toggle ──────────────────────────────────────────────────────
 
-      if (status !== "granted") {
-        console.log("Location permission denied");
-        setIsLoadingLocation(false);
-        return;
-      }
+  const handleTripTypeChange = (value: TripType) => {
+    if (value === tripType) return;
 
-      const current = await Location.getCurrentPositionAsync({});
+    // Slide pill
+    Animated.spring(slideAnim, {
+      toValue: value === TRIP_TYPES.ONE_WAY ? 0 : 1,
+      useNativeDriver: true,
+      tension: 60,
+      friction: 10,
+    }).start();
 
-      setCurrentLocation({
-        id: "current",
-        address: "Your Location",
-        details: "Current position",
-        latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
-        placeType: "address",
-      });
-    } catch (error) {
-      console.log("Location Error:", error);
-    } finally {
-      setIsLoadingLocation(false);
-    }
+    // Fade content out → update → fade back in
+    Animated.sequence([
+      Animated.timing(contentOpacity, {
+        toValue: 0.4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    setTripType(value);
   };
+
+  const pillTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, PILL_WIDTH],
+  });
+
+  // ── Confirm ───────────────────────────────────────────────────────────────
 
   const handleLocationConfirm = (
     pickup: LocationSuggestion,
     destination: LocationSuggestion,
   ) => {
-    // Save to centralized search context
     setOutboundPickup(pickup);
     setOutboundDropoff(destination);
-    setContextTripType(tripType === "return-trip" ? "return" : "oneway");
+    setContextTripType(
+      tripType === TRIP_TYPES.RETURN_TRIP ? "return" : "oneway",
+    );
 
-    // Always navigate to outbound ride selection first
     router.push({
       pathname: "/ride-search/select-ride",
       params: {
@@ -76,151 +141,223 @@ export default function RideSearchScreen() {
     });
   };
 
+  // ── Loading state ─────────────────────────────────────────────────────────
+
   if (isLoadingLocation) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0B7BDC" />
-
-        <Text style={styles.loadingText}>Getting your location...</Text>
+        <View style={styles.loadingIconWrap}>
+          <Ionicons name="locate" size={28} color="#1B9E6E" />
+        </View>
+        <ActivityIndicator
+          size="large"
+          color="#1B9E6E"
+          style={{ marginTop: 20 }}
+        />
+        <Text style={styles.loadingText}>Getting your location…</Text>
       </View>
     );
   }
+
+  // ── Main UI ───────────────────────────────────────────────────────────────
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Ionicons name="chevron-back" size={22} color="#0D4F3C" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Select Ride</Text>
+        <Text style={styles.headerTitle}>Plan Your Ride</Text>
 
-        <View style={{ width: 24 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
-      {/* Trip Type Selection */}
-      <View style={styles.tripTypeSection}>
+      {/* Segmented toggle */}
+      <View style={styles.toggleTrack}>
+        {/* Sliding pill (background) */}
+        <Animated.View
+          style={[
+            styles.togglePill,
+            { transform: [{ translateX: pillTranslateX }] },
+          ]}
+        />
+
         {/* One Way */}
         <TouchableOpacity
-          style={styles.tripTypeButton}
-          onPress={() => setTripType("one-way")}
+          activeOpacity={0.85}
+          style={styles.toggleOption}
+          onPress={() => handleTripTypeChange(TRIP_TYPES.ONE_WAY)}
         >
           <Ionicons
-            name={
-              tripType === "one-way" ? "radio-button-on" : "radio-button-off"
-            }
-            size={16}
-            color={tripType === "one-way" ? "#111827" : "#D1D5DB"}
+            name="arrow-forward"
+            size={15}
+            color={tripType === TRIP_TYPES.ONE_WAY ? "#ffffff" : "#6B9E8E"}
+            style={styles.toggleIcon}
           />
-
           <Text
             style={[
-              styles.tripTypeText,
-              tripType !== "one-way" && {
-                color: "#9CA3AF",
-              },
+              styles.toggleLabel,
+              tripType === TRIP_TYPES.ONE_WAY && styles.toggleLabelActive,
             ]}
           >
-            One way
+            One Way
           </Text>
         </TouchableOpacity>
 
         {/* Return Trip */}
         <TouchableOpacity
-          style={styles.tripTypeButton}
-          onPress={() => setTripType("return-trip")}
+          activeOpacity={0.85}
+          style={styles.toggleOption}
+          onPress={() => handleTripTypeChange(TRIP_TYPES.RETURN_TRIP)}
         >
           <Ionicons
-            name={
-              tripType === "return-trip"
-                ? "radio-button-on"
-                : "radio-button-off"
-            }
-            size={16}
-            color={tripType === "return-trip" ? "#111827" : "#D1D5DB"}
+            name="swap-horizontal"
+            size={15}
+            color={tripType === TRIP_TYPES.RETURN_TRIP ? "#ffffff" : "#6B9E8E"}
+            style={styles.toggleIcon}
           />
-
           <Text
             style={[
-              styles.tripTypeText,
-              tripType !== "return-trip" && {
-                color: "#9CA3AF",
-              },
+              styles.toggleLabel,
+              tripType === TRIP_TYPES.RETURN_TRIP && styles.toggleLabelActive,
             ]}
           >
-            Return trip
+            Return Trip
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Location Picker */}
-      {currentLocation && (
-        <LocationPicker
-          onConfirm={handleLocationConfirm}
-          currentLocation={currentLocation}
-        />
-      )}
+      {/* Location Picker — fades on trip-type change */}
+      <Animated.View style={[styles.pickerWrap, { opacity: contentOpacity }]}>
+        {currentLocation && (
+          <LocationPicker
+            onConfirm={handleLocationConfirm}
+            currentLocation={currentLocation}
+          />
+        )}
+      </Animated.View>
     </View>
   );
 }
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4FBFF",
+    backgroundColor: "#F0FAF5",
   },
 
+  // ── Loading ──────────────────────────────────────────────────────────────
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4FBFF",
+    backgroundColor: "#F0FAF5",
   },
-
+  loadingIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#D6F2E7",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#6B7280",
+    marginTop: 14,
+    fontSize: 15,
+    color: "#4A7A68",
     fontWeight: "500",
+    letterSpacing: 0.2,
   },
 
+  // ── Header ────────────────────────────────────────────────────────────────
   header: {
-    marginTop: 50,
+    marginTop: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 24,
   },
-
+  backButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#0D4F3C",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+  },
   headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
+    fontSize: 17,
+    fontWeight: "700",
+    color: "#0D4F3C",
+    letterSpacing: 0.3,
+  },
+  headerSpacer: {
+    width: 36,
   },
 
-  tripTypeSection: {
+  // ── Segmented Toggle ──────────────────────────────────────────────────────
+  toggleTrack: {
     flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    backgroundColor: "#D6F2E7",
+    borderRadius: 14,
+    padding: 4,
+    height: 48,
+    position: "relative",
+    overflow: "hidden",
   },
-
-  tripTypeButton: {
+  togglePill: {
+    position: "absolute",
+    top: 4,
+    left: 4,
+    width: PILL_WIDTH - 8,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: "#1B9E6E",
+    shadowColor: "#1B9E6E",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  toggleOption: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    elevation: 1,
+    justifyContent: "center",
+    zIndex: 1,
+    gap: 6,
+  },
+  toggleIcon: {
+    // slight nudge for visual balance
+  },
+  toggleLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#4A7A68",
+    letterSpacing: 0.2,
+  },
+  toggleLabelActive: {
+    color: "#FFFFFF",
   },
 
-  tripTypeText: {
-    fontSize: 13,
-    color: "#111827",
-    fontWeight: "500",
+  // ── Picker area ───────────────────────────────────────────────────────────
+  pickerWrap: {
+    flex: 1,
   },
 });
