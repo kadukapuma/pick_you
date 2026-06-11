@@ -102,6 +102,9 @@ class PassengerAuthController extends Controller
             ->first();
 
         if ($user) {
+            if (!$user->is_verified) {
+                $user->update(['is_verified' => true]);
+            }
             $token = $user->createToken('passenger_app_token')->plainTextToken;
             $user->load(['passenger', 'rolePermissions']);
 
@@ -152,7 +155,8 @@ class PassengerAuthController extends Controller
             'phone' => $request->phone,
             'password' => null,
             'role' => 'passenger',
-            'is_active' => true
+            'is_active' => true,
+            'is_verified' => true
         ]);
 
         $user->passenger()->create([

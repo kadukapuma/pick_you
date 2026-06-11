@@ -16,6 +16,7 @@ import ExitButton from "../components/ExitButton";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
+import LottieView from "lottie-react-native"; // <-- Step 2: Imported Lottie
 
 const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
   const [uploads, setUploads] = useState({
@@ -29,6 +30,10 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
   });
 
   const [isSubmitted, setIsSubmitted] = useState(false);
+  
+  // Step 3: Processing & Text States Added
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingText, setProcessingText] = useState("Preparing your documents...");
 
   // PickU Brand Colors
   const BRAND_GREEN = "#00A859";
@@ -57,7 +62,11 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
 
   const handleSubmit = async () => {
     if (!allDocsUploaded) return;
+    
+    // Step 4: Show Animation & Initial Text Before Upload
     setIsSubmitted(true);
+    setIsProcessing(true);
+    setProcessingText("Preparing your documents...");
 
     try {
       const profileStr = await AsyncStorage.getItem("profileFormData");
@@ -88,6 +97,9 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
       if (vehicle.vehicleType) formData.append("vehicleType", vehicle.vehicleType);
       if (vehicle.vehicle_type_id) formData.append("vehicle_type_id", vehicle.vehicle_type_id);
 
+      // Step 3 (Premium): Updating state before appending files
+      setProcessingText("Uploading driver documents...");
+
       Object.keys(uploads).forEach((key) => {
         if (uploads[key]) {
           formData.append(key, {
@@ -98,18 +110,27 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
         }
       });
 
+      // Step 3 (Premium): Updating state right before API validation call
+      setProcessingText("Verifying vehicle information...");
+
       await api.post('/driver/complete-profile', formData, {
         headers: { "Content-Type": "multipart/form-data" }
       });
+
+      // Step 3 (Premium): Finalizing profile updates
+      setProcessingText("Finalizing your profile...");
 
       // Update global context status so app instantly reflects 'pending'
       if (setDriverStatus) {
         setDriverStatus("pending");
       }
 
+      // Step 5: Clear Processing Overlay right before leaving screen
+      setIsProcessing(false);
+
       // After a successful upload/re-upload, update the local status directly to pending so the Verification screen adapts properly
       if (navigation.getState?.().routes[0]?.name === "Verification") {
-        navigation.goBack(); // Return to Verification Screen directly instead of resetting if we just came from it
+        navigation.goBack(); 
       } else {
         // Reset stack to Verification for onboarding flow
         navigation.reset({
@@ -120,7 +141,10 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
     } catch (error) {
       console.error("Submit error:", error);
       Alert.alert("Error", "Could not submit your profile. Please try again.");
+      
+      // Step 5: Reset state on exception blocks
       setIsSubmitted(false);
+      setIsProcessing(false);
     }
   };
 
@@ -206,7 +230,6 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
         translucent
       />
 
-      {/* HEADER MATCHING IMAGE 1 */}
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity
@@ -325,6 +348,42 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
           )}
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Step 5: Full Screen Processing Overlay UI Component */}
+      {isProcessing && (
+        <View style={styles.processingContainer}>
+          <StatusBar
+            backgroundColor="#0B1220"
+            barStyle="light-content"
+          />
+
+          <LottieView
+            source={require("../../src/assets/Car Animation.json")}
+            autoPlay
+            loop
+            style={styles.processingAnimation}
+          />
+
+          <Text style={styles.processingTitle}>
+            Processing Documents
+          </Text>
+
+          <Text style={styles.processingSubtitle}>
+            Please wait while we upload and verify your information.
+          </Text>
+
+          <Text style={styles.processingStatus}>
+            {processingText}
+          </Text>
+
+          <View style={styles.processingDots}>
+            <View style={styles.dot} />
+            <View style={styles.dot} />
+            <View style={styles.dot} />
+          </View>
+        </View>
+      )}
+
       <SafeAreaView edges={["bottom"]} style={styles.bottomSafe} />
     </View>
   );
@@ -333,7 +392,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF" },
   header: {
-    backgroundColor: "#00A859", // BRAND_GREEN
+    backgroundColor: "#00A859", 
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 10 : 60,
     paddingHorizontal: 25,
     paddingBottom: 35,
@@ -440,6 +499,54 @@ const styles = StyleSheet.create({
   pendingRow: { flexDirection: "row", alignItems: "center" },
   submitText: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   bottomSafe: { backgroundColor: "#000" },
+  
+  // Step 7: Premium Full-Screen Processing Styles Included
+  processingContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#0B1220",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 9999,
+  },
+  processingAnimation: {
+    width: 320,
+    height: 320,
+  },
+  processingTitle: {
+    color: "#FFF",
+    fontSize: 28,
+    fontWeight: "900",
+    marginTop: -20,
+  },
+  processingSubtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 15,
+    textAlign: "center",
+    paddingHorizontal: 40,
+    marginTop: 12,
+    lineHeight: 22,
+  },
+  processingStatus: {
+    color: "#00A859",
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 25,
+  },
+  processingDots: {
+    flexDirection: "row",
+    marginTop: 20,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00A859",
+    marginHorizontal: 5,
+  },
 });
 
 export default DocumentVerifyScreen;

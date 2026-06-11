@@ -47,6 +47,7 @@ class OperatorController extends Controller
             'password' => Hash::make($request->password),
             'role' => User::ROLE_OPERATOR,
             'is_active' => true,
+            'is_verified' => true,
         ])->load('rolePermissions');
 
         return response()->json([
