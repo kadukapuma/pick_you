@@ -1,7 +1,6 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ||
   'http://192.168.1.7:8000/api'
-  // 'http://localhost:8000/api'
 const TOKEN_KEY = 'admin_token'
 
 const statusOptions = ['pending', 'approved', 'suspended', 'updated', 'rejected']
