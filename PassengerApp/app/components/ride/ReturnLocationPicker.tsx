@@ -1,11 +1,11 @@
 import { useState, useRef } from "react";
 import {
-  StyleSheet,
   View,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
   Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  TextInput,
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,15 +14,16 @@ import {
   LocationSuggestion,
 } from "../../services/location/multiProviderService";
 
-interface LocationPickerProps {
+interface ReturnLocationPickerProps {
   onConfirm: (
     pickup: LocationSuggestion,
-    destination: LocationSuggestion,
+    stop: LocationSuggestion | null,
+    dropoff: LocationSuggestion,
   ) => void;
-  currentLocation?: LocationSuggestion;
+  currentLocation: LocationSuggestion;
 }
 
-const QUICK_SAVED = [
+const SAVED_LOCATIONS = [
   {
     id: "royal_gym",
     address: "Royal Gym Walala",
@@ -42,7 +43,7 @@ const QUICK_SAVED = [
   {
     id: "colombo",
     address: "Colombo",
-    details: "Western Province",
+    details: "",
     latitude: 6.927,
     longitude: 79.861,
     placeType: "saved" as const,
@@ -50,48 +51,41 @@ const QUICK_SAVED = [
   {
     id: "kandy",
     address: "Kandy",
-    details: "Central Province",
+    details: "",
     latitude: 7.29,
     longitude: 80.633,
     placeType: "saved" as const,
   },
-  {
-    id: "katugastota",
-    address: "อพสัมมาบุคคล",
-    details: "Road, Katugastota",
-    latitude: 7.32,
-    longitude: 80.62,
-    placeType: "saved" as const,
-  },
 ];
 
-export default function LocationPicker({
+export default function ReturnLocationPicker({
   onConfirm,
   currentLocation,
-}: LocationPickerProps) {
+}: ReturnLocationPickerProps) {
   const [pickup, setPickup] = useState<LocationSuggestion | null>(
-    currentLocation || null,
+    currentLocation,
   );
-  const [destination, setDestination] = useState<LocationSuggestion | null>(
-    null,
-  );
+  const [stop, setStop] = useState<LocationSuggestion | null>(null);
+  const [dropoff, setDropoff] = useState<LocationSuggestion | null>(null);
 
   const [pickupSearch, setPickupSearch] = useState(
     currentLocation?.address || "",
   );
+  const [stopSearch, setStopSearch] = useState("");
   const [dropSearch, setDropSearch] = useState("");
 
-  const [activeField, setActiveField] = useState<"pickup" | "drop" | null>(
-    null,
-  );
+  const [activeField, setActiveField] = useState<
+    "pickup" | "stop" | "drop" | null
+  >(null);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleSearch = (text: string, field: "pickup" | "drop") => {
+  const handleSearch = (text: string, field: "pickup" | "stop" | "drop") => {
     if (field === "pickup") setPickupSearch(text);
+    if (field === "stop") setStopSearch(text);
     if (field === "drop") setDropSearch(text);
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -118,19 +112,18 @@ export default function LocationPicker({
     if (activeField === "pickup") {
       setPickup(location);
       setPickupSearch(location.address);
-      if (destination && destination.id === pickup?.id) {
-        setDestination(null);
-        setDropSearch("");
-      }
+    } else if (activeField === "stop") {
+      setStop(location);
+      setStopSearch(location.address);
     } else if (activeField === "drop") {
-      setDestination(location);
+      setDropoff(location);
       setDropSearch(location.address);
     }
     setActiveField(null);
     setSuggestions([]);
   };
 
-  const handleFieldFocus = (field: "pickup" | "drop") => {
+  const handleFieldFocus = (field: "pickup" | "stop" | "drop") => {
     setActiveField(field);
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -138,15 +131,8 @@ export default function LocationPicker({
   };
 
   const handleConfirm = () => {
-    if (pickup && destination) {
-      onConfirm(pickup, destination);
-    }
-  };
-
-  const handleSetSameAsPickup = () => {
-    if (pickup) {
-      setDestination(pickup);
-      setDropSearch(pickup.address);
+    if (pickup && dropoff) {
+      onConfirm(pickup, stop, dropoff);
     }
   };
 
@@ -155,9 +141,10 @@ export default function LocationPicker({
     icon: string,
     iconColor: string,
     value: string,
-    field: "pickup" | "drop",
+    field: "pickup" | "stop" | "drop",
     placeholder: string,
     selectedLocation: LocationSuggestion | null,
+    isOptional: boolean = false,
   ) => {
     const isActive = activeField === field;
     const hasValue = !!selectedLocation;
@@ -165,7 +152,7 @@ export default function LocationPicker({
     return (
       <View style={styles.fieldWrapper}>
         {/* Vertical dotted line for visual connection */}
-        {field === "drop" && (
+        {field !== "pickup" && (
           <View style={styles.dottedLineContainer}>
             <View style={styles.dottedLine} />
           </View>
@@ -196,9 +183,13 @@ export default function LocationPicker({
                         setPickupSearch("");
                         setPickup(null);
                       }
+                      if (field === "stop") {
+                        setStopSearch("");
+                        setStop(null);
+                      }
                       if (field === "drop") {
                         setDropSearch("");
-                        setDestination(null);
+                        setDropoff(null);
                       }
                       setSuggestions([]);
                     }}
@@ -251,6 +242,19 @@ export default function LocationPicker({
           "pickup",
           "Your Location",
           pickup,
+          false,
+        )}
+
+        {/* Stop Field (Optional) */}
+        {renderField(
+          "STOP",
+          "location-outline",
+          "#FFA500",
+          stopSearch,
+          "stop",
+          "Add a stop",
+          stop,
+          true,
         )}
 
         {/* Dropoff Field */}
@@ -261,14 +265,18 @@ export default function LocationPicker({
           dropSearch,
           "drop",
           "Where are you going?",
-          destination,
+          dropoff,
+          false,
         )}
 
         {/* Same as pickup option */}
-        {pickup && !destination && !activeField && (
+        {pickup && !dropoff && !activeField && (
           <TouchableOpacity
             style={styles.sameAsPickup}
-            onPress={handleSetSameAsPickup}
+            onPress={() => {
+              setDropoff(pickup);
+              setDropSearch(pickup.address);
+            }}
           >
             <Ionicons name="sync-outline" size={18} color="#1B9E6E" />
             <Text style={styles.sameAsPickupText}>Same as pickup</Text>
@@ -319,8 +327,9 @@ export default function LocationPicker({
 
             <TouchableOpacity style={styles.savedItem}>
               <Ionicons name="home-outline" size={22} color="#FFA500" />
-              <Text style={styles.savedText}>Add Home</Text>
-              <Ionicons name="add-circle-outline" size={22} color="#1B9E6E" />
+              <Text style={styles.savedText}>Home</Text>
+              <Text style={styles.savedSubtext}>Kurunegala</Text>
+              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.savedItem}>
@@ -331,22 +340,28 @@ export default function LocationPicker({
 
             <View style={styles.divider} />
 
-            {QUICK_SAVED.map((location) => (
+            {SAVED_LOCATIONS.map((location) => (
               <TouchableOpacity
                 key={location.id}
                 style={styles.savedItem}
                 onPress={() => {
                   if (!pickup) {
-                    handleSelectLocation(location);
-                  } else if (!destination) {
-                    handleSelectLocation(location);
+                    setPickup(location);
+                    setPickupSearch(location.address);
+                  } else if (!dropoff) {
+                    setDropoff(location);
+                    setDropSearch(location.address);
                   }
                 }}
               >
                 <Ionicons name="location" size={22} color="#6B9E8E" />
                 <View style={styles.locationInfo}>
                   <Text style={styles.savedText}>{location.address}</Text>
-                  <Text style={styles.locationDetail}>{location.details}</Text>
+                  {location.details ? (
+                    <Text style={styles.locationDetail}>
+                      {location.details}
+                    </Text>
+                  ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
               </TouchableOpacity>
@@ -356,9 +371,9 @@ export default function LocationPicker({
       </ScrollView>
 
       {/* Confirm Button */}
-      {pickup && destination && !activeField && (
+      {pickup && dropoff && !activeField && (
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmText}>Confirm Location</Text>
+          <Text style={styles.confirmButtonText}>Confirm Return Trip</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -422,6 +437,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#6B9E8E",
     letterSpacing: 1,
+  },
+  optionalBadge: {
+    fontSize: 9,
+    color: "#FFA500",
+    fontWeight: "500",
+    marginLeft: 4,
   },
   inputWrapper: {
     flex: 1,
@@ -529,6 +550,11 @@ const styles = StyleSheet.create({
     color: "#0D4F3C",
     fontWeight: "500",
   },
+  savedSubtext: {
+    fontSize: 12,
+    color: "#6B9E8E",
+    marginRight: 8,
+  },
   locationInfo: {
     flex: 1,
   },
@@ -557,9 +583,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  confirmText: {
+  confirmButtonText: {
+    color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "700",
-    color: "#FFFFFF",
   },
 });
