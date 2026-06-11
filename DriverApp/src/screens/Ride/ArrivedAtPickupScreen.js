@@ -1,18 +1,19 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Image,
+    Dimensions,
+    Image,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
+// import MapView, { Marker, Polyline } from "react-native-maps";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { getPickupCoordinate } from "../../utils/rideLocation";
 
 const { width, height } = Dimensions.get("window");
@@ -81,17 +82,21 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
     return `${paddedMins}:${paddedSecs}`;
   };
 
-const handlePassengerOnBoard = () => {
-  console.log("Trip Starting: Passenger is on board.");
+  const handlePassengerOnBoard = () => {
+    console.log("Trip Starting: Passenger is on board.");
 
-  navigation.navigate("TripInProgressScreen", {
-    ride,
-  });
-};
+    navigation.navigate("TripInProgressScreen", {
+      ride,
+    });
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent={true}
+      />
 
       {/* MAP VIEWPORT */}
       <MapView
@@ -120,8 +125,8 @@ const handlePassengerOnBoard = () => {
           rotation={38}
           style={styles.markerFix}
         >
-          <Image 
-            source={require('../../assets/car3d.png')} 
+          <Image
+            source={require("../../assets/car3d.png")}
             style={styles.driver3DVehicle}
             resizeMode="contain"
           />
@@ -145,20 +150,26 @@ const handlePassengerOnBoard = () => {
           </View>
           <Text style={styles.arrivedStatusTitle}>You ve arrived</Text>
           <Text style={styles.arrivedStatusSubtitle}>at pickup location</Text>
-          
+
           <View style={styles.inlineAddressRow}>
             <Ionicons name="location" size={14} color="#00A859" />
-            <Text style={styles.inlineAddressText} numberOfLines={1}>{pickup}</Text>
+            <Text style={styles.inlineAddressText} numberOfLines={1}>
+              {pickup}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.circleBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
           <Feather name="arrow-left" size={22} color="#0F172A" />
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.circleBtn} activeOpacity={0.7}>
           <Feather name="phone" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -177,7 +188,12 @@ const handlePassengerOnBoard = () => {
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
               <View style={styles.ratingRow}>
-                <Ionicons name="star" size={13} color="#0F172A" style={{ marginRight: 4 }} />
+                <Ionicons
+                  name="star"
+                  size={13}
+                  color="#0F172A"
+                  style={{ marginRight: 4 }}
+                />
                 <Text style={styles.ratingText}>{rating} Customer Rating</Text>
               </View>
             </View>
@@ -187,11 +203,17 @@ const handlePassengerOnBoard = () => {
           <View style={styles.waitingTimerBar}>
             <Text style={styles.waitingLabel}>Waiting for passenger</Text>
             {/* 4. Swapped static text out for dynamic formatting helper output */}
-            <Text style={styles.waitingClockTimer}>{formatTimer(secondsElapsed)}</Text>
+            <Text style={styles.waitingClockTimer}>
+              {formatTimer(secondsElapsed)}
+            </Text>
           </View>
 
           {/* PROGRESSIVE PRIMARY CTA SUBMIT WORKFLOW ELEMENT */}
-          <TouchableOpacity style={styles.actionBtnPrimary} onPress={handlePassengerOnBoard} activeOpacity={0.9}>
+          <TouchableOpacity
+            style={styles.actionBtnPrimary}
+            onPress={handlePassengerOnBoard}
+            activeOpacity={0.9}
+          >
             <Text style={styles.actionBtnPrimaryText}>Passenger On Board</Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />

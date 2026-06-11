@@ -375,7 +375,7 @@ const LoginScreen = ({
                   style={styles.carImageWrapper}
                 >
                   <Image
-                    source={require("../../assets/car.png")}
+                    source={require("../../assets/car-1.png")}
                     style={styles.carImage}
                     resizeMode="contain"
                   />

@@ -1,4 +1,5 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { MotiText, MotiView } from "moti";
 import { useEffect, useState } from "react";
 import {
@@ -10,11 +11,15 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../services/api";
 import createEchoInstance from "../services/echo";
 
-const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, setIsNewUser }) => {
+const VerificationStatusScreen = ({
+  navigation,
+  setIsLoggedIn,
+  setDriverStatus,
+  setIsNewUser,
+}) => {
   /* =========================
      BRAND COLORS
   ========================= */
@@ -63,20 +68,25 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
         return;
       }
 
-      console.log("Subscribing to admin.dashboard channel for driver:", currentDriverId);
+      console.log(
+        "Subscribing to admin.dashboard channel for driver:",
+        currentDriverId,
+      );
 
-      echo.channel("admin.dashboard")
-        .listen(".DashboardUpdated", (e) => {
-          console.log("Real-time update received:", e);
-          if (e.event === "driver.status" && e.data.driver_id === currentDriverId) {
-            const newStatus = e.data.status?.toLowerCase();
-            if (newStatus === "approved") {
-              setVerificationStatus("approved");
-            } else if (newStatus === "rejected") {
-              setVerificationStatus("rejected");
-            }
+      echo.channel("admin.dashboard").listen(".DashboardUpdated", (e) => {
+        console.log("Real-time update received:", e);
+        if (
+          e.event === "driver.status" &&
+          e.data.driver_id === currentDriverId
+        ) {
+          const newStatus = e.data.status?.toLowerCase();
+          if (newStatus === "approved") {
+            setVerificationStatus("approved");
+          } else if (newStatus === "rejected") {
+            setVerificationStatus("rejected");
           }
-        });
+        }
+      });
 
       return () => {
         echo.leaveChannel("admin.dashboard");
@@ -141,10 +151,11 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
       docIsRejected: false,
       nextStepIcon: "information-outline",
       nextStepTitle: "What's Next?",
-      nextStepText: "You will receive an email notification once your documents have been verified and your account is approved. This usually takes 24-48 hours.",
+      nextStepText:
+        "You will receive an email notification once your documents have been verified and your account is approved. This usually takes 24-48 hours.",
       nextStepBoxBorder: "rgba(255,255,255,0.08)",
       nextStepBoxBg: "rgba(255,255,255,0.05)",
-      nextStepTitleColor: "#FFF"
+      nextStepTitleColor: "#FFF",
     },
 
     approved: {
@@ -160,10 +171,11 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
       docIsRejected: false,
       nextStepIcon: "check-circle",
       nextStepTitle: "Account Active!",
-      nextStepText: "Your account is now fully verified and active. You're ready to start receiving ride requests. Get ready to drive!",
+      nextStepText:
+        "Your account is now fully verified and active. You're ready to start receiving ride requests. Get ready to drive!",
       nextStepBoxBorder: "rgba(0,168,89,0.3)",
       nextStepBoxBg: "rgba(0,168,89,0.08)",
-      nextStepTitleColor: BRAND_GREEN
+      nextStepTitleColor: BRAND_GREEN,
     },
 
     rejected: {
@@ -179,10 +191,11 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
       docIsRejected: true,
       nextStepIcon: "alert-circle",
       nextStepTitle: "Action Required",
-      nextStepText: "Some of your documents did not meet our requirements. Please review and re-upload clear, valid documents to resubmit your application.",
+      nextStepText:
+        "Some of your documents did not meet our requirements. Please review and re-upload clear, valid documents to resubmit your application.",
       nextStepBoxBorder: "rgba(239,68,68,0.3)",
       nextStepBoxBg: "rgba(239,68,68,0.08)",
-      nextStepTitleColor: BRAND_RED
+      nextStepTitleColor: BRAND_RED,
     },
   };
 
@@ -191,13 +204,7 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
   /* =========================
      STATUS ITEM COMPONENT
   ========================= */
-  const StatusItem = ({
-    title,
-    status,
-    isComplete,
-    isRejected,
-    index,
-  }) => (
+  const StatusItem = ({ title, status, isComplete, isRejected, index }) => (
     <MotiView
       from={{ opacity: 0, x: -20 }}
       animate={{ opacity: 1, x: 0 }}
@@ -218,20 +225,10 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
           ]}
         >
           <Feather
-            name={
-              isRejected
-                ? "x"
-                : isComplete
-                  ? "check"
-                  : "clock"
-            }
+            name={isRejected ? "x" : isComplete ? "check" : "clock"}
             size={16}
             color={
-              isRejected
-                ? BRAND_RED
-                : isComplete
-                  ? BRAND_GREEN
-                  : BRAND_YELLOW
+              isRejected ? BRAND_RED : isComplete ? BRAND_GREEN : BRAND_YELLOW
             }
           />
         </View>
@@ -241,10 +238,16 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
         style={[
           styles.statusLabel,
           {
-            color: isRejected ? BRAND_RED : isComplete ? "#94A3B8" : BRAND_YELLOW,
+            color: isRejected
+              ? BRAND_RED
+              : isComplete
+                ? "#94A3B8"
+                : BRAND_YELLOW,
           },
         ]}
-      >{status}</Text>
+      >
+        {status}
+      </Text>
     </MotiView>
   );
 
@@ -273,10 +276,7 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
 
       {/* HEADER WITH LOGOUT */}
       <View style={styles.topBar}>
-        <TouchableOpacity
-          style={styles.logoutBtn}
-          onPress={handleLogout}
-        >
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Feather name="log-out" size={18} color="#FFF" />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
@@ -315,11 +315,7 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
               },
             ]}
           >
-            <Feather
-              name={current.icon}
-              size={40}
-              color={current.color}
-            />
+            <Feather name={current.icon} size={40} color={current.color} />
           </View>
         </View>
 
@@ -381,14 +377,17 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
               color={current.nextStepTitleColor}
             />
 
-            <Text style={[styles.nextStepTitle, { color: current.nextStepTitleColor }]}>
+            <Text
+              style={[
+                styles.nextStepTitle,
+                { color: current.nextStepTitleColor },
+              ]}
+            >
               {current.nextStepTitle}
             </Text>
           </View>
 
-          <Text style={styles.nextStepText}>
-            {current.nextStepText}
-          </Text>
+          <Text style={styles.nextStepText}>{current.nextStepText}</Text>
         </MotiView>
       </View>
 
@@ -404,29 +403,33 @@ const VerificationStatusScreen = ({ navigation, setIsLoggedIn, setDriverStatus, 
           },
         ]}
         onPress={async () => {
-          if (verificationStatus === "rejected") {
-            // Set driver status to "rejected" so that they start re-uploading documents.
-            setDriverStatus?.("rejected");
-            navigation.navigate("Documentscreen");
-          } else if (verificationStatus === "approved") {
-            const hasSeenKey = driver ? `hasSeenApproved_${driver.id}` : "hasSeenApproved";
-            await AsyncStorage.setItem(hasSeenKey, "true");
-            setDriverStatus?.("approved");
-            setIsNewUser?.(false);
-            // navigation.replace("ComingSoon");
-            navigation.replace("MainTabs");
+          try {
+            if (verificationStatus === "rejected") {
+              // Set driver status to "rejected" so that they start re-uploading documents.
+              setDriverStatus?.("rejected");
+              navigation.navigate("Documentscreen");
+            } else if (verificationStatus === "approved") {
+              const hasSeenKey = driver
+                ? `hasSeenApproved_${driver.id}`
+                : "hasSeenApproved";
+              await AsyncStorage.setItem(hasSeenKey, "true");
+              setDriverStatus?.("approved");
+              setIsNewUser?.(false);
+              console.log("🟢 NAVIGATING TO MainTabs");
+              // navigation.replace("ComingSoon");
+              navigation.replace("MainTabs");
+            }
+          } catch (error) {
+            console.error("❌ ERROR IN VERIFICATION BUTTON:", error);
+            console.error("ERROR DETAILS:", JSON.stringify(error, null, 2));
+            alert(`Navigation Error: ${error.message}`);
           }
         }}
       >
-        <Text style={styles.actionText}>
-          {current.buttonText}
-        </Text>
+        <Text style={styles.actionText}>{current.buttonText}</Text>
       </TouchableOpacity>
 
-      <SafeAreaView
-        edges={["bottom"]}
-        style={styles.bottomSafe}
-      />
+      <SafeAreaView edges={["bottom"]} style={styles.bottomSafe} />
     </SafeAreaView>
   );
 };
