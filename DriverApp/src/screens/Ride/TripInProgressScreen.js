@@ -1,23 +1,30 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Animated,
-  PanResponder,
-  ActivityIndicator,
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    PanResponder,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
+// import MapView, { Marker, Polyline } from "react-native-maps";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
-import { getDropCoordinate, getPickupCoordinate } from "../../utils/rideLocation";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import api from "../../services/api";
+import {
+    getDropCoordinate,
+    getPickupCoordinate,
+} from "../../utils/rideLocation";
 
 const { width, height } = Dimensions.get("window");
 
@@ -82,7 +89,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
       navigation.navigate("TripCompletedScreen", { ride });
     } catch (error) {
       console.log("Error completing ride:", error);
-      alert(error.response?.data?.message || "Failed to complete ride. Please try again.");
+      alert(
+        error.response?.data?.message ||
+          "Failed to complete ride. Please try again.",
+      );
       setCompleted(false);
       slideX.setValue(0);
     } finally {
@@ -111,7 +121,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
         if (completed || isCompleting) return;
 
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10;
-        const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.70;
+        const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.7;
 
         if (reachedEnd) {
           Animated.timing(slideX, {
@@ -123,7 +133,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
             // Trigger physical haptic response frame execution
             await Haptics.notificationAsync(
-              Haptics.NotificationFeedbackType.Success
+              Haptics.NotificationFeedbackType.Success,
             );
 
             handleCompleteTrip();
@@ -137,7 +147,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   return (
@@ -147,10 +157,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* TOP NAVIGATION HUD OVERLAY */}
       <SafeAreaView
-        style={[
-          styles.navHeaderContainer,
-          { paddingTop: insets.top || 12 },
-        ]}
+        style={[styles.navHeaderContainer, { paddingTop: insets.top || 12 }]}
         pointerEvents="box-none"
       >
         <View style={styles.googleNavBanner}>
@@ -200,23 +207,31 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
         <Marker coordinate={origin} anchor={{ x: 0.5, y: 0.5 }} rotation={145}>
           <View style={styles.navigationLocationArrow}>
-            <MaterialCommunityIcons name="navigation" size={20} color="#FFFFFF" />
+            <MaterialCommunityIcons
+              name="navigation"
+              size={20}
+              color="#FFFFFF"
+            />
           </View>
         </Marker>
 
         {dropCoord ? (
-        <Marker coordinate={dropCoord} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={styles.navDestPinOuter}>
-            <View style={styles.navDestPinInner} />
-          </View>
-        </Marker>
+          <Marker coordinate={dropCoord} anchor={{ x: 0.5, y: 0.5 }}>
+            <View style={styles.navDestPinOuter}>
+              <View style={styles.navDestPinInner} />
+            </View>
+          </Marker>
         ) : null}
       </MapView>
 
       {/* FLOATING ACTION UTILITIES */}
       <View style={styles.mapFloatingControls} pointerEvents="box-none">
         <TouchableOpacity style={styles.mapUtilityBtn} activeOpacity={0.8}>
-          <MaterialCommunityIcons name="layers-outline" size={22} color="#334155" />
+          <MaterialCommunityIcons
+            name="layers-outline"
+            size={22}
+            color="#334155"
+          />
         </TouchableOpacity>
         <TouchableOpacity style={styles.mapUtilityBtn} activeOpacity={0.8}>
           <Ionicons name="compass-outline" size={22} color="#334155" />
@@ -225,7 +240,6 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* DRIVER NAVIGATION BOTTOM CARD */}
       <View style={[styles.navBottomSheet, { bottom: insets.bottom || 16 }]}>
-        
         {/* Customer Basic Details Meta Deck */}
         <View style={styles.customerTopHeaderRow}>
           <View style={styles.customerAvatarMiniFrame}>
@@ -264,16 +278,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
         {/* SWIPABLE INTERACTION TRACK ELEMENT */}
         <View style={styles.sliderContainer}>
           <View style={styles.sliderTrack}>
-            <Text style={styles.sliderText}>
-              Slide to Arrive or Complete
-            </Text>
+            <Text style={styles.sliderText}>Slide to Arrive or Complete</Text>
 
             {/* Glowing inner colored progress layout fill */}
             <Animated.View
-              style={[
-                styles.sliderGlowFill,
-                { width: progressWidth },
-              ]}
+              style={[styles.sliderGlowFill, { width: progressWidth }]}
             />
 
             {/* Interactive Thumb Trigger Element */}
@@ -296,7 +305,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* Pure black backdrop alignment plate to isolate dynamic software notch fields */}
       <View
-        style={[styles.safeAreaBottomFillBlack, { height: insets.bottom || 16 }]}
+        style={[
+          styles.safeAreaBottomFillBlack,
+          { height: insets.bottom || 16 },
+        ]}
       />
     </View>
   );
