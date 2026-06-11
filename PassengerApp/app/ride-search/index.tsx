@@ -1,226 +1,250 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
   TouchableOpacity,
   Text,
   ActivityIndicator,
+  Animated,
+  ScrollView,
 } from "react-native";
-
 import * as Location from "expo-location";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import LocationPicker from "../components/ride/LocationPicker";
+import ReturnLocationPicker from "../components/ride/ReturnLocationPicker";
+import TripTypeToggle from "../components/ride/ridesearch_TripTypeToggle";
+import BookForFriendToggle from "../components/ride/ridesearch_BookForFriendToggle";
+import SavedAddresses from "../components/ride/ridesearch_SavedAddresses";
 import { LocationSuggestion } from "../services/location/locationSuggestionsService";
 import { useRideSearch } from "../context/RideSearchContext";
 
+type TripType = "one-way" | "return-trip";
+
 export default function RideSearchScreen() {
-  const { setOutboundPickup, setOutboundDropoff, setTripType: setContextTripType } = useRideSearch();
+  const {
+    setOutboundPickup,
+    setOutboundDropoff,
+    setTripType: setContextTripType,
+  } = useRideSearch();
+
   const [currentLocation, setCurrentLocation] =
     useState<LocationSuggestion | null>(null);
-
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [tripType, setTripType] = useState<TripType>("one-way");
+  const [bookForFriend, setBookForFriend] = useState(false);
 
-  const [tripType, setTripType] = useState<"one-way" | "return-trip">(
-    "one-way",
-  );
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
+    let cancelled = false;
+    const getCurrentLocation = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted" || cancelled) return;
+        const current = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+        });
+        if (!cancelled) {
+          setCurrentLocation({
+            id: "current",
+            address: "Your Location",
+            details: "Current position",
+            latitude: current.coords.latitude,
+            longitude: current.coords.longitude,
+            placeType: "address",
+          });
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        if (!cancelled) setIsLoadingLocation(false);
+      }
+    };
     getCurrentLocation();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const getCurrentLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-
-      if (status !== "granted") {
-        console.log("Location permission denied");
-        setIsLoadingLocation(false);
-        return;
-      }
-
-      const current = await Location.getCurrentPositionAsync({});
-
-      setCurrentLocation({
-        id: "current",
-        address: "Your Location",
-        details: "Current position",
-        latitude: current.coords.latitude,
-        longitude: current.coords.longitude,
-        placeType: "address",
-      });
-    } catch (error) {
-      console.log("Location Error:", error);
-    } finally {
-      setIsLoadingLocation(false);
-    }
+  const handleTripTypeChange = (value: TripType) => {
+    if (value === tripType) return;
+    Animated.spring(slideAnim, {
+      toValue: value === "one-way" ? 0 : 1,
+      useNativeDriver: true,
+      tension: 60,
+      friction: 10,
+    }).start();
+    Animated.sequence([
+      Animated.timing(contentOpacity, {
+        toValue: 0.4,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    setTripType(value);
   };
 
-  const handleLocationConfirm = (
-    pickup: LocationSuggestion,
-    destination: LocationSuggestion,
-  ) => {
-    // Save to centralized search context
-    setOutboundPickup(pickup);
-    setOutboundDropoff(destination);
-    setContextTripType(tripType === "return-trip" ? "return" : "oneway");
+  const pillTranslateX = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [
+      0,
+      (require("react-native").Dimensions.get("window").width - 32) / 2,
+    ],
+  });
 
-    // Always navigate to outbound ride selection first
-    router.push({
-      pathname: "/ride-search/select-ride",
-      params: {
-        pickup: JSON.stringify(pickup),
-        destination: JSON.stringify(destination),
-      },
-    });
+  const handleSavedAddressSelect = (location: LocationSuggestion) => {
+    console.log("Selected saved address:", location);
   };
 
   if (isLoadingLocation) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0B7BDC" />
-
-        <Text style={styles.loadingText}>Getting your location...</Text>
+        <View style={styles.loadingIconWrap}>
+          <Ionicons name="locate" size={28} color="#1B9E6E" />
+        </View>
+        <ActivityIndicator
+          size="large"
+          color="#1B9E6E"
+          style={{ marginTop: 20 }}
+        />
+        <Text style={styles.loadingText}>Getting your location…</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
+          <Ionicons name="chevron-back" size={24} color="#0D4F3C" />
         </TouchableOpacity>
-
-        <Text style={styles.headerTitle}>Select Ride</Text>
-
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle}>Book a ride</Text>
+        <View style={styles.headerSpacer} />
       </View>
 
-      {/* Trip Type Selection */}
-      <View style={styles.tripTypeSection}>
-        {/* One Way */}
-        <TouchableOpacity
-          style={styles.tripTypeButton}
-          onPress={() => setTripType("one-way")}
-        >
-          <Ionicons
-            name={
-              tripType === "one-way" ? "radio-button-on" : "radio-button-off"
-            }
-            size={16}
-            color={tripType === "one-way" ? "#111827" : "#D1D5DB"}
-          />
-
-          <Text
-            style={[
-              styles.tripTypeText,
-              tripType !== "one-way" && {
-                color: "#9CA3AF",
-              },
-            ]}
-          >
-            One way
-          </Text>
-        </TouchableOpacity>
-
-        {/* Return Trip */}
-        <TouchableOpacity
-          style={styles.tripTypeButton}
-          onPress={() => setTripType("return-trip")}
-        >
-          <Ionicons
-            name={
-              tripType === "return-trip"
-                ? "radio-button-on"
-                : "radio-button-off"
-            }
-            size={16}
-            color={tripType === "return-trip" ? "#111827" : "#D1D5DB"}
-          />
-
-          <Text
-            style={[
-              styles.tripTypeText,
-              tripType !== "return-trip" && {
-                color: "#9CA3AF",
-              },
-            ]}
-          >
-            Return trip
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Location Picker */}
-      {currentLocation && (
-        <LocationPicker
-          onConfirm={handleLocationConfirm}
-          currentLocation={currentLocation}
+      <ScrollView showsVerticalScrollIndicator={false}>
+        <BookForFriendToggle
+          value={bookForFriend}
+          onToggle={setBookForFriend}
         />
-      )}
+
+        <TripTypeToggle
+          tripType={tripType}
+          onToggle={handleTripTypeChange}
+          slideAnim={slideAnim}
+          pillTranslateX={pillTranslateX}
+        />
+
+        <Animated.View style={[styles.pickerWrap, { opacity: contentOpacity }]}>
+          {currentLocation &&
+            (tripType === "one-way" ? (
+              <LocationPicker
+                onConfirm={handleLocationConfirm}
+                currentLocation={currentLocation}
+              />
+            ) : (
+              <ReturnLocationPicker
+                onConfirm={handleReturnConfirm}
+                currentLocation={currentLocation}
+              />
+            ))}
+        </Animated.View>
+      </ScrollView>
     </View>
   );
+
+  function handleLocationConfirm(
+    pickup: LocationSuggestion,
+    destination: LocationSuggestion,
+  ) {
+    setOutboundPickup(pickup);
+    setOutboundDropoff(destination);
+    setContextTripType("oneway");
+    router.push({
+      pathname: "/ride-search/select-ride",
+      params: {
+        pickup: JSON.stringify(pickup),
+        destination: JSON.stringify(destination),
+        bookForFriend: String(bookForFriend),
+      },
+    });
+  }
+
+  function handleReturnConfirm(
+    pickup: LocationSuggestion,
+    stop: LocationSuggestion | null,
+    dropoff: LocationSuggestion,
+  ) {
+    setOutboundPickup(pickup);
+    setOutboundDropoff(dropoff);
+    setContextTripType("return");
+    router.push({
+      pathname: "/ride-search/select-ride-return",
+      params: {
+        outboundPickup: JSON.stringify(pickup),
+        outboundDest: JSON.stringify(dropoff),
+        returnStop: JSON.stringify(stop),
+        bookForFriend: String(bookForFriend),
+      },
+    });
+  }
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F4FBFF",
-  },
-
+  container: { flex: 1, backgroundColor: "#F0FAF5" },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4FBFF",
+    backgroundColor: "#F0FAF5",
   },
-
+  loadingIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#D6F2E7",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    color: "#6B7280",
+    marginTop: 14,
+    fontSize: 15,
+    color: "#4A7A68",
     fontWeight: "500",
   },
-
   header: {
-    marginTop: 50,
+    marginTop: 52,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    marginBottom: 20,
+    marginBottom: 16,
   },
-
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#111827",
-  },
-
-  tripTypeSection: {
-    flexDirection: "row",
-    gap: 12,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-
-  tripTypeButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    backgroundColor: "#fff",
+  backButton: {
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    elevation: 1,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#0D4F3C",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
   },
-
-  tripTypeText: {
-    fontSize: 13,
-    color: "#111827",
-    fontWeight: "500",
-  },
+  headerTitle: { fontSize: 18, fontWeight: "700", color: "#0D4F3C" },
+  headerSpacer: { width: 40 },
+  pickerWrap: { marginHorizontal: 16 },
 });
