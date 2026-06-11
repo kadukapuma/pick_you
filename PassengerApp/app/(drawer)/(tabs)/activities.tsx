@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { View, Text, TouchableOpacity, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import ActivityTabHeader, { ActivityTab } from "../../components/activities/ActivityTabHeader";
+import ActivityTabHeader, {
+  ActivityTab,
+} from "../../components/activities/ActivityTabHeader";
 import OngoingTab from "../../components/activities/OngoingTab";
 import CompletedTab from "../../components/activities/CompletedTab";
 import ComplaintTab from "../../components/activities/ComplaintTab";
@@ -42,18 +44,12 @@ export default function ActivitiesScreen() {
         </View>
 
         {/* TAB BAR */}
-        <ActivityTabHeader
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-        />
+        <ActivityTabHeader activeTab={activeTab} onTabChange={setActiveTab} />
       </View>
 
       {/* TAB CONTENT */}
       <View className="flex-1 px-5 pt-4">
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          className="flex-1"
-        >
+        <ScrollView showsVerticalScrollIndicator={false} className="flex-1">
           {renderTabContent()}
         </ScrollView>
       </View>
