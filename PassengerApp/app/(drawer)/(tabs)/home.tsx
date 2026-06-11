@@ -240,7 +240,7 @@ export default function HomeScreen() {
           ]}
         >
           <Text style={[styles.heroEyebrow, isSmallDevice && { fontSize: 11 }]}>
-            🇱🇰 Kandy & beyond
+            🇱🇰 Jaffna & beyond
           </Text>
           <Text
             style={[

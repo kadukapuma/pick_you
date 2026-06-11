@@ -64,6 +64,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     },
   },
   {
+    // Fixed: removed the extra 'a' character
     id: 2,
     name: "tuk",
     display_name: "Tuk Tuk",
@@ -213,7 +214,7 @@ function RideCard({
         toValue: selected ? 1 : 0,
         duration: 180,
         easing: Easing.out(Easing.quad),
-        useNativeDriver: false, // borderColor cannot use native driver
+        useNativeDriver: false,
       }),
     ]).start();
   }, [selected]);
@@ -382,11 +383,8 @@ export default function SelectRideScreen() {
             ? res.data.filter((v) => v.is_active)
             : MOCK_VEHICLE_TYPES;
         if (!cancelled) {
-          // Store vehicles; pricing computed in next effect
-          (async () => {})(); // no-op placeholder
+          _setRawVehicles(data);
           setLoadingVehicles(false);
-          // trigger pricing effect via a local temp state
-          if (!cancelled) _setRawVehicles(data);
         }
       } catch {
         if (!cancelled) {
