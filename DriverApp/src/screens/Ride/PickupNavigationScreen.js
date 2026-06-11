@@ -1,18 +1,19 @@
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Image,
+    Dimensions,
+    Image,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
+// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
+// import MapView, { Marker, Polyline } from "react-native-maps";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { getPickupCoordinate } from "../../utils/rideLocation";
 
 const { width, height } = Dimensions.get("window");
@@ -64,7 +65,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent={true}
+      />
 
       {/* MAP VIEWPORT */}
       <MapView
@@ -92,8 +97,8 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           rotation={38}
           style={styles.markerFix}
         >
-          <Image 
-            source={require('../../assets/car3d.png')} 
+          <Image
+            source={require("../../assets/car3d.png")}
             style={styles.driver3DVehicle}
             resizeMode="contain"
           />
@@ -101,11 +106,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
         {/* PICKUP TARGET LOCATION MARKER */}
         {pickupCoord ? (
-        <Marker coordinate={pickupCoord} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={styles.pickupMarkerOuter}>
-            <View style={styles.pickupMarkerInner} />
-          </View>
-        </Marker>
+          <Marker coordinate={pickupCoord} anchor={{ x: 0.5, y: 0.5 }}>
+            <View style={styles.pickupMarkerOuter}>
+              <View style={styles.pickupMarkerInner} />
+            </View>
+          </Marker>
         ) : null}
       </MapView>
 
@@ -113,7 +118,12 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       <View style={styles.etaCardContainer} pointerEvents="none">
         <View style={styles.etaCard}>
           <View style={styles.etaLineRow}>
-            <MaterialCommunityIcons name="car-sports" size={18} color="#00A859" style={styles.etaIconSpace} />
+            <MaterialCommunityIcons
+              name="car-sports"
+              size={18}
+              color="#00A859"
+              style={styles.etaIconSpace}
+            />
             <Text style={styles.etaTitle}>Driver Heading To Pickup</Text>
           </View>
           <View style={[styles.etaLineRow, { marginTop: 4, marginLeft: 28 }]}>
@@ -128,7 +138,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
       {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.circleBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
           <Feather name="arrow-left" size={22} color="#0F172A" />
         </TouchableOpacity>
       </SafeAreaView>
@@ -149,7 +163,10 @@ const PickupNavigationScreen = ({ navigation, route }) => {
                 <Text style={styles.ratingText}>{rating} Customer Rating</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.inlineNavCircle} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.inlineNavCircle}
+              activeOpacity={0.7}
+            >
               <Feather name="navigation" size={18} color="#0F172A" />
             </TouchableOpacity>
           </View>
@@ -161,7 +178,9 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </View>
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={styles.pickupLabel}>Pickup Location</Text>
-              <Text style={styles.pickupText} numberOfLines={1}>{pickup}</Text>
+              <Text style={styles.pickupText} numberOfLines={1}>
+                {pickup}
+              </Text>
             </View>
           </View>
 
@@ -176,7 +195,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.arrivedBtn} onPress={handleArrived} activeOpacity={0.9}>
+          <TouchableOpacity
+            style={styles.arrivedBtn}
+            onPress={handleArrived}
+            activeOpacity={0.9}
+          >
             <Text style={styles.arrivedText}>Arrived at Pickup</Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />

@@ -1,0 +1,77 @@
+.landing-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: "Inter", sans-serif;
+  color: #1a1f2b;
+}
+
+.landing-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem 5%;
+  background: #ffffff;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+/* Logo Container */
+.landing-logo {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+/* Logo Image */
+.logo-image {
+  height: 50px;
+  width: auto;
+  display: block;
+  object-fit: contain;
+}
+
+/* Navigation */
+.landing-nav {
+  display: flex;
+  gap: 2rem;
+  align-items: center;
+}
+
+.landing-nav a {
+  text-decoration: none;
+  color: #64748b;
+  font-weight: 500;
+  transition: color 0.2s ease;
+}
+
+.landing-nav a:hover {
+  color: #08d612;
+}
+
+/* Staff Login Button */
+.staff-login-link {
+  padding: 0.6rem 1.2rem;
+  background: #1a1f2b;
+  color: #ffffff !important;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  transition: opacity 0.2s ease;
+}
+
+.staff-login-link:hover {
+  opacity: 0.9;
+}
+
+/* Main Content */
+.landing-main {
+  flex: 1;
+}
+
+/* Footer */
+.landing-footer {
+  padding: 2rem;
+  text-align: center;
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 0.9rem;
+}

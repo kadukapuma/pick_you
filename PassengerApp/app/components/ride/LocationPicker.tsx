@@ -22,32 +22,45 @@ interface LocationPickerProps {
   currentLocation?: LocationSuggestion;
 }
 
-const SAVED_LOCATIONS = [
-  {
-    id: "home",
-    address: "Add Home",
-    details: "",
-    latitude: 0,
-    longitude: 0,
-    placeType: "saved" as const,
-  },
-  {
-    id: "work",
-    address: "Add Work",
-    details: "",
-    latitude: 0,
-    longitude: 0,
-    placeType: "saved" as const,
-  },
-];
-
 const QUICK_SAVED = [
   {
+    id: "royal_gym",
+    address: "Royal Gym Walala",
+    details: "Walala Road, Menikhinna",
+    latitude: 7.287,
+    longitude: 80.625,
+    placeType: "saved" as const,
+  },
+  {
     id: "kcc",
-    address: "Kcc",
-    details: "Kandy",
-    latitude: 6.9271,
-    longitude: 80.7789,
+    address: "KCC Multiplex",
+    details: "Sri Dalada Veediya, Kandy",
+    latitude: 7.293,
+    longitude: 80.634,
+    placeType: "saved" as const,
+  },
+  {
+    id: "colombo",
+    address: "Colombo",
+    details: "Western Province",
+    latitude: 6.927,
+    longitude: 79.861,
+    placeType: "saved" as const,
+  },
+  {
+    id: "kandy",
+    address: "Kandy",
+    details: "Central Province",
+    latitude: 7.29,
+    longitude: 80.633,
+    placeType: "saved" as const,
+  },
+  {
+    id: "katugastota",
+    address: "อพสัมมาบุคคล",
+    details: "Road, Katugastota",
+    latitude: 7.32,
+    longitude: 80.62,
     placeType: "saved" as const,
   },
 ];
@@ -63,94 +76,65 @@ export default function LocationPicker({
     null,
   );
 
-  const [pickupSearch, setPickupSearch] = useState("");
+  const [pickupSearch, setPickupSearch] = useState(
+    currentLocation?.address || "",
+  );
   const [dropSearch, setDropSearch] = useState("");
 
-  const [pickupSuggestions, setPickupSuggestions] = useState<
-    LocationSuggestion[]
-  >([]);
-  const [dropSuggestions, setDropSuggestions] = useState<LocationSuggestion[]>(
-    [],
+  const [activeField, setActiveField] = useState<"pickup" | "drop" | null>(
+    null,
   );
+  const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const [showPickupSuggestions, setShowPickupSuggestions] = useState(false);
-  const [showDropSuggestions, setShowDropSuggestions] = useState(false);
+  const debounceTimer = useRef<number | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
-  const [isLoadingPickup, setIsLoadingPickup] = useState(false);
-  const [isLoadingDrop, setIsLoadingDrop] = useState(false);
+  const handleSearch = (text: string, field: "pickup" | "drop") => {
+    if (field === "pickup") setPickupSearch(text);
+    if (field === "drop") setDropSearch(text);
 
-  // Debounce timers for API call optimization
-  const pickupDebounceTimer = useRef<number | null>(null);
-  const dropDebounceTimer = useRef<number | null>(null);
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
-  const handlePickupSearch = (text: string) => {
-    setPickupSearch(text);
-
-    // Clear previous timer
-    if (pickupDebounceTimer.current) {
-      clearTimeout(pickupDebounceTimer.current);
-    }
-
-    if (!text.trim() || text.length < 3) {
-      setPickupSuggestions([]);
-      setShowPickupSuggestions(false);
+    if (!text.trim() || text.length < 2) {
+      setSuggestions([]);
       return;
     }
 
-    // Set new debounce timer (800ms - optimized for free tier)
-    pickupDebounceTimer.current = setTimeout(async () => {
-      setIsLoadingPickup(true);
+    debounceTimer.current = setTimeout(async () => {
+      setIsLoading(true);
       try {
         const results = await searchLocationSuggestions(text);
-        setPickupSuggestions(results);
-        setShowPickupSuggestions(true);
+        setSuggestions(results);
       } catch (error) {
         console.log("Search error:", error);
       } finally {
-        setIsLoadingPickup(false);
+        setIsLoading(false);
       }
-    }, 800);
+    }, 500);
   };
 
-  const handleDropSearch = (text: string) => {
-    setDropSearch(text);
-
-    // Clear previous timer
-    if (dropDebounceTimer.current) {
-      clearTimeout(dropDebounceTimer.current);
-    }
-
-    if (!text.trim() || text.length < 3) {
-      setDropSuggestions([]);
-      setShowDropSuggestions(false);
-      return;
-    }
-
-    // Set new debounce timer (800ms - optimized for free tier)
-    dropDebounceTimer.current = setTimeout(async () => {
-      setIsLoadingDrop(true);
-      try {
-        const results = await searchLocationSuggestions(text);
-        setDropSuggestions(results);
-        setShowDropSuggestions(true);
-      } catch (error) {
-        console.log("Search error:", error);
-      } finally {
-        setIsLoadingDrop(false);
+  const handleSelectLocation = (location: LocationSuggestion) => {
+    if (activeField === "pickup") {
+      setPickup(location);
+      setPickupSearch(location.address);
+      if (destination && destination.id === pickup?.id) {
+        setDestination(null);
+        setDropSearch("");
       }
-    }, 800);
+    } else if (activeField === "drop") {
+      setDestination(location);
+      setDropSearch(location.address);
+    }
+    setActiveField(null);
+    setSuggestions([]);
   };
 
-  const handleSelectPickup = (location: LocationSuggestion) => {
-    setPickup(location);
-    setPickupSearch(location.address);
-    setShowPickupSuggestions(false);
-  };
-
-  const handleSelectDrop = (location: LocationSuggestion) => {
-    setDestination(location);
-    setDropSearch(location.address);
-    setShowDropSuggestions(false);
+  const handleFieldFocus = (field: "pickup" | "drop") => {
+    setActiveField(field);
+    setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated: true });
+    }, 100);
   };
 
   const handleConfirm = () => {
@@ -159,192 +143,209 @@ export default function LocationPicker({
     }
   };
 
-  return (
-    <View style={styles.container}>
-      {/* Location Inputs */}
-      <View style={styles.inputsSection}>
-        {/* Pickup Input */}
-        <View style={styles.inputWrapper}>
-          <View style={styles.dotPickup} />
-          <TextInput
-            placeholder="Your Location"
-            placeholderTextColor="#999"
-            value={pickupSearch}
-            onChangeText={handlePickupSearch}
-            onFocus={() => setShowPickupSuggestions(true)}
-            style={styles.input}
-          />
-          {pickupSearch && (
-            <TouchableOpacity
-              onPress={() => {
-                setPickupSearch("");
-                setPickup(null);
-              }}
-            >
-              <Ionicons name="close-circle" size={20} color="#999" />
-            </TouchableOpacity>
-          )}
-        </View>
+  const handleSetSameAsPickup = () => {
+    if (pickup) {
+      setDestination(pickup);
+      setDropSearch(pickup.address);
+    }
+  };
 
-        {/* Line */}
-        <View style={styles.line} />
+  const renderField = (
+    label: string,
+    icon: string,
+    iconColor: string,
+    value: string,
+    field: "pickup" | "drop",
+    placeholder: string,
+    selectedLocation: LocationSuggestion | null,
+  ) => {
+    const isActive = activeField === field;
+    const hasValue = !!selectedLocation;
 
-        {/* Drop Input */}
-        <View style={styles.inputWrapper}>
-          <View style={styles.dotDrop} />
-          <TextInput
-            placeholder="Where are you going?"
-            placeholderTextColor="#999"
-            value={dropSearch}
-            onChangeText={handleDropSearch}
-            onFocus={() => setShowDropSuggestions(true)}
-            style={styles.input}
-          />
-          {dropSearch && (
-            <TouchableOpacity
-              onPress={() => {
-                setDropSearch("");
-                setDestination(null);
-              }}
-            >
-              <Ionicons name="close-circle" size={20} color="#999" />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity>
-            <Ionicons name="add" size={24} color="#0B7BDC" />
-          </TouchableOpacity>
+    return (
+      <View style={styles.fieldWrapper}>
+        {/* Vertical dotted line for visual connection */}
+        {field === "drop" && (
+          <View style={styles.dottedLineContainer}>
+            <View style={styles.dottedLine} />
+          </View>
+        )}
+
+        <View style={[styles.fieldCard, isActive && styles.fieldCardActive]}>
+          <View style={styles.fieldRow}>
+            <View style={styles.labelContainer}>
+              <Ionicons name={icon as any} size={18} color={iconColor} />
+              <Text style={styles.label}>{label}</Text>
+            </View>
+
+            {isActive ? (
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  style={styles.input}
+                  placeholder={placeholder}
+                  placeholderTextColor="#B0C4C4"
+                  value={value}
+                  onChangeText={(text) => handleSearch(text, field)}
+                  autoFocus
+                  returnKeyType="search"
+                />
+                {value.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      if (field === "pickup") {
+                        setPickupSearch("");
+                        setPickup(null);
+                      }
+                      if (field === "drop") {
+                        setDropSearch("");
+                        setDestination(null);
+                      }
+                      setSuggestions([]);
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#B0C4C4" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : hasValue ? (
+              <TouchableOpacity
+                style={styles.valueWrapper}
+                onPress={() => handleFieldFocus(field)}
+              >
+                <Text style={styles.valueText} numberOfLines={1}>
+                  {selectedLocation.address}
+                </Text>
+                <View style={styles.editIcon}>
+                  <Ionicons name="create-outline" size={18} color="#1B9E6E" />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.valueWrapper}
+                onPress={() => handleFieldFocus(field)}
+              >
+                <Text style={styles.placeholderText}>{placeholder}</Text>
+                <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
       </View>
+    );
+  };
 
-      {/* Suggestions Dropdown */}
+  return (
+    <View style={styles.container}>
       <ScrollView
-        style={styles.suggestionsWrapper}
+        ref={scrollViewRef}
+        style={styles.scrollView}
         showsVerticalScrollIndicator={false}
-        nestedScrollEnabled
+        keyboardShouldPersistTaps="handled"
       >
-        {/* Pickup Suggestions */}
-        {showPickupSuggestions && (
-          <View>
-            {isLoadingPickup ? (
+        {/* Pickup Field */}
+        {renderField(
+          "PICKUP",
+          "location-outline",
+          "#1B9E6E",
+          pickupSearch,
+          "pickup",
+          "Your Location",
+          pickup,
+        )}
+
+        {/* Dropoff Field */}
+        {renderField(
+          "DROP",
+          "flag-outline",
+          "#FF6B6B",
+          dropSearch,
+          "drop",
+          "Where are you going?",
+          destination,
+        )}
+
+        {/* Same as pickup option */}
+        {pickup && !destination && !activeField && (
+          <TouchableOpacity
+            style={styles.sameAsPickup}
+            onPress={handleSetSameAsPickup}
+          >
+            <Ionicons name="sync-outline" size={18} color="#1B9E6E" />
+            <Text style={styles.sameAsPickupText}>Same as pickup</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Suggestions */}
+        {activeField && suggestions.length > 0 && (
+          <View style={styles.suggestionsContainer}>
+            {isLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#0B7BDC" />
+                <ActivityIndicator size="small" color="#1B9E6E" />
               </View>
-            ) : pickupSuggestions.length > 0 ? (
-              <View>
-                {pickupSuggestions.map((suggestion) => (
-                  <TouchableOpacity
-                    key={suggestion.id}
-                    style={styles.suggestionItem}
-                    onPress={() => handleSelectPickup(suggestion)}
-                  >
-                    <Ionicons name="location-sharp" size={20} color="#0B7BDC" />
-                    <View style={styles.suggestionText}>
-                      <Text style={styles.suggestionTitle}>
-                        {suggestion.address}
-                      </Text>
+            ) : (
+              suggestions.map((suggestion) => (
+                <TouchableOpacity
+                  key={suggestion.id}
+                  style={styles.suggestionItem}
+                  onPress={() => handleSelectLocation(suggestion)}
+                >
+                  <Ionicons name="location-outline" size={20} color="#1B9E6E" />
+                  <View style={styles.suggestionText}>
+                    <Text style={styles.suggestionTitle}>
+                      {suggestion.address}
+                    </Text>
+                    {suggestion.details && (
                       <Text style={styles.suggestionDetails}>
                         {suggestion.details}
                       </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color="#D1D5DB"
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : pickupSearch ? (
-              <View style={styles.noResults}>
-                <Text style={styles.noResultsText}>No locations found</Text>
-              </View>
-            ) : null}
+                    )}
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+                </TouchableOpacity>
+              ))
+            )}
           </View>
         )}
 
-        {/* Drop Suggestions */}
-        {showDropSuggestions && (
-          <View>
-            {isLoadingDrop ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#0B7BDC" />
-              </View>
-            ) : dropSuggestions.length > 0 ? (
-              <View>
-                {dropSuggestions.map((suggestion) => (
-                  <TouchableOpacity
-                    key={suggestion.id}
-                    style={styles.suggestionItem}
-                    onPress={() => handleSelectDrop(suggestion)}
-                  >
-                    <Ionicons name="location-sharp" size={20} color="#0B7BDC" />
-                    <View style={styles.suggestionText}>
-                      <Text style={styles.suggestionTitle}>
-                        {suggestion.address}
-                      </Text>
-                      <Text style={styles.suggestionDetails}>
-                        {suggestion.details}
-                      </Text>
-                    </View>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={20}
-                      color="#D1D5DB"
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : dropSearch ? (
-              <View style={styles.noResults}>
-                <Text style={styles.noResultsText}>No locations found</Text>
-              </View>
-            ) : null}
-          </View>
-        )}
+        {/* Saved Addresses Section */}
+        {!activeField && (
+          <View style={styles.savedSection}>
+            <Text style={styles.savedTitle}>Saved Addresses</Text>
 
-        {/* Options (show when no suggestions) */}
-        {!showPickupSuggestions && !showDropSuggestions && (
-          <View style={styles.optionsSection}>
-            {/* Saved Addresses */}
-            <TouchableOpacity style={styles.optionItem}>
-              <Ionicons name="heart-outline" size={24} color="#0B7BDC" />
-              <Text style={styles.optionText}>Saved Addresses</Text>
-              <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+            <TouchableOpacity style={styles.savedItem}>
+              <Ionicons name="map-outline" size={22} color="#1B9E6E" />
+              <Text style={styles.savedText}>Set location on map</Text>
             </TouchableOpacity>
 
-            {/* Set Location on Map */}
-            <TouchableOpacity style={styles.optionItem}>
-              <Ionicons name="locate-outline" size={24} color="#111827" />
-              <Text style={styles.optionText}>Set location on map</Text>
+            <TouchableOpacity style={styles.savedItem}>
+              <Ionicons name="home-outline" size={22} color="#FFA500" />
+              <Text style={styles.savedText}>Add Home</Text>
+              <Ionicons name="add-circle-outline" size={22} color="#1B9E6E" />
             </TouchableOpacity>
 
-            {/* Quick Locations */}
+            <TouchableOpacity style={styles.savedItem}>
+              <Ionicons name="briefcase-outline" size={22} color="#FF9500" />
+              <Text style={styles.savedText}>Add Work</Text>
+              <Ionicons name="add-circle-outline" size={22} color="#1B9E6E" />
+            </TouchableOpacity>
+
             <View style={styles.divider} />
 
-            {/* Add Home */}
-            <TouchableOpacity style={styles.optionItem}>
-              <Ionicons name="home-outline" size={24} color="#FFA500" />
-              <Text style={styles.optionText}>Add Home</Text>
-              <Ionicons name="add" size={24} color="#0B7BDC" />
-            </TouchableOpacity>
-
-            {/* Add Work */}
-            <TouchableOpacity style={styles.optionItem}>
-              <Ionicons name="briefcase-outline" size={24} color="#FF9500" />
-              <Text style={styles.optionText}>Add Work</Text>
-              <Ionicons name="add" size={24} color="#0B7BDC" />
-            </TouchableOpacity>
-
-            {/* Saved Quick Locations */}
             {QUICK_SAVED.map((location) => (
               <TouchableOpacity
                 key={location.id}
-                style={styles.optionItem}
-                onPress={() => handleSelectDrop(location)}
+                style={styles.savedItem}
+                onPress={() => {
+                  if (!pickup) {
+                    handleSelectLocation(location);
+                  } else if (!destination) {
+                    handleSelectLocation(location);
+                  }
+                }}
               >
-                <Ionicons name="location" size={24} color="#FFA500" />
+                <Ionicons name="location" size={22} color="#6B9E8E" />
                 <View style={styles.locationInfo}>
-                  <Text style={styles.optionText}>{location.address}</Text>
+                  <Text style={styles.savedText}>{location.address}</Text>
                   <Text style={styles.locationDetail}>{location.details}</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
@@ -355,7 +356,7 @@ export default function LocationPicker({
       </ScrollView>
 
       {/* Confirm Button */}
-      {pickup && destination && (
+      {pickup && destination && !activeField && (
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
           <Text style={styles.confirmText}>Confirm Location</Text>
         </TouchableOpacity>
@@ -367,154 +368,198 @@ export default function LocationPicker({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4FBFF",
+    backgroundColor: "#F0FAF5",
   },
-
-  inputsSection: {
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: 18,
+  scrollView: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  fieldWrapper: {
+    marginBottom: 4,
+  },
+  dottedLineContainer: {
+    alignItems: "center",
+    marginLeft: 20,
+    marginBottom: 4,
+  },
+  dottedLine: {
+    width: 2,
+    height: 24,
+    backgroundColor: "transparent",
+    borderLeftWidth: 2,
+    borderLeftColor: "#D1D5DB",
+    borderStyle: "dotted",
+  },
+  fieldCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
     padding: 16,
+    marginBottom: 8,
+    shadowColor: "#0D4F3C",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
     elevation: 2,
   },
-
-  inputWrapper: {
+  fieldCardActive: {
+    borderWidth: 1,
+    borderColor: "#1B9E6E",
+  },
+  fieldRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-
-  dotPickup: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#2563EB",
+  labelContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    width: 85,
   },
-
-  dotDrop: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: "#F97316",
+  label: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6B9E8E",
+    letterSpacing: 1,
   },
-
+  inputWrapper: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: "#000",
-    padding: 0,
+    fontSize: 14,
+    color: "#0D4F3C",
+    paddingVertical: 4,
   },
-
-  line: {
-    width: 1,
-    height: 25,
-    backgroundColor: "#D1D5DB",
-    marginLeft: 5,
-    marginVertical: 8,
-  },
-
-  suggestionsWrapper: {
+  valueWrapper: {
     flex: 1,
-    paddingHorizontal: 16,
-    marginTop: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-
+  valueText: {
+    fontSize: 14,
+    color: "#0D4F3C",
+    fontWeight: "500",
+    flex: 1,
+  },
+  editIcon: {
+    padding: 4,
+  },
+  placeholderText: {
+    fontSize: 14,
+    color: "#B0C4C4",
+    flex: 1,
+  },
+  sameAsPickup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: "#FFFFFF",
+    padding: 16,
+    borderRadius: 16,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+  sameAsPickupText: {
+    fontSize: 14,
+    color: "#1B9E6E",
+    fontWeight: "600",
+  },
+  suggestionsContainer: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
   loadingContainer: {
     paddingVertical: 20,
     alignItems: "center",
   },
-
   suggestionItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
-    marginVertical: 4,
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F0FAF5",
     gap: 12,
   },
-
   suggestionText: {
     flex: 1,
   },
-
   suggestionTitle: {
     fontSize: 15,
-    color: "#111827",
+    color: "#0D4F3C",
     fontWeight: "600",
   },
-
   suggestionDetails: {
     fontSize: 12,
-    color: "#6B7280",
+    color: "#6B9E8E",
     marginTop: 2,
   },
-
-  noResults: {
-    paddingVertical: 24,
-    alignItems: "center",
+  savedSection: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    paddingVertical: 8,
+    marginBottom: 100,
   },
-
-  noResultsText: {
+  savedTitle: {
     fontSize: 14,
-    color: "#6B7280",
+    fontWeight: "600",
+    color: "#6B9E8E",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    letterSpacing: 0.5,
   },
-
-  optionsSection: {
-    marginBottom: 16,
-  },
-
-  optionItem: {
+  savedItem: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: "#fff",
-    marginVertical: 4,
-    borderRadius: 12,
-    gap: 12,
+    paddingVertical: 14,
+    gap: 14,
   },
-
-  optionText: {
+  savedText: {
     flex: 1,
     fontSize: 15,
-    color: "#111827",
+    color: "#0D4F3C",
     fontWeight: "500",
   },
-
   locationInfo: {
     flex: 1,
   },
-
   locationDetail: {
     fontSize: 12,
-    color: "#6B7280",
+    color: "#6B9E8E",
     marginTop: 2,
   },
-
   divider: {
     height: 1,
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#E8F3EF",
     marginVertical: 8,
   },
-
   confirmButton: {
     position: "absolute",
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: "#FBBF24",
+    backgroundColor: "#1B9E6E",
     paddingVertical: 16,
-    borderRadius: 20,
+    borderRadius: 16,
     alignItems: "center",
-    elevation: 3,
+    shadowColor: "#1B9E6E",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
-
   confirmText: {
     fontSize: 16,
     fontWeight: "700",
-    color: "#000",
+    color: "#FFFFFF",
   },
 });
