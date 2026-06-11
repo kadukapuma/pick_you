@@ -67,6 +67,7 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'is_active' => true,
+            'is_verified' => false,
         ])->load('rolePermissions');
 
 
@@ -311,6 +312,10 @@ class AuthController extends Controller
         }
 
         $otp->update(['is_verified' => true]);
+
+        if ($request->purpose === 'verification') {
+            $user->update(['is_verified' => true]);
+        }
 
         return $this->success(null, 'OTP verified successfully');
     }

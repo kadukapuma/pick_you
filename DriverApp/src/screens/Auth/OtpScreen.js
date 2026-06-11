@@ -19,7 +19,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width } = Dimensions.get("window");
 
-const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver }) => {
+const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver, setVerificationUser }) => {
   // Backend returns a 4-digit OTP
   const [otp, setOtp] = useState(["", "", "", ""]);
   const [timer, setTimer] = useState(120);
@@ -174,6 +174,7 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
 
       setDriver?.(driverData);
       setDriverStatus?.(status);
+      setVerificationUser?.(null);
 
       if (isRegistration) {
         setIsNewUser?.(true);

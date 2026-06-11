@@ -12,6 +12,8 @@ const AppNavigator = ({
   setDriverStatus,
   driver,
   setDriver,
+  verificationUser,
+  setVerificationUser,
 }) => {
   return isLoggedIn ? (
     <MainNavigator
@@ -29,6 +31,8 @@ const AppNavigator = ({
       setIsNewUser={setIsNewUser}
       setDriverStatus={setDriverStatus}
       setDriver={setDriver}
+      verificationUser={verificationUser}
+      setVerificationUser={setVerificationUser}
     />
   );
 };
