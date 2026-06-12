@@ -1,11 +1,16 @@
 import "../global.css";
 import { useEffect, useRef, useState } from "react";
 import { Stack, router } from "expo-router";
-import { AppState, AppStateStatus, ActivityIndicator, View } from "react-native";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { RideSearchProvider } from "./context/RideSearchContext";
+import {
+  AppState,
+  AppStateStatus,
+  ActivityIndicator,
+  View,
+} from "react-native";
+import { AuthProvider, useAuth } from "../src/context/AuthContext";
+import { RideSearchProvider } from "../src/context/RideSearchContext";
 import MaintenanceScreen from "./components/MaintenanceScreen";
-import { fetchMaintenanceMode } from "./services/maintenanceService";
+import { fetchMaintenanceMode } from "../src/services/maintenanceService";
 
 function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -64,15 +69,19 @@ function RootLayoutContent() {
       loadMaintenanceMode();
     };
 
-    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
-      const wasBackgrounded = appStateRef.current.match(/inactive|background/);
-      appStateRef.current = nextState;
+    const appStateSubscription = AppState.addEventListener(
+      "change",
+      (nextState) => {
+        const wasBackgrounded =
+          appStateRef.current.match(/inactive|background/);
+        appStateRef.current = nextState;
 
-      if (wasBackgrounded && nextState === "active") {
-        console.log("🔄 App resumed - syncing maintenance mode");
-        syncMaintenanceMode();
-      }
-    });
+        if (wasBackgrounded && nextState === "active") {
+          console.log("🔄 App resumed - syncing maintenance mode");
+          syncMaintenanceMode();
+        }
+      },
+    );
 
     return () => {
       isActive = false;
@@ -133,10 +142,10 @@ function RootLayoutContent() {
     >
       {/* ✅ ALWAYS render (auth) - splash and onboarding screens */}
       <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-      
+
       {/* ✅ ALWAYS render (drawer) - app screens for authenticated users */}
       <Stack.Screen name="(drawer)" options={{ animation: "none" }} />
-      
+
       {/* Ride search overlay */}
       <Stack.Screen
         name="ride-search"

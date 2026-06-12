@@ -17,8 +17,8 @@ import ReturnLocationPicker from "../components/ride/ReturnLocationPicker";
 import TripTypeToggle from "../components/ride/ridesearch_TripTypeToggle";
 import BookForFriendToggle from "../components/ride/ridesearch_BookForFriendToggle";
 import SavedAddresses from "../components/ride/ridesearch_SavedAddresses";
-import { LocationSuggestion } from "../services/location/locationSuggestionsService";
-import { useRideSearch } from "../context/RideSearchContext";
+import { LocationSuggestion } from "../../src/services/location/locationSuggestionsService";
+import { useRideSearch } from "../../src/context/RideSearchContext";
 
 type TripType = "one-way" | "return-trip";
 

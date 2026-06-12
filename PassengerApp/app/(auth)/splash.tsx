@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { View, Image } from "react-native";
 import { router } from "expo-router";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../src/context/AuthContext";
 
 export default function Splash() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -20,7 +20,9 @@ export default function Splash() {
         router.replace("/(drawer)/(tabs)/home");
       } else {
         // ❌ User not logged in, go to get-started
-        console.log("❌ Splash: User not authenticated, navigating to get-started");
+        console.log(
+          "❌ Splash: User not authenticated, navigating to get-started",
+        );
         router.replace("/(auth)/get-started");
       }
     }, 2500);

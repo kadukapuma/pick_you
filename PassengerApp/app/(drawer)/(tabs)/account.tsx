@@ -17,11 +17,11 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "../../hooks/useAuth";
+import { useAuth } from "../../../src/hooks/useAuth";
 import {
   PassengerProfile,
   ProfileService,
-} from "../../services/auth/profileService";
+} from "../../../src/services/auth/profileService";
 
 function ProfileRow({ label, value }: { label: string; value: string }) {
   return (

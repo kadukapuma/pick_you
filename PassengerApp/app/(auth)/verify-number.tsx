@@ -11,8 +11,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AuthService } from "../services/auth/authService";
-import { useAuth } from "../context/AuthContext";
+import { AuthService } from "../../src/services/auth/authService";
+import { useAuth } from "../../src/context/AuthContext";
 
 export default function VerifyNumberScreen() {
   const { mobileNumber, testOtp } = useLocalSearchParams<{

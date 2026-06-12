@@ -10,12 +10,15 @@ import {
 } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-import { useRideSearch, type RideOption } from "../context/RideSearchContext";
+import {
+  useRideSearch,
+  type RideOption,
+} from "../../src/context/RideSearchContext";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../services/routing/mapboxRoutingService";
-import { apiClient } from "../services/api/apiClient";
+} from "../../src/services/routing/mapboxRoutingService";
+import { apiClient } from "../../src/services/api/apiClient";
 
 interface DBVehicleType {
   id: number;
@@ -49,7 +52,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
+    },
   },
   {
     id: 2,
@@ -65,7 +68,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
+    },
   },
   {
     id: 3,
@@ -81,7 +84,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
+    },
   },
   {
     id: 4,
@@ -97,11 +100,15 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
       per_minute_rate: "5.00",
       cancellation_fee: "50.00",
       is_active: true,
-    }
-  }
+    },
+  },
 ];
 
-const mapDBVehicleToOption = (vt: DBVehicleType, distanceMeters: number, durationSeconds: number): RideOption => {
+const mapDBVehicleToOption = (
+  vt: DBVehicleType,
+  distanceMeters: number,
+  durationSeconds: number,
+): RideOption => {
   const iconMap: Record<string, "car" | "bicycle" | "bus"> = {
     car: "car",
     tuk: "car",
@@ -117,10 +124,10 @@ const mapDBVehicleToOption = (vt: DBVehicleType, distanceMeters: number, duratio
     const perMinRate = parseFloat(vt.fare_config.per_minute_rate);
     const distanceKm = distanceMeters / 1000;
     const durationMin = durationSeconds / 60;
-    price = baseFare + (distanceKm * perKmRate) + (durationMin * perMinRate);
+    price = baseFare + distanceKm * perKmRate + durationMin * perMinRate;
   } else {
     const distanceKm = distanceMeters / 1000;
-    price = 150 + (distanceKm * 60);
+    price = 150 + distanceKm * 60;
   }
 
   const etaMap: Record<string, string> = {
@@ -189,14 +196,19 @@ export default function SelectRideReturnScreen() {
       try {
         const response = await apiClient.get<DBVehicleType[]>("/vehicle-types");
         if (response.success && response.data && response.data.length > 0) {
-          const active = response.data.filter(vt => vt.is_active);
+          const active = response.data.filter((vt) => vt.is_active);
           setDbVehicles(active);
         } else {
-          console.warn("API returned empty vehicle list or failed, falling back to mock data.");
+          console.warn(
+            "API returned empty vehicle list or failed, falling back to mock data.",
+          );
           setDbVehicles(MOCK_VEHICLE_TYPES);
         }
       } catch (error) {
-        console.error("Error fetching vehicle types, using mock fallback:", error);
+        console.error(
+          "Error fetching vehicle types, using mock fallback:",
+          error,
+        );
         setDbVehicles(MOCK_VEHICLE_TYPES);
       } finally {
         setLoadingVehicles(false);
@@ -208,8 +220,8 @@ export default function SelectRideReturnScreen() {
   // Compute dyn pricing once both vehicle types and routing directions are ready
   useEffect(() => {
     if (directions && dbVehicles.length > 0) {
-      const mapped = dbVehicles.map(vt => 
-        mapDBVehicleToOption(vt, directions.distance, directions.duration)
+      const mapped = dbVehicles.map((vt) =>
+        mapDBVehicleToOption(vt, directions.distance, directions.duration),
       );
       setRideOptions(mapped);
       // Auto select first option if none is selected
@@ -350,14 +362,44 @@ export default function SelectRideReturnScreen() {
 
         {/* Ride Cards - Horizontal Scroll */}
         {loadingRoute || loadingVehicles ? (
-          <View style={{ height: 170, justifyContent: "center", alignItems: "center" }}>
+          <View
+            style={{
+              height: 170,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
             <ActivityIndicator size="large" color="#10B981" />
-            <Text style={{ marginTop: 8, color: "#6B7280", fontSize: 13, fontWeight: "500" }}>Calculating return fares...</Text>
+            <Text
+              style={{
+                marginTop: 8,
+                color: "#6B7280",
+                fontSize: 13,
+                fontWeight: "500",
+              }}
+            >
+              Calculating return fares...
+            </Text>
           </View>
         ) : rideOptions.length === 0 ? (
-          <View style={{ height: 170, justifyContent: "center", alignItems: "center" }}>
+          <View
+            style={{
+              height: 170,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
             <Ionicons name="alert-circle-outline" size={32} color="#EF4444" />
-            <Text style={{ marginTop: 8, color: "#EF4444", fontSize: 13, fontWeight: "500" }}>No return vehicles available</Text>
+            <Text
+              style={{
+                marginTop: 8,
+                color: "#EF4444",
+                fontSize: 13,
+                fontWeight: "500",
+              }}
+            >
+              No return vehicles available
+            </Text>
           </View>
         ) : (
           <ScrollView
@@ -414,7 +456,8 @@ export default function SelectRideReturnScreen() {
                     <Text
                       style={[
                         styles.routeDistance,
-                        selectedRide === ride.id && styles.routeDistanceSelected,
+                        selectedRide === ride.id &&
+                          styles.routeDistanceSelected,
                       ]}
                     >
                       {directions.distanceText}
@@ -422,7 +465,8 @@ export default function SelectRideReturnScreen() {
                     <Text
                       style={[
                         styles.routeDuration,
-                        selectedRide === ride.id && styles.routeDurationSelected,
+                        selectedRide === ride.id &&
+                          styles.routeDurationSelected,
                       ]}
                     >
                       {directions.durationText}
@@ -485,7 +529,9 @@ export default function SelectRideReturnScreen() {
         <TouchableOpacity
           style={[
             styles.continueButton,
-            !selectedRide || isLoading || rideOptions.length === 0 ? styles.continueButtonDisabled : {},
+            !selectedRide || isLoading || rideOptions.length === 0
+              ? styles.continueButtonDisabled
+              : {},
           ]}
           onPress={handleContinue}
           disabled={!selectedRide || isLoading || rideOptions.length === 0}

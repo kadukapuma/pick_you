@@ -11,8 +11,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { searchLocationSuggestions } from "../../services/location/multiProviderService";
-import type { LocationSuggestion } from "../../services/location/multiProviderService";
+import { searchLocationSuggestions } from "../../../src/services/location/multiProviderService";
+import type { LocationSuggestion } from "../../../src/services/location/multiProviderService";
 
 interface LocationDualPickerProps {
   initialPickup?: LocationSuggestion | null;

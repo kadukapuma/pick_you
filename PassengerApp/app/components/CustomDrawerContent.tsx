@@ -9,7 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../hooks/useAuth";
+import { useAuth } from "../../src/hooks/useAuth";
 
 type MenuItemProps = {
   icon: keyof typeof Ionicons.glyphMap;

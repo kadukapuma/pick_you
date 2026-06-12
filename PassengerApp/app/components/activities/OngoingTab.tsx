@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { View, Text, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Dimensions } from "react-native";
-import { useRideSearch } from "../../context/RideSearchContext";
-import { apiClient } from "../../services/api/apiClient";
+import { useRideSearch } from "../../../src/context/RideSearchContext";
+import { apiClient } from "../../../src/services/api/apiClient";
 import EmptyState from "./EmptyState";
 import RideMap from "../ride/RideMap";
 import { router } from "expo-router";

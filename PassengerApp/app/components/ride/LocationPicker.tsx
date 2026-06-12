@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   searchLocationSuggestions,
   LocationSuggestion,
-} from "../../services/location/multiProviderService";
+} from "../../../src/services/location/multiProviderService";
 
 interface LocationPickerProps {
   onConfirm: (

@@ -8,11 +8,11 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { useState } from "react";
-import { apiClient } from "../services/api/apiClient";
-import { getCachedDirections_withCache } from "../services/routing/mapboxRoutingService";
+import { apiClient } from "../../src/services/api/apiClient";
+import { getCachedDirections_withCache } from "../../src/services/routing/mapboxRoutingService";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { useRideSearch } from "../context/RideSearchContext";
+import { useRideSearch } from "../../src/context/RideSearchContext";
 
 export default function ConfirmationScreen() {
   const [isBooking, setIsBooking] = useState(false);

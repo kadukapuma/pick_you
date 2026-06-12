@@ -3,7 +3,7 @@ import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { useCallback, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
-import { ProfileService } from "../../services/auth/profileService";
+import { ProfileService } from "../../../src/services/auth/profileService";
 
 type HomeHeaderProps = {
   compact?: boolean;

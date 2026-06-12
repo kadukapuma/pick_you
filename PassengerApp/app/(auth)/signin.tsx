@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import { AuthService } from "../services/auth/authService";
+import { AuthService } from "../../src/services/auth/authService";
 
 export default function SignInScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");

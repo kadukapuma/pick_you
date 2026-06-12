@@ -106,7 +106,10 @@ export function RideSearchProvider({
     setActiveRideStatus(null);
   };
 
-  const setActiveRide = (rideId: number | null, status: string | null = null) => {
+  const setActiveRide = (
+    rideId: number | null,
+    status: string | null = null,
+  ) => {
     setActiveRideId(rideId);
     setActiveRideStatus(status);
   };

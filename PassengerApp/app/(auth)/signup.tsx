@@ -17,18 +17,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import SuccessModal from "../components/SuccessModal";
 
-import { AuthService } from "../services/auth/authService";
+import { AuthService } from "../../src/services/auth/authService";
 
 import {
   getUserFriendlyError,
   getValidationErrors,
-} from "../utils/errorHandler";
+} from "../../src/utils/errorHandler";
 
 export default function SignUpScreen() {
   const { mobileNumber } = useLocalSearchParams<{
     mobileNumber?: string;
   }>();
-
 
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -178,8 +177,9 @@ export default function SignUpScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${validationErrors.firstName ? "border-2 border-red-500" : ""
-                }`}
+              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${
+                validationErrors.firstName ? "border-2 border-red-500" : ""
+              }`}
               placeholder="Enter first name"
               placeholderTextColor="#999"
               value={firstName}
@@ -205,8 +205,9 @@ export default function SignUpScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${validationErrors.lastName ? "border-2 border-red-500" : ""
-                }`}
+              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-3 text-base ${
+                validationErrors.lastName ? "border-2 border-red-500" : ""
+              }`}
               placeholder="Enter last name"
               placeholderTextColor="#999"
               value={lastName}
@@ -232,8 +233,9 @@ export default function SignUpScreen() {
             </Text>
 
             <TextInput
-              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-5 text-base ${validationErrors.email ? "border-2 border-red-500" : ""
-                }`}
+              className={`bg-[#EDEDED] rounded-xl px-4 py-3 mb-5 text-base ${
+                validationErrors.email ? "border-2 border-red-500" : ""
+              }`}
               placeholder="Enter email address (optional)"
               placeholderTextColor="#999"
               keyboardType="email-address"
@@ -265,8 +267,9 @@ export default function SignUpScreen() {
               onPress={handleSignUp}
               disabled={isVerifying}
               activeOpacity={0.8}
-              className={`rounded-xl py-4 items-center mb-8 mt-2 flex-row justify-center ${isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
-                }`}
+              className={`rounded-xl py-4 items-center mb-8 mt-2 flex-row justify-center ${
+                isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
+              }`}
             >
               {isVerifying ? (
                 <ActivityIndicator size="small" color="white" />

@@ -10,7 +10,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
-import type { LocationSuggestion } from "../../services/location/googlePlacesService";
+import type { LocationSuggestion } from "../../../src/services/location/googlePlacesService";
 
 interface LocationDualPickerProps {
   initialPickup?: LocationSuggestion | null;

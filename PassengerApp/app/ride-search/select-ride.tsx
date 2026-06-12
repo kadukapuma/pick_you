@@ -19,9 +19,9 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../services/routing/mapboxRoutingService";
-import { useRideSearch, type RideOption } from "../context/RideSearchContext";
-import { apiClient } from "../services/api/apiClient";
+} from "../../src/services/routing/mapboxRoutingService";
+import { useRideSearch, type RideOption } from "../../src/context/RideSearchContext";
+import { apiClient } from "../../src/services/api/apiClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {

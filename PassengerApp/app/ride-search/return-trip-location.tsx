@@ -3,8 +3,8 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 import LocationDualPicker from "../components/ride/LocationDualPicker";
-import { useRideSearch } from "../context/RideSearchContext";
-import type { LocationSuggestion } from "../services/location/locationSuggestionsService";
+import { useRideSearch } from "../../src/context/RideSearchContext";
+import type { LocationSuggestion } from "../../src/services/location/locationSuggestionsService";
 
 export default function ReturnTripLocationScreen() {
   const { outboundTrip, setReturnPickup, setReturnDropoff } = useRideSearch();
