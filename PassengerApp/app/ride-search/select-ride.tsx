@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -20,7 +21,10 @@ import {
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../src/services/routing/mapboxRoutingService";
-import { useRideSearch, type RideOption } from "../../src/context/RideSearchContext";
+import {
+  useRideSearch,
+  type RideOption,
+} from "../../src/context/RideSearchContext";
 import { apiClient } from "../../src/services/api/apiClient";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -315,6 +319,8 @@ function RideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+
   const { tripType, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
     useRideSearch();
 
@@ -322,6 +328,7 @@ export default function SelectRideScreen() {
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
+  const mapRef = useRef<MapView>(null);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   const pickup = JSON.parse(params.pickup as string);
@@ -412,6 +419,20 @@ export default function SelectRideScreen() {
     setLoadingVehicles(false);
   }, [directions, _rawVehicles]);
 
+  useEffect(() => {
+    if (!directions || !mapRef.current) return;
+
+    mapRef.current.fitToCoordinates(directions.polyline, {
+      edgePadding: {
+        top: 100,
+        right: 50,
+        bottom: 350,
+        left: 50,
+      },
+      animated: true,
+    });
+  }, [directions]);
+
   const handleBookNow = useCallback(() => {
     if (!selectedRide || rideOptions.length === 0) return;
     const opt = rideOptions.find((r) => r.id === selectedRide);
@@ -438,6 +459,7 @@ export default function SelectRideScreen() {
 
       {/* ── MAP ──────────────────────────────────────────────────────────── */}
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={{
           latitude: (pickup.latitude + destination.latitude) / 2,
@@ -448,25 +470,28 @@ export default function SelectRideScreen() {
             Math.abs(pickup.longitude - destination.longitude) * 2.4 + 0.02,
         }}
       >
-        {directions && directions.polyline.length > 0 ? (
-          <Polyline
-            coordinates={directions.polyline}
-            strokeColor={GREEN}
-            strokeWidth={4}
-          />
-        ) : (
-          <Polyline
-            coordinates={[
-              { latitude: pickup.latitude, longitude: pickup.longitude },
-              {
-                latitude: destination.latitude,
-                longitude: destination.longitude,
-              },
-            ]}
-            strokeColor={GREEN}
-            strokeWidth={3}
-            lineDashPattern={[6, 4]}
-          />
+        {directions && directions.polyline.length > 0 && (
+          <>
+            {/* White outline */}
+            <Polyline
+              coordinates={directions.polyline}
+              strokeColor="#FFFFFF"
+              strokeWidth={10}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={1}
+            />
+
+            {/* Green route */}
+            <Polyline
+              coordinates={directions.polyline}
+              strokeColor="#20B768"
+              strokeWidth={6}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={2}
+            />
+          </>
         )}
 
         <Marker
@@ -516,7 +541,11 @@ export default function SelectRideScreen() {
       <Animated.View
         style={[
           styles.sheet,
-          { opacity: sheetOpacity, transform: [{ translateY: sheetY }] },
+          {
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetY }],
+            paddingBottom: insets.bottom + 24,
+          },
         ]}
       >
         {/* Handle */}
@@ -678,7 +707,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     paddingHorizontal: 16,
     paddingTop: 10,
-    paddingBottom: Platform.OS === "ios" ? 34 : 20,
+    paddingBottom: 16,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -862,6 +891,7 @@ const styles = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 22,
     alignItems: "center",
+    marginBottom: Platform.OS === "android" ? 12 : 0,
     ...Platform.select({
       ios: {
         shadowColor: GREEN,
