@@ -12,6 +12,7 @@ export default function SearchBar({
   onPress,
 }: SearchBarProps) {
   const scale = useRef(new Animated.Value(1)).current;
+  const shadowAnim = useRef(new Animated.Value(0)).current;
 
   const animatePress = (toValue: number) => {
     Animated.spring(scale, {
@@ -19,6 +20,24 @@ export default function SearchBar({
       useNativeDriver: true,
       speed: 24,
       bounciness: 6,
+    }).start();
+  };
+
+  const handlePressIn = () => {
+    animatePress(0.97);
+    Animated.timing(shadowAnim, {
+      toValue: 1,
+      duration: 120,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  const handlePressOut = () => {
+    animatePress(1);
+    Animated.timing(shadowAnim, {
+      toValue: 0,
+      duration: 200,
+      useNativeDriver: false,
     }).start();
   };
 
@@ -39,50 +58,90 @@ export default function SearchBar({
     ]).start(() => onPress?.());
   };
 
+  const shadowOpacity = shadowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.06, 0.14],
+  });
+
+  const shadowRadius = shadowAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 18],
+  });
+
   return (
     <Animated.View style={{ transform: [{ scale }] }}>
       <Pressable
         onPress={handlePress}
-        onPressIn={() => animatePress(0.97)}
-        onPressOut={() => animatePress(1)}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
       >
-        <View
+        <Animated.View
           style={{
             backgroundColor: "white",
             borderRadius: compact ? 20 : 24,
             paddingHorizontal: compact ? 14 : 18,
-            paddingVertical: compact ? 9 : 12,
+            paddingVertical: compact ? 10 : 14,
             flexDirection: "row",
             alignItems: "center",
-            shadowColor: "#000",
-            shadowOpacity: 0.04,
-            shadowRadius: 8,
-            elevation: 2,
+            shadowColor: "#20B768",
+            shadowOpacity,
+            shadowRadius,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 4,
+            borderWidth: 1.5,
+            borderColor: "#E8F9F1",
           }}
         >
-          <Ionicons name="location" size={20} color="#22B36A" />
-
-          <Text
-            style={{
-              flex: 1,
-              marginLeft: 12,
-              fontSize: compact ? 13 : 15,
-              color: "#9CA3AF",
-            }}
+          {/* LEFT: pulsing location dot */}
+          <View
+            style={{ position: "relative", width: 24, alignItems: "center" }}
           >
-            Where are you going?
-          </Text>
+            <Ionicons name="location" size={20} color="#22B36A" />
+          </View>
 
+          {/* CENTER: placeholder */}
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text
+              style={{
+                fontSize: compact ? 13 : 15,
+                color: "#9CA3AF",
+                fontWeight: "500",
+              }}
+            >
+              Where are you going?
+            </Text>
+          </View>
+
+          {/* DIVIDER + HOME */}
           <View
             style={{
-              borderLeftWidth: 1,
-              borderLeftColor: "#E5E7EB",
-              paddingLeft: 14,
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
             }}
           >
-            <Ionicons name="home-outline" size={20} color="#374151" />
+            <View
+              style={{
+                width: 1,
+                height: compact ? 20 : 24,
+                backgroundColor: "#E5E7EB",
+              }}
+            />
+            <View
+              style={{
+                backgroundColor: "#F3F4F6",
+                borderRadius: compact ? 10 : 12,
+                padding: compact ? 6 : 8,
+              }}
+            >
+              <Ionicons
+                name="home-outline"
+                size={compact ? 16 : 18}
+                color="#374151"
+              />
+            </View>
           </View>
-        </View>
+        </Animated.View>
       </Pressable>
     </Animated.View>
   );

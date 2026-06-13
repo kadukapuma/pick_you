@@ -14,28 +14,28 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   View,
+  StatusBar,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "../../../src/hooks/useAuth";
+import { useAuth } from "../../../../src/hooks/useAuth";
 import {
   PassengerProfile,
   ProfileService,
-} from "../../../src/services/auth/profileService";
+} from "../../../../src/services/auth/profileService";
 
-function ProfileRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={styles.rowValue}>{value}</Text>
-    </View>
-  );
-}
+const ProfileRow = ({ label, value }: { label: string; value: string }) => (
+  <View style={styles.row}>
+    <Text style={styles.rowLabel}>{label}</Text>
+    <Text style={styles.rowValue}>{value}</Text>
+  </View>
+);
 
 const STICKY_HEADER_HEIGHT = 56;
 const COLLAPSE_THRESHOLD = 50;
+const GAP_BETWEEN_HEADER_AND_FIRST_FIELD = 28; // 👈 desired space
 
-export default function AccountScreen() {
+export default function EditProfileScreen() {
   const { logout } = useAuth();
   const tabBarHeight = useBottomTabBarHeight();
   const insets = useSafeAreaInsets();
@@ -54,27 +54,8 @@ export default function AccountScreen() {
     try {
       setIsLoading(true);
       setError(null);
-
       const result = await ProfileService.getProfile();
-
-      console.log("=== PROFILE API RESPONSE ===");
-      console.log("Success:", result.success);
-      console.log("Full result:", JSON.stringify(result, null, 2));
-
       if (result.success && result.data) {
-        console.log("=== PROFILE IMAGE DEBUG ===");
-        console.log("profileImage value:", result.data.profileImage);
-        console.log("profileImage type:", typeof result.data.profileImage);
-
-        if (
-          result.data.profileImage &&
-          !result.data.profileImage.startsWith("http")
-        ) {
-          console.warn("⚠️ Relative URL detected:", result.data.profileImage);
-        } else if (!result.data.profileImage) {
-          console.warn("⚠️ No profileImage in response");
-        }
-
         setProfile(result.data);
         setFirstName(result.data.firstName || "");
         setLastName(result.data.lastName || "");
@@ -83,7 +64,6 @@ export default function AccountScreen() {
         setError(result.message || "Failed to load profile");
       }
     } catch (err: any) {
-      console.error("Load profile error:", err);
       setError(err?.message || "Failed to load profile");
     } finally {
       setIsLoading(false);
@@ -99,7 +79,6 @@ export default function AccountScreen() {
       Alert.alert("Validation", "First name and last name are required.");
       return;
     }
-
     try {
       setIsSaving(true);
       const result = await ProfileService.updateProfile({
@@ -107,12 +86,8 @@ export default function AccountScreen() {
         lastName: lastName.trim(),
         email: email.trim() || null,
       });
-
       if (result.success && result.data) {
         setProfile(result.data);
-        setFirstName(result.data.firstName || "");
-        setLastName(result.data.lastName || "");
-        setEmail(result.data.email || "");
         Alert.alert(
           "Success",
           result.message || "Profile updated successfully",
@@ -138,23 +113,16 @@ export default function AccountScreen() {
         );
         return;
       }
-
       const pickerResult = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
       });
-
-      if (pickerResult.canceled || !pickerResult.assets?.length) {
-        return;
-      }
-
+      if (pickerResult.canceled || !pickerResult.assets?.length) return;
       const imageUri = pickerResult.assets[0].uri;
       setIsUploadingImage(true);
-
       const result = await ProfileService.uploadProfilePicture(imageUri);
-
       if (result.success && result.data) {
         setProfile(result.data);
         Alert.alert("Success", result.message || "Profile image updated");
@@ -228,24 +196,18 @@ export default function AccountScreen() {
   });
 
   const handleScroll = (event: any) => {
-    const offsetY = event?.nativeEvent?.contentOffset?.y ?? 0;
-    scrollY.setValue(offsetY);
+    scrollY.setValue(event.nativeEvent.contentOffset.y);
   };
 
   return (
-    <View className="flex-1 bg-[#F4FBFF] px-5">
-      <View
-        style={[
-          styles.stickyHeader,
-          {
-            top: insets.top + 2,
-          },
-        ]}
-      >
-        <Text style={styles.stickyTitle}>Profile</Text>
-      </View>
+    <View style={styles.root}>
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
-      {/* Avatar with edit button - ALWAYS VISIBLE */}
+      {/* Animated Avatar */}
       <Animated.View
         pointerEvents="box-none"
         style={[
@@ -268,19 +230,6 @@ export default function AccountScreen() {
             <Image
               source={{ uri: profile.profileImage }}
               style={styles.avatar}
-              onLoad={() =>
-                console.log(
-                  "✅ IMAGE LOADED SUCCESSFULLY:",
-                  profile.profileImage,
-                )
-              }
-              onError={(e) =>
-                console.log(
-                  "❌ IMAGE FAILED TO LOAD:",
-                  profile.profileImage,
-                  e.nativeEvent,
-                )
-              }
             />
           ) : (
             <View style={[styles.avatar, styles.avatarPlaceholder]}>
@@ -303,117 +252,128 @@ export default function AccountScreen() {
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
         contentContainerStyle={{
-          flexGrow: 1,
-          justifyContent: "flex-start",
+          // 👇 CRITICAL: Guaranteed gap below header
           paddingTop:
-            insets.top + STICKY_HEADER_HEIGHT + (isShortScreen ? 20 : 12),
-          paddingBottom: contentBottomSpacing,
+            insets.top +
+            STICKY_HEADER_HEIGHT +
+            GAP_BETWEEN_HEADER_AND_FIRST_FIELD +
+            (isShortScreen ? 20 : 12),
+          paddingBottom: contentBottomSpacing + 40,
+          paddingHorizontal: 20,
         }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        enableOnAndroid
-        extraScrollHeight={24}
         onScroll={handleScroll}
         scrollEventThrottle={16}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={40}
+        enableAutomaticScroll={true}
+        keyboardOpeningTime={0}
+        viewIsInsideTabBar={false}
+        resetScrollToCoords={{ x: 0, y: 0 }}
+        bounces={false} // prevents overscroll on iOS
+        overScrollMode="never" // prevents overscroll on Android
       >
-        <View style={styles.pageContent}>
-          {isLoading ? (
-            <View style={styles.centerBlock}>
-              <ActivityIndicator size="small" color="#0EA5E9" />
-              <Text style={styles.loadingText}>Loading profile...</Text>
+        {isLoading ? (
+          <View style={styles.centerBlock}>
+            <ActivityIndicator size="small" color="#10B981" />
+            <Text style={styles.loadingText}>Loading profile...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.centerBlock}>
+            <Text style={styles.errorText}>{error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadProfile}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Spacer to avoid absolute avatar overlapping the fields */}
+            <View style={{ height: 120 }} />
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>First Name</Text>
+              <TextInput
+                value={firstName}
+                onChangeText={setFirstName}
+                placeholder="Enter your first name"
+                placeholderTextColor="#9CA3AF"
+                style={styles.input}
+              />
             </View>
-          ) : error ? (
-            <View style={styles.centerBlock}>
-              <Text style={styles.errorText}>{error}</Text>
-              <TouchableOpacity
-                style={styles.retryButton}
-                onPress={loadProfile}
-              >
-                <Text style={styles.retryText}>Retry</Text>
-              </TouchableOpacity>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Last Name</Text>
+              <TextInput
+                value={lastName}
+                onChangeText={setLastName}
+                placeholder="Enter your last name"
+                placeholderTextColor="#9CA3AF"
+                style={styles.input}
+              />
             </View>
-          ) : (
-            <View>
-              <View style={styles.avatarSpacer} />
 
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>First Name</Text>
-                <TextInput
-                  value={firstName}
-                  onChangeText={setFirstName}
-                  placeholder="First name"
-                  style={styles.input}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Last Name</Text>
-                <TextInput
-                  value={lastName}
-                  onChangeText={setLastName}
-                  placeholder="Last name"
-                  style={styles.input}
-                />
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Email (Optional)</Text>
-                <TextInput
-                  value={email}
-                  onChangeText={setEmail}
-                  placeholder="Enter email"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  style={styles.input}
-                />
-              </View>
-
-              <ProfileRow label="Phone Number" value={profile?.phone || "-"} />
-
-              {profile?.walletBalance !== null &&
-              profile?.walletBalance !== undefined ? (
-                <ProfileRow
-                  label="Wallet Balance"
-                  value={`LKR ${Number(profile.walletBalance).toFixed(2)}`}
-                />
-              ) : null}
-
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={handleSaveProfile}
-                style={styles.saveButton}
-                disabled={isSaving}
-              >
-                <Text style={styles.saveText}>
-                  {isSaving ? "Saving..." : "Save Profile"}
-                </Text>
-              </TouchableOpacity>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email (Optional)</Text>
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="your@email.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#9CA3AF"
+                style={styles.input}
+              />
             </View>
-          )}
 
-          <TouchableOpacity
-            activeOpacity={0.85}
-            onPress={handleLogout}
-            style={styles.logoutButton}
-          >
-            <Ionicons name="log-out-outline" size={18} color="#FFFFFF" />
-            <Text style={styles.logoutText}>Logout</Text>
-          </TouchableOpacity>
-        </View>
+            <View style={styles.divider} />
+
+            <ProfileRow
+              label="Phone Number"
+              value={profile?.phone || "Not provided"}
+            />
+            {profile?.walletBalance != null && (
+              <ProfileRow
+                label="Wallet Balance"
+                value={`LKR ${Number(profile.walletBalance).toFixed(2)}`}
+              />
+            )}
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              onPress={handleSaveProfile}
+              style={[styles.saveButton, isSaving && styles.saveButtonDisabled]}
+              disabled={isSaving}
+            >
+              <Text style={styles.saveText}>
+                {isSaving ? "Saving..." : "Save Changes"}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleLogout}
+              style={styles.logoutButton}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
+              <Text style={styles.logoutText}>Logout</Text>
+            </TouchableOpacity>
+          </>
+        )}
       </KeyboardAwareScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  pageContent: {
-    paddingHorizontal: 2,
-    paddingBottom: 8,
+  root: {
+    flex: 1,
+    backgroundColor: "#F4FBFF",
   },
   stickyHeader: {
     position: "absolute",
-    left: 2,
-    right: 2,
+    left: 20,
+    right: 20,
     zIndex: 20,
     height: STICKY_HEADER_HEIGHT,
     flexDirection: "row",
@@ -422,32 +382,28 @@ const styles = StyleSheet.create({
   },
   stickyTitle: {
     color: "#111827",
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "800",
-  },
-  topAvatarWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    overflow: "hidden",
-    backgroundColor: "#E5E7EB",
-  },
-  topAvatar: {
-    width: "100%",
-    height: "100%",
-  },
-  topAvatarPlaceholder: {
-    flex: 1,
-    backgroundColor: "#D1D5DB",
+    letterSpacing: -0.3,
   },
   floatingAvatar: {
     position: "absolute",
     zIndex: 30,
-    borderRadius: 45,
+    borderRadius: 999,
     overflow: "visible",
   },
-  avatarSpacer: {
-    height: 170,
+  avatarRing: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 3,
+    borderColor: "#10B981",
+    backgroundColor: "#FFFFFF",
+    overflow: "hidden",
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
   },
   avatar: {
     width: "100%",
@@ -457,130 +413,20 @@ const styles = StyleSheet.create({
     backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: 55,
-  },
-  avatarRing: {
-    flex: 1,
-    borderRadius: 55,
-    borderWidth: 3,
-    borderColor: "#10B981",
-    backgroundColor: "#FFFFFF",
-    overflow: "hidden",
-    shadowColor: "#10B981",
-    shadowOffset: {
-      width: 0,
-      height: 3,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 6,
-    elevation: 4,
-  },
-  inputGroup: {
-    marginBottom: 12,
-  },
-  inputLabel: {
-    color: "#374151",
-    fontSize: 13,
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: "#D1D5DB",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    color: "#111827",
-    fontSize: 14,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  saveButton: {
-    alignItems: "center",
-    backgroundColor: "#10B981",
-    borderRadius: 14,
-    justifyContent: "center",
-    marginTop: 12,
-    paddingVertical: 12,
-  },
-  saveText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  rowLabel: {
-    color: "#374151",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  rowValue: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "700",
-    maxWidth: "58%",
-    textAlign: "right",
-  },
-  centerBlock: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 20,
-  },
-  loadingText: {
-    marginTop: 10,
-    color: "#6B7280",
-    fontSize: 13,
-  },
-  errorText: {
-    color: "#EF4444",
-    fontSize: 13,
-    textAlign: "center",
-    marginBottom: 10,
-  },
-  retryButton: {
-    backgroundColor: "#0EA5E9",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-  },
-  retryText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-  },
-  logoutButton: {
-    alignItems: "center",
-    backgroundColor: "#EF4444",
-    borderRadius: 18,
-    flexDirection: "row",
-    justifyContent: "center",
-    marginTop: 18,
-    paddingVertical: 14,
-  },
-  logoutText: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "800",
-    marginLeft: 8,
   },
   editBadge: {
     position: "absolute",
     bottom: 2,
     right: 2,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     backgroundColor: "#10B981",
     borderWidth: 2,
     borderColor: "#FFFFFF",
-    shadowColor: "#000000",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
+    shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
   },
@@ -588,5 +434,116 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
+  },
+  inputGroup: {
+    marginBottom: 20,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
+    letterSpacing: -0.2,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 16,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#111827",
+    fontWeight: "500",
+  },
+  divider: {
+    height: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 20,
+  },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+  },
+  rowLabel: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#6B7280",
+  },
+  rowValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#111827",
+    maxWidth: "60%",
+    textAlign: "right",
+  },
+  saveButton: {
+    backgroundColor: "#10B981",
+    borderRadius: 30,
+    paddingVertical: 16,
+    alignItems: "center",
+    marginTop: 24,
+    shadowColor: "#10B981",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  saveButtonDisabled: {
+    opacity: 0.7,
+    shadowOpacity: 0,
+  },
+  saveText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+  logoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 28,
+    paddingVertical: 14,
+    borderRadius: 30,
+    backgroundColor: "#FEF2F2",
+    borderWidth: 1,
+    borderColor: "#FEE2E2",
+  },
+  logoutText: {
+    color: "#EF4444",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  centerBlock: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 40,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: "#6B7280",
+    fontSize: 14,
+  },
+  errorText: {
+    color: "#EF4444",
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 12,
+  },
+  retryButton: {
+    backgroundColor: "#10B981",
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 30,
+  },
+  retryText: {
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
 });

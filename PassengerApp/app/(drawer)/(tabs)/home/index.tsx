@@ -15,11 +15,11 @@ import {
   View,
 } from "react-native";
 
-import FeatureRow from "../../components/home/FeatureRow";
-import HomeHeader from "../../components/home/HomeHeader";
-import SavedPlaces from "../../components/home/SavedPlaces";
-import SearchBar from "../../components/home/SearchBar";
-import ServiceGridnew from "../../components/home/serviceGridnew";
+import FeatureRow from "../../../components/home/FeatureRow";
+import HomeHeader from "../../../components/home/HomeHeader";
+import SavedPlaces from "../../../components/home/SavedPlaces";
+import SearchBar from "../../../components/home/SearchBar";
+import ServiceGridnew from "../../../components/home/serviceGridnew";
 
 // ─── Staggered entrance animation hook ─────────────────────────────────────
 function useEntrance(delay = 0, duration = 520) {
@@ -182,7 +182,7 @@ export default function HomeScreen() {
           ]}
         >
           <Animated.Image
-            source={require("../../../assets/images/map.png")}
+            source={require("../../../../assets/images/map.png")}
             style={[styles.mapImage, { transform: mapAnim.transform }]}
           />
         </Animated.View>

@@ -217,11 +217,11 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="notification"
         options={{
-          title: "Activity",
+          title: "Notifications",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <Ionicons
-                name={focused ? "time" : "time-outline"}
+                name={focused ? "notifications" : "notifications-outline"}
                 size={21}
                 color={color}
               />
@@ -250,6 +250,7 @@ export default function TabsLayout() {
       {/* HIDDEN SCREENS */}
       <Tabs.Screen name="account" options={{ href: null }} />
       <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen name="saveaddress" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { useRef } from "react";
+import { Animated, Image, Text, TouchableOpacity, View } from "react-native";
 
 const services = [
   {
@@ -59,9 +60,131 @@ const services = [
     color: "#EC4899",
   },
 ];
+
 type ServiceGridProps = {
   compact?: boolean;
 };
+
+function GridCard({
+  item,
+  compact,
+}: {
+  item: (typeof services)[0];
+  compact: boolean;
+}) {
+  const scale = useRef(new Animated.Value(1)).current;
+
+  return (
+    <Animated.View
+      style={{
+        width: "23%",
+        marginBottom: compact ? 6 : 10,
+        transform: [{ scale }],
+      }}
+    >
+      <TouchableOpacity
+        activeOpacity={0.82}
+        onPressIn={() =>
+          Animated.spring(scale, {
+            toValue: 0.93,
+            useNativeDriver: true,
+            speed: 32,
+            bounciness: 3,
+          }).start()
+        }
+        onPressOut={() =>
+          Animated.spring(scale, {
+            toValue: 1,
+            useNativeDriver: true,
+            speed: 22,
+            bounciness: 8,
+          }).start()
+        }
+        style={{
+          backgroundColor: item.bg,
+          borderRadius: compact ? 16 : 20,
+          paddingVertical: compact ? 8 : 12,
+          paddingHorizontal: compact ? 6 : 8,
+          alignItems: "flex-start",
+          overflow: "hidden",
+        }}
+      >
+        {/* Soft highlight circle */}
+        <View
+          style={{
+            position: "absolute",
+            top: -14,
+            right: -14,
+            width: 52,
+            height: 52,
+            borderRadius: 26,
+            backgroundColor: "rgba(255,255,255,0.28)",
+          }}
+          pointerEvents="none"
+        />
+
+        {/* IMAGE */}
+        <Image
+          source={item.image}
+          style={{
+            width: compact ? 38 : 52,
+            height: compact ? 38 : 52,
+            resizeMode: "contain",
+            alignSelf: "center",
+          }}
+        />
+
+        {/* TITLE */}
+        <Text
+          style={{
+            color: "#111827",
+            fontWeight: "800",
+            fontSize: compact ? 9 : 10,
+            marginTop: compact ? 5 : 9,
+            letterSpacing: -0.1,
+          }}
+          numberOfLines={1}
+        >
+          {item.title}
+        </Text>
+
+        {/* SUBTITLE */}
+        <Text
+          style={{
+            color: "#6B7280",
+            fontSize: compact ? 8 : 9,
+            marginTop: 2,
+            fontWeight: "400",
+          }}
+          numberOfLines={1}
+        >
+          {item.subtitle}
+        </Text>
+
+        {/* ARROW */}
+        <View
+          style={{
+            width: compact ? 20 : 24,
+            height: compact ? 20 : 24,
+            borderRadius: compact ? 10 : 12,
+            backgroundColor: item.color,
+            alignItems: "center",
+            justifyContent: "center",
+            alignSelf: "flex-end",
+            marginTop: compact ? 4 : 7,
+            shadowColor: item.color,
+            shadowOpacity: 0.35,
+            shadowRadius: 4,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 2,
+          }}
+        >
+          <Ionicons name="arrow-forward" size={11} color="white" />
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function ServiceGrid({ compact = false }: ServiceGridProps) {
   return (
@@ -73,78 +196,7 @@ export default function ServiceGrid({ compact = false }: ServiceGridProps) {
       }}
     >
       {services.map((item, index) => (
-        <TouchableOpacity
-          key={index}
-          activeOpacity={0.8}
-          style={{
-            width: "23%",
-
-            backgroundColor: item.bg,
-
-            borderRadius: compact ? 14 : 18,
-
-            paddingVertical: compact ? 5 : 8,
-            paddingHorizontal: compact ? 6 : 8,
-
-            marginBottom: compact ? 5 : 9,
-          }}
-        >
-          {/* IMAGE */}
-          <Image
-            source={item.image}
-            style={{
-              width: compact ? 36 : 50,
-              height: compact ? 36 : 50,
-              resizeMode: "contain",
-              alignSelf: "center",
-            }}
-          />
-
-          {/* TITLE */}
-          <Text
-            style={{
-              color: "#111827",
-              fontWeight: "700",
-              fontSize: compact ? 9 : 10,
-              marginTop: compact ? 4 : 8,
-            }}
-            numberOfLines={1}
-          >
-            {item.title}
-          </Text>
-
-          {/* SUBTITLE */}
-          <Text
-            style={{
-              color: "#6B7280",
-              fontSize: compact ? 8 : 9,
-              marginTop: 2,
-            }}
-            numberOfLines={1}
-          >
-            {item.subtitle}
-          </Text>
-
-          {/* ARROW */}
-          <View
-            style={{
-              width: compact ? 18 : 20,
-              height: compact ? 18 : 20,
-              borderRadius: compact ? 9 : 10,
-
-              backgroundColor: item.color,
-
-              alignItems: "center",
-              justifyContent: "center",
-
-              alignSelf: "flex-end",
-
-              marginTop: compact ? 3 : 6,
-            }}
-          >
-            <Ionicons name="arrow-forward" size={11} color="white" />
-          </View>
-        </TouchableOpacity>
+        <GridCard key={index} item={item} compact={compact} />
       ))}
     </View>
   );
