@@ -102,8 +102,6 @@ export default function HomeScreen() {
 
   const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
     const offsetY = event.nativeEvent.contentOffset.y;
-    const isAtTop = offsetY <= 2;
-    setHeaderActive((cur) => (cur === isAtTop ? cur : isAtTop));
     scrollY.setValue(offsetY);
   };
 
@@ -200,7 +198,6 @@ export default function HomeScreen() {
 
       {/* ── HEADER ─────────────────────────────────────────────────────── */}
       <Animated.View
-        pointerEvents={headerActive ? "auto" : "none"}
         style={[
           styles.header,
           {
@@ -337,6 +334,8 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
+    zIndex: 999,
+    elevation: 999, // Add this line for Android
   },
 
   // ── Scroll ─────────────────────────────────────────────────────────────
