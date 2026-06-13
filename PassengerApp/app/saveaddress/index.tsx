@@ -53,6 +53,24 @@ const addresses: Address[] = [
     fullAddress: "456 7th Nue, Jakarta, NY 20003, Indonesia",
     pinpointed: true,
   },
+  {
+    id: "4",
+    label: "GF's Apartment",
+    isMain: false,
+    contactName: "Abriella Gatha",
+    phone: "+61 817 0280 2005",
+    fullAddress: "456 7th Nue, Jakarta, NY 20003, Indonesia",
+    pinpointed: true,
+  },
+  {
+    id: "5",
+    label: "GF's Apartment",
+    isMain: false,
+    contactName: "Abriella Gatha",
+    phone: "+61 817 0280 2005",
+    fullAddress: "456 7th Nue, Jakarta, NY 20003, Indonesia",
+    pinpointed: true,
+  },
 ];
 
 // ─── Address Card ─────────────────────────────────────────────────────────────
