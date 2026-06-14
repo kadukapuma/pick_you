@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   searchLocationSuggestions,
   LocationSuggestion,
@@ -89,6 +90,18 @@ export default function LocationPicker({
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const insets = useSafeAreaInsets();
+
+  // ✅ Auto-navigation effect
+  useEffect(() => {
+    if (pickup && destination) {
+      const timer = setTimeout(() => {
+        onConfirm(pickup, destination);
+      }, 300);
+
+      return () => clearTimeout(timer); // cleanup if user changes quickly
+    }
+  }, [pickup, destination]);
 
   const handleSearch = (text: string, field: "pickup" | "drop") => {
     if (field === "pickup") setPickupSearch(text);
@@ -126,6 +139,7 @@ export default function LocationPicker({
       setDestination(location);
       setDropSearch(location.address);
     }
+
     setActiveField(null);
     setSuggestions([]);
   };
@@ -135,12 +149,6 @@ export default function LocationPicker({
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  };
-
-  const handleConfirm = () => {
-    if (pickup && destination) {
-      onConfirm(pickup, destination);
-    }
   };
 
   const handleSetSameAsPickup = () => {
@@ -239,6 +247,9 @@ export default function LocationPicker({
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
+        contentContainerStyle={{
+          paddingBottom: 40 + insets.bottom,
+        }}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -354,13 +365,6 @@ export default function LocationPicker({
           </View>
         )}
       </ScrollView>
-
-      {/* Confirm Button */}
-      {pickup && destination && !activeField && (
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmText}>Confirm Location</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
@@ -506,7 +510,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     paddingVertical: 8,
-    marginBottom: 100,
   },
   savedTitle: {
     fontSize: 14,
@@ -541,25 +544,5 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: "#E8F3EF",
     marginVertical: 8,
-  },
-  confirmButton: {
-    position: "absolute",
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: "#1B9E6E",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    shadowColor: "#1B9E6E",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  confirmText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
   },
 });
