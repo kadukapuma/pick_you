@@ -1,3 +1,6 @@
 {
-  "urlRandomness": "SLZS40o"
+  "urlRandomness": "SLZS40o",
+  "dev": true,
+  "minify": false,
+  "https": false
 }
