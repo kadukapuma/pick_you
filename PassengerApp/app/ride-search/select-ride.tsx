@@ -16,6 +16,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  MOCK_VEHICLE_TYPES,
+  mapDBVehicleToOption,
+  type DBVehicleType,
+} from "../../src/services/ride/vehicleTypes";
 
 import {
   getCachedDirections_withCache,
@@ -27,142 +32,13 @@ import {
 } from "../../src/context/RideSearchContext";
 import { apiClient } from "../../src/services/api/apiClient";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-interface DBVehicleType {
-  id: number;
-  name: string;
-  display_name: string;
-  description: string | null;
-  is_active: boolean;
-  fare_config: {
-    id: number;
-    vehicle_type: string;
-    base_fare: string;
-    per_km_rate: string;
-    per_minute_rate: string;
-    cancellation_fee: string;
-    is_active: boolean;
-  } | null;
-}
-
 // ─── Constants ────────────────────────────────────────────────────────────────
 const GREEN = "#20B768";
 const GREEN_LIGHT = "#E8F8F0";
 const GREEN_DARK = "#178A50";
 
-const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
-  {
-    id: 1,
-    name: "car",
-    display_name: "Car",
-    description: "Standard 4-seater cars and hatchbacks",
-    is_active: true,
-    fare_config: {
-      id: 1,
-      vehicle_type: "car",
-      base_fare: "150.00",
-      per_km_rate: "80.00",
-      per_minute_rate: "5.00",
-      cancellation_fee: "50.00",
-      is_active: true,
-    },
-  },
-  {
-    // Fixed: removed the extra 'a' character
-    id: 2,
-    name: "tuk",
-    display_name: "Tuk Tuk",
-    description: "Classic 3-wheeler auto rickshaws",
-    is_active: true,
-    fare_config: {
-      id: 2,
-      vehicle_type: "tuk",
-      base_fare: "100.00",
-      per_km_rate: "60.00",
-      per_minute_rate: "5.00",
-      cancellation_fee: "50.00",
-      is_active: true,
-    },
-  },
-  {
-    id: 3,
-    name: "bike",
-    display_name: "Motorbike",
-    description: "Fast single-passenger motorbikes",
-    is_active: true,
-    fare_config: {
-      id: 3,
-      vehicle_type: "bike",
-      base_fare: "80.00",
-      per_km_rate: "40.00",
-      per_minute_rate: "5.00",
-      cancellation_fee: "50.00",
-      is_active: true,
-    },
-  },
-  {
-    id: 4,
-    name: "suv",
-    display_name: "SUV",
-    description: "Large 6-seater family vehicles",
-    is_active: true,
-    fare_config: {
-      id: 4,
-      vehicle_type: "suv",
-      base_fare: "200.00",
-      per_km_rate: "100.00",
-      per_minute_rate: "5.00",
-      cancellation_fee: "50.00",
-      is_active: true,
-    },
-  },
-];
-
-const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
-  car: "car",
-  tuk: "car",
-  bike: "bicycle",
-  suv: "bus",
-};
-const ETA_MAP: Record<string, string> = {
-  bike: "1 min",
-  tuk: "2 mins",
-  car: "3 mins",
-  suv: "5 mins",
-};
-const RATING_MAP: Record<string, number> = {
-  bike: 4.5,
-  tuk: 4.7,
-  car: 4.8,
-  suv: 4.9,
-};
 // Approx stars earned per LKR spent
 const STARS_PER_LKR = 0.01;
-
-function mapDBVehicleToOption(
-  vt: DBVehicleType,
-  distanceMeters: number,
-  durationSeconds: number,
-): RideOption {
-  let price = 0;
-  if (vt.fare_config) {
-    const { base_fare, per_km_rate, per_minute_rate } = vt.fare_config;
-    price =
-      parseFloat(base_fare) +
-      (distanceMeters / 1000) * parseFloat(per_km_rate) +
-      (durationSeconds / 60) * parseFloat(per_minute_rate);
-  } else {
-    price = 150 + (distanceMeters / 1000) * 60;
-  }
-  return {
-    id: vt.name,
-    name: vt.display_name,
-    icon: ICON_MAP[vt.name] ?? "car",
-    price: parseFloat(price.toFixed(2)),
-    eta: ETA_MAP[vt.name] ?? "4 mins",
-    rating: RATING_MAP[vt.name] ?? 4.6,
-  };
-}
 
 // ─── Animated ride card ───────────────────────────────────────────────────────
 type RideCardProps = {
@@ -330,6 +206,7 @@ export default function SelectRideScreen() {
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const mapRef = useRef<MapView>(null);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [rawVehicles, setRawVehicles] = useState<DBVehicleType[]>([]);
 
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
@@ -390,12 +267,12 @@ export default function SelectRideScreen() {
             ? res.data.filter((v) => v.is_active)
             : MOCK_VEHICLE_TYPES;
         if (!cancelled) {
-          _setRawVehicles(data);
+          setRawVehicles(data);
           setLoadingVehicles(false);
         }
       } catch {
         if (!cancelled) {
-          _setRawVehicles(MOCK_VEHICLE_TYPES);
+          setRawVehicles(MOCK_VEHICLE_TYPES);
           setLoadingVehicles(false);
         }
       }
@@ -405,19 +282,17 @@ export default function SelectRideScreen() {
     };
   }, []);
 
-  const [_rawVehicles, _setRawVehicles] = useState<DBVehicleType[]>([]);
-
   // Compute pricing once both are ready
   useEffect(() => {
-    if (!directions || _rawVehicles.length === 0) return;
-    const mapped = _rawVehicles.map((v) =>
+    if (!directions || rawVehicles.length === 0) return;
+    const mapped = rawVehicles.map((v) =>
       mapDBVehicleToOption(v, directions.distance, directions.duration),
     );
     setRideOptions(mapped);
     if (mapped.length > 0) setSelectedRide(mapped[0].id);
     animateSheetIn();
     setLoadingVehicles(false);
-  }, [directions, _rawVehicles]);
+  }, [directions, rawVehicles]);
 
   useEffect(() => {
     if (!directions || !mapRef.current) return;
@@ -445,7 +320,17 @@ export default function SelectRideScreen() {
         ? "/ride-search/return-trip-location"
         : "/ride-search/confirmation",
     );
-  }, [selectedRide, rideOptions]);
+  }, [
+    selectedRide,
+    rideOptions,
+    pickup,
+    destination,
+    tripType,
+    router,
+    setOutboundPickup,
+    setOutboundDropoff,
+    setOutboundRide,
+  ]);
 
   const loading = loadingRoute || loadingVehicles;
 

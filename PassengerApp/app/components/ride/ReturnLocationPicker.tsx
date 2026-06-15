@@ -7,12 +7,15 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
   searchLocationSuggestions,
   LocationSuggestion,
 } from "../../../src/services/location/multiProviderService";
+import { useEffect } from "react";
+import { useRouter } from "expo-router";
 
 interface ReturnLocationPickerProps {
   onConfirm: (
@@ -65,6 +68,8 @@ export default function ReturnLocationPicker({
   const [pickup, setPickup] = useState<LocationSuggestion | null>(
     currentLocation,
   );
+  const router = useRouter();
+
   const [stop, setStop] = useState<LocationSuggestion | null>(null);
   const [dropoff, setDropoff] = useState<LocationSuggestion | null>(null);
 
@@ -82,6 +87,16 @@ export default function ReturnLocationPicker({
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (pickup && dropoff) {
+      const timer = setTimeout(() => {
+        onConfirm(pickup, stop, dropoff);
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [pickup, stop, dropoff]);
 
   const handleSearch = (text: string, field: "pickup" | "stop" | "drop") => {
     if (field === "pickup") setPickupSearch(text);
@@ -128,12 +143,6 @@ export default function ReturnLocationPicker({
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
-  };
-
-  const handleConfirm = () => {
-    if (pickup && dropoff) {
-      onConfirm(pickup, stop, dropoff);
-    }
   };
 
   const renderField = (
@@ -320,7 +329,17 @@ export default function ReturnLocationPicker({
           <View style={styles.savedSection}>
             <Text style={styles.savedTitle}>Saved Addresses</Text>
 
-            <TouchableOpacity style={styles.savedItem}>
+            <TouchableOpacity
+              style={styles.savedItem}
+              onPress={() => {
+                Alert.alert(
+                  "Coming Soon",
+                  "This screen is not available yet. Stay tuned!",
+                );
+                // 🚫 router.push is disabled until the screen is ready
+                // router.push({ pathname: "/components/ride/se", params: {...} });
+              }}
+            >
               <Ionicons name="map-outline" size={22} color="#1B9E6E" />
               <Text style={styles.savedText}>Set location on map</Text>
             </TouchableOpacity>
@@ -369,13 +388,6 @@ export default function ReturnLocationPicker({
           </View>
         )}
       </ScrollView>
-
-      {/* Confirm Button */}
-      {pickup && dropoff && !activeField && (
-        <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmButtonText}>Confirm Return Trip</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
