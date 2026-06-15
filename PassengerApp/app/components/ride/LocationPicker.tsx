@@ -18,6 +18,7 @@ import {
 interface LocationPickerProps {
   onConfirm: (
     pickup: LocationSuggestion,
+    stops: LocationSuggestion[],
     destination: LocationSuggestion,
   ) => void;
   currentLocation?: LocationSuggestion;
@@ -80,13 +81,16 @@ export default function LocationPicker({
   const [pickupSearch, setPickupSearch] = useState(
     currentLocation?.address || "",
   );
+  const [stopsSearch, setStopsSearch] = useState<string[]>([]);
   const [dropSearch, setDropSearch] = useState("");
 
-  const [activeField, setActiveField] = useState<"pickup" | "drop" | null>(
-    null,
-  );
+  const [activeField, setActiveField] = useState<
+    "pickup" | "drop" | { type: "stop"; index: number } | null
+  >(null);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [stops, setStops] = useState<LocationSuggestion[]>([]);
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
@@ -95,17 +99,29 @@ export default function LocationPicker({
   // ✅ Auto-navigation effect
   useEffect(() => {
     if (pickup && destination) {
+      // For multi-stop, we should probably wait until all stops are filled too, 
+      // but for now let's keep it simple: if pickup and destination are set, we can confirm.
+      // Or we might want a explicit "Confirm" button if there are stops.
+      // Production apps usually have a "Confirm" button for multi-stop.
       const timer = setTimeout(() => {
-        onConfirm(pickup, destination);
+        onConfirm(pickup, stops, destination);
       }, 300);
 
-      return () => clearTimeout(timer); // cleanup if user changes quickly
+      return () => clearTimeout(timer);
     }
-  }, [pickup, destination]);
+  }, [pickup, destination, stops]);
 
-  const handleSearch = (text: string, field: "pickup" | "drop") => {
+  const handleSearch = (
+    text: string,
+    field: "pickup" | "drop" | { type: "stop"; index: number },
+  ) => {
     if (field === "pickup") setPickupSearch(text);
-    if (field === "drop") setDropSearch(text);
+    else if (field === "drop") setDropSearch(text);
+    else {
+      const newStopsSearch = [...stopsSearch];
+      newStopsSearch[field.index] = text;
+      setStopsSearch(newStopsSearch);
+    }
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
@@ -127,28 +143,44 @@ export default function LocationPicker({
     }, 500);
   };
 
+
+
   const handleSelectLocation = (location: LocationSuggestion) => {
     if (activeField === "pickup") {
       setPickup(location);
       setPickupSearch(location.address);
-      if (destination && destination.id === pickup?.id) {
-        setDestination(null);
-        setDropSearch("");
-      }
     } else if (activeField === "drop") {
       setDestination(location);
       setDropSearch(location.address);
+    } else if (activeField && typeof activeField === "object" && activeField.type === "stop") {
+      const newStops = [...stops];
+      newStops[activeField.index] = location;
+      setStops(newStops);
+
+      const newStopsSearch = [...stopsSearch];
+      newStopsSearch[activeField.index] = location.address;
+      setStopsSearch(newStopsSearch);
     }
 
     setActiveField(null);
     setSuggestions([]);
   };
 
-  const handleFieldFocus = (field: "pickup" | "drop") => {
+  const handleFieldFocus = (field: "pickup" | "drop" | { type: "stop"; index: number }) => {
     setActiveField(field);
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
+  };
+
+  const addStop = () => {
+    setStops(prev => [...prev, { id: Date.now().toString(), address: "", details: "", latitude: 0, longitude: 0, placeType: "address" }]);
+    setStopsSearch(prev => [...prev, ""]);
+  };
+
+  const removeStop = (index: number) => {
+    setStops(prev => prev.filter((_, i) => i !== index));
+    setStopsSearch(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSetSameAsPickup = () => {
@@ -163,17 +195,25 @@ export default function LocationPicker({
     icon: string,
     iconColor: string,
     value: string,
-    field: "pickup" | "drop",
+    field: "pickup" | "drop" | { type: "stop"; index: number },
     placeholder: string,
     selectedLocation: LocationSuggestion | null,
+    isStop: boolean = false,
   ) => {
-    const isActive = activeField === field;
+    const isActive =
+      field === "pickup" || field === "drop"
+        ? activeField === field
+        : activeField &&
+        typeof activeField === "object" &&
+        activeField.type === "stop" &&
+        activeField.index === field.index;
+
     const hasValue = !!selectedLocation;
 
     return (
       <View style={styles.fieldWrapper}>
         {/* Vertical dotted line for visual connection */}
-        {field === "drop" && (
+        {(field === "drop" || isStop) && (
           <View style={styles.dottedLineContainer}>
             <View style={styles.dottedLine} />
           </View>
@@ -203,15 +243,37 @@ export default function LocationPicker({
                       if (field === "pickup") {
                         setPickupSearch("");
                         setPickup(null);
-                      }
-                      if (field === "drop") {
+                      } else if (field === "drop") {
                         setDropSearch("");
                         setDestination(null);
+                      } else if (typeof field === "object") {
+                        const newStopsSearch = [...stopsSearch];
+                        newStopsSearch[field.index] = "";
+                        setStopsSearch(newStopsSearch);
+
+                        const newStops = [...stops];
+                        newStops[field.index] = {
+                          id: Date.now().toString(),
+                          address: "",
+                          details: "",
+                          latitude: 0,
+                          longitude: 0,
+                          placeType: "address",
+                        };
+                        setStops(newStops);
                       }
                       setSuggestions([]);
                     }}
                   >
                     <Ionicons name="close-circle" size={20} color="#B0C4C4" />
+                  </TouchableOpacity>
+                )}
+                {isStop && (
+                  <TouchableOpacity
+                    onPress={() => removeStop((field as any).index)}
+                    style={{ marginLeft: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
                   </TouchableOpacity>
                 )}
               </View>
@@ -262,6 +324,30 @@ export default function LocationPicker({
           "pickup",
           "Your Location",
           pickup,
+        )}
+
+        {/* Dynamic Stops */}
+        {stops.map((stop, index) => (
+          <View key={stop.id}>
+            {renderField(
+              `STOP ${index + 1}`,
+              "location-outline",
+              "#FFA500",
+              stopsSearch[index] || "",
+              { type: "stop", index },
+              "Add a stop",
+              stop.address ? stop : null,
+              true,
+            )}
+          </View>
+        ))}
+
+        {/* Add Stop Button */}
+        {stops.length < 3 && (
+          <TouchableOpacity style={styles.addStopBtn} onPress={addStop}>
+            <Ionicons name="add-circle-outline" size={20} color="#1B9E6E" />
+            <Text style={styles.addStopText}>Add Stop</Text>
+          </TouchableOpacity>
         )}
 
         {/* Dropoff Field */}
@@ -471,6 +557,24 @@ const styles = StyleSheet.create({
   },
   sameAsPickupText: {
     fontSize: 14,
+    color: "#1B9E6E",
+    fontWeight: "600",
+  },
+  addStopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#E8F3EF",
+  },
+  addStopText: {
+    fontSize: 13,
     color: "#1B9E6E",
     fontWeight: "600",
   },

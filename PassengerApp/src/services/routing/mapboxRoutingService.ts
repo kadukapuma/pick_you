@@ -88,10 +88,7 @@ const formatDuration = (seconds: number): string => {
  * Uses driving profile to get realistic routes
  */
 export const getDirections = async (
-  pickupLat: number,
-  pickupLon: number,
-  destinationLat: number,
-  destinationLon: number,
+  points: RouteCoordinate[],
 ): Promise<DirectionsResult | null> => {
   try {
     if (!MAPBOX_API_KEY) {
@@ -100,7 +97,10 @@ export const getDirections = async (
     }
 
     // Mapbox Directions API endpoint
-    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${pickupLon},${pickupLat};${destinationLon},${destinationLat}?access_token=${MAPBOX_API_KEY}&geometries=polyline&overview=full&exclude=toll`;
+    const waypoints = points
+      .map((p) => `${p.longitude},${p.latitude}`)
+      .join(";");
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${waypoints}?access_token=${MAPBOX_API_KEY}&geometries=polyline&overview=full&exclude=toll`;
 
     const response = await fetch(url);
     const data = await response.json();
@@ -158,13 +158,12 @@ const getCachedDirections = (key: string): DirectionsResult | null => {
  * Prevents redundant API calls for same route
  */
 export const getCachedDirections_withCache = async (
-  pickupLat: number,
-  pickupLon: number,
-  destinationLat: number,
-  destinationLon: number,
+  points: RouteCoordinate[],
 ): Promise<DirectionsResult | null> => {
-  // Create cache key from coordinates (rounded to 5 decimals)
-  const key = `${pickupLat.toFixed(5)},${pickupLon.toFixed(5)}-${destinationLat.toFixed(5)},${destinationLon.toFixed(5)}`;
+  // Create cache key from coordinates
+  const key = points
+    .map((p) => `${p.latitude.toFixed(5)},${p.longitude.toFixed(5)}`)
+    .join("-");
 
   // Check cache first
   const cached = getCachedDirections(key);
@@ -174,12 +173,7 @@ export const getCachedDirections_withCache = async (
   }
 
   // Fetch fresh directions
-  const directions = await getDirections(
-    pickupLat,
-    pickupLon,
-    destinationLat,
-    destinationLon,
-  );
+  const directions = await getDirections(points);
 
   if (directions) {
     // Store in cache

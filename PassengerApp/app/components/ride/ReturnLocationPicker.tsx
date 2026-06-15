@@ -20,7 +20,7 @@ import { useRouter } from "expo-router";
 interface ReturnLocationPickerProps {
   onConfirm: (
     pickup: LocationSuggestion,
-    stop: LocationSuggestion | null,
+    stops: LocationSuggestion[],
     dropoff: LocationSuggestion,
   ) => void;
   currentLocation: LocationSuggestion;
@@ -68,19 +68,28 @@ export default function ReturnLocationPicker({
   const [pickup, setPickup] = useState<LocationSuggestion | null>(
     currentLocation,
   );
-  const router = useRouter();
-
-  const [stop, setStop] = useState<LocationSuggestion | null>(null);
-  const [dropoff, setDropoff] = useState<LocationSuggestion | null>(null);
+  const [stops, setStops] = useState<LocationSuggestion[]>([
+    {
+      id: "dest-stop",
+      address: "",
+      details: "",
+      latitude: 0,
+      longitude: 0,
+      placeType: "address",
+    },
+  ]);
+  const [dropoff, setDropoff] = useState<LocationSuggestion | null>(
+    currentLocation,
+  );
 
   const [pickupSearch, setPickupSearch] = useState(
     currentLocation?.address || "",
   );
-  const [stopSearch, setStopSearch] = useState("");
-  const [dropSearch, setDropSearch] = useState("");
+  const [stopsSearch, setStopsSearch] = useState<string[]>([""]);
+  const [dropSearch, setDropSearch] = useState("Same as pickup");
 
   const [activeField, setActiveField] = useState<
-    "pickup" | "stop" | "drop" | null
+    "pickup" | "drop" | { type: "stop"; index: number } | null
   >(null);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -89,19 +98,29 @@ export default function ReturnLocationPicker({
   const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    if (pickup && dropoff) {
+    // For return trip, we must ensure at least the primary destination (first stop) is set
+    // before auto-navigating, otherwise it triggers immediately because pickup/dropoff 
+    // default to current location.
+    if (pickup && dropoff && stops.length > 0 && stops[0].address !== "") {
       const timer = setTimeout(() => {
-        onConfirm(pickup, stop, dropoff);
+        onConfirm(pickup, stops, dropoff);
       }, 300);
 
       return () => clearTimeout(timer);
     }
-  }, [pickup, stop, dropoff]);
+  }, [pickup, stops, dropoff]);
 
-  const handleSearch = (text: string, field: "pickup" | "stop" | "drop") => {
+  const handleSearch = (
+    text: string,
+    field: "pickup" | "drop" | { type: "stop"; index: number },
+  ) => {
     if (field === "pickup") setPickupSearch(text);
-    if (field === "stop") setStopSearch(text);
-    if (field === "drop") setDropSearch(text);
+    else if (field === "drop") setDropSearch(text);
+    else {
+      const newStopsSearch = [...stopsSearch];
+      newStopsSearch[field.index] = text;
+      setStopsSearch(newStopsSearch);
+    }
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
@@ -127,22 +146,38 @@ export default function ReturnLocationPicker({
     if (activeField === "pickup") {
       setPickup(location);
       setPickupSearch(location.address);
-    } else if (activeField === "stop") {
-      setStop(location);
-      setStopSearch(location.address);
+      setDropoff(location);
     } else if (activeField === "drop") {
       setDropoff(location);
       setDropSearch(location.address);
+    } else if (activeField && typeof activeField === "object" && activeField.type === "stop") {
+      const newStops = [...stops];
+      newStops[activeField.index] = location;
+      setStops(newStops);
+
+      const newStopsSearch = [...stopsSearch];
+      newStopsSearch[activeField.index] = location.address;
+      setStopsSearch(newStopsSearch);
     }
     setActiveField(null);
     setSuggestions([]);
   };
 
-  const handleFieldFocus = (field: "pickup" | "stop" | "drop") => {
+  const handleFieldFocus = (field: "pickup" | "drop" | { type: "stop"; index: number }) => {
     setActiveField(field);
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
+  };
+
+  const addStop = () => {
+    setStops(prev => [...prev, { id: Date.now().toString(), address: "", details: "", latitude: 0, longitude: 0, placeType: "address" }]);
+    setStopsSearch(prev => [...prev, ""]);
+  };
+
+  const removeStop = (index: number) => {
+    setStops(prev => prev.filter((_, i) => i !== index));
+    setStopsSearch(prev => prev.filter((_, i) => i !== index));
   };
 
   const renderField = (
@@ -150,12 +185,18 @@ export default function ReturnLocationPicker({
     icon: string,
     iconColor: string,
     value: string,
-    field: "pickup" | "stop" | "drop",
+    field: "pickup" | "drop" | { type: "stop"; index: number },
     placeholder: string,
     selectedLocation: LocationSuggestion | null,
-    isOptional: boolean = false,
+    isStop: boolean = false,
   ) => {
-    const isActive = activeField === field;
+    const isActive =
+      field === "pickup" || field === "drop"
+        ? activeField === field
+        : activeField &&
+        typeof activeField === "object" &&
+        activeField.type === "stop" &&
+        activeField.index === field.index;
     const hasValue = !!selectedLocation;
 
     return (
@@ -191,14 +232,24 @@ export default function ReturnLocationPicker({
                       if (field === "pickup") {
                         setPickupSearch("");
                         setPickup(null);
-                      }
-                      if (field === "stop") {
-                        setStopSearch("");
-                        setStop(null);
-                      }
-                      if (field === "drop") {
+                      } else if (field === "drop") {
                         setDropSearch("");
                         setDropoff(null);
+                      } else if (typeof field === "object") {
+                        const newStopsSearch = [...stopsSearch];
+                        newStopsSearch[field.index] = "";
+                        setStopsSearch(newStopsSearch);
+
+                        const newStops = [...stops];
+                        newStops[field.index] = {
+                          id: Date.now().toString(),
+                          address: "",
+                          details: "",
+                          latitude: 0,
+                          longitude: 0,
+                          placeType: "address",
+                        };
+                        setStops(newStops);
                       }
                       setSuggestions([]);
                     }}
@@ -206,6 +257,20 @@ export default function ReturnLocationPicker({
                     <Ionicons name="close-circle" size={20} color="#B0C4C4" />
                   </TouchableOpacity>
                 )}
+                {isStop && (
+                  <TouchableOpacity
+                    onPress={() => removeStop((field as any).index)}
+                    style={{ marginLeft: 8 }}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#FF6B6B" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ) : field === "drop" ? (
+              <View style={styles.valueWrapper}>
+                <Text style={[styles.valueText, { color: "#6B9E8E" }]}>
+                  Same as pickup
+                </Text>
               </View>
             ) : hasValue ? (
               <TouchableOpacity
@@ -254,16 +319,28 @@ export default function ReturnLocationPicker({
           false,
         )}
 
-        {/* Stop Field (Optional) */}
-        {renderField(
-          "STOP",
-          "location-outline",
-          "#FFA500",
-          stopSearch,
-          "stop",
-          "Add a stop",
-          stop,
-          true,
+        {/* Dynamic Stops */}
+        {stops.map((stop, index) => (
+          <View key={stop.id}>
+            {renderField(
+              index === 0 ? "STOP" : `STOP ${index + 1}`,
+              "location-outline",
+              "#FFA500",
+              stopsSearch[index] || "",
+              { type: "stop", index },
+              index === 0 ? "Where are you going?" : "Add a stop",
+              stop.address ? stop : null,
+              index > 0, // Only allow deleting additional stops, not the first one
+            )}
+          </View>
+        ))}
+
+        {/* Add Stop Button */}
+        {stops.length < 3 && (
+          <TouchableOpacity style={styles.addStopBtn} onPress={addStop}>
+            <Ionicons name="add-circle-outline" size={20} color="#1B9E6E" />
+            <Text style={styles.addStopText}>Add Stop</Text>
+          </TouchableOpacity>
         )}
 
         {/* Dropoff Field */}
@@ -500,6 +577,24 @@ const styles = StyleSheet.create({
   },
   sameAsPickupText: {
     fontSize: 14,
+    color: "#1B9E6E",
+    fontWeight: "600",
+  },
+  addStopBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FFFFFF",
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 4,
+    marginBottom: 8,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "#E8F3EF",
+  },
+  addStopText: {
+    fontSize: 13,
     color: "#1B9E6E",
     fontWeight: "600",
   },

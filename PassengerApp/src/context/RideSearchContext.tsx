@@ -18,7 +18,7 @@ export type TripType = "oneway" | "return";
 interface Trip {
   pickup: LocationSuggestion | null;
   dropoff: LocationSuggestion | null;
-  stop?: LocationSuggestion | null;
+  stops: LocationSuggestion[]; // Changed from stop?: LocationSuggestion | null
   selectedRide: RideOption | null;
 }
 
@@ -31,14 +31,14 @@ interface RideSearchContextType {
   outboundTrip: Trip;
   setOutboundPickup: (location: LocationSuggestion) => void;
   setOutboundDropoff: (location: LocationSuggestion) => void;
-  setOutboundStop: (location: LocationSuggestion | null) => void;
+  setOutboundStops: (stops: LocationSuggestion[]) => void; // ✅ new
   setOutboundRide: (ride: RideOption) => void;
 
-  // Return Trip (only for return trips)
+  // Return Trip
   returnTrip: Trip;
   setReturnPickup: (location: LocationSuggestion) => void;
   setReturnDropoff: (location: LocationSuggestion) => void;
-  setReturnStop: (location: LocationSuggestion | null) => void;
+  setReturnStops: (stops: LocationSuggestion[]) => void; // ✅ new
   setReturnRide: (ride: RideOption) => void;
 
   // Reset
@@ -65,13 +65,13 @@ export function RideSearchProvider({
   const [outboundTrip, setOutboundTrip] = useState<Trip>({
     pickup: null,
     dropoff: null,
-    stop: null,
+    stops: [],
     selectedRide: null,
   });
   const [returnTrip, setReturnTrip] = useState<Trip>({
     pickup: null,
     dropoff: null,
-    stop: null,
+    stops: [],
     selectedRide: null,
   });
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false);
@@ -86,8 +86,8 @@ export function RideSearchProvider({
     setOutboundTrip((prev) => ({ ...prev, dropoff: location }));
   };
 
-  const setOutboundStop = (location: LocationSuggestion | null) => {
-    setOutboundTrip((prev) => ({ ...prev, stop: location }));
+  const setOutboundStops = (stops: LocationSuggestion[]) => {
+    setOutboundTrip((prev) => ({ ...prev, stops }));
   };
 
   const setOutboundRide = (ride: RideOption) => {
@@ -105,8 +105,8 @@ export function RideSearchProvider({
     setReturnTrip((prev) => ({ ...prev, dropoff: location }));
   };
 
-  const setReturnStop = (location: LocationSuggestion | null) => {
-    setReturnTrip((prev) => ({ ...prev, stop: location }));
+  const setReturnStops = (stops: LocationSuggestion[]) => {
+    setReturnTrip((prev) => ({ ...prev, stops }));
   };
 
   const setReturnRide = (ride: RideOption) => {
@@ -121,13 +121,13 @@ export function RideSearchProvider({
     setOutboundTrip({
       pickup: null,
       dropoff: null,
-      stop: null,
+      stops: [], // ✅ reset to empty array
       selectedRide: null,
     });
     setReturnTrip({
       pickup: null,
       dropoff: null,
-      stop: null,
+      stops: [], // ✅ reset to empty array
       selectedRide: null,
     });
     setIsSearchingForDriver(false);
@@ -149,12 +149,12 @@ export function RideSearchProvider({
     outboundTrip,
     setOutboundPickup,
     setOutboundDropoff,
-    setOutboundStop,
+    setOutboundStops, // ✅ new
     setOutboundRide,
     returnTrip,
     setReturnPickup,
     setReturnDropoff,
-    setReturnStop,
+    setReturnStops, // ✅ new
     setReturnRide,
     resetTrip,
     isSearchingForDriver,

@@ -26,7 +26,7 @@ export default function RideSearchScreen() {
   const {
     setOutboundPickup,
     setOutboundDropoff,
-    setOutboundStop,
+    setOutboundStops,
     setTripType: setContextTripType,
   } = useRideSearch();
 
@@ -167,15 +167,18 @@ export default function RideSearchScreen() {
 
   function handleLocationConfirm(
     pickup: LocationSuggestion,
+    stops: LocationSuggestion[],
     destination: LocationSuggestion,
   ) {
     setOutboundPickup(pickup);
+    setOutboundStops(stops);
     setOutboundDropoff(destination);
     setContextTripType("oneway");
     router.push({
       pathname: "/ride-search/select-ride",
       params: {
         pickup: JSON.stringify(pickup),
+        stops: JSON.stringify(stops),
         destination: JSON.stringify(destination),
         bookForFriend: String(bookForFriend),
       },
@@ -184,17 +187,18 @@ export default function RideSearchScreen() {
 
   function handleReturnConfirm(
     pickup: LocationSuggestion,
-    stop: LocationSuggestion | null,
+    stops: LocationSuggestion[],
     dropoff: LocationSuggestion,
   ) {
     setOutboundPickup(pickup);
+    setOutboundStops(stops);
     setOutboundDropoff(dropoff);
-    setOutboundStop(stop);
     setContextTripType("return");
     router.push({
       pathname: "/ride-search/select-ride",
       params: {
         pickup: JSON.stringify(pickup),
+        stops: JSON.stringify(stops),
         destination: JSON.stringify(dropoff),
         bookForFriend: String(bookForFriend),
       },

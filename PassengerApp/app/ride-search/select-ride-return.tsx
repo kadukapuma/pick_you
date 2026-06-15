@@ -43,12 +43,16 @@ export default function SelectRideReturnScreen() {
       if (returnTrip.pickup && returnTrip.dropoff) {
         setLoadingRoute(true);
         try {
-          const result = await getCachedDirections_withCache(
-            returnTrip.pickup.latitude,
-            returnTrip.pickup.longitude,
-            returnTrip.dropoff.latitude,
-            returnTrip.dropoff.longitude,
-          );
+          const result = await getCachedDirections_withCache([
+            {
+              latitude: returnTrip.pickup.latitude,
+              longitude: returnTrip.pickup.longitude,
+            },
+            {
+              latitude: returnTrip.dropoff.latitude,
+              longitude: returnTrip.dropoff.longitude,
+            },
+          ]);
           setDirections(result);
         } catch (error) {
           console.error("Error fetching directions:", error);
@@ -329,7 +333,7 @@ export default function SelectRideReturnScreen() {
                       style={[
                         styles.routeDistance,
                         selectedRide === ride.id &&
-                          styles.routeDistanceSelected,
+                        styles.routeDistanceSelected,
                       ]}
                     >
                       {directions.distanceText}
@@ -338,7 +342,7 @@ export default function SelectRideReturnScreen() {
                       style={[
                         styles.routeDuration,
                         selectedRide === ride.id &&
-                          styles.routeDurationSelected,
+                        styles.routeDurationSelected,
                       ]}
                     >
                       {directions.durationText}

@@ -29,6 +29,7 @@ import {
 import {
   useRideSearch,
   type RideOption,
+  type LocationSuggestion,
 } from "../../src/context/RideSearchContext";
 import { apiClient } from "../../src/services/api/apiClient";
 
@@ -192,6 +193,58 @@ function RideCard({
 }
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
+// ─── Components ────────────────────────────────────────────────────────────────
+const RouteMarker = ({
+  label,
+  address,
+  color,
+  secondaryLabel,
+  secondaryColor,
+}: {
+  label: string;
+  address?: string;
+  color: string;
+  secondaryLabel?: string;
+  secondaryColor?: string;
+}) => (
+  <View style={styles.markerOuter}>
+    <View style={styles.markerStackContainer}>
+      {secondaryLabel && (
+        <View style={styles.markerContainer}>
+          <View
+            style={[
+              styles.labelPill,
+              { backgroundColor: secondaryColor || color },
+            ]}
+          >
+            <Text style={styles.labelPillText}>{secondaryLabel}</Text>
+          </View>
+          {address && (
+            <Text style={styles.markerAddress} numberOfLines={1}>
+              {address}
+            </Text>
+          )}
+        </View>
+      )}
+      {secondaryLabel && <View style={styles.stackSpacer} />}
+      <View style={styles.markerContainer}>
+        <View style={[styles.labelPill, { backgroundColor: color }]}>
+          <Text style={styles.labelPillText}>{label}</Text>
+        </View>
+        {address && (
+          <Text style={styles.markerAddress} numberOfLines={1}>
+            {address}
+          </Text>
+        )}
+      </View>
+    </View>
+    <View style={styles.markerStem}>
+      <View style={[styles.markerStemLine, { backgroundColor: color }]} />
+      <View style={[styles.markerStemDot, { backgroundColor: color }]} />
+    </View>
+  </View>
+);
+
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
@@ -202,6 +255,7 @@ export default function SelectRideScreen() {
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
+  const [returnDirections, setReturnDirections] = useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const mapRef = useRef<MapView>(null);
@@ -210,6 +264,9 @@ export default function SelectRideScreen() {
 
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
+  const stops: LocationSuggestion[] = params.stops
+    ? JSON.parse(params.stops as string)
+    : [];
 
   // Bottom sheet slide-up entrance
   const sheetY = useRef(new Animated.Value(200)).current;
@@ -237,13 +294,30 @@ export default function SelectRideScreen() {
     (async () => {
       setLoadingRoute(true);
       try {
-        const result = await getCachedDirections_withCache(
-          pickup.latitude,
-          pickup.longitude,
-          destination.latitude,
-          destination.longitude,
-        );
-        if (!cancelled) setDirections(result);
+        // Outbound Points
+        const outboundPoints = [
+          { latitude: pickup.latitude, longitude: pickup.longitude },
+          ...stops.map((s) => ({
+            latitude: s.latitude,
+            longitude: s.longitude,
+          })),
+          { latitude: destination.latitude, longitude: destination.longitude },
+        ];
+        const outboundResult = await getCachedDirections_withCache(outboundPoints);
+
+        let returnResult = null;
+        if (tripType === "return") {
+          const returnPoints = [
+            { latitude: destination.latitude, longitude: destination.longitude },
+            { latitude: pickup.latitude, longitude: pickup.longitude },
+          ];
+          returnResult = await getCachedDirections_withCache(returnPoints);
+        }
+
+        if (!cancelled) {
+          setDirections(outboundResult);
+          setReturnDirections(returnResult);
+        }
       } catch (e) {
         console.error("Directions error:", e);
       } finally {
@@ -253,7 +327,7 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [tripType]);
 
   // Fetch vehicles
   useEffect(() => {
@@ -297,7 +371,12 @@ export default function SelectRideScreen() {
   useEffect(() => {
     if (!directions || !mapRef.current) return;
 
-    mapRef.current.fitToCoordinates(directions.polyline, {
+    const allPoints = [
+      ...directions.polyline,
+      ...(returnDirections ? returnDirections.polyline : []),
+    ];
+
+    mapRef.current.fitToCoordinates(allPoints, {
       edgePadding: {
         top: 100,
         right: 50,
@@ -306,7 +385,7 @@ export default function SelectRideScreen() {
       },
       animated: true,
     });
-  }, [directions]);
+  }, [directions, returnDirections]);
 
   const handleBookNow = useCallback(() => {
     if (!selectedRide || rideOptions.length === 0) return;
@@ -379,22 +458,71 @@ export default function SelectRideScreen() {
           </>
         )}
 
+        {returnDirections && returnDirections.polyline.length > 0 && (
+          <Polyline
+            coordinates={returnDirections.polyline}
+            strokeColor="#6B7280"
+            strokeWidth={4}
+            lineDashPattern={[10, 10]}
+            lineCap="round"
+            lineJoin="round"
+            zIndex={2}
+          />
+        )}
+
+        {/* Markers */}
         <Marker
           coordinate={{
             latitude: pickup.latitude,
             longitude: pickup.longitude,
           }}
-          title="Pickup"
-          pinColor={GREEN}
-        />
-        <Marker
-          coordinate={{
-            latitude: destination.latitude,
-            longitude: destination.longitude,
-          }}
-          title="Drop"
-          pinColor="#F97316"
-        />
+          zIndex={100}
+          tracksViewChanges={true}
+        >
+          <RouteMarker
+            label="Pickup"
+            secondaryLabel={tripType === "return" ? "Drop" : undefined}
+            secondaryColor={tripType === "return" ? "#F97316" : undefined}
+            address={pickup.address}
+            color="#007AFF"
+          />
+        </Marker>
+
+        {stops.map((stop, index) => {
+          const label = `${index + 1}`;
+          const color = "#F97316";
+
+          return (
+            <Marker
+              key={stop.id || `stop-${index}`}
+              coordinate={{
+                latitude: stop.latitude,
+                longitude: stop.longitude,
+              }}
+              zIndex={50}
+              tracksViewChanges={true}
+            >
+              <RouteMarker label={label} address={stop.address} color={color} />
+            </Marker>
+          );
+        })}
+
+        {tripType !== "return" && (
+          <Marker
+            coordinate={{
+              latitude: destination.latitude,
+              longitude: destination.longitude,
+            }}
+            zIndex={10}
+            tracksViewChanges={true}
+          >
+            <RouteMarker
+              label="Drop"
+              address={destination.address}
+              color="#F97316"
+            />
+          </Marker>
+        )}
       </MapView>
 
       {/* ── BACK BUTTON ─────────────────────────────────────────────────── */}
@@ -797,5 +925,74 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#fff",
     letterSpacing: 0.2,
+  },
+  // Custom Markers
+  markerOuter: {
+    alignItems: "center",
+    justifyContent: "flex-end",
+    paddingBottom: 2,
+    // Avoid excessive padding that clips on Android
+  },
+  markerStackContainer: {
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  stackSpacer: {
+    height: 2,
+  },
+  markerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    paddingLeft: 4,
+    paddingRight: 12,
+    paddingVertical: 4,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
+    // No minWidth here to allow tight fitting
+  },
+  labelPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginRight: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: 50, // Minimum for label text
+  },
+  labelPillText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "900",
+    textTransform: "uppercase",
+  },
+  markerAddress: {
+    fontSize: 11,
+    color: "#111827",
+    fontWeight: "700",
+    maxWidth: 150,
+    marginRight: 2,
+  },
+  markerStem: {
+    alignItems: "center",
+    marginTop: -1,
+  },
+  markerStemLine: {
+    width: 2,
+    height: 8,
+  },
+  markerStemDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginTop: -3,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
   },
 });

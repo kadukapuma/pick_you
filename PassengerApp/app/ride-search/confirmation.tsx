@@ -46,12 +46,16 @@ export default function ConfirmationScreen() {
   const handleConfirmBooking = async () => {
     setIsBooking(true);
     try {
-      const directions = await getCachedDirections_withCache(
-        outboundTrip.pickup!.latitude,
-        outboundTrip.pickup!.longitude,
-        outboundTrip.dropoff!.latitude,
-        outboundTrip.dropoff!.longitude,
-      );
+      const directions = await getCachedDirections_withCache([
+        {
+          latitude: outboundTrip.pickup!.latitude,
+          longitude: outboundTrip.pickup!.longitude,
+        },
+        {
+          latitude: outboundTrip.dropoff!.latitude,
+          longitude: outboundTrip.dropoff!.longitude,
+        },
+      ]);
 
       const distance_km = directions
         ? parseFloat((directions.distance / 1000).toFixed(2))
