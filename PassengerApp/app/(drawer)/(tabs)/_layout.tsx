@@ -250,7 +250,6 @@ export default function TabsLayout() {
       {/* HIDDEN SCREENS */}
       <Tabs.Screen name="account" options={{ href: null }} />
       <Tabs.Screen name="index" options={{ href: null }} />
-      <Tabs.Screen name="saveaddress" options={{ href: null }} />
     </Tabs>
   );
 }
