@@ -15,7 +15,6 @@ import {
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { AnimatePresence, MotiView } from "moti";
-import LottieView from "lottie-react-native"; // 🔧 Added Lottie for Car Animation
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -34,9 +33,6 @@ import {
 } from "../../services/rideRealtime";
 import { normalizeRidePayload } from "../../utils/rideLocation";
 
-// 🔧 Step 1: Add a “maintenance / test mode” flag at the top
-const APP_LOCKED = true; // 👈 change this to false when ready
-
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -50,9 +46,6 @@ const HomeScreen = () => {
   const [driverId, setDriverId] = useState(null);
   const [screenError, setScreenError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-
-  // 🔧 Added Step 1: State hook for custom testing message popup visibility
-  const [lockModalVisible, setLockModalVisible] = useState(false);
 
   const toastTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
@@ -103,9 +96,6 @@ const HomeScreen = () => {
   );
 
   const presentIncomingRide = useCallback((ride) => {
-    // 🔧 Additional safety: block unexpected WS notifications while app is locked
-    if (APP_LOCKED) return;
-
     if (!ride?.id) {
       if (__DEV__) console.warn("presentIncomingRide: missing ride id", ride);
       return;
@@ -214,14 +204,7 @@ const HomeScreen = () => {
       }
 
       const driverAvailability = driverObj?.availability;
-
-      // 🔧 Step 2: Force driver OFFLINE when locked
-      if (APP_LOCKED) {
-        setIsOnline(false);
-      } else {
-        setIsOnline(driverAvailability === 1);
-      }
-
+      setIsOnline(driverAvailability === 1);
       setDriverId(driverObj?.id || null);
       setScreenError(null);
     } catch (error) {
@@ -229,7 +212,7 @@ const HomeScreen = () => {
       console.error("Error details:", JSON.stringify(error, null, 2));
       setScreenError(error.message || "Failed to load driver data");
     } finally {
-      isLoading && setIsLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -283,12 +266,6 @@ const HomeScreen = () => {
   };
 
   const handleToggleAvailability = async (newValue) => {
-    // 🔧 FIX 2: Internal function safeguard framework implementation
-    if (APP_LOCKED) {
-      setLockModalVisible(true);
-      return;
-    }
-
     setIsToggling(true);
     try {
       await api.put("/driver/availability", {
@@ -415,9 +392,9 @@ const HomeScreen = () => {
                   ]}
                 />
                 <View style={styles.toastContentContainer}>
-                  <Text style={toast.type === "error" ? [styles.toastTitleText, { color: "#FCA5A5" }] : styles.toastTitleText}>
+                  <Text style={styles.toastTitleText}>
                     {toast.type === "error"
-                      ? "Notice"
+                      ? "System Update Fail"
                       : "Status Changed"}
                   </Text>
                   <Text style={styles.toastBodyText}>{toast.message}</Text>
@@ -443,95 +420,32 @@ const HomeScreen = () => {
             ]}
           >
             <View style={styles.statusCard}>
-              <View style={{ flex: 1, paddingRight: 8 }}>
+              <View>
                 <Text style={styles.statusTitle}>
                   {isOnline ? "You're Online" : "You're Offline"}
                 </Text>
-                {/* 🔧 Step 5: Custom status message layout */}
                 <Text style={styles.statusSubtitle}>
-                  {APP_LOCKED
-                    ? "App is under testing. Online mode disabled."
-                    : isOnline
-                      ? wsConnected
-                        ? "Live — trips arrive instantly"
-                        : "Reconnecting… (backup sync active)"
-                      : "Go online to start earning"}
+                  {isOnline
+                    ? wsConnected
+                      ? "Live — trips arrive instantly"
+                      : "Reconnecting… (backup sync active)"
+                    : "Go online to start earning"}
                 </Text>
               </View>
 
               {isToggling ? (
                 <ActivityIndicator size="large" color="#00A859" />
               ) : (
-                /* 🔧 FIX 1: Wrap Switch in Touchable Blocker wrapper block architecture */
-                <TouchableOpacity
-                  activeOpacity={1}
-                  onPress={() => {
-                    if (APP_LOCKED) {
-                      setLockModalVisible(true);
-                      return;
-                    }
-                    handleToggleAvailability(!isOnline);
-                  }}
-                >
-                  <View pointerEvents="none">
-                    <Switch
-                      trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
-                      thumbColor={isOnline ? "#00A859" : "#FFF"}
-                      value={isOnline}
-                      disabled={true}
-                    />
-                  </View>
-                </TouchableOpacity>
+                <Switch
+                  trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
+                  thumbColor={isOnline ? "#00A859" : "#FFF"}
+                  onValueChange={handleToggleAvailability}
+                  value={isOnline}
+                  disabled={isToggling}
+                />
               )}
             </View>
           </SafeAreaView>
-
-          {/* 🔧 Step 3: Custom testing lock message modal with entry/exit scale & spring pop animations */}
-          <AnimatePresence>
-            {lockModalVisible && (
-              <MotiView 
-                style={styles.modalOverlay}
-                from={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-              >
-                <MotiView
-                  style={styles.modalCard}
-                  from={{ opacity: 0, scale: 0.85, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.85, y: 20 }}
-                  transition={{
-                    type: "spring",
-                    damping: 18,
-                    stiffness: 120,
-                  }}
-                >
-                  {/* 🔧 Added Car Lottie Animation File Loop */}
-                  <LottieView
-                    source={require("../../assets/Car Animation.json")} 
-                    autoPlay
-                    loop
-                    style={styles.carAnimation}
-                  />
-
-                  <Text style={styles.modalTitle}>App Under Testing</Text>
-
-                  <Text style={styles.modalMessage}>
-                    This feature is currently disabled as the app is under testing.
-                    {"\n\n"}
-                    We will notify you once everything is ready to go live.
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.modalButton}
-                    onPress={() => setLockModalVisible(false)}
-                  >
-                    <Text style={styles.modalButtonText}>OK, Got it</Text>
-                  </TouchableOpacity>
-                </MotiView>
-              </MotiView>
-            )}
-          </AnimatePresence>
 
           {/* --- INCOMING RIDE REQUEST SHEET OVERLAY --- */}
           <IncomingRideModal
@@ -843,58 +757,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748B",
     marginTop: 16,
-  },
-  modalCard: {
-    width: "85%",
-    backgroundColor: "#0F172A",
-    borderRadius: 24,
-    padding: 22,
-    alignItems: "center",
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "800",
-    color: "#FFFFFF",
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  modalMessage: {
-    fontSize: 13,
-    color: "#CBD5E1",
-    textAlign: "center",
-    lineHeight: 18,
-  },
-  modalButton: {
-    marginTop: 18,
-    backgroundColor: "#00A859",
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    borderRadius: 14,
-  },
-  modalButtonText: {
-    color: "#fff",
-    fontWeight: "800",
-    fontSize: 14,
-  },
-
-  // 🔧 FIX 3: Higher visibility parameters for modal overlay layout system rules
-  modalOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(15, 23, 42, 0.75)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 99999,
-    elevation: 99999,
-  },
-  // 🔧 Added styling rules for the Lottie micro-interaction wrapper
-  carAnimation: {
-    width: 130,
-    height: 130,
-    marginBottom: 4,
   },
 });
