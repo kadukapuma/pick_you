@@ -1,14 +1,20 @@
 import { Tabs } from "expo-router";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useEffect, useRef } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Animated,
   Easing,
   Platform,
-  Pressable,
+  PixelRatio,
   StyleSheet,
   View,
+  Dimensions,
 } from "react-native";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+const scale = (size: number) =>
+  Math.round(PixelRatio.roundToNearestPixel((SCREEN_WIDTH / 375) * size));
 
 // ─── Animated tab icon wrapper ──────────────────────────────────────────────
 type TabIconProps = {
@@ -17,12 +23,12 @@ type TabIconProps = {
 };
 
 function TabIcon({ focused, children }: TabIconProps) {
-  const scale = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
+  const scaleAnim = useRef(new Animated.Value(focused ? 1 : 0.88)).current;
   const bgOpacity = useRef(new Animated.Value(focused ? 1 : 0)).current;
 
   useEffect(() => {
     Animated.parallel([
-      Animated.spring(scale, {
+      Animated.spring(scaleAnim, {
         toValue: focused ? 1 : 0.88,
         useNativeDriver: true,
         damping: 14,
@@ -38,8 +44,9 @@ function TabIcon({ focused, children }: TabIconProps) {
   }, [focused]);
 
   return (
-    <Animated.View style={[styles.tabIconOuter, { transform: [{ scale }] }]}>
-      {/* Pill background */}
+    <Animated.View
+      style={[styles.tabIconOuter, { transform: [{ scale: scaleAnim }] }]}
+    >
       <Animated.View style={[styles.tabIconPill, { opacity: bgOpacity }]} />
       {children}
     </Animated.View>
@@ -51,7 +58,6 @@ function ScanButton() {
   const pulse = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Gentle repeating pulse to draw attention
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulse, {
@@ -76,48 +82,25 @@ function ScanButton() {
     <Animated.View
       style={[styles.scanButtonOuter, { transform: [{ scale: pulse }] }]}
     >
-      {/* White ring */}
       <View style={styles.scanButtonRing} />
-      {/* Green disc */}
       <View style={styles.scanButtonInner}>
-        <MaterialIcons name="qr-code-scanner" size={26} color="#FFFFFF" />
+        <MaterialIcons
+          name="qr-code-scanner"
+          size={scale(24)}
+          color="#FFFFFF"
+        />
       </View>
     </Animated.View>
   );
 }
 
-// ─── Tab bar entrance animation ─────────────────────────────────────────────
-function useTabBarEntrance() {
-  const translateY = useRef(new Animated.Value(80)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration: 520,
-        delay: 350,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 400,
-        delay: 350,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return { translateY, opacity };
-}
-
+// ─── Layout ──────────────────────────────────────────────────────────────────
 export default function TabsLayout() {
-  // We animate a wrapper view placed over the tab bar for the slide-up entrance.
-  // The tab bar itself is hidden (transparent/height-0) and we render a custom
-  // floating bar below using tabBarBackground.
-  const { translateY, opacity } = useTabBarEntrance();
+  const insets = useSafeAreaInsets();
+
+  // Tab bar height: icon area + label + safe area bottom padding
+  const TAB_BAR_HEIGHT =
+    scale(52) + (insets.bottom > 0 ? insets.bottom : scale(8));
 
   return (
     <Tabs
@@ -129,37 +112,38 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: "#9CA3AF",
 
         tabBarLabelStyle: {
-          fontSize: 10,
+          fontSize: scale(10),
           fontWeight: "600",
-          marginTop: 1,
+          marginTop: 2,
+          includeFontPadding: false,
         },
 
         tabBarStyle: {
-          position: "absolute",
-          left: 16,
-          right: 16,
-          bottom: 18,
-          height: 72,
+          // ✅ No `position: absolute`, no `left/right/bottom` offsets
+          // Sits naturally at the bottom, system handles safe area
+          height: TAB_BAR_HEIGHT,
           backgroundColor: "#FFFFFF",
-          borderTopWidth: 0,
-          borderRadius: 28,
-          paddingTop: 8,
-          paddingBottom: Platform.OS === "ios" ? 0 : 8,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          borderTopColor: "#E5E7EB",
+
+          // Internal padding so content doesn't touch bottom edge
+          paddingTop: scale(8),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : scale(8),
+
           ...Platform.select({
             ios: {
-              shadowColor: "#0B3D2E",
-              shadowOffset: { width: 0, height: 8 },
-              shadowOpacity: 0.14,
-              shadowRadius: 20,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: -2 },
+              shadowOpacity: 0.06,
+              shadowRadius: 8,
             },
             android: {
-              elevation: 18,
+              elevation: 8,
             },
           }),
         },
 
         tabBarItemStyle: {
-          height: 58,
           alignItems: "center",
           justifyContent: "center",
         },
@@ -174,7 +158,7 @@ export default function TabsLayout() {
             <TabIcon focused={focused}>
               <Ionicons
                 name={focused ? "home" : "home-outline"}
-                size={21}
+                size={scale(21)}
                 color={color}
               />
             </TabIcon>
@@ -191,7 +175,7 @@ export default function TabsLayout() {
             <TabIcon focused={focused}>
               <Ionicons
                 name={focused ? "calendar" : "calendar-outline"}
-                size={21}
+                size={scale(21)}
                 color={color}
               />
             </TabIcon>
@@ -205,9 +189,10 @@ export default function TabsLayout() {
         options={{
           title: "Scan & Pay",
           tabBarLabelStyle: {
-            fontSize: 10,
+            fontSize: scale(10),
             fontWeight: "600",
-            marginTop: 8,
+            marginTop: scale(6),
+            includeFontPadding: false,
           },
           tabBarIcon: () => <ScanButton />,
         }}
@@ -222,7 +207,7 @@ export default function TabsLayout() {
             <TabIcon focused={focused}>
               <Ionicons
                 name={focused ? "notifications" : "notifications-outline"}
-                size={21}
+                size={scale(21)}
                 color={color}
               />
             </TabIcon>
@@ -239,7 +224,7 @@ export default function TabsLayout() {
             <TabIcon focused={focused}>
               <Ionicons
                 name={focused ? "wallet" : "wallet-outline"}
-                size={21}
+                size={scale(21)}
                 color={color}
               />
             </TabIcon>
@@ -257,9 +242,9 @@ export default function TabsLayout() {
 const styles = StyleSheet.create({
   // ── Tab icon ──────────────────────────────────────────────────────────────
   tabIconOuter: {
-    width: 42,
-    height: 32,
-    borderRadius: 16,
+    width: scale(44),
+    height: scale(32),
+    borderRadius: scale(16),
     alignItems: "center",
     justifyContent: "center",
   },
@@ -267,17 +252,17 @@ const styles = StyleSheet.create({
   tabIconPill: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#E8F8F0",
-    borderRadius: 16,
+    borderRadius: scale(16),
   },
 
-  // ── Scan button ───────────────────────────────────────────────────────────
+  // ── Scan FAB ──────────────────────────────────────────────────────────────
   scanButtonOuter: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: scale(56),
+    height: scale(56),
+    borderRadius: scale(28),
     alignItems: "center",
     justifyContent: "center",
-    marginTop: -22,
+    marginTop: scale(-16), // slight lift — subtle, not aggressive
     backgroundColor: "#FFFFFF",
     ...Platform.select({
       ios: {
@@ -294,14 +279,14 @@ const styles = StyleSheet.create({
 
   scanButtonRing: {
     ...StyleSheet.absoluteFillObject,
-    borderRadius: 31,
+    borderRadius: scale(28),
     backgroundColor: "#FFFFFF",
   },
 
   scanButtonInner: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: scale(48),
+    height: scale(48),
+    borderRadius: scale(24),
     backgroundColor: "#20B768",
     alignItems: "center",
     justifyContent: "center",
