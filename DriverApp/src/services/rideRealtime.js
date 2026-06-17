@@ -16,15 +16,24 @@ let rideEventHandler = null;
 let fallbackTimer = null;
 let fallbackDelayTimer = null;
 let wsConnected = false;
+let connectionStatus = "disconnected";
+let boundPusherConnection = null;
 
 const listeners = {
   onRide: null,
   onConnectionChange: null,
+  onStatusChange: null,
 };
 
-const notifyConnection = (connected) => {
+const notifyStatus = (status) => {
+  connectionStatus = status;
+  listeners.onStatusChange?.(status);
+};
+
+const notifyConnection = (connected, status = connected ? "connected" : "connecting") => {
   wsConnected = connected;
   listeners.onConnectionChange?.(connected);
+  notifyStatus(status);
 };
 
 const handleRideEvent = (payload) => {
@@ -80,6 +89,7 @@ const startFallbackSync = () => {
     console.log("rideRealtime: fallback HTTP sync active");
   }
 
+  notifyConnection(false, "fallback");
   syncPendingRideOnce();
   fallbackTimer = setInterval(syncPendingRideOnce, FALLBACK_SYNC_MS);
 };
@@ -98,6 +108,22 @@ const scheduleFallbackIfStillOffline = () => {
 const bindPusherConnection = (pusher) => {
   if (!pusher?.connection?.bind) return;
 
+  if (boundPusherConnection === pusher.connection) {
+    const state = pusher.connection.state;
+    if (state === "connected") {
+      notifyConnection(true);
+    } else if (connectionStatus !== "fallback") {
+      notifyConnection(false, state === "disconnected" ? "disconnected" : "connecting");
+    }
+    return;
+  }
+
+  boundPusherConnection = pusher.connection;
+
+  pusher.connection.bind("connecting", () => {
+    notifyConnection(false, "connecting");
+  });
+
   pusher.connection.bind("connected", () => {
     if (__DEV__) console.log("rideRealtime: WebSocket connected");
     notifyConnection(true);
@@ -106,12 +132,25 @@ const bindPusherConnection = (pusher) => {
 
   pusher.connection.bind("disconnected", () => {
     if (__DEV__) console.log("rideRealtime: WebSocket disconnected");
-    notifyConnection(false);
+    notifyConnection(false, "disconnected");
     scheduleFallbackIfStillOffline();
   });
 
-  pusher.connection.bind("error", () => {
-    notifyConnection(false);
+  pusher.connection.bind("unavailable", () => {
+    notifyConnection(false, "fallback");
+    scheduleFallbackIfStillOffline();
+  });
+
+  pusher.connection.bind("failed", () => {
+    notifyConnection(false, "fallback");
+    startFallbackSync();
+  });
+
+  pusher.connection.bind("error", (error) => {
+    if (__DEV__) {
+      console.log("rideRealtime: WebSocket error", error?.error || error);
+    }
+    notifyConnection(false, "fallback");
     scheduleFallbackIfStillOffline();
   });
 
@@ -120,7 +159,7 @@ const bindPusherConnection = (pusher) => {
     notifyConnection(true);
     stopFallbackSync();
   } else {
-    notifyConnection(false);
+    notifyConnection(false, state === "disconnected" ? "disconnected" : "connecting");
     scheduleFallbackIfStillOffline();
   }
 };
@@ -164,11 +203,16 @@ const subscribeToDriverChannel = (driverId) => {
   subscribedDriverId = driverId;
 };
 
-export const connectRideRealtime = async (driverId, { onRide, onConnectionChange } = {}) => {
+export const connectRideRealtime = async (
+  driverId,
+  { onRide, onConnectionChange, onStatusChange } = {},
+) => {
   if (!driverId) return;
 
   listeners.onRide = onRide ?? null;
   listeners.onConnectionChange = onConnectionChange ?? null;
+  listeners.onStatusChange = onStatusChange ?? null;
+  notifyConnection(false, "connecting");
 
   const { echo, pusher } = await createEchoInstance();
   echoInstance = echo;
@@ -188,7 +232,7 @@ export const connectRideRealtime = async (driverId, { onRide, onConnectionChange
 
 export const disconnectRideRealtime = async ({ clearListeners = true } = {}) => {
   stopFallbackSync();
-  notifyConnection(false);
+  notifyConnection(false, "disconnected");
 
   if (echoInstance && subscribedDriverId) {
     echoInstance.leaveChannel(`private-driver.rides.${subscribedDriverId}`);
@@ -200,9 +244,11 @@ export const disconnectRideRealtime = async ({ clearListeners = true } = {}) => 
   if (clearListeners) {
     listeners.onRide = null;
     listeners.onConnectionChange = null;
+    listeners.onStatusChange = null;
   }
 };
 
 export const isRideRealtimeConnected = () => wsConnected;
+export const getRideRealtimeStatus = () => connectionStatus;
 
 export const enableRideFallbackSync = () => startFallbackSync();

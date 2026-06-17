@@ -40,6 +40,7 @@ const HomeScreen = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
+  const [realtimeStatus, setRealtimeStatus] = useState("disconnected");
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
   const [isRideHandled, setIsRideHandled] = useState(false);
@@ -140,6 +141,7 @@ const HomeScreen = () => {
         console.log("Error disconnecting services:", err);
       }
       setWsConnected(false);
+      setRealtimeStatus("disconnected");
       lastNotifiedRideIdRef.current = null;
       return;
     }
@@ -157,11 +159,15 @@ const HomeScreen = () => {
           onConnectionChange: (connected) => {
             if (!cancelled) setWsConnected(connected);
           },
+          onStatusChange: (status) => {
+            if (!cancelled) setRealtimeStatus(status);
+          },
         });
       } catch (err) {
         console.log("Ride realtime connect error:", err?.message || err);
         if (!cancelled) {
           setWsConnected(false);
+          setRealtimeStatus("fallback");
           try {
             enableRideFallbackSync();
             await syncPendingRideOnce();
@@ -191,6 +197,13 @@ const HomeScreen = () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, []);
+
+  const getStatusSubtitle = () => {
+    if (!isOnline) return "Go online to start earning";
+    if (wsConnected) return "Live - trips arrive instantly";
+    if (realtimeStatus === "fallback") return "Looking for trips...";
+    return "Connecting to live trips...";
+  };
 
   const fetchDriverData = async () => {
     try {
@@ -425,13 +438,7 @@ const HomeScreen = () => {
                 <Text style={styles.statusTitle}>
                   {isOnline ? "You're Online" : "You're Offline"}
                 </Text>
-                <Text style={styles.statusSubtitle}>
-                  {isOnline
-                    ? wsConnected
-                      ? "Live — trips arrive instantly"
-                      : "Reconnecting… (backup sync active)"
-                    : "Go online to start earning"}
-                </Text>
+                <Text style={styles.statusSubtitle}>{getStatusSubtitle()}</Text>
               </View>
 
               {isToggling ? (

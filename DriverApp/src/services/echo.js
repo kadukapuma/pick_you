@@ -69,17 +69,25 @@ const createEchoInstance = async () => {
 
   const wsHost = process.env.EXPO_PUBLIC_WS_HOST || "picku.lk";
   const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 443);
-  const wsScheme = process.env.EXPO_PUBLIC_WS_SCHEME || "https";
+  const wsScheme = (process.env.EXPO_PUBLIC_WS_SCHEME || "https").toLowerCase();
   const appKey = process.env.EXPO_PUBLIC_REVERB_APP_KEY || "app-key";
   const wsCluster = process.env.EXPO_PUBLIC_PUSHER_CLUSTER || "mt1";
+  const forceTLS = wsScheme === "https" || wsScheme === "wss";
+
+  if (__DEV__ && appKey === "app-key") {
+    console.warn(
+      "Reverb app key is still the sample value. Set EXPO_PUBLIC_REVERB_APP_KEY to match the backend.",
+    );
+  }
 
   const pusher = new PusherConstructor(appKey, {
     wsHost,
     wsPort,
     wssPort: wsPort,
     cluster: wsCluster,
-    forceTLS: wsScheme === "https",
-    enabledTransports: ["ws", "wss"],
+    forceTLS,
+    encrypted: forceTLS,
+    enabledTransports: [forceTLS ? "wss" : "ws"],
     disableStats: true,
     authEndpoint: `${API_BASE_URL}/broadcasting/auth`,
     auth: {
