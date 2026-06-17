@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Pickyou Driver App",
+    "name": "PickU Driver",
     "slug": "DriverApp",
     "version": "1.0.1",
     "orientation": "portrait",
@@ -45,7 +45,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./src/assets/icon-1.png",
+          "image": "./src/assets/icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
           "backgroundColor": "#0B1220",
