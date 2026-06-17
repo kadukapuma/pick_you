@@ -1,13 +1,15 @@
-import { useCallback, useMemo, useState, useEffect } from 'react'
+import { useCallback, useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext'
 import echo from '../../echo'
-import { apiFetch, fetchSuperAdminNotifications } from '../../services/adminApi'
+import { apiFetch } from '../../services/adminApi'
 import StatCard from '../../components/StatCard/StatCard'
 import PrimaryButton from '../../components/PrimaryButton/PrimaryButton'
 import '../Dashboard/Dashboard.css'
 
 const SuperDashboard = () => {
     const { token, admin } = useAdmin()
+    const navigate = useNavigate()
     const [stats, setStats] = useState({
         admins_count: 0,
         drivers_count: 0,
@@ -134,13 +136,13 @@ const SuperDashboard = () => {
                     <h3>Quick Management</h3>
                     <p className="muted" style={{ marginBottom: 20 }}>Direct access to critical administrative functions.</p>
                     <div style={{ display: 'flex', gap: 16 }}>
-                        <PrimaryButton icon="manage_accounts" onClick={() => window.location.href = '/admins'}>
+                        <PrimaryButton icon="manage_accounts" onClick={() => navigate('/admin-portal/admins')}>
                             Manage Admin Users
                         </PrimaryButton>
-                        <button className="btn-view" style={{ background: '#f8f9fa', color: '#1a1f2b' }} title="Manage permissions" aria-label="Manage permissions" onClick={() => window.location.href = '/permissions'}>
+                        <button className="btn-view" style={{ background: '#f8f9fa', color: '#1a1f2b' }} title="Manage permissions" aria-label="Manage permissions" onClick={() => navigate('/admin-portal/permissions')}>
                             <span className="material-icons">admin_panel_settings</span>
                         </button>
-                        <button className="btn-view" style={{ background: '#f8f9fa', color: '#1a1f2b' }} title="System settings" aria-label="System settings">
+                        <button className="btn-view" style={{ background: '#f8f9fa', color: '#1a1f2b' }} title="System settings" aria-label="System settings" onClick={() => navigate('/admin-portal/settings')}>
                             <span className="material-icons">settings</span>
                         </button>
                     </div>

@@ -123,7 +123,7 @@ const Vehicles = () => {
                                     className="btn-view"
                                     title="View vehicle"
                                     aria-label="View vehicle"
-                                    onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                                    onClick={() => navigate(`/admin-portal/vehicles/${vehicle.id}`)}
                                 >
                                     <span className="material-icons">visibility</span>
                                 </button>

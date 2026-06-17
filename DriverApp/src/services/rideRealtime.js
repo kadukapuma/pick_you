@@ -11,7 +11,6 @@ const FALLBACK_SYNC_MS = 60_000;
 const FALLBACK_DELAY_MS = 4000;
 
 let echoInstance = null;
-let pusherInstance = null;
 let subscribedDriverId = null;
 let rideEventHandler = null;
 let fallbackTimer = null;
@@ -153,7 +152,7 @@ const onRideRequestedTargeted = (raw) => {
 
 const subscribeToDriverChannel = (driverId) => {
   const channelName = `driver.rides.${driverId}`;
-  const channel = echoInstance.channel(channelName);
+  const channel = echoInstance.private(channelName);
 
   if (rideEventHandler) {
     channel.unbind(".RideRequestedTargeted", rideEventHandler);
@@ -173,13 +172,12 @@ export const connectRideRealtime = async (driverId, { onRide, onConnectionChange
 
   const { echo, pusher } = await createEchoInstance();
   echoInstance = echo;
-  pusherInstance = pusher;
 
   bindPusherConnection(pusher);
 
   if (subscribedDriverId !== driverId) {
     if (subscribedDriverId && echoInstance) {
-      echoInstance.leaveChannel(`driver.rides.${subscribedDriverId}`);
+      echoInstance.leaveChannel(`private-driver.rides.${subscribedDriverId}`);
       rideEventHandler = null;
     }
     subscribeToDriverChannel(driverId);
@@ -193,7 +191,7 @@ export const disconnectRideRealtime = async ({ clearListeners = true } = {}) => 
   notifyConnection(false);
 
   if (echoInstance && subscribedDriverId) {
-    echoInstance.leaveChannel(`driver.rides.${subscribedDriverId}`);
+    echoInstance.leaveChannel(`private-driver.rides.${subscribedDriverId}`);
   }
 
   subscribedDriverId = null;

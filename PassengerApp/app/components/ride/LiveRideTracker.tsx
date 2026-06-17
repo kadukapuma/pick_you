@@ -7,7 +7,7 @@ import RideMap from "./RideMap";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-export default function LiveRideTracker({ rideData, driverLocation }: any) {
+export default function LiveRideTracker({ rideData, driverLocation, trackingStatus }: any) {
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
             {/* Back button */}
@@ -68,6 +68,13 @@ export default function LiveRideTracker({ rideData, driverLocation }: any) {
                         </Text>
                         <Text style={{ color: "#6B7280", fontSize: 12 }}>
                             {rideData.distance_km} km • ETA: 5-8 min
+                        </Text>
+                        <Text style={{ color: trackingStatus?.stale ? "#DC2626" : "#059669", fontSize: 11, marginTop: 3 }}>
+                            {trackingStatus?.stale
+                                ? "Driver location is temporarily stale"
+                                : trackingStatus?.connected
+                                  ? "Live location connected"
+                                  : "Using backup location updates"}
                         </Text>
                     </View>
                     <TouchableOpacity style={{ backgroundColor: "#FBBF24", paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20 }}>

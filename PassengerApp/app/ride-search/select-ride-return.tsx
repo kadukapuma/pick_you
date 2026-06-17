@@ -8,7 +8,6 @@ import {
   ScrollView,
   ActivityIndicator,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import { useRideSearch, type RideOption } from "../context/RideSearchContext";
 import {
@@ -16,6 +15,7 @@ import {
   type DirectionsResult,
 } from "../services/routing/mapboxRoutingService";
 import { apiClient } from "../services/api/apiClient";
+import MapboxRideMap from "../components/map/MapboxRideMap";
 
 interface DBVehicleType {
   id: number;
@@ -262,54 +262,19 @@ export default function SelectRideReturnScreen() {
   return (
     <View style={styles.container}>
       {/* MAP */}
-      <MapView
+      <MapboxRideMap
         style={styles.map}
-        initialRegion={{
-          latitude: pickup.latitude,
-          longitude: pickup.longitude,
-          latitudeDelta: 0.08,
-          longitudeDelta: 0.08,
-        }}
-      >
-        {/* Blue Route Line - Using actual road route */}
-        {directions && directions.polyline.length > 0 ? (
-          <Polyline
-            coordinates={directions.polyline}
-            strokeColor="#2563EB"
-            strokeWidth={4}
-            lineDashPattern={[0]}
-          />
-        ) : (
-          /* Fallback straight line if directions not loaded */
-          <Polyline
-            coordinates={[
-              { latitude: pickup.latitude, longitude: pickup.longitude },
-              { latitude: dropoff.latitude, longitude: dropoff.longitude },
-            ]}
-            strokeColor="#2563EB"
-            strokeWidth={4}
-            lineDashPattern={[0]}
-          />
-        )}
-
-        <Marker
-          coordinate={{
-            latitude: pickup.latitude,
-            longitude: pickup.longitude,
-          }}
-          title="Return From"
-          pinColor="#2563EB"
-        />
-
-        <Marker
-          coordinate={{
-            latitude: dropoff.latitude,
-            longitude: dropoff.longitude,
-          }}
-          title="Return To"
-          pinColor="#F97316"
-        />
-      </MapView>
+        pickup={pickup}
+        dropoff={dropoff}
+        routeCoordinates={
+          directions && directions.polyline.length > 0
+            ? directions.polyline
+            : [pickup, dropoff]
+        }
+        routeColor="#2563EB"
+        pickupColor="#2563EB"
+        dropoffColor="#F97316"
+      />
 
       {/* Distance Info Overlay */}
       {loadingRoute ? (

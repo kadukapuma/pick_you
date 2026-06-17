@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Animated,
@@ -10,8 +10,6 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
-// import MapView, { Marker, Polyline } from "react-native-maps";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import {
@@ -21,10 +19,12 @@ import {
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import api from "../../services/api";
+import { clearActiveRideLocationSync } from "../../services/driverLocationSync";
 import {
     getDropCoordinate,
     getPickupCoordinate,
 } from "../../utils/rideLocation";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
 
 const { width, height } = Dimensions.get("window");
 
@@ -35,7 +35,6 @@ const SLIDER_WIDTH = width - 40; // Adjusted for padding calculation (20px on ea
 const THUMB_SIZE = 50;
 
 const TripInProgressScreen = ({ navigation, route }) => {
-  const mapRef = useRef(null);
   const insets = useSafeAreaInsets();
 
   const ride = route?.params?.ride || {};
@@ -55,19 +54,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
       : dropCoord
         ? [origin, dropCoord]
         : [origin];
-
-  useEffect(() => {
-    if (!mapRef.current || routeCoordinates.length < 2) return;
-
-    const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(routeCoordinates, {
-        edgePadding: { top: 160, right: 50, bottom: 220, left: 50 },
-        animated: true,
-      });
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [directions]);
+  const mapPadding = useMemo(
+    () => ({ top: 160, right: 50, bottom: 220, left: 50 }),
+    [],
+  );
 
   // --- SLIDER MECHANICS & ANIMATIONS ---
   const slideX = useRef(new Animated.Value(0)).current;
@@ -86,6 +76,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
     setIsCompleting(true);
     try {
       await api.post(`/rides/${ride.id}/complete`);
+      await clearActiveRideLocationSync();
       navigation.navigate("TripCompletedScreen", { ride });
     } catch (error) {
       console.log("Error completing ride:", error);
@@ -187,42 +178,16 @@ const TripInProgressScreen = ({ navigation, route }) => {
       </SafeAreaView>
 
       {/* MAP VIEWER INTERACTIVE SYSTEM */}
-      <MapView
-        ref={mapRef}
+      <MapboxRideMap
         style={styles.mapViewport}
-        initialRegion={{
-          latitude: (origin.latitude + destination.latitude) / 2,
-          longitude: (origin.longitude + destination.longitude) / 2,
-          latitudeDelta: 0.025,
-          longitudeDelta: 0.025,
-        }}
-      >
-        <Polyline
-          coordinates={routeCoordinates}
-          strokeWidth={6}
-          strokeColor="#2F80ED"
-          lineCap="round"
-          lineJoin="round"
-        />
-
-        <Marker coordinate={origin} anchor={{ x: 0.5, y: 0.5 }} rotation={145}>
-          <View style={styles.navigationLocationArrow}>
-            <MaterialCommunityIcons
-              name="navigation"
-              size={20}
-              color="#FFFFFF"
-            />
-          </View>
-        </Marker>
-
-        {dropCoord ? (
-          <Marker coordinate={dropCoord} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.navDestPinOuter}>
-              <View style={styles.navDestPinInner} />
-            </View>
-          </Marker>
-        ) : null}
-      </MapView>
+        origin={origin}
+        destination={destination}
+        routeCoordinates={routeCoordinates}
+        routeColor="#2F80ED"
+        destinationColor="#EF4444"
+        vehicleHeading={145}
+        edgePadding={mapPadding}
+      />
 
       {/* FLOATING ACTION UTILITIES */}
       <View style={styles.mapFloatingControls} pointerEvents="box-none">

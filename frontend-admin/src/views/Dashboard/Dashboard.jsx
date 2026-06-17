@@ -174,7 +174,7 @@ const Dashboard = () => {
                                     className="btn-view"
                                     title="View driver details"
                                     aria-label="View driver details"
-                                    onClick={() => navigate(`/drivers/${driver.id}`)}
+                                    onClick={() => navigate(`/admin-portal/drivers/${driver.id}`)}
                                 >
                                     <span className="material-icons">visibility</span>
                                 </button>
@@ -189,10 +189,10 @@ const Dashboard = () => {
                     <div className="detail-section">
                         <h3>Quick Actions</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <button className="btn-view" title="Review pending drivers" aria-label="Review pending drivers" onClick={() => navigate('/drivers')}>
+                            <button className="btn-view" title="Review pending drivers" aria-label="Review pending drivers" onClick={() => navigate('/admin-portal/drivers')}>
                                 <span className="material-icons">person_add</span>
                             </button>
-                            <button className="btn-view" style={{ background: '#f8f9fa', color: '#1a1f2b' }} title="Manage vehicles" aria-label="Manage vehicles" onClick={() => navigate('/vehicles')}>
+                            <button className="btn-view" style={{ background: '#f8f9fa', color: '#1a1f2b' }} title="Manage vehicles" aria-label="Manage vehicles" onClick={() => navigate('/admin-portal/vehicles')}>
                                 <span className="material-icons">directions_car</span>
                             </button>
                         </div>

@@ -9,7 +9,15 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "location"
+        ],
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "bundleIdentifier": "com.ayeshalexan.DriverApp"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +26,14 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ayeshalexan.DriverApp"
+      "package": "com.ayeshalexan.DriverApp",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION"
+      ]
     },
     "web": {
       "output": "static",
@@ -26,6 +41,7 @@
     },
     "plugins": [
       "expo-router",
+      "@rnmapbox/maps",
       [
         "expo-splash-screen",
         {
@@ -38,7 +54,17 @@
           }
         }
       ],
-      "expo-font"
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Pick You to share your location during active rides.",
+          "locationWhenInUsePermission": "Allow Pick You to use your location while you are online.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
@@ -47,7 +73,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4badf947-580a-4d8b-a22a-52a5ac569ef8"
+        "projectId": "95287dff-3db4-4e4d-b47b-6d2d89a2a84f"
       }
     }
   }

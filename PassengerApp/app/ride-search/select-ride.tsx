@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 
 import {
@@ -22,6 +21,7 @@ import {
 } from "../services/routing/mapboxRoutingService";
 import { useRideSearch, type RideOption } from "../context/RideSearchContext";
 import { apiClient } from "../services/api/apiClient";
+import MapboxRideMap from "../components/map/MapboxRideMap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -437,55 +437,19 @@ export default function SelectRideScreen() {
       />
 
       {/* ── MAP ──────────────────────────────────────────────────────────── */}
-      <MapView
+      <MapboxRideMap
         style={styles.map}
-        initialRegion={{
-          latitude: (pickup.latitude + destination.latitude) / 2,
-          longitude: (pickup.longitude + destination.longitude) / 2,
-          latitudeDelta:
-            Math.abs(pickup.latitude - destination.latitude) * 2.4 + 0.02,
-          longitudeDelta:
-            Math.abs(pickup.longitude - destination.longitude) * 2.4 + 0.02,
-        }}
-      >
-        {directions && directions.polyline.length > 0 ? (
-          <Polyline
-            coordinates={directions.polyline}
-            strokeColor={GREEN}
-            strokeWidth={4}
-          />
-        ) : (
-          <Polyline
-            coordinates={[
-              { latitude: pickup.latitude, longitude: pickup.longitude },
-              {
-                latitude: destination.latitude,
-                longitude: destination.longitude,
-              },
-            ]}
-            strokeColor={GREEN}
-            strokeWidth={3}
-            lineDashPattern={[6, 4]}
-          />
-        )}
-
-        <Marker
-          coordinate={{
-            latitude: pickup.latitude,
-            longitude: pickup.longitude,
-          }}
-          title="Pickup"
-          pinColor={GREEN}
-        />
-        <Marker
-          coordinate={{
-            latitude: destination.latitude,
-            longitude: destination.longitude,
-          }}
-          title="Drop"
-          pinColor="#F97316"
-        />
-      </MapView>
+        pickup={pickup}
+        dropoff={destination}
+        routeCoordinates={
+          directions && directions.polyline.length > 0
+            ? directions.polyline
+            : [pickup, destination]
+        }
+        routeColor={GREEN}
+        pickupColor={GREEN}
+        dropoffColor="#F97316"
+      />
 
       {/* ── BACK BUTTON ─────────────────────────────────────────────────── */}
       <TouchableOpacity

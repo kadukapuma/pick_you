@@ -10,8 +10,7 @@ import {
   View,
 } from "react-native";
 
-// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
-// import MapView, { Marker, AnimatedRegion } from "react-native-maps";
+// Map rendering lives in ride screens through Mapbox Maps SDK.
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { AnimatePresence, MotiView } from "moti";
@@ -22,6 +21,7 @@ import {
 import IncomingRideModal from "../../components/IncomingRideModel";
 import api from "../../services/api";
 import {
+  setActiveRideLocationSync,
   startDriverLocationSync,
   stopDriverLocationSync,
 } from "../../services/driverLocationSync";
@@ -221,6 +221,7 @@ const HomeScreen = () => {
     const rideId = rideData.id;
     try {
       await api.post(`/rides/${rideId}/accept`);
+      await setActiveRideLocationSync(rideId);
 
       let rideForNav = rideData;
       try {
