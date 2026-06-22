@@ -169,7 +169,6 @@ export const getCachedDirections_withCache = async (
   // Check cache first
   const cached = getCachedDirections(key);
   if (cached) {
-    console.log("Using cached directions");
     return cached;
   }
 
@@ -197,5 +196,4 @@ export const getCachedDirections_withCache = async (
  */
 export const clearDirectionsCache = (): void => {
   directionsCache.clear();
-  console.log("Directions cache cleared");
 };

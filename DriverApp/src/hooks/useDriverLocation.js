@@ -11,6 +11,7 @@ export function useDriverLocation() {
 
   useEffect(() => {
     let cancelled = false;
+    let locationSubscription = null;
 
     const load = async () => {
       try {
@@ -23,16 +24,34 @@ export function useDriverLocation() {
           return;
         }
 
-        const current = await Location.getCurrentPositionAsync({
+        const options = {
           accuracy: Location.Accuracy.Balanced,
-        });
+          distanceInterval: 10,
+          timeInterval: 5000,
+        };
 
-        if (!cancelled) {
+        const updateLocation = (position) => {
+          if (cancelled) return;
+
           setLocation({
-            latitude: current.coords.latitude,
-            longitude: current.coords.longitude,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            heading: position.coords.heading ?? 0,
           });
           setError(null);
+        };
+
+        const current = await Location.getCurrentPositionAsync(options);
+        updateLocation(current);
+
+        const subscription = await Location.watchPositionAsync(
+          options,
+          updateLocation,
+        );
+        locationSubscription = subscription;
+
+        if (cancelled) {
+          subscription.remove();
         }
       } catch (err) {
         if (!cancelled) {
@@ -49,6 +68,7 @@ export function useDriverLocation() {
 
     return () => {
       cancelled = true;
+      locationSubscription?.remove();
     };
   }, []);
 

@@ -1,4 +1,4 @@
-import Pusher from "pusher-js/react-native";
+import PusherModule from "pusher-js/react-native";
 import { API_CONFIG } from "../api/config";
 import { apiClient } from "../api/apiClient";
 import { StorageService } from "../auth/storageService";
@@ -21,13 +21,23 @@ export interface TrackingStatus {
   stale: boolean;
 }
 
+export interface RideStatusUpdate {
+  ride: any;
+}
+
 const STALE_AFTER_MS = 20_000;
 const FALLBACK_POLL_MS = 10_000;
+
+const PusherConstructor =
+  ((PusherModule as any).Pusher ||
+    (PusherModule as any).default ||
+    PusherModule) as any;
 
 export async function subscribeToRideLocation(
   rideId: number,
   onLocation: (location: DriverLocationUpdate) => void,
   onStatus?: (status: TrackingStatus) => void,
+  onRideUpdate?: (ride: any) => void,
 ): Promise<() => void> {
   let lastSequence = 0;
   let lastUpdateAt = 0;
@@ -54,8 +64,10 @@ export async function subscribeToRideLocation(
   const fetchSnapshot = async () => {
     const response = await apiClient.get<DriverLocationUpdate>(
       `/rides/${rideId}/driver-location`,
+      { suppressErrorLog: true },
     );
     if (response.success && response.data) acceptLocation(response.data);
+    emitStatus(false);
   };
 
   const startPolling = () => {
@@ -69,19 +81,21 @@ export async function subscribeToRideLocation(
     pollTimer = null;
   };
 
-  await fetchSnapshot();
+  fetchSnapshot();
   const token = await StorageService.getToken();
   const wsHost = process.env.EXPO_PUBLIC_WS_HOST || "picku.lk";
-  const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 8080);
-  const wsScheme = process.env.EXPO_PUBLIC_WS_SCHEME || "http";
+  const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 443);
+  const wsScheme = (process.env.EXPO_PUBLIC_WS_SCHEME || "https").toLowerCase();
   const appKey = process.env.EXPO_PUBLIC_REVERB_APP_KEY || "app-key";
+  const forceTLS = wsScheme === "https" || wsScheme === "wss";
 
-  const pusher = new Pusher(appKey, {
+  const pusher = new PusherConstructor(appKey, {
     wsHost,
     wsPort,
     wssPort: wsPort,
     cluster: process.env.EXPO_PUBLIC_PUSHER_CLUSTER || "mt1",
-    forceTLS: wsScheme === "https",
+    forceTLS,
+    encrypted: forceTLS,
     enabledTransports: ["ws", "wss"],
     disableStats: true,
     authEndpoint: `${API_CONFIG.BASE_URL}/broadcasting/auth`,
@@ -96,6 +110,10 @@ export async function subscribeToRideLocation(
   const channelName = `private-ride.${rideId}`;
   const channel = pusher.subscribe(channelName);
   channel.bind("DriverLocationUpdated", acceptLocation);
+  channel.bind("RideStatusUpdated", (raw: RideStatusUpdate | { data: RideStatusUpdate }) => {
+    const payload = "data" in raw ? raw.data : raw;
+    if (payload?.ride) onRideUpdate?.(payload.ride);
+  });
 
   pusher.connection.bind("connected", () => {
     stopPolling();
@@ -121,6 +139,7 @@ export async function subscribeToRideLocation(
     stopPolling();
     if (staleTimer) clearInterval(staleTimer);
     channel.unbind("DriverLocationUpdated", acceptLocation);
+    channel.unbind("RideStatusUpdated");
     pusher.unsubscribe(channelName);
     pusher.disconnect();
   };

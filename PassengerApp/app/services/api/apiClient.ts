@@ -8,6 +8,10 @@ export interface ApiResponse<T = any> {
   errors?: Record<string, string[]>;
 }
 
+type ApiRequestOptions = RequestInit & {
+  suppressErrorLog?: boolean;
+};
+
 class ApiClient {
   private baseURL: string;
   private timeout: number;
@@ -19,7 +23,7 @@ class ApiClient {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {},
+    options: ApiRequestOptions = {},
   ): Promise<ApiResponse<T>> {
     try {
       const url = `${this.baseURL}${endpoint}`;
@@ -53,7 +57,9 @@ class ApiClient {
       const data = await response.json();
 
       if (!response.ok) {
-        console.error(`[${response.status}] ${endpoint}:`, data);
+        if (!options.suppressErrorLog) {
+          console.error(`[${response.status}] ${endpoint}:`, data);
+        }
         return {
           success: false,
           message: data.message || "An error occurred",
@@ -83,8 +89,11 @@ class ApiClient {
     }
   }
 
-  public get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.request<T>(endpoint, { method: "GET" });
+  public get<T>(
+    endpoint: string,
+    options: ApiRequestOptions = {},
+  ): Promise<ApiResponse<T>> {
+    return this.request<T>(endpoint, { ...options, method: "GET" });
   }
 
   public post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {

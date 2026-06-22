@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\RideStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\Ride;
@@ -11,6 +12,7 @@ use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Throwable;
+use App\Models\User;
 
 class PaymentController extends Controller
 {
@@ -29,6 +31,10 @@ class PaymentController extends Controller
         ]);
         $paymentMethod = $validated['payment_method'] ?? 'cash';
 
+        if ($request->user()->role === User::ROLE_DRIVER && $paymentMethod !== 'cash') {
+            return $this->error('Drivers can only confirm cash payments.', 422);
+        }
+
         try {
             $payment = DB::transaction(function () use ($ride_id, $paymentMethod) {
                 $lockedRide = Ride::lockForUpdate()->findOrFail($ride_id);
@@ -42,11 +48,15 @@ class PaymentController extends Controller
                     return $existingPayment;
                 }
 
+                $amount = (float) $lockedRide->final_fare > 0
+                    ? $lockedRide->final_fare
+                    : $lockedRide->estimated_fare;
+
                 $payment = Payment::create([
                     'ride_id' => $lockedRide->id,
                     'passenger_id' => $lockedRide->passenger_id,
                     'payment_method' => $paymentMethod,
-                    'amount' => $lockedRide->final_fare,
+                    'amount' => $amount,
                     'transaction_id' => 'txn_'.bin2hex(random_bytes(16)),
                     'payment_status' => $paymentMethod === 'cash' ? 'COMPLETED' : 'PENDING',
                     'paid_at' => $paymentMethod === 'cash' ? now() : null,
@@ -57,17 +67,17 @@ class PaymentController extends Controller
                 }
 
                 $passenger = $lockedRide->passenger()->lockForUpdate()->firstOrFail();
-                if ((float) $passenger->wallet_balance < (float) $lockedRide->final_fare) {
+                if ((float) $passenger->wallet_balance < (float) $amount) {
                     throw new DomainException('Insufficient wallet balance.');
                 }
 
-                $passenger->decrement('wallet_balance', $lockedRide->final_fare);
+                $passenger->decrement('wallet_balance', $amount);
                 $passenger->refresh();
 
                 WalletTransaction::create([
                     'user_id' => $passenger->user_id,
                     'transaction_type' => 'debit',
-                    'amount' => $lockedRide->final_fare,
+                    'amount' => $amount,
                     'balance_after' => $passenger->wallet_balance,
                     'description' => 'Paid for ride '.$lockedRide->ride_code,
                 ]);
@@ -81,6 +91,8 @@ class PaymentController extends Controller
         } catch (Throwable) {
             return $this->error('Payment processing failed.', 500);
         }
+
+        event(new RideStatusUpdated(Ride::findOrFail($ride_id)));
 
         return $this->success($payment, 'Payment processed successfully');
     }

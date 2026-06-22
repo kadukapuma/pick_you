@@ -1,13 +1,28 @@
 import React from "react";
-import { View, Text, TouchableOpacity, Dimensions, } from "react-native";
+import { View, Text, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import RideMap from "./RideMap";
 
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
 export default function LiveRideTracker({ rideData, driverLocation, trackingStatus }: any) {
+    const driverName = [
+        rideData.driver?.user?.first_name,
+        rideData.driver?.user?.last_name,
+    ].filter(Boolean).join(" ") || "Finding driver";
+    const vehicleNumber =
+        rideData.vehicle?.vehicle_number ||
+        rideData.vehicle?.plate_number ||
+        "Vehicle";
+    const rideStatus = String(rideData.status || "").toUpperCase();
+    const paymentStatus = String(rideData.payment?.payment_status || "").toUpperCase();
+    const fareAmount =
+        rideData.final_fare ||
+        rideData.estimated_fare ||
+        rideData.payment?.amount ||
+        rideData.distance_km;
+    const showPaymentDetails = rideStatus === "COMPLETED";
+
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
             {/* Back button */}
@@ -38,6 +53,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                         longitude: parseFloat(rideData.drop_longitude)
                     }}
                     driverLocation={driverLocation}
+                    rideStatus={rideStatus}
                 />
             </View>
 
@@ -64,11 +80,31 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={{ fontWeight: "700", fontSize: 16 }}>
-                            {rideData.driver?.user?.first_name || "Driver"} • {rideData.vehicle?.plate_number || "Vehicle"}
+                            {driverName} • {vehicleNumber}
                         </Text>
                         <Text style={{ color: "#6B7280", fontSize: 12 }}>
-                            {rideData.distance_km} km • ETA: 5-8 min
+                            {rideStatus === "REQUESTED"
+                                ? "Waiting for a driver to accept"
+                                : rideStatus === "ARRIVED"
+                                  ? "Driver has arrived at pickup"
+                                  : rideStatus === "STARTED"
+                                    ? "Passenger on board • Heading to drop-off"
+                                    : rideStatus === "COMPLETED"
+                                      ? paymentStatus === "COMPLETED"
+                                        ? "Payment confirmed • Please rate your trip"
+                                        : "Trip completed • Waiting for cash confirmation"
+                                : `${rideData.distance_km} km • ETA: 5-8 min`}
                         </Text>
+                        {showPaymentDetails ? (
+                            <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
+                                <Text style={{ fontWeight: "800", color: "#0F172A", fontSize: 13 }}>
+                                    Fare: Rs. {fareAmount}
+                                </Text>
+                                <Text style={{ color: "#64748B", fontSize: 12, marginTop: 2 }}>
+                                    Payment: Cash • {paymentStatus === "COMPLETED" ? "Collected" : "Pending collection"}
+                                </Text>
+                            </View>
+                        ) : null}
                         <Text style={{ color: trackingStatus?.stale ? "#DC2626" : "#059669", fontSize: 11, marginTop: 3 }}>
                             {trackingStatus?.stale
                                 ? "Driver location is temporarily stale"

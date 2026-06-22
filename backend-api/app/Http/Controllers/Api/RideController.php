@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Events\RideStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\FareConfig;
 use App\Models\Ride;
@@ -31,7 +32,7 @@ class RideController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $ride = Ride::with(['statuses', 'driver', 'vehicle', 'fareConfig'])->find($id);
+        $ride = Ride::with(['statuses', 'driver', 'vehicle', 'fareConfig', 'payment'])->find($id);
 
         if (! $ride) {
             return $this->error('Ride not found', 404);
@@ -228,6 +229,7 @@ class RideController extends Controller
         }
 
         $this->rideMatching->cleanup($ride->id);
+        event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride accepted successfully');
     }
@@ -239,14 +241,22 @@ class RideController extends Controller
     {
         $ride = Ride::find($id);
 
-        if (! $ride || $ride->status !== 'ACCEPTED') {
-            return $this->error('Ride cannot be started', 400);
+        if (! $ride) {
+            return $this->error('Ride not found', 404);
         }
 
         $driver = $request->user()->driver;
 
         if (! $driver || $ride->driver_id !== $driver->id) {
             return $this->error('You are not authorized to start this ride', 403);
+        }
+
+        if ($ride->status === 'STARTED') {
+            return $this->success($ride, 'Ride already started');
+        }
+
+        if ($ride->status !== 'ARRIVED') {
+            return $this->error('Driver must mark arrived before starting the ride', 400);
         }
 
         try {
@@ -259,7 +269,53 @@ class RideController extends Controller
             return $this->error('Ride cannot be started', 409);
         }
 
+        event(new RideStatusUpdated($ride));
+
         return $this->success($ride, 'Ride started successfully');
+    }
+
+    /**
+     * Driver arrived at pickup.
+     */
+    public function arriveRide(Request $request, $id)
+    {
+        $ride = Ride::find($id);
+
+        if (! $ride) {
+            return $this->error('Ride not found', 404);
+        }
+
+        $driver = $request->user()->driver;
+
+        if (! $driver || $ride->driver_id !== $driver->id) {
+            return $this->error('You are not authorized to update this ride', 403);
+        }
+
+        if ($ride->status === 'ARRIVED') {
+            return $this->success($ride, 'Driver already arrived at pickup');
+        }
+
+        if ($ride->status === 'STARTED') {
+            return $this->error('Ride already started', 400);
+        }
+
+        if ($ride->status !== 'ACCEPTED') {
+            return $this->error('Ride cannot be marked as arrived', 400);
+        }
+
+        try {
+            $ride = $this->rideTransition->transition(
+                $ride->id,
+                RideStateMachine::ARRIVED,
+                'Driver arrived at pickup.',
+            );
+        } catch (DomainException) {
+            return $this->error('Ride cannot be marked as arrived', 409);
+        }
+
+        event(new RideStatusUpdated($ride));
+
+        return $this->success($ride, 'Driver arrived at pickup');
     }
 
     /**
@@ -302,10 +358,17 @@ class RideController extends Controller
                 $ride->id,
                 RideStateMachine::COMPLETED,
                 'Driver completed the ride.',
+                [
+                    'final_fare' => $ride->final_fare > 0
+                        ? $ride->final_fare
+                        : $ride->estimated_fare,
+                ],
             );
         } catch (DomainException) {
             return $this->error('Ride cannot be completed', 409);
         }
+
+        event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride completed successfully');
     }
@@ -336,6 +399,7 @@ class RideController extends Controller
         }
 
         $this->rideMatching->cleanup($ride->id);
+        event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride cancelled successfully');
     }

@@ -4,6 +4,7 @@ namespace Tests\Unit\Events;
 
 use App\Events\DriverLocationUpdated;
 use Illuminate\Broadcasting\PrivateChannel;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
 use Tests\TestCase;
 
 class DriverLocationUpdatedTest extends TestCase
@@ -25,8 +26,8 @@ class DriverLocationUpdatedTest extends TestCase
         $channel = $event->broadcastOn();
 
         $this->assertInstanceOf(PrivateChannel::class, $channel);
+        $this->assertInstanceOf(ShouldBroadcastNow::class, $event);
         $this->assertSame('private-ride.123', $channel->name);
         $this->assertSame('DriverLocationUpdated', $event->broadcastAs());
-        $this->assertSame('locations', $event->broadcastQueue());
     }
 }

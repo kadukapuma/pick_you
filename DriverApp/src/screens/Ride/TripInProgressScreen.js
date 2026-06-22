@@ -75,9 +75,12 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
     setIsCompleting(true);
     try {
-      await api.post(`/rides/${ride.id}/complete`);
+      const response = await api.post(`/rides/${ride.id}/complete`);
+      const completedRide = response.data?.data ?? response.data ?? ride;
       await clearActiveRideLocationSync();
-      navigation.navigate("TripCompletedScreen", { ride });
+      navigation.navigate("TripCompletedScreen", {
+        ride: { ...ride, ...completedRide },
+      });
     } catch (error) {
       console.log("Error completing ride:", error);
       alert(

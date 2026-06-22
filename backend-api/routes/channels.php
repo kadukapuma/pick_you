@@ -18,6 +18,6 @@ Broadcast::channel('ride.{rideId}', function ($user, $rideId) {
     $ride = Ride::query()->find($rideId);
 
     return $ride !== null
-        && in_array($ride->status, ['ACCEPTED', 'STARTED'], true)
+        && in_array($ride->status, ['REQUESTED', 'ACCEPTED', 'ARRIVED', 'STARTED', 'COMPLETED'], true)
         && $user->can('view', $ride);
 });

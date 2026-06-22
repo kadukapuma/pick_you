@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
     StatusBar,
     StyleSheet,
@@ -12,6 +12,7 @@ import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { getPickupCoordinate } from "../../utils/rideLocation";
 import MapboxRideMap from "../../components/map/MapboxRideMap";
+import api from "../../services/api";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -23,6 +24,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   const origin = driverCoord ?? DEFAULT_COORD;
   const destination = pickupCoord ?? origin;
   const { directions } = useMapboxRoute(origin, destination);
+  const [isMarkingArrived, setIsMarkingArrived] = useState(false);
 
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Pickup";
@@ -40,7 +42,33 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   );
 
   const handleArrived = () => {
-    navigation.navigate("ArrivedAtPickupScreen", { ride });
+    const markArrived = async () => {
+      if (isMarkingArrived) return;
+
+      if (!ride?.id) {
+        navigation.navigate("ArrivedAtPickupScreen", { ride });
+        return;
+      }
+
+      setIsMarkingArrived(true);
+      try {
+        const response = await api.post(`/rides/${ride.id}/arrive`);
+        const updatedRide = response.data?.data ?? response.data ?? ride;
+        navigation.navigate("ArrivedAtPickupScreen", {
+          ride: { ...ride, ...updatedRide },
+        });
+      } catch (error) {
+        console.log("Error marking arrived:", error.response?.data || error);
+        alert(
+          error.response?.data?.message ||
+            "Failed to update arrival. Please try again.",
+        );
+      } finally {
+        setIsMarkingArrived(false);
+      }
+    };
+
+    markArrived();
   };
 
   return (
@@ -150,8 +178,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             style={styles.arrivedBtn}
             onPress={handleArrived}
             activeOpacity={0.9}
+            disabled={isMarkingArrived}
           >
-            <Text style={styles.arrivedText}>Arrived at Pickup</Text>
+            <Text style={styles.arrivedText}>
+              {isMarkingArrived ? "Updating..." : "Arrived at Pickup"}
+            </Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />
             </View>

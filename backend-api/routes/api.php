@@ -89,6 +89,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/ride-requests', [RideController::class, 'driverRideRequests']);
         Route::post('/rides/{id}/accept', [RideController::class, 'acceptRide'])->middleware('idempotent');
         Route::post('/rides/{id}/reject', [RideController::class, 'rejectRide'])->middleware('idempotent');
+        Route::post('/rides/{id}/arrive', [RideController::class, 'arriveRide'])->middleware('idempotent');
         Route::post('/rides/{id}/start', [RideController::class, 'startRide'])->middleware('idempotent');
         Route::post('/rides/{id}/complete', [RideController::class, 'completeRide'])->middleware('idempotent');
         Route::post('/driver-locations', [DriverLocationController::class, 'store'])
@@ -96,7 +97,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/rides/{id}/driver-location', [RideLocationController::class, 'show']);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
-        ->middleware(['role:passenger,admin,super_admin', 'idempotent']);
+        ->middleware(['role:passenger,driver,admin,super_admin', 'idempotent']);
     Route::get('/wallet-transactions', [WalletTransactionController::class, 'index']);
     Route::get('/wallet-transactions/{id}', [WalletTransactionController::class, 'show']);
     Route::post('/ratings', [RatingController::class, 'store'])->middleware('role:passenger');

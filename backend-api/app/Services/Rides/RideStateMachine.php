@@ -8,6 +8,8 @@ class RideStateMachine
 
     public const ACCEPTED = 'ACCEPTED';
 
+    public const ARRIVED = 'ARRIVED';
+
     public const STARTED = 'STARTED';
 
     public const COMPLETED = 'COMPLETED';
@@ -16,7 +18,8 @@ class RideStateMachine
 
     private const ALLOWED_TRANSITIONS = [
         self::REQUESTED => [self::ACCEPTED, self::CANCELLED],
-        self::ACCEPTED => [self::STARTED, self::CANCELLED],
+        self::ACCEPTED => [self::ARRIVED, self::CANCELLED],
+        self::ARRIVED => [self::STARTED, self::CANCELLED],
         self::STARTED => [self::COMPLETED],
         self::COMPLETED => [],
         self::CANCELLED => [],

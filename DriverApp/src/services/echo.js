@@ -53,6 +53,44 @@ const buildEchoWrapper = (pusher) => ({
   },
 });
 
+const authorizeChannel = async ({ socketId, channelName }, callback) => {
+  try {
+    const token = await AsyncStorage.getItem("userToken");
+    const response = await fetch(`${API_BASE_URL}/broadcasting/auth`, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      },
+      body: JSON.stringify({
+        socket_id: socketId,
+        channel_name: channelName,
+      }),
+    });
+
+    const text = await response.text();
+    let data = null;
+
+    try {
+      data = text ? JSON.parse(text) : null;
+    } catch (_) {
+      data = null;
+    }
+
+    if (!response.ok) {
+      const message =
+        data?.message || `Broadcast auth failed with HTTP ${response.status}`;
+      callback(new Error(message), null);
+      return;
+    }
+
+    callback(null, data);
+  } catch (error) {
+    callback(error, null);
+  }
+};
+
 /**
  * Reuse one Pusher connection for the whole session (faster ride popups).
  */
@@ -60,8 +98,6 @@ const createEchoInstance = async () => {
   if (cachedEcho && cachedPusher) {
     return { echo: cachedEcho, pusher: cachedPusher };
   }
-
-  const token = await AsyncStorage.getItem("userToken");
 
   const PusherModule = require("pusher-js/react-native");
   const PusherConstructor =
@@ -87,14 +123,10 @@ const createEchoInstance = async () => {
     cluster: wsCluster,
     forceTLS,
     encrypted: forceTLS,
-    enabledTransports: [forceTLS ? "wss" : "ws"],
-    disableStats: true,
-    authEndpoint: `${API_BASE_URL}/broadcasting/auth`,
-    auth: {
-      headers: {
-        Accept: "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
+    enabledTransports: ["ws", "wss"],
+    enableStats: false,
+    channelAuthorization: {
+      customHandler: authorizeChannel,
     },
   });
 

@@ -29,8 +29,10 @@ class RideStateMachineTest extends TestCase
         return [
             'request accepted' => ['REQUESTED', 'ACCEPTED'],
             'request cancelled' => ['REQUESTED', 'CANCELLED'],
-            'accepted started' => ['ACCEPTED', 'STARTED'],
+            'accepted arrived' => ['ACCEPTED', 'ARRIVED'],
             'accepted cancelled' => ['ACCEPTED', 'CANCELLED'],
+            'arrived started' => ['ARRIVED', 'STARTED'],
+            'arrived cancelled' => ['ARRIVED', 'CANCELLED'],
             'started completed' => ['STARTED', 'COMPLETED'],
         ];
     }
@@ -39,7 +41,9 @@ class RideStateMachineTest extends TestCase
     {
         return [
             'request completed' => ['REQUESTED', 'COMPLETED'],
+            'accepted started' => ['ACCEPTED', 'STARTED'],
             'accepted completed' => ['ACCEPTED', 'COMPLETED'],
+            'arrived completed' => ['ARRIVED', 'COMPLETED'],
             'started cancelled' => ['STARTED', 'CANCELLED'],
             'completed restarted' => ['COMPLETED', 'STARTED'],
             'cancelled accepted' => ['CANCELLED', 'ACCEPTED'],

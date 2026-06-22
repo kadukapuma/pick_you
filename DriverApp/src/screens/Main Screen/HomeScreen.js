@@ -10,7 +10,6 @@ import {
   View,
 } from "react-native";
 
-// Map rendering lives in ride screens through Mapbox Maps SDK.
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { AnimatePresence, MotiView } from "moti";
@@ -19,6 +18,8 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import IncomingRideModal from "../../components/IncomingRideModel";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
+import { useDriverLocation } from "../../hooks/useDriverLocation";
 import api from "../../services/api";
 import {
   setActiveRideLocationSync,
@@ -33,9 +34,17 @@ import {
 } from "../../services/rideRealtime";
 import { normalizeRidePayload } from "../../utils/rideLocation";
 
+const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
+
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const {
+    location: driverCoord,
+    loading: isLocationLoading,
+    error: locationError,
+  } = useDriverLocation();
+  const mapOrigin = driverCoord ?? DEFAULT_DRIVER_COORD;
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
@@ -201,6 +210,7 @@ const HomeScreen = () => {
   const getStatusSubtitle = () => {
     if (!isOnline) return "Go online to start earning";
     if (wsConnected) return "Live - trips arrive instantly";
+    if (realtimeStatus === "auth_error") return "Live auth failed - checking trips...";
     if (realtimeStatus === "fallback") return "Looking for trips...";
     return "Connecting to live trips...";
   };
@@ -343,14 +353,31 @@ const HomeScreen = () => {
       {/* MAIN CONTENT - Only show if no error and not loading */}
       {!screenError && !isLoading && (
         <>
-          {/* MAP PLACEHOLDER - Using Mapbox for routing, not display maps */}
+          {/* MAP VIEWPORT */}
           <View style={styles.map}>
-            <View style={styles.mapPlaceholder}>
-              <Text style={styles.mapPlaceholderText}>📍 Live Map</Text>
-              <Text style={styles.mapPlaceholderSubtext}>
-                Powered by Mapbox
-              </Text>
-            </View>
+            <MapboxRideMap
+              style={styles.map}
+              origin={mapOrigin}
+              routeCoordinates={[mapOrigin]}
+              vehicleImage={require("../../assets/car3d.png")}
+              vehicleHeading={mapOrigin.heading ?? 0}
+              vehicleSize={70}
+            />
+
+            {(isLocationLoading || locationError) && (
+              <View style={styles.mapStatusPill} pointerEvents="none">
+                {isLocationLoading ? (
+                  <ActivityIndicator size="small" color="#00A859" />
+                ) : (
+                  <Feather name="map-pin" size={14} color="#EF4444" />
+                )}
+                <Text style={styles.mapStatusText} numberOfLines={1}>
+                  {isLocationLoading
+                    ? "Finding your location..."
+                    : "Location unavailable"}
+                </Text>
+              </View>
+            )}
           </View>
 
           {/* --- TOP HEADER ROW --- */}
@@ -481,21 +508,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f5f5f5",
   },
-  mapPlaceholder: {
-    flex: 1,
-    justifyContent: "center",
+  mapStatusPill: {
+    position: "absolute",
+    top: 112,
+    alignSelf: "center",
+    maxWidth: "78%",
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#e8f5e9",
+    gap: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
   },
-  mapPlaceholderText: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#0F172A",
-    marginBottom: 8,
-  },
-  mapPlaceholderSubtext: {
+  mapStatusText: {
+    flexShrink: 1,
     fontSize: 12,
-    color: "#64748B",
+    fontWeight: "700",
+    color: "#0F172A",
   },
   /* --- REFINED CUSTOM PLACEMENT TOAST STYLING --- */
   toastCard: {

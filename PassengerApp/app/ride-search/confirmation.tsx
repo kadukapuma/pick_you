@@ -75,9 +75,10 @@ export default function ConfirmationScreen() {
         setIsSearchingForDriver(true);
         setActiveRide(rideId, "REQUESTED");
 
-        // Navigate to the live tracker immediately after booking
+        // Show the waiting screen first. It will reveal the map button as soon
+        // as a driver accepts the request.
         router.replace({
-          pathname: "/live-tracker",
+          pathname: "/ride-search/searching",
           params: { rideData: JSON.stringify(response.data) }
         });
       } else {
@@ -87,7 +88,7 @@ export default function ConfirmationScreen() {
             : JSON.stringify(response.errors);
         Alert.alert("Error booking ride", errorMsg || "Unknown error");
       }
-    } catch (e: any) {
+    } catch {
       Alert.alert("Error", "Network or server error.");
     } finally {
       setIsBooking(false);

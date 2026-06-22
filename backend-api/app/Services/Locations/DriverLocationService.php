@@ -49,7 +49,7 @@ class DriverLocationService
 
         $activeRide = Ride::query()
             ->where('driver_id', $driver->id)
-            ->whereIn('status', ['ACCEPTED', 'STARTED'])
+            ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
             ->latest('accepted_at')
             ->first();
 
@@ -114,7 +114,7 @@ class DriverLocationService
 
     public function latestForRide(Ride $ride): ?array
     {
-        if (! $ride->driver_id || ! in_array($ride->status, ['ACCEPTED', 'STARTED'], true)) {
+        if (! $ride->driver_id || ! in_array($ride->status, ['ACCEPTED', 'ARRIVED', 'STARTED'], true)) {
             return null;
         }
 

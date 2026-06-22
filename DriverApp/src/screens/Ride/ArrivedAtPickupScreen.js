@@ -12,6 +12,7 @@ import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { getPickupCoordinate } from "../../utils/rideLocation";
 import MapboxRideMap from "../../components/map/MapboxRideMap";
+import api from "../../services/api";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -41,6 +42,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
   // 1. Setup active state for tracking elapsed seconds
   const [secondsElapsed, setSecondsElapsed] = useState(0);
+  const [isStartingRide, setIsStartingRide] = useState(false);
 
   // 2. Active Interval Timer Hook (Increments every 1000ms)
   useEffect(() => {
@@ -61,12 +63,26 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
     return `${paddedMins}:${paddedSecs}`;
   };
 
-  const handlePassengerOnBoard = () => {
-    console.log("Trip Starting: Passenger is on board.");
+  const handlePassengerOnBoard = async () => {
+    if (!ride?.id || isStartingRide) return;
 
-    navigation.navigate("TripInProgressScreen", {
-      ride,
-    });
+    setIsStartingRide(true);
+    try {
+      const response = await api.post(`/rides/${ride.id}/start`);
+      const updatedRide = response.data?.data ?? response.data ?? ride;
+
+      navigation.navigate("TripInProgressScreen", {
+        ride: { ...ride, ...updatedRide },
+      });
+    } catch (error) {
+      console.log("Error starting ride:", error);
+      alert(
+        error.response?.data?.message ||
+          "Failed to start the ride. Please try again.",
+      );
+    } finally {
+      setIsStartingRide(false);
+    }
   };
 
   return (
@@ -162,8 +178,11 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
             style={styles.actionBtnPrimary}
             onPress={handlePassengerOnBoard}
             activeOpacity={0.9}
+            disabled={isStartingRide}
           >
-            <Text style={styles.actionBtnPrimaryText}>Passenger On Board</Text>
+            <Text style={styles.actionBtnPrimaryText}>
+              {isStartingRide ? "Starting Trip..." : "Passenger On Board"}
+            </Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />
             </View>

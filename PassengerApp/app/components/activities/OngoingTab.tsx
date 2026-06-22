@@ -1,13 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, ActivityIndicator, Alert, TouchableOpacity, ScrollView, Dimensions } from "react-native";
+import { View, Text, ActivityIndicator, Alert, TouchableOpacity, ScrollView } from "react-native";
 import { useRideSearch } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
 import EmptyState from "./EmptyState";
-import RideMap from "../ride/RideMap";
 import { router } from "expo-router";
-import { Ionicons, Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-
-const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+import { Ionicons, Feather } from "@expo/vector-icons";
 
 export default function OngoingTab() {
     const {
@@ -20,7 +17,6 @@ export default function OngoingTab() {
     } = useRideSearch();
 
     const [rideData, setRideData] = useState<any>(null);
-    const [isLoading, setIsLoading] = useState(false);
     const approvalAlertShownRef = useRef(false);
 
     useEffect(() => {
@@ -45,12 +41,14 @@ export default function OngoingTab() {
                 setRideData(ride);
                 setActiveRide(activeRideId, rideStatus);
 
-                if (rideStatus === "ACCEPTED" && !approvalAlertShownRef.current) {
+                if (["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus) && !approvalAlertShownRef.current) {
                     approvalAlertShownRef.current = true;
                     setIsSearchingForDriver(false);
                     Alert.alert(
-                        "Driver approved",
-                        "A driver has accepted your ride request.",
+                        rideStatus === "ARRIVED" ? "Driver arrived" : "Driver approved",
+                        rideStatus === "ARRIVED"
+                            ? "Your driver is at the pickup location."
+                            : "A driver has accepted your ride request.",
                     );
                 }
             } catch (error) {
@@ -92,17 +90,16 @@ export default function OngoingTab() {
         );
     };
 
-    const waiting = isSearchingForDriver && activeRideStatus !== "ACCEPTED";
-    const hasActiveRide = isSearchingForDriver || ["ACCEPTED", "STARTED"].includes(activeRideStatus || "");
+    const waiting = isSearchingForDriver && !["ACCEPTED", "ARRIVED", "STARTED"].includes(activeRideStatus || "");
+    const hasActiveRide = isSearchingForDriver || ["ACCEPTED", "ARRIVED", "STARTED"].includes(activeRideStatus || "");
 
     if (!hasActiveRide) {
         return <EmptyState message="You don't have any ongoing trips" />;
     }
 
-    if (["ACCEPTED", "STARTED"].includes(activeRideStatus || "") && rideData) {
+    if (["ACCEPTED", "ARRIVED", "STARTED"].includes(activeRideStatus || "") && rideData) {
         const driver = rideData.driver;
         const vehicle = rideData.vehicle;
-        const driverLocation = driver?.locations?.[0]; // Current location if backend changes, or null.
 
         return (
             <View className="flex-1 -mx-4 -mb-4">
