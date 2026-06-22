@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import { SafeAreaView } from "react-native-safe-area-context"; // Optimized for 
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import api from "../../services/api";
-import { setActiveRideLocationSync } from "../../services/driverLocationSync";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -21,10 +20,6 @@ const RideDetailsScreen = ({ navigation, route }) => {
   // Safe extraction of params passed down from home dashboard context
   const ride = route?.params?.ride || {};
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (ride?.id) setActiveRideLocationSync(ride.id);
-  }, [ride?.id]);
 
   // Clean data properties or clean local user fallbacks
   const customerName = ride?.customerName || "John David";

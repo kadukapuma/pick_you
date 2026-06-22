@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Events\DashboardUpdated;
 use App\Events\DriverCreated;
 use App\Models\Driver;
-use App\Services\Locations\DriverLocationService;
 use App\Models\AdminNotificationLog;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -138,7 +137,7 @@ class DriverController extends Controller
         return $this->success($driver, 'Driver account status updated successfully.');
     }
 
-    public function updateOwnAvailability(Request $request, DriverLocationService $locations)
+    public function updateOwnAvailability(Request $request)
     {
         $request->validate([
             'is_active' => 'required|boolean'
@@ -154,10 +153,6 @@ class DriverController extends Controller
         // Update the driver's availability status (1 for online, 0 for offline)
         $availability = $request->is_active ? 1 : 0;
         $driver->update(['availability' => $availability]);
-
-        if ($availability === 0) {
-            $locations->removeOfflineDriver($driver);
-        }
 
         event(new DashboardUpdated('driver.account', [
             'driver_id' => $driver->id,

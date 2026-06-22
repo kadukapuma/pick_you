@@ -20,13 +20,13 @@ const Login = () => {
         try {
             if (require2FA) {
                 await verifyAdmin2FA({ email: form.email, code: form.code })
-                navigate('/admin-portal')
+                navigate('/')
             } else {
                 const response = await signIn({ email: form.email, password: form.password })
                 if (response.require_2fa) {
                     setRequire2FA(true)
                 } else {
-                    navigate('/admin-portal')
+                    navigate('/')
                 }
             }
         } catch (loginError) {

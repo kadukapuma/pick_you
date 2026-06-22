@@ -1,21 +1,27 @@
-import { useMemo } from "react";
+import { useEffect, useRef } from "react";
 import {
+    Dimensions,
+    Image,
     StatusBar,
     StyleSheet,
     Text,
     TouchableOpacity,
     View,
 } from "react-native";
+// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
+// import MapView, { Marker, Polyline } from "react-native-maps";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { getPickupCoordinate } from "../../utils/rideLocation";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+
+const { width, height } = Dimensions.get("window");
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 const PickupNavigationScreen = ({ navigation, route }) => {
+  const mapRef = useRef(null);
   const ride = route?.params?.ride || {};
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
@@ -34,10 +40,24 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       : pickupCoord
         ? [origin, pickupCoord]
         : [origin];
-  const mapPadding = useMemo(
-    () => ({ top: 140, right: 70, bottom: 360, left: 70 }),
-    [],
-  );
+
+  useEffect(() => {
+    if (!mapRef.current) return;
+
+    const timer = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(routeCoordinates, {
+        edgePadding: {
+          top: 140,
+          right: 70,
+          bottom: 360,
+          left: 70,
+        },
+        animated: true,
+      });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [directions]);
 
   const handleArrived = () => {
     navigation.navigate("ArrivedAtPickupScreen", { ride });
@@ -52,18 +72,47 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       />
 
       {/* MAP VIEWPORT */}
-      <MapboxRideMap
+      <MapView
+        ref={mapRef}
         style={styles.map}
-        origin={origin}
-        destination={destination}
-        routeCoordinates={routeCoordinates}
-        routeColor="#00A859"
-        destinationColor="#00A859"
-        vehicleImage={require("../../assets/car3d.png")}
-        vehicleHeading={38}
-        vehicleSize={76}
-        edgePadding={mapPadding}
-      />
+        initialRegion={{
+          latitude: (origin.latitude + destination.latitude) / 2,
+          longitude: (origin.longitude + destination.longitude) / 2,
+          latitudeDelta: 0.015,
+          longitudeDelta: 0.015,
+        }}
+      >
+        <Polyline
+          coordinates={routeCoordinates}
+          strokeWidth={5}
+          strokeColor="#00A859"
+          lineCap="round"
+          lineJoin="round"
+        />
+
+        {/* DRIVER CAR VEHICLE MARKER - Explicit size fixed here */}
+        <Marker
+          coordinate={origin}
+          anchor={{ x: 0.5, y: 0.5 }}
+          rotation={38}
+          style={styles.markerFix}
+        >
+          <Image
+            source={require("../../assets/car3d.png")}
+            style={styles.driver3DVehicle}
+            resizeMode="contain"
+          />
+        </Marker>
+
+        {/* PICKUP TARGET LOCATION MARKER */}
+        {pickupCoord ? (
+          <Marker coordinate={pickupCoord} anchor={{ x: 0.5, y: 0.5 }}>
+            <View style={styles.pickupMarkerOuter}>
+              <View style={styles.pickupMarkerInner} />
+            </View>
+          </Marker>
+        ) : null}
+      </MapView>
 
       {/* FLOATING CORNER ETA STATUS DETAILS */}
       <View style={styles.etaCardContainer} pointerEvents="none">

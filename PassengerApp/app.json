@@ -33,7 +33,6 @@
     },
     "plugins": [
       "expo-router",
-      "@rnmapbox/maps",
       [
         "expo-camera",
         {
@@ -60,7 +59,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e35aa502-99d9-4a51-a9b3-388438d5123f"
+        "projectId": "65715559-f53b-4c1d-a0fb-33946cb21206"
       }
     }
   }

@@ -116,9 +116,9 @@ const MainNavigator = ({
       if (!documentsComplete) return "Documentscreen";
 
       if (status === "show_approved_screen") return "Verification";
-
+      
       // FIX HERE: If maintenance is off, return MainTabs directly instead of ComingSoon fallback!
-      if (status === "approved") return "MainTabs";
+      if (status === "approved") return "MainTabs"; 
       if (status === "pending" || status === "rejected") return "Verification";
     }
 
@@ -263,44 +263,44 @@ const MainNavigator = ({
       />
 
       <Stack.Screen
-        name="RideDetails"
-        component={RideDetailsScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
-      />
+  name="RideDetails"
+  component={RideDetailsScreen}
+  options={{
+    animation: "slide_from_right",
+  }}
+/>
 
-      <Stack.Screen
-        name="PickupNavigation"
-        component={PickupNavigationScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
-      />
+     <Stack.Screen
+  name="PickupNavigation"
+  component={PickupNavigationScreen}
+  options={{
+    animation: "slide_from_right",
+  }}
+/>
 
-      <Stack.Screen
-        name="ArrivedAtPickupScreen"
-        component={ArrivedAtPickupScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
-      />
+     <Stack.Screen
+  name="ArrivedAtPickupScreen"
+  component={ArrivedAtPickupScreen}
+  options={{
+    animation: "slide_from_right",
+  }}
+/>
 
-      <Stack.Screen
-        name="TripInProgressScreen"
-        component={TripInProgressScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
-      />
+<Stack.Screen
+name="TripInProgressScreen"
+component={TripInProgressScreen}
+options={{
+  animation: "slide_from_right",
+}}
+/>
 
-      <Stack.Screen
-        name="TripCompletedScreen"
-        component={TripCompletedScreen}
-        options={{
-          animation: "slide_from_right",
-        }}
-      />
+<Stack.Screen
+name="TripCompletedScreen"
+component={TripCompletedScreen}
+options={{
+  animation: "slide_from_right",
+}}
+/>
     </Stack.Navigator>
   );
 };

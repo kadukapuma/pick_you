@@ -45,7 +45,7 @@ const TripDetailsScreen = ({ route, navigation }) => {
              <View style={styles.mapPlaceholder}>
               <Feather name="map" size={40} color="#94A3B8" />
               <Text style={styles.mapText}>GPS Route Preview</Text>
-              <Text style={styles.mapSubText}>Uses Mapbox Maps SDK</Text>
+              <Text style={styles.mapSubText}>Requires react-native-maps & API Key</Text>
             </View>
           </View>
 

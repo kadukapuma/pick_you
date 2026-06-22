@@ -173,7 +173,7 @@ const Drivers = () => {
                                     className="btn-view"
                                     title="View driver"
                                     aria-label="View driver"
-                                    onClick={() => navigate(`/admin-portal/drivers/${driver.id}`)}
+                                    onClick={() => navigate(`/drivers/${driver.id}`)}
                                 >
                                     <span className="material-icons">visibility</span>
                                 </button>

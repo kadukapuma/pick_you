@@ -11,62 +11,38 @@ class DriverDocumentController extends Controller
 {
     use ApiResponse;
 
-    public function index(Request $request)
+    public function index()
     {
-        $data = DriverDocument::where('driver_id', $request->user()->driver->id)->get();
-
+        $data = DriverDocument::all();
         return $this->success($data, 'DriverDocument list retrieved successfully.');
     }
 
     public function store(Request $request)
     {
-        $data = DriverDocument::create([
-            ...$request->all(),
-            'driver_id' => $request->user()->driver->id,
-            'is_verified' => false,
-        ]);
-
+        $data = DriverDocument::create($request->all());
         return $this->success($data, 'DriverDocument created successfully.', 201);
     }
 
-    public function show(Request $request, $id)
+    public function show($id)
     {
         $data = DriverDocument::find($id);
-        if (! $data) {
-            return $this->error('DriverDocument not found.', 404);
-        }
-        if ((int) $data->driver_id !== (int) $request->user()->driver->id) {
-            return $this->error('You are not authorized to view this document.', 403);
-        }
-
+        if (!$data) return $this->error('DriverDocument not found.', 404);
         return $this->success($data, 'DriverDocument retrieved successfully.');
     }
 
     public function update(Request $request, $id)
     {
         $data = DriverDocument::find($id);
-        if (! $data) {
-            return $this->error('DriverDocument not found.', 404);
-        }
-        if ((int) $data->driver_id !== (int) $request->user()->driver->id) {
-            return $this->error('You are not authorized to update this document.', 403);
-        }
-        $data->update($request->except(['driver_id', 'is_verified']));
-
+        if (!$data) return $this->error('DriverDocument not found.', 404);
+        $data->update($request->all());
         return $this->success($data, 'DriverDocument updated successfully.');
     }
 
-    public function destroy(Request $request, $id)
+    public function destroy($id)
     {
         $data = DriverDocument::find($id);
-        if (! $data) {
-            return $this->error('DriverDocument not found.', 404);
-        }
-        if ((int) $data->driver_id !== (int) $request->user()->driver->id) {
-            return $this->error('You are not authorized to delete this document.', 403);
-        }
+        if (!$data) return $this->error('DriverDocument not found.', 404);
         $data->delete();
-
         return $this->success(null, 'DriverDocument deleted successfully.');
     }
 }

@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import './TopBar.css'
 
@@ -13,7 +13,6 @@ const TopBar = ({
     onClearNotifications,
     maintenanceMode = false,
 }) => {
-    const location = useLocation()
     const [showNotifications, setShowNotifications] = useState(false)
     const notificationRef = useRef(null)
 
@@ -21,19 +20,18 @@ const TopBar = ({
     const adminInitial = admin?.first_name?.charAt(0) || 'A'
 
     const getPageName = () => {
-        const path = location.pathname
-        if (path === '/admin-portal') return 'Dashboard'
-        if (path === '/admin-portal/customers') return 'Passengers'
-        if (path === '/admin-portal/drivers') return 'Drivers'
-        if (path.startsWith('/admin-portal/drivers/')) return 'Driver Details'
-        if (path === '/admin-portal/vehicles') return 'Vehicles'
-        if (path.startsWith('/admin-portal/vehicles/')) return 'Vehicle Details'
-        if (path === '/admin-portal/vehicle-types') return 'Vehicle Types'
-        if (path === '/admin-portal/fare-configs') return 'Fare Configurations'
-        if (path === '/admin-portal/operators') return 'Operators'
-        if (path === '/admin-portal/permissions') return 'Role Permissions'
-        if (path === '/admin-portal/admins') return 'Admin Management'
-        if (path === '/admin-portal/settings') return 'Account Settings'
+        const path = window.location.pathname
+        if (path === '/') return 'Dashboard'
+        if (path === '/customers') return 'Passengers'
+        if (path === '/drivers') return 'Drivers'
+        if (path.startsWith('/drivers/')) return 'Driver Details'
+        if (path === '/vehicles') return 'Vehicles'
+        if (path.startsWith('/vehicles/')) return 'Vehicle Details'
+        if (path === '/fare-configs') return 'Fare Configurations'
+        if (path === '/operators') return 'Operators'
+        if (path === '/permissions') return 'Role Permissions'
+        if (path === '/admins') return 'Admin Management'
+        if (path === '/settings') return 'Account Settings'
         return 'Panel'
     }
 
@@ -91,7 +89,7 @@ const TopBar = ({
 
             <div className="top-bar-right">
                 <NavLink
-                    to="/admin-portal/settings"
+                    to="/settings"
                     className={({ isActive }) => `top-bar-link ${isActive ? 'active' : ''}`}
                     title="Settings"
                 >

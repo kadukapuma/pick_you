@@ -10,7 +10,8 @@ import {
   View,
 } from "react-native";
 
-// Map rendering lives in ride screens through Mapbox Maps SDK.
+// Using Mapbox for routing - removing react-native-maps to avoid Google Maps API dependency
+// import MapView, { Marker, AnimatedRegion } from "react-native-maps";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import { AnimatePresence, MotiView } from "moti";
@@ -21,7 +22,6 @@ import {
 import IncomingRideModal from "../../components/IncomingRideModel";
 import api from "../../services/api";
 import {
-  setActiveRideLocationSync,
   startDriverLocationSync,
   stopDriverLocationSync,
 } from "../../services/driverLocationSync";
@@ -40,7 +40,6 @@ const HomeScreen = () => {
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
-  const [realtimeStatus, setRealtimeStatus] = useState("disconnected");
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
   const [isRideHandled, setIsRideHandled] = useState(false);
@@ -141,7 +140,6 @@ const HomeScreen = () => {
         console.log("Error disconnecting services:", err);
       }
       setWsConnected(false);
-      setRealtimeStatus("disconnected");
       lastNotifiedRideIdRef.current = null;
       return;
     }
@@ -159,15 +157,11 @@ const HomeScreen = () => {
           onConnectionChange: (connected) => {
             if (!cancelled) setWsConnected(connected);
           },
-          onStatusChange: (status) => {
-            if (!cancelled) setRealtimeStatus(status);
-          },
         });
       } catch (err) {
         console.log("Ride realtime connect error:", err?.message || err);
         if (!cancelled) {
           setWsConnected(false);
-          setRealtimeStatus("fallback");
           try {
             enableRideFallbackSync();
             await syncPendingRideOnce();
@@ -198,13 +192,6 @@ const HomeScreen = () => {
     };
   }, []);
 
-  const getStatusSubtitle = () => {
-    if (!isOnline) return "Go online to start earning";
-    if (wsConnected) return "Live - trips arrive instantly";
-    if (realtimeStatus === "fallback") return "Looking for trips...";
-    return "Connecting to live trips...";
-  };
-
   const fetchDriverData = async () => {
     try {
       console.log("🔵 Fetching driver data...");
@@ -234,7 +221,6 @@ const HomeScreen = () => {
     const rideId = rideData.id;
     try {
       await api.post(`/rides/${rideId}/accept`);
-      await setActiveRideLocationSync(rideId);
 
       let rideForNav = rideData;
       try {
@@ -438,7 +424,13 @@ const HomeScreen = () => {
                 <Text style={styles.statusTitle}>
                   {isOnline ? "You're Online" : "You're Offline"}
                 </Text>
-                <Text style={styles.statusSubtitle}>{getStatusSubtitle()}</Text>
+                <Text style={styles.statusSubtitle}>
+                  {isOnline
+                    ? wsConnected
+                      ? "Live — trips arrive instantly"
+                      : "Reconnecting… (backup sync active)"
+                    : "Go online to start earning"}
+                </Text>
               </View>
 
               {isToggling ? (

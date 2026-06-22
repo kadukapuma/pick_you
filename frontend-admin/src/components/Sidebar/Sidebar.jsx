@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { resolveAssetUrl } from '../../services/adminApi'
 import logo from '../../assets/logo.png'
 import './Sidebar.css'
 
@@ -23,54 +24,54 @@ const Sidebar = ({ admin, isCollapsed }) => {
             </div>
 
             <nav className="sidebar-nav">
-                <NavLink to="/admin-portal" end>
+                <NavLink to="/">
                     <span className="material-icons">dashboard</span>
                     <span>Dashboard</span>
                 </NavLink>
                 {canManagePassengers && (
-                    <NavLink to="/admin-portal/customers">
+                    <NavLink to="/customers">
                         <span className="material-icons">person_outline</span>
                         <span>Passengers</span>
                     </NavLink>
                 )}
                 {canManageDrivers && (
-                    <NavLink to="/admin-portal/drivers">
+                    <NavLink to="/drivers">
                         <span className="material-icons">group</span>
                         <span>Drivers</span>
                     </NavLink>
                 )}
                 {canManageVehicles && (
-                    <NavLink to="/admin-portal/vehicles">
+                    <NavLink to="/vehicles">
                         <span className="material-icons">directions_car</span>
                         <span>Vehicles</span>
                     </NavLink>
                 )}
                 {canManageVehicleTypes && (
-                    <NavLink to="/admin-portal/vehicle-types">
+                    <NavLink to="/vehicle-types">
                         <span className="material-icons">local_taxi</span>
                         <span>Vehicle Types</span>
                     </NavLink>
                 )}
                 {canManageFare && (
-                    <NavLink to="/admin-portal/fare-configs">
+                    <NavLink to="/fare-configs">
                         <span className="material-icons">payments</span>
                         <span>Fare Configs</span>
                     </NavLink>
                 )}
                 {canManageOperators && (
-                    <NavLink to="/admin-portal/operators">
+                    <NavLink to="/operators">
                         <span className="material-icons">admin_panel_settings</span>
                         <span>Operators</span>
                     </NavLink>
                 )}
                 {canManagePermissions && (
-                    <NavLink to="/admin-portal/permissions">
+                    <NavLink to="/permissions">
                         <span className="material-icons">security</span>
                         <span>Permissions</span>
                     </NavLink>
                 )}
                 {admin?.role === 'super_admin' && (
-                    <NavLink to="/admin-portal/admins">
+                    <NavLink to="/admins">
                         <span className="material-icons">manage_accounts</span>
                         <span>Admins</span>
                     </NavLink>

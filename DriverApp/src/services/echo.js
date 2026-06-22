@@ -1,5 +1,4 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { API_BASE_URL } from "./api";
 
 let cachedPusher = null;
 let cachedEcho = null;
@@ -37,10 +36,6 @@ const buildEchoWrapper = (pusher) => ({
     return this.channels[channelName];
   },
 
-  private(channelName) {
-    return this.channel(`private-${channelName}`);
-  },
-
   leaveChannel(channelName) {
     if (this.channels[channelName]) {
       pusher.unsubscribe(channelName);
@@ -61,41 +56,26 @@ const createEchoInstance = async () => {
     return { echo: cachedEcho, pusher: cachedPusher };
   }
 
-  const token = await AsyncStorage.getItem("userToken");
+  await AsyncStorage.getItem("userToken");
 
   const PusherModule = require("pusher-js/react-native");
   const PusherConstructor =
     PusherModule.Pusher || PusherModule.default || PusherModule;
 
   const wsHost = process.env.EXPO_PUBLIC_WS_HOST || "picku.lk";
-  const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 443);
-  const wsScheme = (process.env.EXPO_PUBLIC_WS_SCHEME || "https").toLowerCase();
+  const wsPort = Number(process.env.EXPO_PUBLIC_WS_PORT || 8080);
+  const wsScheme = process.env.EXPO_PUBLIC_WS_SCHEME || "http";
   const appKey = process.env.EXPO_PUBLIC_REVERB_APP_KEY || "app-key";
   const wsCluster = process.env.EXPO_PUBLIC_PUSHER_CLUSTER || "mt1";
-  const forceTLS = wsScheme === "https" || wsScheme === "wss";
-
-  if (__DEV__ && appKey === "app-key") {
-    console.warn(
-      "Reverb app key is still the sample value. Set EXPO_PUBLIC_REVERB_APP_KEY to match the backend.",
-    );
-  }
 
   const pusher = new PusherConstructor(appKey, {
     wsHost,
     wsPort,
     wssPort: wsPort,
     cluster: wsCluster,
-    forceTLS,
-    encrypted: forceTLS,
-    enabledTransports: [forceTLS ? "wss" : "ws"],
+    forceTLS: wsScheme === "https",
+    enabledTransports: ["ws", "wss"],
     disableStats: true,
-    authEndpoint: `${API_BASE_URL}/broadcasting/auth`,
-    auth: {
-      headers: {
-        Accept: "application/json",
-        Authorization: token ? `Bearer ${token}` : "",
-      },
-    },
   });
 
   cachedPusher = pusher;

@@ -93,13 +93,13 @@ export default function OngoingTab() {
     };
 
     const waiting = isSearchingForDriver && activeRideStatus !== "ACCEPTED";
-    const hasActiveRide = isSearchingForDriver || ["ACCEPTED", "STARTED"].includes(activeRideStatus || "");
+    const hasActiveRide = isSearchingForDriver || activeRideStatus === "ACCEPTED";
 
     if (!hasActiveRide) {
         return <EmptyState message="You don't have any ongoing trips" />;
     }
 
-    if (["ACCEPTED", "STARTED"].includes(activeRideStatus || "") && rideData) {
+    if (activeRideStatus === "ACCEPTED" && rideData) {
         const driver = rideData.driver;
         const vehicle = rideData.vehicle;
         const driverLocation = driver?.locations?.[0]; // Current location if backend changes, or null.

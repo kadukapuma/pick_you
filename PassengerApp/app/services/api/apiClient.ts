@@ -34,10 +34,6 @@ class ApiClient {
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      if (options.method && ["POST", "PUT", "PATCH", "DELETE"].includes(options.method)) {
-        headers["Idempotency-Key"] =
-          `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      }
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
