@@ -1,26 +1,26 @@
 import { Feather } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
-import DateTimePicker from '@react-native-community/datetimepicker';
 import { MotiText, MotiView } from "moti";
-import React, { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Modal,
   Platform,
   StatusBar,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
-  Modal,
   TouchableWithoutFeedback,
-  Alert,
-  ActivityIndicator,
-  Image,
+  View,
 } from "react-native";
-import KeyboardAwareWrapper from "../components/KeyboardAwareWrapper";
-import ExitButton from "../components/ExitButton";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import ExitButton from "../components/ExitButton";
+import KeyboardAwareWrapper from "../components/KeyboardAwareWrapper";
 import api from "../services/api";
 
 const ProfileSetupScreen = ({ navigation, route, onExit }) => {
@@ -40,8 +40,11 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
 
   // Custom photo picker UI states
   const [showPhotoModal, setShowPhotoModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false); 
-  const [tempImage, setTempImage] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  
+  // Track full asset info to preserve correct mimeTypes and metadata
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [notice, setNotice] = useState({ type: "", message: "" });
 
   const BRAND_GREEN = "#0B1220";
   const DARK_BG = "#00A859";
@@ -56,93 +59,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
     return String(value);
   };
 
-  useEffect(() => {
-    loadFormData();
-  }, []);
-
-  const selectPhoto = async () => {
-    try {
-      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission Required", "Gallery access is required.");
-        return;
-      }
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
-
-      if (!result.canceled && result.assets?.length) {
-        setTempImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  const takePhoto = async () => {
-    try {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) {
-        Alert.alert("Permission Required", "Camera access is required.");
-        return;
-      }
-
-      // FIX: Added mediaTypes configuration parameters to avoid native handler drop crashes
-      const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 1,
-      });
-
-      if (!result.canceled && result.assets?.length) {
-        setTempImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.log("Camera execution error:", error);
-      Alert.alert("Camera Error", "Failed to access device camera.");
-    }
-  };
-
-  const saveProfilePicture = async () => {
-    if (!tempImage) return;
-    try {
-      setIsUploadingPhoto(true);
-      setProfilePicture(tempImage);
-
-      const data = new FormData();
-      data.append("profile_picture", {
-        uri: tempImage,
-        name: `profile_${Date.now()}.jpg`,
-        type: "image/jpeg",
-      });
-
-      const response = await api.post("/user/profile-picture", data, {
-        headers: { "Content-Type": "multipart/form-data" },
-      });
-
-      if (response.data?.data?.profile_picture_path) {
-        await AsyncStorage.setItem(
-          "profilePicturePath",
-          response.data.data.profile_picture_path
-        );
-      }
-      setTempImage(null);
-      setShowPhotoModal(false); 
-      setShowSuccessModal(true);
-    } catch (error) {
-      console.log("Profile picture upload error:", error.response?.data || error.message);
-      Alert.alert("Upload Failed", "Unable to upload profile picture.");
-    } finally {
-      setIsUploadingPhoto(false);
-    }
-  };
-
-  const loadFormData = async () => {
+  const loadFormData = useCallback(async () => {
     try {
       const savedData = await AsyncStorage.getItem("profileFormData");
       const response = await api.get("/user");
@@ -162,20 +79,160 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         ...backendData,
         ...localData,
       }));
+
+      if (driver?.profile_picture || driver?.profile_picture_path) {
+        setProfilePicture(
+          driver.profile_picture || driver.profile_picture_path,
+        );
+      }
     } catch (error) {
       console.log("Error loading form data:", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadFormData();
+  }, [loadFormData]);
+
+  const selectPhoto = async () => {
+    try {
+      const permission =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission Required", "Gallery access is required.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets?.length) {
+        setSelectedAsset(result.assets[0]);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const takePhoto = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted) {
+        Alert.alert("Permission Required", "Camera access is required.");
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 1,
+      });
+
+      if (!result.canceled && result.assets?.length) {
+        // TEMPORARY LOGS ADDED
+        console.log(
+          "CAMERA ASSET:",
+          JSON.stringify(result.assets[0], null, 2)
+        );
+        setSelectedAsset(result.assets[0]);
+      }
+    } catch (error) {
+      console.log("Camera execution error:", error);
+      Alert.alert("Camera Error", "Failed to access device camera.");
+    }
+  };
+
+  const saveProfilePicture = async () => {
+    if (!selectedAsset) return;
+    try {
+      setIsUploadingPhoto(true);
+      const data = new FormData();
+
+      const localUri = selectedAsset.uri;
+      const rawFilename = localUri.split("/").pop() || `profile_${Date.now()}.jpg`;
+      const cleanFilename = rawFilename.split("?")[0];
+
+      // Safer Approach: Pull directly from asset object or default safely to image/jpeg
+      const type = selectedAsset.mimeType || "image/jpeg";
+
+      // Append standard extension matching the extracted type if missing
+      const extension = type.split("/")[1] || "jpeg";
+      const filename = cleanFilename.includes(".") 
+        ? cleanFilename 
+        : `${cleanFilename}.${extension}`;
+
+      // TEMPORARY LOGS ADDED
+      console.log("Uploading URI:", localUri);
+      console.log("Filename:", filename);
+      console.log("Type:", type);
+
+      data.append("profile_picture", {
+        uri: Platform.OS === "ios" ? localUri.replace("file://", "") : localUri,
+        name: filename,
+        type: type,
+      });
+
+      const response = await api.post("/user/profile-picture", data, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      const profilePath = response.data?.data?.profile_picture_path;
+      if (profilePath) {
+        await AsyncStorage.setItem("profilePicturePath", profilePath);
+        setProfilePicture(profilePath);
+      } else {
+        setProfilePicture(localUri);
+      }
+      setSelectedAsset(null);
+      setShowPhotoModal(false);
+      setShowSuccessModal(true);
+      setNotice({
+        type: "success",
+        message: "Profile picture uploaded successfully.",
+      });
+    } catch (error) {
+      // TEMPORARY LOGS ADDED
+      console.log(
+        "FULL ERROR:",
+        JSON.stringify(error.response?.data || error.message, null, 2)
+      );
+      console.log(
+        "STATUS:",
+        error.response?.status
+      );
+
+      setNotice({
+        type: "error",
+        message: "Unable to upload profile picture. Please try again.",
+      });
+    } finally {
+      setIsUploadingPhoto(false);
     }
   };
 
   const saveFormData = async (updatedData) => {
     try {
-      await AsyncStorage.setItem("profileFormData", JSON.stringify(updatedData));
+      await AsyncStorage.setItem(
+        "profileFormData",
+        JSON.stringify(updatedData),
+      );
     } catch (error) {
       console.log("Error saving form data:", error);
     }
   };
 
   const handleInputChange = (field, value) => {
+    if (notice.message) {
+      setNotice({ type: "", message: "" });
+    }
+
     const updatedData = { ...formData, [field]: value };
     setFormData(updatedData);
     saveFormData(updatedData);
@@ -195,16 +252,16 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
   };
 
   const onDateChange = (event, selectedDate) => {
-    if (Platform.OS === 'android') {
+    if (Platform.OS === "android") {
       setShowDatePicker(false);
-      if (event?.type === 'dismissed') return;
-      
+      if (event?.type === "dismissed") return;
+
       if (selectedDate) {
         setDatePickerValue(selectedDate);
-        const d = String(selectedDate.getDate()).padStart(2, '0');
-        const m = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const d = String(selectedDate.getDate()).padStart(2, "0");
+        const m = String(selectedDate.getMonth() + 1).padStart(2, "0");
         const y = String(selectedDate.getFullYear());
-        handleInputChange('dob', `${d}/${m}/${y}`);
+        handleInputChange("dob", `${d}/${m}/${y}`);
       }
     } else {
       if (selectedDate) setDatePickerValue(selectedDate);
@@ -212,21 +269,36 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
   };
 
   const handleIOSDateConfirm = () => {
-    const d = String(datePickerValue.getDate()).padStart(2, '0');
-    const m = String(datePickerValue.getMonth() + 1).padStart(2, '0');
+    const d = String(datePickerValue.getDate()).padStart(2, "0");
+    const m = String(datePickerValue.getMonth() + 1).padStart(2, "0");
     const y = String(datePickerValue.getFullYear());
-    handleInputChange('dob', `${d}/${m}/${y}`);
+    handleInputChange("dob", `${d}/${m}/${y}`);
     setShowDatePicker(false);
   };
 
   const handleContinue = async () => {
-    if (!formData.nic || !formData.dob || !formData.address) {
-      Alert.alert("Required Fields", "Please fill in all the details before continuing.");
+    if (
+      !formData.nic ||
+      !formData.dob ||
+      !formData.address ||
+      !profilePicture
+    ) {
+      const missingFields = [];
+      if (!formData.nic) missingFields.push("NIC / License");
+      if (!formData.dob) missingFields.push("Date of Birth");
+      if (!formData.address) missingFields.push("Address");
+      if (!profilePicture) missingFields.push("Profile Photo");
+
+      setNotice({
+        type: "error",
+        message: `Please complete: ${missingFields.join(", ")}`,
+      });
       return;
     }
 
     try {
       setIsLoading(true);
+      setNotice({ type: "", message: "" });
       let apiDob = formData.dob;
       if (formData.dob.includes("/")) {
         const [d, m, y] = formData.dob.split("/");
@@ -243,11 +315,16 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         navigation.navigate("VehicleDetails");
       }
     } catch (error) {
-      console.log("Profile update error:", error.response?.data || error.message);
-      Alert.alert(
-        "Update Failed",
-        error.response?.data?.message || "Something went wrong while saving your profile."
+      console.log(
+        "Profile update error:",
+        error.response?.data || error.message,
       );
+      setNotice({
+        type: "error",
+        message:
+          error.response?.data?.message ||
+          "Something went wrong while saving your profile. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -280,7 +357,11 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={DARK_BG} translucent />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor={DARK_BG}
+        translucent
+      />
 
       {/* Header */}
       <View style={[styles.header, { backgroundColor: DARK_BG }]}>
@@ -292,11 +373,17 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           animate={{ opacity: 1, y: 0 }}
           style={styles.headerTitle}
         >
-          {currentStep === 1 ? "Driver Profile" : currentStep === 2 ? "Vehicle Details" : "Documents"}
+          {currentStep === 1
+            ? "Driver Profile"
+            : currentStep === 2
+              ? "Vehicle Details"
+              : "Documents"}
         </MotiText>
 
         <Text style={styles.headerSubtitle}>
-          {currentStep === 1 ? "Let's set up your personal profile" : "Tell us about your vehicle"}
+          {currentStep === 1
+            ? "Let's set up your personal profile"
+            : "Tell us about your vehicle"}
         </Text>
       </View>
 
@@ -306,6 +393,22 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {notice.message ? (
+          <MotiView
+            from={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 250 }}
+            style={[
+              styles.noticeBox,
+              notice.type === "error"
+                ? styles.noticeError
+                : styles.noticeSuccess,
+            ]}
+          >
+            <Text style={styles.noticeText}>{notice.message}</Text>
+          </MotiView>
+        ) : null}
+
         {/* Avatar */}
         <MotiView
           from={{ opacity: 0, scale: 0.8 }}
@@ -313,8 +416,11 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           style={styles.avatarContainer}
         >
           <View style={styles.avatarCircle}>
-            {profilePicture ? (
-              <Image source={{ uri: profilePicture }} style={styles.avatarImage} />
+            {selectedAsset?.uri || profilePicture ? (
+              <Image
+                source={{ uri: selectedAsset?.uri || profilePicture }}
+                style={styles.avatarImage}
+              />
             ) : (
               <Feather name="user" size={45} color="#CBD5E1" />
             )}
@@ -323,7 +429,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           <TouchableOpacity
             style={[styles.cameraBtn, { backgroundColor: BRAND_GREEN }]}
             onPress={() => {
-              setTempImage(null);
+              setSelectedAsset(null);
               setShowPhotoModal(true);
             }}
             disabled={isUploadingPhoto}
@@ -339,10 +445,19 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         {/* Form Elements */}
         <View style={styles.form}>
           {/* NIC */}
-          <MotiView from={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 200 }}>
+          <MotiView
+            from={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 200 }}
+          >
             <Text style={styles.label}>National ID / License Number</Text>
             <View style={styles.inputWrapper}>
-              <Feather name="credit-card" size={18} color="#94A3B8" style={styles.inputIcon} />
+              <Feather
+                name="credit-card"
+                size={18}
+                color="#94A3B8"
+                style={styles.inputIcon}
+              />
               <TextInput
                 style={styles.input}
                 placeholder="V-XXXXXXXXX"
@@ -354,16 +469,28 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           </MotiView>
 
           {/* DOB */}
-          <MotiView from={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 300 }}>
+          <MotiView
+            from={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 300 }}
+          >
             <Text style={styles.label}>Date of Birth</Text>
-            <TouchableOpacity style={styles.inputWrapper} onPress={openDatePicker}>
-              <Feather name="calendar" size={18} color="#94A3B8" style={styles.inputIcon} />
+            <TouchableOpacity
+              style={styles.inputWrapper}
+              onPress={openDatePicker}
+            >
+              <Feather
+                name="calendar"
+                size={18}
+                color="#94A3B8"
+                style={styles.inputIcon}
+              />
               <Text
                 style={[
                   styles.input,
                   {
                     color: formData.dob ? "#0F172A" : "#94A3B8",
-                    lineHeight: Platform.OS === 'ios' ? 44 : 24,
+                    lineHeight: Platform.OS === "ios" ? 44 : 24,
                     textAlignVertical: "center",
                   },
                 ]}
@@ -374,7 +501,11 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           </MotiView>
 
           {/* Address */}
-          <MotiView from={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 400 }}>
+          <MotiView
+            from={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 400 }}
+          >
             <Text style={styles.label}>Address</Text>
             <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
               <TextInput
@@ -390,14 +521,22 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           </MotiView>
 
           {/* Continue Action Button */}
-          <MotiView from={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 500, type: "timing" }}>
+          <MotiView
+            from={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 500, type: "timing" }}
+          >
             <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.continueBtn, { backgroundColor: BRAND_GREEN }]}
               onPress={handleContinue}
               disabled={isLoading}
             >
-              {isLoading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.continueText}>Continue</Text>}
+              {isLoading ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.continueText}>Continue</Text>
+              )}
             </TouchableOpacity>
           </MotiView>
         </View>
@@ -414,7 +553,10 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
       >
         <View style={styles.cropperOverlay}>
           <View style={styles.cropperHeader}>
-            <TouchableOpacity style={styles.cropperCloseBtn} onPress={() => setShowPhotoModal(false)}>
+            <TouchableOpacity
+              style={styles.cropperCloseBtn}
+              onPress={() => setShowPhotoModal(false)}
+            >
               <Feather name="arrow-left" size={24} color="#FFF" />
             </TouchableOpacity>
             <Text style={styles.cropperTitle}>Edit Profile Photo</Text>
@@ -423,8 +565,11 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
 
           <View style={styles.viewfinderContainer}>
             <View style={styles.cropBoxSquare}>
-              {tempImage || profilePicture ? (
-                <Image source={{ uri: tempImage || profilePicture }} style={styles.cropperPreviewImage} />
+              {selectedAsset?.uri || profilePicture ? (
+                <Image
+                  source={{ uri: selectedAsset?.uri || profilePicture }}
+                  style={styles.cropperPreviewImage}
+                />
               ) : (
                 <Feather name="user" size={80} color="#334155" />
               )}
@@ -441,14 +586,20 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
 
           <View style={styles.cropperBottomActions}>
             <View style={styles.sourceButtonsRow}>
-              <TouchableOpacity style={styles.sourceActionItem} onPress={takePhoto}>
+              <TouchableOpacity
+                style={styles.sourceActionItem}
+                onPress={takePhoto}
+              >
                 <View style={styles.sourceIconCircle}>
                   <Feather name="camera" size={20} color="#FFF" />
                 </View>
                 <Text style={styles.sourceActionText}>Take New</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.sourceActionItem} onPress={selectPhoto}>
+              <TouchableOpacity
+                style={styles.sourceActionItem}
+                onPress={selectPhoto}
+              >
                 <View style={styles.sourceIconCircle}>
                   <Feather name="image" size={20} color="#FFF" />
                 </View>
@@ -456,9 +607,9 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
               </TouchableOpacity>
             </View>
 
-            {tempImage && (
-              <TouchableOpacity 
-                style={[styles.applyCropButton, { backgroundColor: DARK_BG }]} 
+            {selectedAsset?.uri && (
+              <TouchableOpacity
+                style={[styles.applyCropButton, { backgroundColor: DARK_BG }]}
                 onPress={saveProfilePicture}
                 disabled={isUploadingPhoto}
               >
@@ -466,7 +617,12 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
                   <ActivityIndicator color="#FFF" size="small" />
                 ) : (
                   <>
-                    <Feather name="check" size={18} color="#FFF" style={{ marginRight: 6 }} />
+                    <Feather
+                      name="check"
+                      size={18}
+                      color="#FFF"
+                      style={{ marginRight: 6 }}
+                    />
                     <Text style={styles.applyCropText}>Apply Photo Change</Text>
                   </>
                 )}
@@ -487,20 +643,27 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
           <TouchableWithoutFeedback onPress={() => setShowSuccessModal(false)}>
             <View style={styles.modalDismissZone} />
           </TouchableWithoutFeedback>
-          
-          <MotiView 
+
+          <MotiView
             from={{ opacity: 0, scale: 0.9, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             style={styles.modalCard}
           >
-            <View style={[styles.modalIconCircle, { backgroundColor: `${DARK_BG}15` }]}>
+            <View
+              style={[
+                styles.modalIconCircle,
+                { backgroundColor: `${DARK_BG}15` },
+              ]}
+            >
               <Feather name="check" size={28} color={DARK_BG} />
             </View>
-            
+
             <Text style={styles.modalTitle}>Success</Text>
-            <Text style={styles.modalMessage}>Profile picture updated successfully.</Text>
-            
-            <TouchableOpacity 
+            <Text style={styles.modalMessage}>
+              Profile picture updated successfully.
+            </Text>
+
+            <TouchableOpacity
               activeOpacity={0.8}
               style={[styles.modalButton, { backgroundColor: BRAND_GREEN }]}
               onPress={() => setShowSuccessModal(false)}
@@ -512,8 +675,8 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
       </Modal>
 
       {/* SEAMLESS NATIVE STYLE DATE PICKER OVERLAY */}
-      {showDatePicker && (
-        Platform.OS === 'ios' ? (
+      {showDatePicker &&
+        (Platform.OS === "ios" ? (
           <Modal transparent animationType="slide" visible={showDatePicker}>
             <View style={styles.iosDateModalOverlay}>
               <View style={styles.iosDatePickerContainer}>
@@ -542,12 +705,12 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
             maximumDate={new Date()}
             onChange={onDateChange}
           />
-        )
-      )}
+        ))}
     </View>
   );
 };
 
+// ... Styles remain identical as before
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF" },
   header: {
@@ -564,15 +727,44 @@ const styles = StyleSheet.create({
     right: 18,
     backgroundColor: "rgba(255,255,255,0.15)",
   },
-  progressRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginBottom: 24 },
+  progressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
   stepWrapper: { flexDirection: "row", alignItems: "center" },
-  stepCircle: { width: 34, height: 34, borderRadius: 17, justifyContent: "center", alignItems: "center" },
+  stepCircle: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   stepText: { fontWeight: "800", fontSize: 14 },
-  stepLine: { width: 42, height: 2, backgroundColor: "rgba(255,255,255,0.1)", marginHorizontal: 8 },
-  headerTitle: { fontSize: 28, fontWeight: "900", color: "#FFF", letterSpacing: -0.5 },
-  headerSubtitle: { fontSize: 14, color: "rgba(255,255,255,0.6)", marginTop: 6 },
+  stepLine: {
+    width: 42,
+    height: 2,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    marginHorizontal: 8,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "900",
+    color: "#FFF",
+    letterSpacing: -0.5,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.6)",
+    marginTop: 6,
+  },
   scrollContent: { paddingHorizontal: 25, paddingTop: 28, paddingBottom: 40 },
-  avatarContainer: { alignSelf: "center", marginBottom: 32, position: 'relative' },
+  avatarContainer: {
+    alignSelf: "center",
+    marginBottom: 32,
+    position: "relative",
+  },
   avatarCircle: {
     width: 115,
     height: 115,
@@ -599,7 +791,13 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   form: { width: "100%" },
-  label: { fontSize: 14, fontWeight: "700", color: "#334155", marginBottom: 10, marginLeft: 4 },
+  label: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#334155",
+    marginBottom: 10,
+    marginLeft: 4,
+  },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -621,53 +819,153 @@ const styles = StyleSheet.create({
     marginTop: 10,
     elevation: 4,
   },
-  continueText: { color: "#FFF", fontSize: 18, fontWeight: "900", letterSpacing: 0.5 },
+  continueText: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  noticeBox: {
+    width: "100%",
+    borderRadius: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 18,
+  },
+  noticeError: {
+    backgroundColor: "#FEE2E2",
+    borderColor: "#FECACA",
+    borderWidth: 1,
+  },
+  noticeSuccess: {
+    backgroundColor: "#ECFDF5",
+    borderColor: "#A7F3D0",
+    borderWidth: 1,
+  },
+  noticeText: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   bottomSafeArea: { backgroundColor: "#000" },
-
-  /* CAMERA CROPPER DESIGN STYLES */
   cropperOverlay: { flex: 1, backgroundColor: "#000" },
   cropperHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: Platform.OS === 'ios' ? 60 : StatusBar.currentHeight + 20,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 60 : StatusBar.currentHeight + 20,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
   cropperCloseBtn: { padding: 4 },
-  cropperTitle: { color: '#FFF', fontSize: 18, fontWeight: '700' },
-  viewfinderContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 30 },
-  cropBoxSquare: {
-    width: '100%',
-    aspectRatio: 1,
-    backgroundColor: '#1E293B',
-    position: 'relative',
-    justifyContent: 'center',
-    alignItems: 'center',
-    overflow: 'hidden',
+  cropperTitle: { color: "#FFF", fontSize: 18, fontWeight: "700" },
+  viewfinderContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 30,
   },
-  cropperPreviewImage: { width: '100%', height: '100%', resizeMode: 'cover' },
-  gridLineH1: { position: 'absolute', top: '33.33%', left: 0, right: 0, height: 0.5, backgroundColor: 'rgba(255,255,255,0.4)' },
-  gridLineH2: { position: 'absolute', top: '66.66%', left: 0, right: 0, height: 0.5, backgroundColor: 'rgba(255,255,255,0.4)' },
-  gridLineV1: { position: 'absolute', left: '33.33%', top: 0, bottom: 0, width: 0.5, backgroundColor: 'rgba(255,255,255,0.4)' },
-  gridLineV2: { position: 'absolute', left: '66.66%', top: 0, bottom: 0, width: 0.5, backgroundColor: 'rgba(255,255,255,0.4)' },
-  cornerEdge: { position: 'absolute', width: 20, height: 20, borderColor: '#FFF', borderWidth: 0 },
+  cropBoxSquare: {
+    width: "100%",
+    aspectRatio: 1,
+    backgroundColor: "#1E293B",
+    position: "relative",
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+  cropperPreviewImage: { width: "100%", height: "100%", resizeMode: "cover" },
+  gridLineH1: {
+    position: "absolute",
+    top: "33.33%",
+    left: 0,
+    right: 0,
+    height: 0.5,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
+  gridLineH2: {
+    position: "absolute",
+    top: "66.66%",
+    left: 0,
+    right: 0,
+    height: 0.5,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
+  gridLineV1: {
+    position: "absolute",
+    left: "33.33%",
+    top: 0,
+    bottom: 0,
+    width: 0.5,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
+  gridLineV2: {
+    position: "absolute",
+    left: "66.66%",
+    top: 0,
+    bottom: 0,
+    width: 0.5,
+    backgroundColor: "rgba(255,255,255,0.4)",
+  },
+  cornerEdge: {
+    position: "absolute",
+    width: 20,
+    height: 20,
+    borderColor: "#FFF",
+    borderWidth: 0,
+  },
   topLeftEdge: { top: 12, left: 12, borderTopWidth: 2.5, borderLeftWidth: 2.5 },
-  topRightEdge: { top: 12, right: 12, borderTopWidth: 2.5, borderRightWidth: 2.5 },
-  bottomLeftEdge: { bottom: 12, left: 12, borderBottomWidth: 2.5, borderLeftWidth: 2.5 },
-  bottomRightEdge: { bottom: 12, right: 12, borderBottomWidth: 2.5, borderRightWidth: 2.5 },
-  cropperBottomActions: { paddingHorizontal: 24, paddingBottom: 40, paddingTop: 20 },
-  sourceButtonsRow: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 24 },
-  sourceActionItem: { alignItems: 'center' },
-  sourceIconCircle: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  sourceActionText: { color: '#94A3B8', fontSize: 13, fontWeight: '600' },
-  applyCropButton: { height: 54, borderRadius: 27, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginHorizontal: 16 },
-  applyCropText: { color: '#FFF', fontSize: 16, fontWeight: '700' },
-
-  /* ALIGNED MODERN DIALOG MODAL STYLES */
+  topRightEdge: {
+    top: 12,
+    right: 12,
+    borderTopWidth: 2.5,
+    borderRightWidth: 2.5,
+  },
+  bottomLeftEdge: {
+    bottom: 12,
+    left: 12,
+    borderBottomWidth: 2.5,
+    borderLeftWidth: 2.5,
+  },
+  bottomRightEdge: {
+    bottom: 12,
+    right: 12,
+    borderBottomWidth: 2.5,
+    borderRightWidth: 2.5,
+  },
+  cropperBottomActions: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    paddingTop: 20,
+  },
+  sourceButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 24,
+  },
+  sourceActionItem: { alignItems: "center" },
+  sourceIconCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: "#1E293B",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  sourceActionText: { color: "#94A3B8", fontSize: 13, fontWeight: "600" },
+  applyCropButton: {
+    height: 54,
+    borderRadius: 27,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    marginHorizontal: 16,
+  },
+  applyCropText: { color: "#FFF", fontSize: 16, fontWeight: "700" },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)", 
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 28,
@@ -722,13 +1020,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "700",
   },
-
-  /* NATIVE IOS DATE MODAL STYLES */
-  iosDateModalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end' },
-  iosDatePickerContainer: { backgroundColor: '#FFF', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 40 },
-  iosDatePickerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 20, borderBottomWidth: 0.5, borderColor: '#E2E8F0' },
-  iosDateTitle: { fontSize: 16, fontWeight: '700', color: '#0F172A' },
-  iosDoneButtonText: { fontSize: 16, fontWeight: '700', color: '#00A859' },
+  iosDateModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
+  },
+  iosDatePickerContainer: {
+    backgroundColor: "#FFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 40,
+  },
+  iosDatePickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 20,
+    borderBottomWidth: 0.5,
+    borderColor: "#E2E8F0",
+  },
+  iosDateTitle: { fontSize: 16, fontWeight: "700", color: "#0F172A" },
+  iosDoneButtonText: { fontSize: 16, fontWeight: "700", color: "#00A859" },
 });
 
 export default ProfileSetupScreen;

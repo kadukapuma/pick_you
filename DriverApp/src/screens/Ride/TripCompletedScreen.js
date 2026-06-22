@@ -10,6 +10,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
+import api from "../../services/api";
 
 const { width } = Dimensions.get("window");
 
@@ -24,18 +25,29 @@ const TripCompletedScreen = ({ navigation, route }) => {
   const customerName = ride?.customerName || "John David";
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropLocation = ride?.drop || "Peradeniya Junction";
-  const fareAmount = ride?.fare || "Rs. 850";
+  const fareAmount =
+    ride?.final_fare || ride?.estimated_fare || ride?.fare || "Rs. 850";
 
-  const handleCashCollected = () => {
-    // 1. Set state to activate transition UI
+  const handleCashCollected = async () => {
+    if (!ride?.id || isProcessingCash) return;
+
     setIsProcessingCash(true);
+    try {
+      await api.post(`/payments/${ride.id}`, { payment_method: "cash" });
 
-    // 2. Clear holding delay for 2.5 seconds before returning to home base dashboard
-    setTimeout(() => {
-      if (navigation.canGoBack()) {
-        navigation.popToTop();
-      }
-    }, 2500);
+      setTimeout(() => {
+        if (navigation.canGoBack()) {
+          navigation.popToTop();
+        }
+      }, 2500);
+    } catch (error) {
+      console.log("Error confirming cash:", error.response?.data || error);
+      alert(
+        error.response?.data?.message ||
+          "Failed to confirm cash payment. Please try again.",
+      );
+      setIsProcessingCash(false);
+    }
   };
 
   return (

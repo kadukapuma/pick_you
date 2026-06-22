@@ -142,7 +142,7 @@ const VehicleDetail = () => {
                                         <label>Full Name</label>
                                         <span
                                             style={{ cursor: 'pointer', color: '#08d612', textDecoration: 'underline' }}
-                                            onClick={() => navigate(`/drivers/${vehicle.driver.id}`)}
+                                            onClick={() => navigate(`/admin-portal/drivers/${vehicle.driver.id}`)}
                                         >
                                             {vehicle.driver.name}
                                         </span>

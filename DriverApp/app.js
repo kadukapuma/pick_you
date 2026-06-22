@@ -16,6 +16,7 @@ export default function App() {
   const [driver, setDriver] = useState(null);
   const [isMaintenance, setIsMaintenance] = useState(false); // Global maintenance state
   const [isReady, setIsReady] = useState(false);
+  const [verificationUser, setVerificationUser] = useState(null); // Added to handle unverified users
 
   const checkLoginStatus = async () => {
     try {
@@ -34,31 +35,43 @@ export default function App() {
       const token = await AsyncStorage.getItem("userToken");
       if (token) {
         const response = await api.get("/user");
-        const drv = response.data?.driver;
-        setDriver(drv || null);
-        if (drv) {
-          const fetchedStatus = drv.status?.toLowerCase() || "pending";
-
-          // Check if seen approved screen before
-          const hasSeenKey = `hasSeenApproved_${drv.id}`;
-          const hasSeenApproved = await AsyncStorage.getItem(hasSeenKey);
-
-          let finalStatus = fetchedStatus;
-
-          // If they are approved but haven't seen the success screen
-          if (fetchedStatus === "approved" && !hasSeenApproved) {
-            finalStatus = "show_approved_screen";
-          }
-
-          setDriverStatus(finalStatus);
-          setIsLoggedIn(true);
-
-          const isProfileComplete = !!drv.address;
-          setIsNewUser(fetchedStatus !== "approved" && !isProfileComplete);
+        const user = response.data;
+        
+        if (user && user.is_verified === false) {
+          // User is not verified! Store details and keep isLoggedIn false so they are redirected to OTP
+          setVerificationUser({
+            email: user.email,
+            phone: user.phone,
+          });
+          setIsLoggedIn(false);
         } else {
-          // Logged in but no driver profile found at all
-          setIsLoggedIn(true);
-          setIsNewUser(true);
+          setVerificationUser(null);
+          const drv = user?.driver;
+          setDriver(drv || null);
+          if (drv) {
+            const fetchedStatus = drv.status?.toLowerCase() || "pending";
+
+            // Check if seen approved screen before
+            const hasSeenKey = `hasSeenApproved_${drv.id}`;
+            const hasSeenApproved = await AsyncStorage.getItem(hasSeenKey);
+
+            let finalStatus = fetchedStatus;
+
+            // If they are approved but haven't seen the success screen
+            if (fetchedStatus === "approved" && !hasSeenApproved) {
+              finalStatus = "show_approved_screen";
+            }
+
+            setDriverStatus(finalStatus);
+            setIsLoggedIn(true);
+
+            const isProfileComplete = !!drv.address;
+            setIsNewUser(fetchedStatus !== "approved" && !isProfileComplete);
+          } else {
+            // Logged in but no driver profile found at all
+            setIsLoggedIn(true);
+            setIsNewUser(true);
+          }
         }
       }
     } catch (error) {
@@ -106,6 +119,8 @@ export default function App() {
         setDriverStatus={setDriverStatus}
         driver={driver}
         setDriver={setDriver}
+        verificationUser={verificationUser}
+        setVerificationUser={setVerificationUser}
       />
     </NavigationContainer>
   );

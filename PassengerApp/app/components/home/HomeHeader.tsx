@@ -58,17 +58,18 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           style={{
             justifyContent: "center",
             alignItems: "flex-start",
-            width: compact ? 110 : 125,
-            height: compact ? 44 : 52,
+            width: compact ? 140 : 170,
+            height: compact ? 50 : 65,
+            marginLeft: compact ? -25 : -35,
           }}
         >
           <Image
             source={require("../../../assets/images/logo.png")}
             style={{
-              width: compact ? 150 : 172,
-              height: compact ? 54 : 62,
+              width: compact ? 210 : 270, // slightly larger
+              height: compact ? 78 : 100, // slightly larger
               resizeMode: "contain",
-              marginLeft: compact ? -20 : -24,
+              marginLeft: compact ? -45 : -65, // adjusted to keep same position
             }}
           />
         </View>

@@ -203,38 +203,38 @@ const RegisterScreen = ({ navigation }) => {
         });
       }
     } catch (error) {
-      console.log("Registration error:", error.response?.data || error.message);
-      const resp = error.response?.data;
-      const msg = resp?.message || "An error occurred during registration.";
+  console.log("FULL ERROR:", error.response || error.message);
 
-      const isEmailTaken = resp?.errors?.email || /email|already/i.test(msg);
-      if (isEmailTaken) {
-        showPopup(
-          "Email Already Registered",
-          "This email is already registered. Please log in to continue.",
-          "warning",
-          () => navigation.navigate("Login", { email }),
-          "Login"
-        );
-        return;
-      }
+  console.log("Registration error:", error.response?.data || error.message);
+  const resp = error.response?.data;
+  const msg = resp?.message || "An error occurred during registration.";
 
-      const isPhoneTaken = resp?.errors?.phone || /phone|already/i.test(msg);
-      if (isPhoneTaken) {
-        showPopup(
-          "Number Already Registered",
-          "Your mobile number is already registered. Please log in to continue.",
-          "warning",
-          () => navigation.navigate("Login", { phone }),
-          "Login"
-        );
-        return;
-      }
+  const isEmailTaken = resp?.errors?.email || /email|already/i.test(msg);
+  if (isEmailTaken) {
+    showPopup(
+      "Email Already Registered",
+      "This email is already registered. Please log in to continue.",
+      "warning",
+      () => navigation.navigate("Login", { email }),
+      "Login"
+    );
+    return;
+  }
 
-      showPopup("Registration Failed", msg, "error");
-    } finally {
-      setIsLoading(false);
-    }
+  const isPhoneTaken = resp?.errors?.phone || /phone|already/i.test(msg);
+  if (isPhoneTaken) {
+    showPopup(
+      "Number Already Registered",
+      "Your mobile number is already registered. Please log in to continue.",
+      "warning",
+      () => navigation.navigate("Login", { phone }),
+      "Login"
+    );
+    return;
+  }
+
+  showPopup("Registration Failed", msg, "error");
+}
   };
 
   return (
@@ -424,7 +424,7 @@ const RegisterScreen = ({ navigation }) => {
 
                 {/* SECURE PASSWORD CREATION FIELD */}
                 <MotiView
-                  from={{ opacity: 0, y: 20 }}
+                  from={{ opacity: 0, y: 20 }} 
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 900 }}
                 >

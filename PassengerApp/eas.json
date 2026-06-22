@@ -1,0 +1,40 @@
+{
+  "cli": {
+    "version": ">= 20.1.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_WS_HOST": "picku.lk",
+        "EXPO_PUBLIC_WS_PORT": "443",
+        "EXPO_PUBLIC_WS_SCHEME": "https",
+        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_WS_HOST": "picku.lk",
+        "EXPO_PUBLIC_WS_PORT": "443",
+        "EXPO_PUBLIC_WS_SCHEME": "https",
+        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_WS_HOST": "picku.lk",
+        "EXPO_PUBLIC_WS_PORT": "443",
+        "EXPO_PUBLIC_WS_SCHEME": "https",
+        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+

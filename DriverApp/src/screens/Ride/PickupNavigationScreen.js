@@ -1,26 +1,22 @@
-import React, { useEffect, useRef } from "react";
+import { useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Image,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import { getPickupCoordinate } from "../../utils/rideLocation";
-
-const { width, height } = Dimensions.get("window");
+import MapboxRideMap from "../../components/map/MapboxRideMap";
+import api from "../../services/api";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 const PickupNavigationScreen = ({ navigation, route }) => {
-  const mapRef = useRef(null);
   const ride = route?.params?.ride || {};
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
@@ -28,6 +24,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   const origin = driverCoord ?? DEFAULT_COORD;
   const destination = pickupCoord ?? origin;
   const { directions } = useMapboxRoute(origin, destination);
+  const [isMarkingArrived, setIsMarkingArrived] = useState(false);
 
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Pickup";
@@ -39,81 +36,73 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       : pickupCoord
         ? [origin, pickupCoord]
         : [origin];
-
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(routeCoordinates, {
-        edgePadding: {
-          top: 140,
-          right: 70,
-          bottom: 360,
-          left: 70,
-        },
-        animated: true,
-      });
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [directions]);
+  const mapPadding = useMemo(
+    () => ({ top: 140, right: 70, bottom: 360, left: 70 }),
+    [],
+  );
 
   const handleArrived = () => {
-    navigation.navigate("ArrivedAtPickupScreen", { ride });
+    const markArrived = async () => {
+      if (isMarkingArrived) return;
+
+      if (!ride?.id) {
+        navigation.navigate("ArrivedAtPickupScreen", { ride });
+        return;
+      }
+
+      setIsMarkingArrived(true);
+      try {
+        const response = await api.post(`/rides/${ride.id}/arrive`);
+        const updatedRide = response.data?.data ?? response.data ?? ride;
+        navigation.navigate("ArrivedAtPickupScreen", {
+          ride: { ...ride, ...updatedRide },
+        });
+      } catch (error) {
+        console.log("Error marking arrived:", error.response?.data || error);
+        alert(
+          error.response?.data?.message ||
+            "Failed to update arrival. Please try again.",
+        );
+      } finally {
+        setIsMarkingArrived(false);
+      }
+    };
+
+    markArrived();
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent={true}
+      />
 
       {/* MAP VIEWPORT */}
-      <MapView
-        ref={mapRef}
+      <MapboxRideMap
         style={styles.map}
-        initialRegion={{
-          latitude: (origin.latitude + destination.latitude) / 2,
-          longitude: (origin.longitude + destination.longitude) / 2,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        }}
-      >
-        <Polyline
-          coordinates={routeCoordinates}
-          strokeWidth={5}
-          strokeColor="#00A859"
-          lineCap="round"
-          lineJoin="round"
-        />
-
-        {/* DRIVER CAR VEHICLE MARKER - Explicit size fixed here */}
-        <Marker
-          coordinate={origin}
-          anchor={{ x: 0.5, y: 0.5 }}
-          rotation={38}
-          style={styles.markerFix}
-        >
-          <Image 
-            source={require('../../assets/car3d.png')} 
-            style={styles.driver3DVehicle}
-            resizeMode="contain"
-          />
-        </Marker>
-
-        {/* PICKUP TARGET LOCATION MARKER */}
-        {pickupCoord ? (
-        <Marker coordinate={pickupCoord} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={styles.pickupMarkerOuter}>
-            <View style={styles.pickupMarkerInner} />
-          </View>
-        </Marker>
-        ) : null}
-      </MapView>
+        origin={origin}
+        destination={destination}
+        routeCoordinates={routeCoordinates}
+        routeColor="#00A859"
+        destinationColor="#00A859"
+        vehicleImage={require("../../assets/car3d.png")}
+        vehicleHeading={38}
+        vehicleSize={76}
+        edgePadding={mapPadding}
+      />
 
       {/* FLOATING CORNER ETA STATUS DETAILS */}
       <View style={styles.etaCardContainer} pointerEvents="none">
         <View style={styles.etaCard}>
           <View style={styles.etaLineRow}>
-            <MaterialCommunityIcons name="car-sports" size={18} color="#00A859" style={styles.etaIconSpace} />
+            <MaterialCommunityIcons
+              name="car-sports"
+              size={18}
+              color="#00A859"
+              style={styles.etaIconSpace}
+            />
             <Text style={styles.etaTitle}>Driver Heading To Pickup</Text>
           </View>
           <View style={[styles.etaLineRow, { marginTop: 4, marginLeft: 28 }]}>
@@ -128,7 +117,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
       {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
+        <TouchableOpacity
+          style={styles.circleBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.7}
+        >
           <Feather name="arrow-left" size={22} color="#0F172A" />
         </TouchableOpacity>
       </SafeAreaView>
@@ -149,7 +142,10 @@ const PickupNavigationScreen = ({ navigation, route }) => {
                 <Text style={styles.ratingText}>{rating} Customer Rating</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.inlineNavCircle} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.inlineNavCircle}
+              activeOpacity={0.7}
+            >
               <Feather name="navigation" size={18} color="#0F172A" />
             </TouchableOpacity>
           </View>
@@ -161,7 +157,9 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </View>
             <View style={{ marginLeft: 12, flex: 1 }}>
               <Text style={styles.pickupLabel}>Pickup Location</Text>
-              <Text style={styles.pickupText} numberOfLines={1}>{pickup}</Text>
+              <Text style={styles.pickupText} numberOfLines={1}>
+                {pickup}
+              </Text>
             </View>
           </View>
 
@@ -176,8 +174,15 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          <TouchableOpacity style={styles.arrivedBtn} onPress={handleArrived} activeOpacity={0.9}>
-            <Text style={styles.arrivedText}>Arrived at Pickup</Text>
+          <TouchableOpacity
+            style={styles.arrivedBtn}
+            onPress={handleArrived}
+            activeOpacity={0.9}
+            disabled={isMarkingArrived}
+          >
+            <Text style={styles.arrivedText}>
+              {isMarkingArrived ? "Updating..." : "Arrived at Pickup"}
+            </Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />
             </View>

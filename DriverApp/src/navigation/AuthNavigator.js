@@ -9,7 +9,14 @@ import ResetPasswordScreen from "../screens/Auth/ResetPasswordScreen";
 
 const Stack = createNativeStackNavigator();
 
-const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver }) => {
+const AuthNavigator = ({
+  setIsLoggedIn,
+  setIsNewUser,
+  setDriverStatus,
+  setDriver,
+  verificationUser,
+  setVerificationUser,
+}) => {
   const handleExitToGetStarted = (navigation) => {
     navigation.reset({
       index: 0,
@@ -17,9 +24,19 @@ const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver
     });
   };
 
+  const initialRouteName = verificationUser ? "OTP" : "GetStarted";
+  const otpInitialParams = verificationUser
+    ? {
+        isRegistration: true,
+        email: verificationUser.email,
+        phone: verificationUser.phone,
+        shouldAutoSendOtp: true,
+      }
+    : undefined;
+
   return (
     <Stack.Navigator
-      initialRouteName="GetStarted"
+      initialRouteName={initialRouteName}
       screenOptions={{
         headerShown: false,
       }}
@@ -34,6 +51,7 @@ const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver
             setIsNewUser={setIsNewUser}
             setDriverStatus={setDriverStatus}
             setDriver={setDriver}
+            setVerificationUser={setVerificationUser}
             onExit={() => handleExitToGetStarted(props.navigation)}
           />
         )}
@@ -48,7 +66,7 @@ const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver
         )}
       </Stack.Screen>
 
-      <Stack.Screen name="OTP">
+      <Stack.Screen name="OTP" initialParams={otpInitialParams}>
         {(props) => (
           <OTPScreen
             {...props}
@@ -56,28 +74,29 @@ const AuthNavigator = ({ setIsLoggedIn, setIsNewUser, setDriverStatus, setDriver
             setIsNewUser={setIsNewUser}
             setDriverStatus={setDriverStatus}
             setDriver={setDriver}
+            setVerificationUser={setVerificationUser}
             onExit={() => handleExitToGetStarted(props.navigation)}
           />
         )}
       </Stack.Screen>
 
       <Stack.Screen name="ForgotPassword">
-  {(props) => (
-    <ForgotPasswordScreen
-      {...props}
-      onExit={() => handleExitToGetStarted(props.navigation)}
-    />
-  )}
-</Stack.Screen>
+        {(props) => (
+          <ForgotPasswordScreen
+            {...props}
+            onExit={() => handleExitToGetStarted(props.navigation)}
+          />
+        )}
+      </Stack.Screen>
 
-<Stack.Screen name="ResetPassword">
-  {(props) => (
-    <ResetPasswordScreen
-      {...props}
-      onExit={() => handleExitToGetStarted(props.navigation)}
-    />
-  )}
-</Stack.Screen>
+      <Stack.Screen name="ResetPassword">
+        {(props) => (
+          <ResetPasswordScreen
+            {...props}
+            onExit={() => handleExitToGetStarted(props.navigation)}
+          />
+        )}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 };

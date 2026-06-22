@@ -11,21 +11,36 @@ const FALLBACK_SYNC_MS = 60_000;
 const FALLBACK_DELAY_MS = 4000;
 
 let echoInstance = null;
-let pusherInstance = null;
 let subscribedDriverId = null;
 let rideEventHandler = null;
 let fallbackTimer = null;
 let fallbackDelayTimer = null;
 let wsConnected = false;
+let connectionStatus = "disconnected";
+let boundPusherConnection = null;
 
 const listeners = {
   onRide: null,
   onConnectionChange: null,
+  onStatusChange: null,
 };
 
-const notifyConnection = (connected) => {
+const notifyStatus = (status) => {
+  connectionStatus = status;
+  listeners.onStatusChange?.(status);
+};
+
+const notifyConnection = (connected, status = connected ? "connected" : "connecting") => {
   wsConnected = connected;
   listeners.onConnectionChange?.(connected);
+  notifyStatus(status);
+};
+
+const statusFromPusherState = (state) => {
+  if (state === "connected") return "connected";
+  if (state === "disconnected") return "disconnected";
+  if (state === "failed" || state === "unavailable") return "fallback";
+  return "connecting";
 };
 
 const handleRideEvent = (payload) => {
@@ -74,13 +89,14 @@ const stopFallbackSync = () => {
   }
 };
 
-const startFallbackSync = () => {
+const startFallbackSync = (status = "fallback") => {
   if (fallbackTimer) return;
 
   if (__DEV__) {
     console.log("rideRealtime: fallback HTTP sync active");
   }
 
+  notifyConnection(false, status);
   syncPendingRideOnce();
   fallbackTimer = setInterval(syncPendingRideOnce, FALLBACK_SYNC_MS);
 };
@@ -97,7 +113,39 @@ const scheduleFallbackIfStillOffline = () => {
 };
 
 const bindPusherConnection = (pusher) => {
-  if (!pusher?.connection?.bind) return;
+  if (!pusher?.connection?.bind) {
+    scheduleFallbackIfStillOffline();
+    return;
+  }
+
+  if (boundPusherConnection === pusher.connection) {
+    const state = pusher.connection.state;
+    if (state === "connected") {
+      notifyConnection(true);
+    } else if (connectionStatus !== "fallback") {
+      notifyConnection(false, statusFromPusherState(state));
+      scheduleFallbackIfStillOffline();
+    }
+    return;
+  }
+
+  boundPusherConnection = pusher.connection;
+
+  pusher.connection.bind("state_change", ({ current }) => {
+    const status = statusFromPusherState(current);
+    notifyConnection(current === "connected", status);
+
+    if (status === "fallback") {
+      startFallbackSync();
+    } else if (current !== "connected") {
+      scheduleFallbackIfStillOffline();
+    }
+  });
+
+  pusher.connection.bind("connecting", () => {
+    notifyConnection(false, "connecting");
+    scheduleFallbackIfStillOffline();
+  });
 
   pusher.connection.bind("connected", () => {
     if (__DEV__) console.log("rideRealtime: WebSocket connected");
@@ -107,12 +155,25 @@ const bindPusherConnection = (pusher) => {
 
   pusher.connection.bind("disconnected", () => {
     if (__DEV__) console.log("rideRealtime: WebSocket disconnected");
-    notifyConnection(false);
+    notifyConnection(false, "disconnected");
     scheduleFallbackIfStillOffline();
   });
 
-  pusher.connection.bind("error", () => {
-    notifyConnection(false);
+  pusher.connection.bind("unavailable", () => {
+    notifyConnection(false, "fallback");
+    scheduleFallbackIfStillOffline();
+  });
+
+  pusher.connection.bind("failed", () => {
+    notifyConnection(false, "fallback");
+    startFallbackSync();
+  });
+
+  pusher.connection.bind("error", (error) => {
+    if (__DEV__) {
+      console.log("rideRealtime: WebSocket error", error?.error || error);
+    }
+    notifyConnection(false, "fallback");
     scheduleFallbackIfStillOffline();
   });
 
@@ -120,8 +181,11 @@ const bindPusherConnection = (pusher) => {
   if (state === "connected") {
     notifyConnection(true);
     stopFallbackSync();
+  } else if (state === "failed" || state === "unavailable") {
+    notifyConnection(false, "fallback");
+    startFallbackSync();
   } else {
-    notifyConnection(false);
+    notifyConnection(false, statusFromPusherState(state));
     scheduleFallbackIfStillOffline();
   }
 };
@@ -151,9 +215,22 @@ const onRideRequestedTargeted = (raw) => {
   });
 };
 
+const onSubscriptionSucceeded = () => {
+  if (__DEV__) {
+    console.log("rideRealtime: driver private channel subscribed");
+  }
+};
+
+const onSubscriptionError = (error) => {
+  if (__DEV__) {
+    console.log("rideRealtime: private channel subscription error", error);
+  }
+  startFallbackSync("auth_error");
+};
+
 const subscribeToDriverChannel = (driverId) => {
   const channelName = `driver.rides.${driverId}`;
-  const channel = echoInstance.channel(channelName);
+  const channel = echoInstance.private(channelName);
 
   if (rideEventHandler) {
     channel.unbind(".RideRequestedTargeted", rideEventHandler);
@@ -161,25 +238,32 @@ const subscribeToDriverChannel = (driverId) => {
 
   rideEventHandler = onRideRequestedTargeted;
   channel.listen(".RideRequestedTargeted", rideEventHandler);
+  channel.listen("pusher:subscription_succeeded", onSubscriptionSucceeded);
+  channel.listen("pusher:subscription_error", onSubscriptionError);
 
   subscribedDriverId = driverId;
 };
 
-export const connectRideRealtime = async (driverId, { onRide, onConnectionChange } = {}) => {
+export const connectRideRealtime = async (
+  driverId,
+  { onRide, onConnectionChange, onStatusChange } = {},
+) => {
   if (!driverId) return;
 
   listeners.onRide = onRide ?? null;
   listeners.onConnectionChange = onConnectionChange ?? null;
+  listeners.onStatusChange = onStatusChange ?? null;
+  notifyConnection(false, "connecting");
+  scheduleFallbackIfStillOffline();
 
   const { echo, pusher } = await createEchoInstance();
   echoInstance = echo;
-  pusherInstance = pusher;
 
   bindPusherConnection(pusher);
 
   if (subscribedDriverId !== driverId) {
     if (subscribedDriverId && echoInstance) {
-      echoInstance.leaveChannel(`driver.rides.${subscribedDriverId}`);
+      echoInstance.leaveChannel(`private-driver.rides.${subscribedDriverId}`);
       rideEventHandler = null;
     }
     subscribeToDriverChannel(driverId);
@@ -190,10 +274,13 @@ export const connectRideRealtime = async (driverId, { onRide, onConnectionChange
 
 export const disconnectRideRealtime = async ({ clearListeners = true } = {}) => {
   stopFallbackSync();
-  notifyConnection(false);
+  notifyConnection(false, "disconnected");
 
   if (echoInstance && subscribedDriverId) {
-    echoInstance.leaveChannel(`driver.rides.${subscribedDriverId}`);
+    const channel = echoInstance.private(`driver.rides.${subscribedDriverId}`);
+    channel.unbind("pusher:subscription_succeeded", onSubscriptionSucceeded);
+    channel.unbind("pusher:subscription_error", onSubscriptionError);
+    echoInstance.leaveChannel(`private-driver.rides.${subscribedDriverId}`);
   }
 
   subscribedDriverId = null;
@@ -202,9 +289,11 @@ export const disconnectRideRealtime = async ({ clearListeners = true } = {}) => 
   if (clearListeners) {
     listeners.onRide = null;
     listeners.onConnectionChange = null;
+    listeners.onStatusChange = null;
   }
 };
 
 export const isRideRealtimeConnected = () => wsConnected;
+export const getRideRealtimeStatus = () => connectionStatus;
 
 export const enableRideFallbackSync = () => startFallbackSync();

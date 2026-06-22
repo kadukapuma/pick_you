@@ -1,23 +1,30 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  Dimensions,
-  Animated,
-  PanResponder,
-  ActivityIndicator,
+    ActivityIndicator,
+    Animated,
+    Dimensions,
+    PanResponder,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import {
+    SafeAreaView,
+    useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
-import { getDropCoordinate, getPickupCoordinate } from "../../utils/rideLocation";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
 import api from "../../services/api";
+import { clearActiveRideLocationSync } from "../../services/driverLocationSync";
+import {
+    getDropCoordinate,
+    getPickupCoordinate,
+} from "../../utils/rideLocation";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
 
 const { width, height } = Dimensions.get("window");
 
@@ -28,7 +35,6 @@ const SLIDER_WIDTH = width - 40; // Adjusted for padding calculation (20px on ea
 const THUMB_SIZE = 50;
 
 const TripInProgressScreen = ({ navigation, route }) => {
-  const mapRef = useRef(null);
   const insets = useSafeAreaInsets();
 
   const ride = route?.params?.ride || {};
@@ -48,19 +54,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
       : dropCoord
         ? [origin, dropCoord]
         : [origin];
-
-  useEffect(() => {
-    if (!mapRef.current || routeCoordinates.length < 2) return;
-
-    const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(routeCoordinates, {
-        edgePadding: { top: 160, right: 50, bottom: 220, left: 50 },
-        animated: true,
-      });
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [directions]);
+  const mapPadding = useMemo(
+    () => ({ top: 160, right: 50, bottom: 220, left: 50 }),
+    [],
+  );
 
   // --- SLIDER MECHANICS & ANIMATIONS ---
   const slideX = useRef(new Animated.Value(0)).current;
@@ -78,11 +75,18 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
     setIsCompleting(true);
     try {
-      await api.post(`/rides/${ride.id}/complete`);
-      navigation.navigate("TripCompletedScreen", { ride });
+      const response = await api.post(`/rides/${ride.id}/complete`);
+      const completedRide = response.data?.data ?? response.data ?? ride;
+      await clearActiveRideLocationSync();
+      navigation.navigate("TripCompletedScreen", {
+        ride: { ...ride, ...completedRide },
+      });
     } catch (error) {
       console.log("Error completing ride:", error);
-      alert(error.response?.data?.message || "Failed to complete ride. Please try again.");
+      alert(
+        error.response?.data?.message ||
+          "Failed to complete ride. Please try again.",
+      );
       setCompleted(false);
       slideX.setValue(0);
     } finally {
@@ -111,7 +115,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
         if (completed || isCompleting) return;
 
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10;
-        const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.70;
+        const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.7;
 
         if (reachedEnd) {
           Animated.timing(slideX, {
@@ -123,7 +127,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
             // Trigger physical haptic response frame execution
             await Haptics.notificationAsync(
-              Haptics.NotificationFeedbackType.Success
+              Haptics.NotificationFeedbackType.Success,
             );
 
             handleCompleteTrip();
@@ -137,7 +141,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
           }).start();
         }
       },
-    })
+    }),
   ).current;
 
   return (
@@ -147,10 +151,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* TOP NAVIGATION HUD OVERLAY */}
       <SafeAreaView
-        style={[
-          styles.navHeaderContainer,
-          { paddingTop: insets.top || 12 },
-        ]}
+        style={[styles.navHeaderContainer, { paddingTop: insets.top || 12 }]}
         pointerEvents="box-none"
       >
         <View style={styles.googleNavBanner}>
@@ -180,43 +181,25 @@ const TripInProgressScreen = ({ navigation, route }) => {
       </SafeAreaView>
 
       {/* MAP VIEWER INTERACTIVE SYSTEM */}
-      <MapView
-        ref={mapRef}
+      <MapboxRideMap
         style={styles.mapViewport}
-        initialRegion={{
-          latitude: (origin.latitude + destination.latitude) / 2,
-          longitude: (origin.longitude + destination.longitude) / 2,
-          latitudeDelta: 0.025,
-          longitudeDelta: 0.025,
-        }}
-      >
-        <Polyline
-          coordinates={routeCoordinates}
-          strokeWidth={6}
-          strokeColor="#2F80ED"
-          lineCap="round"
-          lineJoin="round"
-        />
-
-        <Marker coordinate={origin} anchor={{ x: 0.5, y: 0.5 }} rotation={145}>
-          <View style={styles.navigationLocationArrow}>
-            <MaterialCommunityIcons name="navigation" size={20} color="#FFFFFF" />
-          </View>
-        </Marker>
-
-        {dropCoord ? (
-        <Marker coordinate={dropCoord} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={styles.navDestPinOuter}>
-            <View style={styles.navDestPinInner} />
-          </View>
-        </Marker>
-        ) : null}
-      </MapView>
+        origin={origin}
+        destination={destination}
+        routeCoordinates={routeCoordinates}
+        routeColor="#2F80ED"
+        destinationColor="#EF4444"
+        vehicleHeading={145}
+        edgePadding={mapPadding}
+      />
 
       {/* FLOATING ACTION UTILITIES */}
       <View style={styles.mapFloatingControls} pointerEvents="box-none">
         <TouchableOpacity style={styles.mapUtilityBtn} activeOpacity={0.8}>
-          <MaterialCommunityIcons name="layers-outline" size={22} color="#334155" />
+          <MaterialCommunityIcons
+            name="layers-outline"
+            size={22}
+            color="#334155"
+          />
         </TouchableOpacity>
         <TouchableOpacity style={styles.mapUtilityBtn} activeOpacity={0.8}>
           <Ionicons name="compass-outline" size={22} color="#334155" />
@@ -225,7 +208,6 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* DRIVER NAVIGATION BOTTOM CARD */}
       <View style={[styles.navBottomSheet, { bottom: insets.bottom || 16 }]}>
-        
         {/* Customer Basic Details Meta Deck */}
         <View style={styles.customerTopHeaderRow}>
           <View style={styles.customerAvatarMiniFrame}>
@@ -264,16 +246,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
         {/* SWIPABLE INTERACTION TRACK ELEMENT */}
         <View style={styles.sliderContainer}>
           <View style={styles.sliderTrack}>
-            <Text style={styles.sliderText}>
-              Slide to Arrive or Complete
-            </Text>
+            <Text style={styles.sliderText}>Slide to Arrive or Complete</Text>
 
             {/* Glowing inner colored progress layout fill */}
             <Animated.View
-              style={[
-                styles.sliderGlowFill,
-                { width: progressWidth },
-              ]}
+              style={[styles.sliderGlowFill, { width: progressWidth }]}
             />
 
             {/* Interactive Thumb Trigger Element */}
@@ -296,7 +273,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* Pure black backdrop alignment plate to isolate dynamic software notch fields */}
       <View
-        style={[styles.safeAreaBottomFillBlack, { height: insets.bottom || 16 }]}
+        style={[
+          styles.safeAreaBottomFillBlack,
+          { height: insets.bottom || 16 },
+        ]}
       />
     </View>
   );

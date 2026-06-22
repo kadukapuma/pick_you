@@ -56,7 +56,25 @@ export default function AccountScreen() {
       setError(null);
 
       const result = await ProfileService.getProfile();
+
+      console.log("=== PROFILE API RESPONSE ===");
+      console.log("Success:", result.success);
+      console.log("Full result:", JSON.stringify(result, null, 2));
+
       if (result.success && result.data) {
+        console.log("=== PROFILE IMAGE DEBUG ===");
+        console.log("profileImage value:", result.data.profileImage);
+        console.log("profileImage type:", typeof result.data.profileImage);
+
+        if (
+          result.data.profileImage &&
+          !result.data.profileImage.startsWith("http")
+        ) {
+          console.warn("⚠️ Relative URL detected:", result.data.profileImage);
+        } else if (!result.data.profileImage) {
+          console.warn("⚠️ No profileImage in response");
+        }
+
         setProfile(result.data);
         setFirstName(result.data.firstName || "");
         setLastName(result.data.lastName || "");
@@ -65,6 +83,7 @@ export default function AccountScreen() {
         setError(result.message || "Failed to load profile");
       }
     } catch (err: any) {
+      console.error("Load profile error:", err);
       setError(err?.message || "Failed to load profile");
     } finally {
       setIsLoading(false);
@@ -177,10 +196,10 @@ export default function AccountScreen() {
   const contentBottomSpacing = tabBarHeight + insets.bottom + 20;
   const avatarSize = 110;
   const compactAvatarSize = 34;
-  const expandedLeft = (width - avatarSize) / 2; // Keep truly centered on the screen
+  const expandedLeft = (width - avatarSize) / 2;
   const expandedTop = insets.top + STICKY_HEADER_HEIGHT + 52;
-  const compactLeft = width - 20 - compactAvatarSize; // Align with the right margin of the form content (20px from screen edge)
-  const compactTop = insets.top + 11; // Align vertically with header elements
+  const compactLeft = width - 20 - compactAvatarSize;
+  const compactTop = insets.top + 11;
   const avatarProgress = scrollY.interpolate({
     inputRange: [0, COLLAPSE_THRESHOLD],
     outputRange: [0, 1],
@@ -226,42 +245,60 @@ export default function AccountScreen() {
         <Text style={styles.stickyTitle}>Profile</Text>
       </View>
 
-      {profile?.profileImage ? (
-        <Animated.View
-          pointerEvents="box-none"
-          style={[
-            styles.floatingAvatar,
-            {
-              width: avatarSize,
-              height: avatarSize,
-              top: expandedTop,
-              left: expandedLeft,
-              transform: [
-                { translateX: floatingAvatarTranslateX },
-                { translateY: floatingAvatarTranslateY },
-                { scale: floatingAvatarScale },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.avatarRing}>
+      {/* Avatar with edit button - ALWAYS VISIBLE */}
+      <Animated.View
+        pointerEvents="box-none"
+        style={[
+          styles.floatingAvatar,
+          {
+            width: avatarSize,
+            height: avatarSize,
+            top: expandedTop,
+            left: expandedLeft,
+            transform: [
+              { translateX: floatingAvatarTranslateX },
+              { translateY: floatingAvatarTranslateY },
+              { scale: floatingAvatarScale },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.avatarRing}>
+          {profile?.profileImage ? (
             <Image
               source={{ uri: profile.profileImage }}
               style={styles.avatar}
+              onLoad={() =>
+                console.log(
+                  "✅ IMAGE LOADED SUCCESSFULLY:",
+                  profile.profileImage,
+                )
+              }
+              onError={(e) =>
+                console.log(
+                  "❌ IMAGE FAILED TO LOAD:",
+                  profile.profileImage,
+                  e.nativeEvent,
+                )
+              }
             />
-          </View>
-          <View style={styles.editBadge}>
-            <TouchableOpacity
-              activeOpacity={0.85}
-              onPress={handlePickAndUploadImage}
-              disabled={isUploadingImage}
-              style={styles.editBadgeButton}
-            >
-              <Ionicons name="pencil" size={16} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        </Animated.View>
-      ) : null}
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Ionicons name="person" size={50} color="#9CA3AF" />
+            </View>
+          )}
+        </View>
+        <View style={styles.editBadge}>
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={handlePickAndUploadImage}
+            disabled={isUploadingImage}
+            style={styles.editBadgeButton}
+          >
+            <Ionicons name="pencil" size={16} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
@@ -412,50 +449,23 @@ const styles = StyleSheet.create({
   avatarSpacer: {
     height: 170,
   },
-  subtitle: {
-    color: "#6B7280",
-    fontSize: 13,
-    lineHeight: 18,
-    marginTop: 6,
-    marginBottom: 16,
-  },
-  avatarWrap: {
-    alignItems: "center",
-    marginBottom: 14,
-    paddingTop: 8,
-  },
   avatar: {
     width: "100%",
     height: "100%",
   },
   avatarPlaceholder: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    marginBottom: 10,
+    backgroundColor: "#F3F4F6",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#E5E7EB",
-  },
-  avatarPlaceholderText: {
-    color: "#6B7280",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.4,
-    textTransform: "uppercase",
+    borderRadius: 55,
   },
   avatarRing: {
     flex: 1,
-
     borderRadius: 55,
-
     borderWidth: 3,
     borderColor: "#10B981",
-
     backgroundColor: "#FFFFFF",
-
     overflow: "hidden",
-
     shadowColor: "#10B981",
     shadowOffset: {
       width: 0,
@@ -463,19 +473,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.15,
     shadowRadius: 6,
-
     elevation: 4,
-  },
-  imageButton: {
-    backgroundColor: "#0EA5E9",
-    borderRadius: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-  },
-  imageButtonText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "700",
   },
   inputGroup: {
     marginBottom: 12,

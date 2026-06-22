@@ -1,13 +1,18 @@
 <?php
+
 namespace App\Http\Controllers\Api;
 
+use App\Events\RideStatusUpdated;
 use App\Http\Controllers\Controller;
-use App\Models\Ride;
 use App\Models\Payment;
+use App\Models\Ride;
 use App\Models\WalletTransaction;
 use App\Traits\ApiResponse;
+use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Throwable;
+use App\Models\User;
 
 class PaymentController extends Controller
 {
@@ -17,56 +22,78 @@ class PaymentController extends Controller
     {
         $ride = Ride::findOrFail($ride_id);
 
-        if ($ride->status !== 'COMPLETED') {
-            return $this->error('Ride must be completed to process payment', 400);
+        if ($request->user()->cannot('processPayment', $ride)) {
+            return $this->error('You are not authorized to process payment for this ride', 403);
         }
 
-        if ($ride->payment) {
-            return $this->error('Payment has already been processed for this ride', 400);
+        $validated = $request->validate([
+            'payment_method' => 'sometimes|in:cash,card,wallet',
+        ]);
+        $paymentMethod = $validated['payment_method'] ?? 'cash';
+
+        if ($request->user()->role === User::ROLE_DRIVER && $paymentMethod !== 'cash') {
+            return $this->error('Drivers can only confirm cash payments.', 422);
         }
 
-        $paymentMethod = $request->payment_method ?? 'cash'; // 'cash', 'card', 'wallet'
-
-        DB::beginTransaction();
         try {
-            // Create Payment Record
-            $payment = Payment::create([
-                'ride_id' => $ride->id,
-                'passenger_id' => $ride->passenger_id,
-                'payment_method' => $paymentMethod,
-                'amount' => $ride->final_fare,
-                'transaction_id' => uniqid('txn_'),
-                'payment_status' => $paymentMethod === 'cash' ? 'COMPLETED' : 'PENDING',
-                'paid_at' => $paymentMethod === 'cash' ? now() : null,
-            ]);
+            $payment = DB::transaction(function () use ($ride_id, $paymentMethod) {
+                $lockedRide = Ride::lockForUpdate()->findOrFail($ride_id);
 
-            // Handle Wallet Payment Logic
-            if ($paymentMethod === 'wallet') {
-                $passenger = $ride->passenger;
-                if ($passenger->wallet_balance < $ride->final_fare) {
-                    throw new \Exception('Insufficient wallet balance');
+                if ($lockedRide->status !== 'COMPLETED') {
+                    throw new DomainException('Ride must be completed to process payment.');
                 }
 
-                $passenger->wallet_balance -= $ride->final_fare;
-                $passenger->save();
+                $existingPayment = Payment::where('ride_id', $lockedRide->id)->first();
+                if ($existingPayment) {
+                    return $existingPayment;
+                }
+
+                $amount = (float) $lockedRide->final_fare > 0
+                    ? $lockedRide->final_fare
+                    : $lockedRide->estimated_fare;
+
+                $payment = Payment::create([
+                    'ride_id' => $lockedRide->id,
+                    'passenger_id' => $lockedRide->passenger_id,
+                    'payment_method' => $paymentMethod,
+                    'amount' => $amount,
+                    'transaction_id' => 'txn_'.bin2hex(random_bytes(16)),
+                    'payment_status' => $paymentMethod === 'cash' ? 'COMPLETED' : 'PENDING',
+                    'paid_at' => $paymentMethod === 'cash' ? now() : null,
+                ]);
+
+                if ($paymentMethod !== 'wallet') {
+                    return $payment;
+                }
+
+                $passenger = $lockedRide->passenger()->lockForUpdate()->firstOrFail();
+                if ((float) $passenger->wallet_balance < (float) $amount) {
+                    throw new DomainException('Insufficient wallet balance.');
+                }
+
+                $passenger->decrement('wallet_balance', $amount);
+                $passenger->refresh();
 
                 WalletTransaction::create([
                     'user_id' => $passenger->user_id,
                     'transaction_type' => 'debit',
-                    'amount' => $ride->final_fare,
+                    'amount' => $amount,
                     'balance_after' => $passenger->wallet_balance,
-                    'description' => "Paid for ride " . $ride->ride_code
+                    'description' => 'Paid for ride '.$lockedRide->ride_code,
                 ]);
 
                 $payment->update(['payment_status' => 'COMPLETED', 'paid_at' => now()]);
-            }
 
-            DB::commit();
-            return $this->success($payment, 'Payment processed successfully');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return $this->error('Payment processing failed: ' . $e->getMessage(), 500);
+                return $payment->refresh();
+            }, 3);
+        } catch (DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
+        } catch (Throwable) {
+            return $this->error('Payment processing failed.', 500);
         }
+
+        event(new RideStatusUpdated(Ride::findOrFail($ride_id)));
+
+        return $this->success($payment, 'Payment processed successfully');
     }
 }
