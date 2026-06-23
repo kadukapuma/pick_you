@@ -39,6 +39,7 @@ const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const cameraRef = useRef(null);
   const {
     location: driverCoord,
     loading: isLocationLoading,
@@ -317,6 +318,17 @@ const HomeScreen = () => {
     }
   };
 
+  // Center Map Viewport cleanly over Driver Coordinates
+  const handleCenterLocation = () => {
+    if (cameraRef.current && mapOrigin) {
+      cameraRef.current.setCamera({
+        centerCoordinate: [mapOrigin.longitude, mapOrigin.latitude],
+        zoomLevel: 15,
+        animationDuration: 600,
+      });
+    }
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -356,6 +368,7 @@ const HomeScreen = () => {
           {/* MAP VIEWPORT */}
           <View style={styles.map}>
             <MapboxRideMap
+              cameraRef={cameraRef}
               style={styles.map}
               origin={mapOrigin}
               routeCoordinates={[mapOrigin]}
@@ -385,10 +398,11 @@ const HomeScreen = () => {
             style={[styles.topContainer, { paddingTop: insets.top }]}
           >
             <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.locationButton}>
-                <Feather name="navigation" size={16} color="#00A859" />
-                <Text style={styles.locationText}>Downtown Area</Text>
-              </TouchableOpacity>
+              {/* TODAY'S EARNINGS DISPLAY SHEET */}
+              <View style={styles.earningsCard}>
+                <Text style={styles.earningsLabel}>Todays Earnings</Text>
+                <Text style={styles.earningsAmount}>LKR 0.00</Text>
+              </View>
 
               <TouchableOpacity
                 style={styles.notificationButton}
@@ -402,6 +416,10 @@ const HomeScreen = () => {
 
           {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
           <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
+            <TouchableOpacity style={styles.floatingBtn} onPress={handleCenterLocation}>
+              <Ionicons name="locate" size={22} color="#00A859" />
+            </TouchableOpacity>
+            
             <TouchableOpacity style={styles.floatingBtn}>
               <Feather name="refresh-cw" size={18} color="#0F172A" />
             </TouchableOpacity>
@@ -598,20 +616,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 10,
   },
-  locationButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  earningsCard: {
     backgroundColor: "#FFF",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    alignItems: "flex-start",
+    minWidth: 150,
   },
-  locationText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: "700",
+  earningsLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  earningsAmount: {
+    fontSize: 16,
+    fontWeight: "800",
     color: "#0F172A",
+    marginTop: 2,
   },
   notificationButton: {
     width: 46,
@@ -621,6 +650,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   dot: {
     position: "absolute",
@@ -634,6 +667,7 @@ const styles = StyleSheet.create({
   rightButtons: {
     position: "absolute",
     right: 18,
+    gap: 2,
   },
   floatingBtn: {
     width: 50,
@@ -644,6 +678,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   bottomContainer: {
     position: "absolute",
