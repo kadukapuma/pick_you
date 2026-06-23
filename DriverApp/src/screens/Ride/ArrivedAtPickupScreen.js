@@ -8,44 +8,59 @@ import {
   Dimensions,
   Image,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import { useDriverLocation } from "../../hooks/useDriverLocation";
+import { getPickupCoordinate } from "../../utils/rideLocation";
 
 const { width, height } = Dimensions.get("window");
 
-const DRIVER_COORDS = { latitude: 7.285, longitude: 80.629 };
-const PICKUP_COORDS = { latitude: 7.2906, longitude: 80.6337 };
-const GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY";
+const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 const ArrivedAtPickupScreen = ({ navigation, route }) => {
   const mapRef = useRef(null);
   const ride = route?.params?.ride || {};
+  const pickupCoord = getPickupCoordinate(ride);
+  const { location: driverCoord } = useDriverLocation();
+
+  const origin = driverCoord ?? DEFAULT_COORD;
+  const destination = pickupCoord ?? origin;
+  const { directions } = useMapboxRoute(origin, destination);
 
   const customerName = ride?.customerName || "John David";
-  const pickup = ride?.pickup || "Kandy City Center";
+  const pickup = ride?.pickup || "Pickup";
   const rating = ride?.rating || "4.9";
+
+  const routeCoordinates =
+    directions?.polyline?.length > 0
+      ? directions.polyline
+      : pickupCoord
+        ? [origin, pickupCoord]
+        : [origin];
 
   // 1. Setup active state for tracking elapsed seconds
   const [secondsElapsed, setSecondsElapsed] = useState(0);
 
   // Map Fitting Side-Effect
   useEffect(() => {
-    if (mapRef.current) {
-      setTimeout(() => {
-        mapRef.current?.fitToCoordinates([DRIVER_COORDS, PICKUP_COORDS], {
-          edgePadding: {
-            top: 180,
-            right: 70,
-            bottom: 300,
-            left: 70,
-          },
-          animated: true,
-        });
-      }, 600);
-    }
-  }, []);
+    if (!mapRef.current) return;
+
+    const timer = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(routeCoordinates, {
+        edgePadding: {
+          top: 180,
+          right: 70,
+          bottom: 300,
+          left: 70,
+        },
+        animated: true,
+      });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [directions]);
 
   // 2. Active Interval Timer Hook (Increments every 1000ms)
   useEffect(() => {
@@ -81,27 +96,25 @@ const handlePassengerOnBoard = () => {
       {/* MAP VIEWPORT */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
-          latitude: (DRIVER_COORDS.latitude + PICKUP_COORDS.latitude) / 2,
-          longitude: (DRIVER_COORDS.longitude + PICKUP_COORDS.longitude) / 2,
+          latitude: (origin.latitude + destination.latitude) / 2,
+          longitude: (origin.longitude + destination.longitude) / 2,
           latitudeDelta: 0.015,
           longitudeDelta: 0.015,
         }}
       >
-        <MapViewDirections
-          origin={DRIVER_COORDS}
-          destination={PICKUP_COORDS}
-          apikey={GOOGLE_MAPS_API_KEY}
+        <Polyline
+          coordinates={routeCoordinates}
           strokeWidth={5}
           strokeColor="#00A859"
-          optimizeWaypoints={true}
+          lineCap="round"
+          lineJoin="round"
         />
 
         {/* DRIVER CAR VEHICLE MARKER */}
-        <Marker 
-          coordinate={DRIVER_COORDS} 
+        <Marker
+          coordinate={origin}
           anchor={{ x: 0.5, y: 0.8 }}
           flat={true}
           rotation={38}
@@ -115,11 +128,13 @@ const handlePassengerOnBoard = () => {
         </Marker>
 
         {/* PICKUP TARGET LOCATION MARKER */}
-        <Marker coordinate={PICKUP_COORDS} anchor={{ x: 0.5, y: 0.5 }}>
-          <View style={styles.pickupMarkerOuter}>
-            <View style={styles.pickupMarkerInner} />
-          </View>
-        </Marker>
+        {pickupCoord ? (
+          <Marker coordinate={pickupCoord} anchor={{ x: 0.5, y: 0.5 }}>
+            <View style={styles.pickupMarkerOuter}>
+              <View style={styles.pickupMarkerInner} />
+            </View>
+          </Marker>
+        ) : null}
       </MapView>
 
       {/* ARRIVED STATUS FLOATING ALERT BADGE UI CARD OVERLAY */}

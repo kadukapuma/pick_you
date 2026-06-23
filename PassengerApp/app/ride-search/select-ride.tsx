@@ -14,49 +14,149 @@ import {
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../services/routing/mapboxRoutingService";
+import { useRideSearch, type RideOption } from "../context/RideSearchContext";
+import { apiClient } from "../services/api/apiClient";
 
-interface RideOption {
-  id: string;
+interface DBVehicleType {
+  id: number;
   name: string;
-  icon: "car" | "bicycle" | "bus";
-  price: number;
-  eta: string;
-  rating: number;
+  display_name: string;
+  description: string | null;
+  is_active: boolean;
+  fare_config: {
+    id: number;
+    vehicle_type: string;
+    base_fare: string;
+    per_km_rate: string;
+    per_minute_rate: string;
+    cancellation_fee: string;
+    is_active: boolean;
+  } | null;
 }
 
-const RIDE_OPTIONS: RideOption[] = [
+const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
   {
-    id: "tuk",
-    name: "Tuk",
-    icon: "car",
-    price: 361.5,
-    eta: "1 min",
-    rating: 3.8,
+    id: 1,
+    name: "car",
+    display_name: "Car",
+    description: "Standard 4-seater cars and hatchbacks",
+    is_active: true,
+    fare_config: {
+      id: 1,
+      vehicle_type: "car",
+      base_fare: "150.00",
+      per_km_rate: "80.00",
+      per_minute_rate: "5.00",
+      cancellation_fee: "50.00",
+      is_active: true,
+    }
   },
   {
-    id: "bike",
-    name: "Bike",
-    icon: "bicycle",
-    price: 215.32,
-    eta: "3 min",
-    rating: 2.2,
+    id: 2,
+    name: "tuk",
+    display_name: "Tuk Tuk",
+    description: "Classic 3-wheeler auto rickshaws",
+    is_active: true,
+    fare_config: {
+      id: 2,
+      vehicle_type: "tuk",
+      base_fare: "100.00",
+      per_km_rate: "60.00",
+      per_minute_rate: "5.00",
+      cancellation_fee: "50.00",
+      is_active: true,
+    }
   },
   {
-    id: "flex",
-    name: "Flex",
-    icon: "car",
-    price: 580.07,
-    eta: "3 min",
-    rating: 5.8,
+    id: 3,
+    name: "bike",
+    display_name: "Motorbike",
+    description: "Fast and efficient single-passenger motorbikes",
+    is_active: true,
+    fare_config: {
+      id: 3,
+      vehicle_type: "bike",
+      base_fare: "80.00",
+      per_km_rate: "40.00",
+      per_minute_rate: "5.00",
+      cancellation_fee: "50.00",
+      is_active: true,
+    }
   },
+  {
+    id: 4,
+    name: "suv",
+    display_name: "SUV",
+    description: "Large 6-seater utility and family vehicles",
+    is_active: true,
+    fare_config: {
+      id: 4,
+      vehicle_type: "suv",
+      base_fare: "200.00",
+      per_km_rate: "100.00",
+      per_minute_rate: "5.00",
+      cancellation_fee: "50.00",
+      is_active: true,
+    }
+  }
 ];
+
+const mapDBVehicleToOption = (vt: DBVehicleType, distanceMeters: number, durationSeconds: number): RideOption => {
+  const iconMap: Record<string, "car" | "bicycle" | "bus"> = {
+    car: "car",
+    tuk: "car",
+    bike: "bicycle",
+    suv: "bus",
+  };
+  const icon = iconMap[vt.name] || "car";
+
+  let price = 0;
+  if (vt.fare_config) {
+    const baseFare = parseFloat(vt.fare_config.base_fare);
+    const perKmRate = parseFloat(vt.fare_config.per_km_rate);
+    const perMinRate = parseFloat(vt.fare_config.per_minute_rate);
+    const distanceKm = distanceMeters / 1000;
+    const durationMin = durationSeconds / 60;
+    price = baseFare + (distanceKm * perKmRate) + (durationMin * perMinRate);
+  } else {
+    const distanceKm = distanceMeters / 1000;
+    price = 150 + (distanceKm * 60);
+  }
+
+  const etaMap: Record<string, string> = {
+    bike: "1 min",
+    tuk: "2 mins",
+    car: "3 mins",
+    suv: "5 mins",
+  };
+  const ratingMap: Record<string, number> = {
+    bike: 4.5,
+    tuk: 4.7,
+    car: 4.8,
+    suv: 4.9,
+  };
+
+  return {
+    id: vt.name, // The backend expects string name in vehicle_type
+    name: vt.display_name,
+    icon,
+    price: parseFloat(price.toFixed(2)),
+    eta: etaMap[vt.name] || "4 mins",
+    rating: ratingMap[vt.name] || 4.6,
+  };
+};
 
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const { tripType, setOutboundRide, setOutboundPickup, setOutboundDropoff } = useRideSearch();
+  
   const [selectedRide, setSelectedRide] = React.useState<string | null>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
+  const [dbVehicles, setDbVehicles] = useState<DBVehicleType[]>([]);
+  const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
@@ -83,9 +183,61 @@ export default function SelectRideScreen() {
     fetchDirections();
   }, [pickup, destination]);
 
+  // Fetch active vehicle types from the API database
+  useEffect(() => {
+    const fetchVehicles = async () => {
+      setLoadingVehicles(true);
+      try {
+        const response = await apiClient.get<DBVehicleType[]>("/vehicle-types");
+        if (response.success && response.data && response.data.length > 0) {
+          const active = response.data.filter(vt => vt.is_active);
+          setDbVehicles(active);
+        } else {
+          console.warn("API returned empty vehicle list or failed, falling back to mock data.");
+          setDbVehicles(MOCK_VEHICLE_TYPES);
+        }
+      } catch (error) {
+        console.error("Error fetching vehicle types, using mock fallback:", error);
+        setDbVehicles(MOCK_VEHICLE_TYPES);
+      } finally {
+        setLoadingVehicles(false);
+      }
+    };
+    fetchVehicles();
+  }, []);
+
+  // Compute dyn pricing once both vehicle types and routing directions are ready
+  useEffect(() => {
+    if (directions && dbVehicles.length > 0) {
+      const mapped = dbVehicles.map(vt => 
+        mapDBVehicleToOption(vt, directions.distance, directions.duration)
+      );
+      setRideOptions(mapped);
+      // Auto select first option if none is selected
+      if (mapped.length > 0 && !selectedRide) {
+        setSelectedRide(mapped[0].id);
+      }
+    }
+  }, [directions, dbVehicles]);
+
   const handleBookNow = () => {
-    if (!selectedRide) return;
-    console.log("Booking ride:", selectedRide);
+    if (!selectedRide || rideOptions.length === 0) return;
+
+    const selectedRideOption = rideOptions.find((r) => r.id === selectedRide);
+    if (!selectedRideOption) return;
+
+    // Save outbound trip details to centralized context
+    setOutboundPickup(pickup);
+    setOutboundDropoff(destination);
+    setOutboundRide(selectedRideOption);
+
+    if (tripType === "return") {
+      router.push({
+        pathname: "/ride-search/return-trip-location",
+      });
+    } else {
+      router.push("/ride-search/confirmation");
+    }
   };
 
   return (
@@ -178,63 +330,113 @@ export default function SelectRideScreen() {
         </View>
 
         {/* Ride Cards - Horizontal Scroll */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={styles.ridesContainer}
-          contentContainerStyle={styles.ridesContent}
-        >
-          {RIDE_OPTIONS.map((ride) => (
-            <TouchableOpacity
-              key={ride.id}
-              style={[
-                styles.rideCard,
-                selectedRide === ride.id && styles.rideCardSelected,
-              ]}
-              onPress={() => setSelectedRide(ride.id)}
-              activeOpacity={0.7}
-            >
-              {/* Icon */}
-              <View
+        {loadingRoute || loadingVehicles ? (
+          <View style={{ height: 170, justifyContent: "center", alignItems: "center" }}>
+            <ActivityIndicator size="large" color="#0B7BDC" />
+            <Text style={{ marginTop: 8, color: "#6B7280", fontSize: 13, fontWeight: "500" }}>Calculating fares...</Text>
+          </View>
+        ) : rideOptions.length === 0 ? (
+          <View style={{ height: 170, justifyContent: "center", alignItems: "center" }}>
+            <Ionicons name="alert-circle-outline" size={32} color="#EF4444" />
+            <Text style={{ marginTop: 8, color: "#EF4444", fontSize: 13, fontWeight: "500" }}>No vehicles available</Text>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.ridesContainer}
+            contentContainerStyle={styles.ridesContent}
+          >
+            {rideOptions.map((ride) => (
+              <TouchableOpacity
+                key={ride.id}
                 style={[
-                  styles.iconContainer,
-                  selectedRide === ride.id && styles.iconContainerSelected,
+                  styles.rideCard,
+                  selectedRide === ride.id && styles.rideCardSelected,
                 ]}
+                onPress={() => setSelectedRide(ride.id)}
+                activeOpacity={0.7}
               >
-                <Ionicons
-                  name={ride.icon as any}
-                  size={28}
-                  color={selectedRide === ride.id ? "#fff" : "#0B7BDC"}
-                />
-              </View>
+                {/* Icon */}
+                <View
+                  style={[
+                    styles.iconContainer,
+                    selectedRide === ride.id && styles.iconContainerSelected,
+                  ]}
+                >
+                  <Ionicons
+                    name={ride.icon as any}
+                    size={28}
+                    color={selectedRide === ride.id ? "#fff" : "#0B7BDC"}
+                  />
+                </View>
 
-              {/* Ride Info */}
-              <Text style={styles.rideName}>{ride.name}</Text>
-              <Text style={styles.eta}>{ride.eta}</Text>
+                {/* Ride Info */}
+                <Text
+                  style={[
+                    styles.rideName,
+                    selectedRide === ride.id && { color: "#fff" },
+                  ]}
+                >
+                  {ride.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.eta,
+                    selectedRide === ride.id && { color: "#D1FAE5" },
+                  ]}
+                >
+                  {ride.eta}
+                </Text>
 
-              {/* Rating */}
-              <View style={styles.ratingBox}>
-                <Ionicons name="star" size={12} color="#FCD34D" />
-                <Text style={styles.rating}>{ride.rating}</Text>
-              </View>
-
-              {/* Price */}
-              <Text style={styles.price}>LKR {ride.price.toFixed(2)}</Text>
-
-              {/* Distance & Duration */}
-              {directions && (
-                <View style={styles.routeInfo}>
-                  <Text style={styles.routeDistance}>
-                    {directions.distanceText}
-                  </Text>
-                  <Text style={styles.routeDuration}>
-                    {directions.durationText}
+                {/* Rating */}
+                <View style={styles.ratingBox}>
+                  <Ionicons name="star" size={12} color="#FCD34D" />
+                  <Text
+                    style={[
+                      styles.rating,
+                      selectedRide === ride.id && { color: "#fff" },
+                    ]}
+                  >
+                    {ride.rating}
                   </Text>
                 </View>
-              )}
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+
+                {/* Price */}
+                <Text
+                  style={[
+                    styles.price,
+                    selectedRide === ride.id && { color: "#fff" },
+                  ]}
+                >
+                  LKR {ride.price.toFixed(2)}
+                </Text>
+
+                {/* Distance & Duration */}
+                {directions && (
+                  <View style={styles.routeInfo}>
+                    <Text
+                      style={[
+                        styles.routeDistance,
+                        selectedRide === ride.id && { color: "#fff" },
+                      ]}
+                    >
+                      {directions.distanceText}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.routeDuration,
+                        selectedRide === ride.id && { color: "rgba(255, 255, 255, 0.8)" },
+                      ]}
+                    >
+                      {directions.durationText}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
 
         {/* Cash & Options */}
         <View style={styles.optionsBar}>
@@ -268,7 +470,9 @@ export default function SelectRideScreen() {
           onPress={handleBookNow}
           disabled={!selectedRide}
         >
-          <Text style={styles.bookText}>Book Now</Text>
+          <Text style={styles.bookText}>
+            {tripType === "return" ? "Continue to Return" : "Book Now"}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>

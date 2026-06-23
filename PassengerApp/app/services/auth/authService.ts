@@ -1,71 +1,67 @@
 import { apiClient } from "../api/apiClient";
 import { API_ENDPOINTS } from "../api/config";
 import { StorageService, StoredUser } from "./storageService";
+import { IS_DEV_MODE, MOCK_USER, MOCK_TOKEN } from "../api/config";
 
-export interface RegisterPayload {
+export interface RegisterPhonePayload {
   first_name: string;
   last_name: string;
-  email: string;
   phone: string;
-  password: string;
-  password_confirmation: string;
-  role: "passenger" | "driver";
-}
-
-export interface LoginPayload {
-  email: string;
-  password: string;
+  email?: string;
 }
 
 export interface AuthResponse {
   user: StoredUser;
   token: string;
-}
-
-export interface RegisterResponse {
-  user: StoredUser;
-  token: string;
-  email: string;
+  registered: boolean;
+  phone?: string;
+  normalized_phone?: string;
 }
 
 export class AuthService {
   /**
-   * Register a new user and send OTP (but don't auto-login)
-   * Used for signup flow with OTP verification
+   * Dev Mode: Send mock OTP
    */
-  static async registerWithOTP(payload: RegisterPayload): Promise<{
+  static async sendOtpDev(phone: string): Promise<{
     success: boolean;
-    data?: RegisterResponse;
     message?: string;
-    errors?: Record<string, string[]>;
+    otp?: number;
   }> {
-    try {
-      const response = await apiClient.post<RegisterResponse>(
-        API_ENDPOINTS.AUTH.REGISTER,
-        payload,
-      );
+    console.log("🔧 DEV MODE: Sending mock OTP to", phone);
+    return {
+      success: true,
+      message: "Mock OTP sent",
+      otp: 123456, // Always use this in dev
+    };
+  }
 
-      // DO NOT save token or user yet - wait for OTP verification
-      // Just return the response data for OTP verification later
-      return {
-        success: response.success,
-        data: response.data,
-        message: response.message,
-        errors: response.errors,
-      };
-    } catch (error: any) {
-      console.error("Registration error:", error);
-      return {
-        success: false,
-        message: error.message || "Registration failed",
-      };
-    }
+  /**
+   * Dev Mode: Verify mock OTP
+   */
+  static async verifyOtpDev(phone: string): Promise<{
+    success: boolean;
+    message?: string;
+    data?: AuthResponse;
+  }> {
+    console.log("🔧 DEV MODE: Verifying mock OTP for", phone);
+    await StorageService.saveToken(MOCK_TOKEN);
+    await StorageService.saveUser(MOCK_USER);
+
+    return {
+      success: true,
+      message: "Mock OTP verified",
+      data: {
+        user: MOCK_USER,
+        token: MOCK_TOKEN,
+        registered: true,
+      },
+    };
   }
 
   /**
    * Register a new user
    */
-  static async register(payload: RegisterPayload): Promise<{
+  static async register(payload: RegisterPhonePayload): Promise<{
     success: boolean;
     data?: AuthResponse;
     message?: string;
@@ -77,10 +73,10 @@ export class AuthService {
         payload,
       );
 
-      if (response.success && response.data) {
-        // Save token and user data
+      if (response.success && response.data?.token) {
         await StorageService.saveToken(response.data.token);
         await StorageService.saveUser(response.data.user);
+        console.log("✅ Token and user saved after registration");
       }
 
       return {
@@ -94,42 +90,6 @@ export class AuthService {
       return {
         success: false,
         message: error.message || "Registration failed",
-      };
-    }
-  }
-
-  /**
-   * Login user
-   */
-  static async login(payload: LoginPayload): Promise<{
-    success: boolean;
-    data?: AuthResponse;
-    message?: string;
-    errors?: Record<string, string[]>;
-  }> {
-    try {
-      const response = await apiClient.post<AuthResponse>(
-        API_ENDPOINTS.AUTH.LOGIN,
-        payload,
-      );
-
-      if (response.success && response.data) {
-        // Save token and user data
-        await StorageService.saveToken(response.data.token);
-        await StorageService.saveUser(response.data.user);
-      }
-
-      return {
-        success: response.success,
-        data: response.data,
-        message: response.message,
-        errors: response.errors,
-      };
-    } catch (error: any) {
-      console.error("Login error:", error);
-      return {
-        success: false,
-        message: error.message || "Login failed",
       };
     }
   }
@@ -139,24 +99,14 @@ export class AuthService {
    */
   static async logout(): Promise<{ success: boolean; message?: string }> {
     try {
-      // Call logout endpoint
       await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-
-      // Clear local storage
       await StorageService.clearAuth();
-
-      return {
-        success: true,
-        message: "Logged out successfully",
-      };
+      console.log("✅ User logged out and auth cleared");
+      return { success: true, message: "Logged out successfully" };
     } catch (error: any) {
       console.error("Logout error:", error);
-      // Still clear local storage even if API call fails
       await StorageService.clearAuth();
-      return {
-        success: true,
-        message: "Logged out",
-      };
+      return { success: true, message: "Logged out" };
     }
   }
 
@@ -172,36 +122,37 @@ export class AuthService {
       const user = await StorageService.getUser();
 
       if (token && user) {
-        return {
-          success: true,
-          user,
-        };
+        console.log(
+          "✅ Auth restored from storage - Token:",
+          token.substring(0, 20) + "...",
+        );
+        return { success: true, user };
       }
-
-      return {
-        success: false,
-      };
+      console.log("⚠️ No token or user in storage");
+      return { success: false };
     } catch (error) {
       console.error("Restore auth error:", error);
-      return {
-        success: false,
-      };
+      return { success: false };
     }
   }
 
   /**
-   * Send OTP to email
+   * Send OTP to phone number
    */
-  static async sendOtp(email: string): Promise<{
+  static async sendOtp(phone: string): Promise<{
     success: boolean;
     message?: string;
     otp?: number;
   }> {
+    if (IS_DEV_MODE) return this.sendOtpDev(phone);
+
     try {
-      const response = await apiClient.post<{ otp: number }>(API_ENDPOINTS.AUTH.OTP_SEND, {
-        email,
-        purpose: "verification",
-      });
+      const response = await apiClient.post<{ otp: number }>(
+        API_ENDPOINTS.AUTH.OTP_SEND,
+        {
+          phone,
+        },
+      );
 
       return {
         success: response.success,
@@ -217,36 +168,43 @@ export class AuthService {
   }
 
   /**
-   * Verify OTP code and complete authentication
+   * Verify OTP code and check registration status
+   * Saves auth tokens for both existing users and new registrations
    */
   static async verifyOtp(
-    email: string,
+    phone: string,
     otpCode: string,
-    userData?: RegisterResponse,
   ): Promise<{
     success: boolean;
     message?: string;
     data?: AuthResponse;
   }> {
-    try {
-      const response = await apiClient.post(API_ENDPOINTS.AUTH.OTP_VERIFY, {
-        email,
-        otp_code: otpCode,
-        purpose: "verification",
-      });
+    if (IS_DEV_MODE) return this.verifyOtpDev(phone);
 
-      if (response.success && userData) {
-        // Now save token and user data after OTP verification
-        await StorageService.saveToken(userData.token);
-        await StorageService.saveUser(userData.user);
+    try {
+      const response = await apiClient.post<AuthResponse>(
+        API_ENDPOINTS.AUTH.OTP_VERIFY,
+        {
+          phone,
+          otp_code: otpCode,
+        },
+      );
+
+      if (response.success && response.data?.token && response.data?.user) {
+        await StorageService.saveToken(response.data.token);
+        await StorageService.saveUser(response.data.user);
+        console.log(
+          `✅ Auth saved after OTP verification (registered: ${response.data.registered}) - User: ${response.data.user.id}`,
+        );
       }
 
       return {
         success: response.success,
         message: response.message,
-        data: userData,
+        data: response.data,
       };
     } catch (error: any) {
+      console.error("OTP verification error:", error);
       return {
         success: false,
         message: error.message || "Failed to verify OTP",

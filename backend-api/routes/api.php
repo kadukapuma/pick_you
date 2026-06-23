@@ -4,6 +4,16 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PassengerAuthController;
+use App\Http\Controllers\Api\PassengerProfileController;
+
+// Passenger App Auth routes
+Route::prefix('passenger/auth')->group(function () {
+    Route::post('/otp/send', [PassengerAuthController::class, 'sendOtp']);
+    Route::post('/otp/verify', [PassengerAuthController::class, 'verifyOtp']);
+    Route::post('/register', [PassengerAuthController::class, 'completeRegistration']);
+    Route::middleware('auth:sanctum')->post('/logout', [PassengerAuthController::class, 'logout']);
+});
 
 // Public routes
 Route::post('/register', [AuthController::class, 'register']);
@@ -21,6 +31,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request) {
         return $request->user()->load(['driver.vehicles', 'rolePermissions']);
     });
+    Route::get('/passenger/profile', [PassengerProfileController::class, 'getProfile']);
+    Route::put('/passenger/profile', [PassengerProfileController::class, 'updateProfile']);
+    Route::post('/passenger/profile-picture', [PassengerProfileController::class, 'updateProfilePicture']);
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
     Route::get('/driver/profile', [App\Http\Controllers\Api\DriverProfileController::class, 'getProfile']);
@@ -36,7 +49,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/vehicle-types', [App\Http\Controllers\Api\VehicleTypeController::class, 'index']);
     Route::apiResource('driver-documents', App\Http\Controllers\Api\DriverDocumentController::class);
     Route::apiResource('rides', App\Http\Controllers\Api\RideController::class);
+    Route::get('/driver/ride-requests', [App\Http\Controllers\Api\RideController::class, 'driverRideRequests']);
     Route::post('/rides/{id}/accept', [App\Http\Controllers\Api\RideController::class, 'acceptRide']);
+    Route::post('/rides/{id}/reject', [App\Http\Controllers\Api\RideController::class, 'rejectRide']);
+    Route::post('/rides/{id}/start', [App\Http\Controllers\Api\RideController::class, 'startRide']);
+    Route::post('/rides/{id}/complete', [App\Http\Controllers\Api\RideController::class, 'completeRide']);
     Route::apiResource('ride-statuses', App\Http\Controllers\Api\RideStatusController::class);
     Route::post('/payments/{ride_id}', [App\Http\Controllers\Api\PaymentController::class, 'processPayment']);
     Route::apiResource('wallet-transactions', App\Http\Controllers\Api\WalletTransactionController::class);

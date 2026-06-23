@@ -72,6 +72,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="home"
         options={{
+          // href: null,
           title: "Home",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
@@ -89,6 +90,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="activities"
         options={{
+          // href: null,
           title: "Activities",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
@@ -106,6 +108,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="scan"
         options={{
+          // href: null,
           title: "Scan & Pay",
 
           tabBarLabelStyle: {
@@ -170,6 +173,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="notification"
         options={{
+          // href: null,
           title: "Notifications",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
@@ -183,20 +187,27 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* ACCOUNT */}
+      {/* WALLET */}
       <Tabs.Screen
-        name="account"
+        name="wallet"
         options={{
-          title: "Account",
+          title: "Wallet",
           tabBarIcon: ({ color, focused }) => (
             <TabIcon focused={focused}>
               <Ionicons
-                name={focused ? "person" : "person-outline"}
+                name={focused ? "wallet" : "wallet-outline"}
                 size={22}
                 color={color}
               />
             </TabIcon>
           ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="account"
+        options={{
+          href: null,
         }}
       />
 

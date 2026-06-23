@@ -1,5 +1,56 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+let cachedPusher = null;
+let cachedEcho = null;
+
+const wrapChannel = (pusherChannel) => ({
+  listen(event, callback) {
+    const eventName = event.startsWith(".") ? event.slice(1) : event;
+    if (typeof pusherChannel.bind === "function") {
+      pusherChannel.bind(eventName, callback);
+    } else if (pusherChannel.emitter?.bind) {
+      pusherChannel.emitter.bind(eventName, callback);
+    }
+    return this;
+  },
+
+  unbind(event, callback) {
+    const eventName = event.startsWith(".") ? event.slice(1) : event;
+    if (typeof pusherChannel.unbind === "function") {
+      pusherChannel.unbind(eventName, callback);
+    } else if (pusherChannel.emitter?.unbind) {
+      pusherChannel.emitter.unbind(eventName, callback);
+    }
+    return this;
+  },
+});
+
+const buildEchoWrapper = (pusher) => ({
+  channels: {},
+
+  channel(channelName) {
+    if (!this.channels[channelName]) {
+      const pusherChannel = pusher.subscribe(channelName);
+      this.channels[channelName] = wrapChannel(pusherChannel);
+    }
+    return this.channels[channelName];
+  },
+
+  leaveChannel(channelName) {
+    if (this.channels[channelName]) {
+      pusher.unsubscribe(channelName);
+      delete this.channels[channelName];
+    }
+  },
+
+  leave(channelName) {
+    this.leaveChannel(channelName);
+  },
+});
+
+/**
+ * Reuse one Pusher connection for the whole session (faster ride popups).
+ */
 const createEchoInstance = async () => {
   try {
     const token = await AsyncStorage.getItem("userToken");
@@ -85,6 +136,8 @@ const createEchoInstance = async () => {
     console.error("Failed to create Echo instance:", error.message || error);
     throw error;
   }
+  cachedPusher = null;
+  cachedEcho = null;
 };
 
 export default createEchoInstance;

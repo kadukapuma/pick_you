@@ -10,7 +10,6 @@ use App\Models\Vehicle;
 use App\Models\VehicleImage;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\File;
 
 class VehicleController extends Controller
 {
@@ -122,7 +121,7 @@ class VehicleController extends Controller
 
         return $this->success($vehicle, "Vehicle status has been updated to {$request->status} successfully.");
     }
-    
+
 
     public function uploadImages(Request $request, $id)
     {
@@ -138,12 +137,6 @@ class VehicleController extends Controller
     {
         $driverId = $vehicle->driver_id;
         $vehicleId = $vehicle->id;
-        $basePath = "uploads/drivers/{$driverId}/vehicles/{$vehicleId}";
-        $fullPath = public_path($basePath);
-
-        if (!File::exists($fullPath)) {
-            File::makeDirectory($fullPath, 0755, true);
-        }
 
         $imageData = [
             'driver_id' => $driverId,
@@ -154,10 +147,11 @@ class VehicleController extends Controller
 
         foreach ($imageFields as $field) {
             if ($request->hasFile($field)) {
-                $file = $request->file($field);
-                $fileName = $field . '_' . time() . '.' . $file->getClientOriginalExtension();
-                $file->move($fullPath, $fileName);
-                $imageData[$field] = "{$basePath}/{$fileName}";
+                $imageData[$field] = $this->uploadImageToCloudinary(
+                    $request->file($field),
+                    "drivers/{$driverId}/vehicles/{$vehicleId}",
+                    $field
+                );
             }
         }
 
@@ -165,5 +159,20 @@ class VehicleController extends Controller
             ['vehicle_id' => $vehicleId],
             $imageData
         );
+    }
+
+    private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
+    {
+        $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
+            'folder' => $folder,
+            'public_id' => $publicId,
+            'overwrite' => true,
+            'invalidate' => true,
+            'resource_type' => 'image',
+        ]);
+
+        return data_get($uploadResult, 'secure_url')
+            ?? data_get($uploadResult, 'url')
+            ?? null;
     }
 }

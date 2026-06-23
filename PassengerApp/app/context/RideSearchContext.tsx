@@ -40,6 +40,13 @@ interface RideSearchContextType {
 
   // Reset
   resetTrip: () => void;
+
+  // Booking state
+  isSearchingForDriver: boolean;
+  setIsSearchingForDriver: (value: boolean) => void;
+  activeRideId: number | null;
+  activeRideStatus: string | null;
+  setActiveRide: (rideId: number | null, status?: string | null) => void;
 }
 
 const RideSearchContext = createContext<RideSearchContextType | undefined>(
@@ -62,6 +69,9 @@ export function RideSearchProvider({
     dropoff: null,
     selectedRide: null,
   });
+  const [isSearchingForDriver, setIsSearchingForDriver] = useState(false);
+  const [activeRideId, setActiveRideId] = useState<number | null>(null);
+  const [activeRideStatus, setActiveRideStatus] = useState<string | null>(null);
 
   const setOutboundPickup = (location: LocationSuggestion) => {
     setOutboundTrip((prev) => ({ ...prev, pickup: location }));
@@ -91,6 +101,14 @@ export function RideSearchProvider({
     setTripType("oneway");
     setOutboundTrip({ pickup: null, dropoff: null, selectedRide: null });
     setReturnTrip({ pickup: null, dropoff: null, selectedRide: null });
+    setIsSearchingForDriver(false);
+    setActiveRideId(null);
+    setActiveRideStatus(null);
+  };
+
+  const setActiveRide = (rideId: number | null, status: string | null = null) => {
+    setActiveRideId(rideId);
+    setActiveRideStatus(status);
   };
 
   const value: RideSearchContextType = {
@@ -105,6 +123,11 @@ export function RideSearchProvider({
     setReturnDropoff,
     setReturnRide,
     resetTrip,
+    isSearchingForDriver,
+    setIsSearchingForDriver,
+    activeRideId,
+    activeRideStatus,
+    setActiveRide,
   };
 
   return (

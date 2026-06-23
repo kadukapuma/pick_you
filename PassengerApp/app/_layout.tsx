@@ -1,6 +1,6 @@
 import "../global.css";
 import { useEffect, useRef, useState } from "react";
-import { Stack } from "expo-router";
+import { Stack, router } from "expo-router";
 import { AppState, AppStateStatus, ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { RideSearchProvider } from "./context/RideSearchContext";
@@ -15,8 +15,8 @@ function RootLayoutContent() {
   const appStateRef = useRef<AppStateStatus>(AppState.currentState);
   const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // Set navigation ready after a small delay
   useEffect(() => {
-    // Small delay to ensure navigation is mounted before deciding which route to show
     const timer = setTimeout(() => {
       setIsNavigationReady(true);
     }, 100);
@@ -24,6 +24,17 @@ function RootLayoutContent() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Handle auth state changes - navigate to correct initial route
+  useEffect(() => {
+    if (isLoading || !isNavigationReady) {
+      console.log("⏳ Waiting for auth and navigation to be ready...");
+      return;
+    }
+
+    console.log(`🔄 Auth state changed: isAuthenticated=${isAuthenticated}`);
+  }, [isAuthenticated, isLoading, isNavigationReady]);
+
+  // Load maintenance mode
   useEffect(() => {
     let isActive = true;
 
@@ -58,6 +69,7 @@ function RootLayoutContent() {
       appStateRef.current = nextState;
 
       if (wasBackgrounded && nextState === "active") {
+        console.log("🔄 App resumed - syncing maintenance mode");
         syncMaintenanceMode();
       }
     });
@@ -74,7 +86,7 @@ function RootLayoutContent() {
       refreshTimerRef.current = null;
     }
 
-    if (!isNavigationReady) {
+    if (!isNavigationReady || isLoading) {
       return;
     }
 
@@ -99,7 +111,7 @@ function RootLayoutContent() {
         refreshTimerRef.current = null;
       }
     };
-  }, [isAuthenticated, isNavigationReady]);
+  }, [isAuthenticated, isNavigationReady, isLoading]);
 
   if (isLoading || !isNavigationReady || isMaintenanceLoading) {
     return (
@@ -119,22 +131,21 @@ function RootLayoutContent() {
         headerShown: false,
       }}
     >
-      {!isAuthenticated && (
-        <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-      )}
-      {isAuthenticated && (
-        <>
-          <Stack.Screen name="(drawer)" options={{ animation: "none" }} />
-          <Stack.Screen
-            name="ride-search"
-            options={{
-              animation: "fade",
-              gestureEnabled: true,
-              fullScreenGestureEnabled: true,
-            }}
-          />
-        </>
-      )}
+      {/* ✅ ALWAYS render (auth) - splash and onboarding screens */}
+      <Stack.Screen name="(auth)" options={{ animation: "none" }} />
+      
+      {/* ✅ ALWAYS render (drawer) - app screens for authenticated users */}
+      <Stack.Screen name="(drawer)" options={{ animation: "none" }} />
+      
+      {/* Ride search overlay */}
+      <Stack.Screen
+        name="ride-search"
+        options={{
+          animation: "fade",
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+        }}
+      />
     </Stack>
   );
 }

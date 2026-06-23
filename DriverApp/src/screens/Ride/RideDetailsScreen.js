@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -7,16 +7,19 @@ import {
   StatusBar,
   ScrollView,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context"; // Optimized for proper notch & gesture bar management
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import api from "../../services/api";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const RideDetailsScreen = ({ navigation, route }) => {
   // Safe extraction of params passed down from home dashboard context
   const ride = route?.params?.ride || {};
+  const [isLoading, setIsLoading] = useState(false);
 
   // Clean data properties or clean local user fallbacks
   const customerName = ride?.customerName || "John David";
@@ -33,10 +36,21 @@ const RideDetailsScreen = ({ navigation, route }) => {
   const baseFare = Math.round(parsedFare * 0.76); // ~Rs. 650 equivalent
   const distanceFare = parsedFare - baseFare;    // ~Rs. 200 balance split
 
- const handleStartTrip = () => {
-  navigation.navigate("PickupNavigation", {
-    ride,
-  });
+ const handleStartTrip = async () => {
+  if (!ride?.id) return;
+
+  setIsLoading(true);
+  try {
+    await api.post(`/rides/${ride.id}/start`);
+    navigation.navigate("PickupNavigation", {
+      ride,
+    });
+  } catch (error) {
+    console.log("Error starting ride:", error);
+    alert(error.response?.data?.message || "Failed to start ride. Please try again.");
+  } finally {
+    setIsLoading(false);
+  }
 };
 
   return (
@@ -196,13 +210,18 @@ const RideDetailsScreen = ({ navigation, route }) => {
   style={styles.primaryActionBtn}
   onPress={handleStartTrip}
   activeOpacity={0.9}
+  disabled={isLoading}
 >
-  <View style={styles.innerBtnArrowCircle}>
-    <Feather name="arrow-right" size={20} color="#00A859" />
-  </View>
+  {isLoading ? (
+    <ActivityIndicator size="small" color="#00A859" />
+  ) : (
+    <View style={styles.innerBtnArrowCircle}>
+      <Feather name="arrow-right" size={20} color="#00A859" />
+    </View>
+  )}
 
   <Text style={styles.primaryActionBtnText}>
-    Start Trip
+    {isLoading ? "Starting..." : "Start Trip"}
   </Text>
 
   <View style={{ width: 36 }} />

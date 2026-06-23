@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,16 +8,20 @@ import {
   Dimensions,
   Animated,
   PanResponder,
+  ActivityIndicator,
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, Polyline } from "react-native-maps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import { useDriverLocation } from "../../hooks/useDriverLocation";
+import { getDropCoordinate, getPickupCoordinate } from "../../utils/rideLocation";
+import api from "../../services/api";
 
 const { width, height } = Dimensions.get("window");
 
-const DRIVER = { latitude: 7.285, longitude: 80.629 };
-const DEST = { latitude: 7.270, longitude: 80.635 };
+const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 // Dynamic constraints for the slider mechanics
 const SLIDER_WIDTH = width - 40; // Adjusted for padding calculation (20px on each side)
@@ -29,11 +33,39 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
   const ride = route?.params?.ride || {};
   const customerName = ride?.customerName || "John David";
-  const destination = ride?.drop || "Peradeniya Junction";
+  const destinationLabel = ride?.drop || "Destination";
+  const dropCoord = getDropCoordinate(ride);
+  const pickupCoord = getPickupCoordinate(ride);
+  const { location: driverCoord } = useDriverLocation();
+
+  const origin = driverCoord ?? pickupCoord ?? DEFAULT_COORD;
+  const destination = dropCoord ?? origin;
+  const { directions } = useMapboxRoute(origin, destination);
+
+  const routeCoordinates =
+    directions?.polyline?.length > 0
+      ? directions.polyline
+      : dropCoord
+        ? [origin, dropCoord]
+        : [origin];
+
+  useEffect(() => {
+    if (!mapRef.current || routeCoordinates.length < 2) return;
+
+    const timer = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(routeCoordinates, {
+        edgePadding: { top: 160, right: 50, bottom: 220, left: 50 },
+        animated: true,
+      });
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [directions]);
 
   // --- SLIDER MECHANICS & ANIMATIONS ---
   const slideX = useRef(new Animated.Value(0)).current;
   const [completed, setCompleted] = useState(false);
+  const [isCompleting, setIsCompleting] = useState(false);
 
   const progressWidth = slideX.interpolate({
     inputRange: [0, SLIDER_WIDTH - THUMB_SIZE - 10],
@@ -41,8 +73,21 @@ const TripInProgressScreen = ({ navigation, route }) => {
     extrapolate: "clamp",
   });
 
-  const handleCompleteTrip = () => {
-    navigation.navigate("TripCompletedScreen", { ride });
+  const handleCompleteTrip = async () => {
+    if (!ride?.id || isCompleting) return;
+
+    setIsCompleting(true);
+    try {
+      await api.post(`/rides/${ride.id}/complete`);
+      navigation.navigate("TripCompletedScreen", { ride });
+    } catch (error) {
+      console.log("Error completing ride:", error);
+      alert(error.response?.data?.message || "Failed to complete ride. Please try again.");
+      setCompleted(false);
+      slideX.setValue(0);
+    } finally {
+      setIsCompleting(false);
+    }
   };
 
   const panResponder = useRef(
@@ -63,7 +108,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       },
 
       onPanResponderRelease: (_, gestureState) => {
-        if (completed) return;
+        if (completed || isCompleting) return;
 
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10;
         const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.70;
@@ -120,7 +165,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
           <View style={styles.maneuverTextContainer}>
             <Text style={styles.maneuverDistance}>In 500 meters</Text>
             <Text style={styles.maneuverInstruction} numberOfLines={1}>
-              Merge onto AB16 / {destination}
+              Merge onto AB16 / {destinationLabel}
             </Text>
           </View>
           <TouchableOpacity style={styles.navPhoneBtn} activeOpacity={0.7}>
@@ -137,34 +182,35 @@ const TripInProgressScreen = ({ navigation, route }) => {
       {/* MAP VIEWER INTERACTIVE SYSTEM */}
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.mapViewport}
         initialRegion={{
-          latitude: (DRIVER.latitude + DEST.latitude) / 2,
-          longitude: (DRIVER.longitude + DEST.longitude) / 2,
+          latitude: (origin.latitude + destination.latitude) / 2,
+          longitude: (origin.longitude + destination.longitude) / 2,
           latitudeDelta: 0.025,
           longitudeDelta: 0.025,
         }}
       >
         <Polyline
-          coordinates={[DRIVER, DEST]}
+          coordinates={routeCoordinates}
           strokeWidth={6}
           strokeColor="#2F80ED"
           lineCap="round"
           lineJoin="round"
         />
 
-        <Marker coordinate={DRIVER} anchor={{ x: 0.5, y: 0.5 }} rotation={145}>
+        <Marker coordinate={origin} anchor={{ x: 0.5, y: 0.5 }} rotation={145}>
           <View style={styles.navigationLocationArrow}>
             <MaterialCommunityIcons name="navigation" size={20} color="#FFFFFF" />
           </View>
         </Marker>
 
-        <Marker coordinate={DEST} anchor={{ x: 0.5, y: 0.5 }}>
+        {dropCoord ? (
+        <Marker coordinate={dropCoord} anchor={{ x: 0.5, y: 0.5 }}>
           <View style={styles.navDestPinOuter}>
             <View style={styles.navDestPinInner} />
           </View>
         </Marker>
+        ) : null}
       </MapView>
 
       {/* FLOATING ACTION UTILITIES */}
@@ -200,7 +246,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
           <View style={styles.summaryMetaContainer}>
             <Text style={styles.summaryMetaText}>6.2 km • Rs. 850</Text>
             <Text style={styles.summaryDestinationName} numberOfLines={1}>
-              To: {destination}
+              To: {destinationLabel}
             </Text>
           </View>
 
@@ -238,7 +284,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
               ]}
               {...panResponder.panHandlers}
             >
-              <Feather name="chevrons-right" size={22} color="#00A859" />
+              {isCompleting ? (
+                <ActivityIndicator size="small" color="#00A859" />
+              ) : (
+                <Feather name="chevrons-right" size={22} color="#00A859" />
+              )}
             </Animated.View>
           </View>
         </View>

@@ -10,7 +10,7 @@ class Ride extends Model
 
     protected $fillable = [
         'ride_code', 'passenger_id', 'driver_id', 'vehicle_id', 'fare_id',
-        'pickup_address', 'pickup_point', 'drop_address', 'drop_point',
+        'pickup_address', 'pickup_point', 'pickup_geog', 'drop_address', 'drop_point', 'drop_geog',
         'distance_km', 'estimated_fare', 'final_fare', 'status',
         'requested_at', 'accepted_at', 'started_at', 'completed_at', 'cancelled_at'
     ];
@@ -31,50 +31,54 @@ class Ride extends Model
     public function rating() { return $this->hasOne(Rating::class); }
 
     /**
-     * Accessor for Pickup Latitude
+     * Parse PostgreSQL point "(lng,lat)" into components.
      */
-    public function getPickupLatitudeAttribute()
+    protected function parsePoint(mixed $point): ?array
     {
-        if ($this->pickup_point && is_string($this->pickup_point)) {
-            $coords = str_replace(['(', ')'], '', $this->pickup_point);
-            return (float) explode(',', $coords)[1];
+        if (!$point) {
+            return null;
         }
+
+        if (is_string($point)) {
+            $clean = trim(str_replace(['(', ')'], '', $point));
+            $parts = array_map('trim', explode(',', $clean));
+
+            if (count($parts) >= 2) {
+                return [
+                    'lng' => (float) $parts[0],
+                    'lat' => (float) $parts[1],
+                ];
+            }
+        }
+
         return null;
     }
 
-    /**
-     * Accessor for Pickup Longitude
-     */
-    public function getPickupLongitudeAttribute()
+    public function getPickupLatitudeAttribute(): ?float
     {
-        if ($this->pickup_point && is_string($this->pickup_point)) {
-            $coords = str_replace(['(', ')'], '', $this->pickup_point);
-            return (float) explode(',', $coords)[0];
-        }
-        return null;
+        $parsed = $this->parsePoint($this->pickup_point);
+
+        return $parsed['lat'] ?? null;
     }
 
-    /**
-     * Accessor for Drop Latitude
-     */
-    public function getDropLatitudeAttribute()
+    public function getPickupLongitudeAttribute(): ?float
     {
-        if ($this->drop_point && is_string($this->drop_point)) {
-            $coords = str_replace(['(', ')'], '', $this->drop_point);
-            return (float) explode(',', $coords)[1];
-        }
-        return null;
+        $parsed = $this->parsePoint($this->pickup_point);
+
+        return $parsed['lng'] ?? null;
     }
 
-    /**
-     * Accessor for Drop Longitude
-     */
-    public function getDropLongitudeAttribute()
+    public function getDropLatitudeAttribute(): ?float
     {
-        if ($this->drop_point && is_string($this->drop_point)) {
-            $coords = str_replace(['(', ')'], '', $this->drop_point);
-            return (float) explode(',', $coords)[0];
-        }
-        return null;
+        $parsed = $this->parsePoint($this->drop_point);
+
+        return $parsed['lat'] ?? null;
+    }
+
+    public function getDropLongitudeAttribute(): ?float
+    {
+        $parsed = $this->parsePoint($this->drop_point);
+
+        return $parsed['lng'] ?? null;
     }
 }

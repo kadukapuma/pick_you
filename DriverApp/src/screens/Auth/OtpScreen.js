@@ -67,9 +67,9 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
       }
 
       const res = await api.post("/otp/send", payload);
-      if (res.data?.data?.otp) {
-        Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
-      }
+      // if (res.data?.data?.otp) {
+      //   Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
+      // }
     } catch (err) {
       console.log("Error sending OTP", err.response?.data || err.message);
     }

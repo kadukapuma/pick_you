@@ -1,180 +1,173 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
+
 import {
   ActivityIndicator,
-  Alert,
   Image,
-  KeyboardAvoidingView,
+  Keyboard,
   Platform,
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   View,
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useAuth } from "../hooks/useAuth";
+
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { AuthService } from "../services/auth/authService";
 
 export default function SignInScreen() {
-  const { login, isLoading, error, clearError } = useAuth();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
+
+  const [isLoading, setIsLoading] = useState(false);
+
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
 
-  // Clear error when user starts typing
+  // Clear error when user types
   useEffect(() => {
-    if (error) {
-      clearError();
-    }
-  }, [email, password]);
+    setValidationErrors({});
+  }, [phoneNumber]);
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
 
-    if (!email.trim()) errors.email = "Email is required";
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
-      errors.email = "Invalid email format";
-    if (!password.trim()) errors.password = "Password is required";
-    if (password.length < 8)
-      errors.password = "Password must be at least 8 characters";
+    if (!phoneNumber.trim()) {
+      errors.phoneNumber = "Phone number is required";
+    } else if (phoneNumber.replace(/\D/g, "").length < 10) {
+      errors.phoneNumber = "Phone number must be at least 10 digits";
+    }
 
     setValidationErrors(errors);
+
     return Object.keys(errors).length === 0;
   };
 
   const handleSignIn = async () => {
+    Keyboard.dismiss();
+
     if (!validateForm()) return;
 
+    setIsLoading(true);
+
     try {
-      await login(email, password);
-      // On success, navigate to home
-      router.replace("/(drawer)/(tabs)/home");
+      // Send OTP
+      const result = await AuthService.sendOtp(phoneNumber);
+
+      if (result.success) {
+        router.push({
+          pathname: "/(auth)/verify-number",
+          params: {
+            mobileNumber: phoneNumber,
+            testOtp: result.otp?.toString(),
+          },
+        });
+      } else {
+        setValidationErrors({
+          phoneNumber: result.message || "Failed to send OTP",
+        });
+      }
     } catch (err: any) {
-      Alert.alert("Login Failed", error || err.message || "Please try again");
+      setValidationErrors({
+        phoneNumber: err.message || "Failed to send OTP",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <SafeAreaView className="flex-1 bg-[#F7F7F7]">
-      <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
-        <View className="flex-1 px-7 justify-center">
-          {/* Logo */}
-          <View className="items-center mb-2">
-            <Image
-              source={require("../../assets/images/logo.png")}
-              style={{
-                width: 130,
-                height: 130,
-              }}
-              resizeMode="contain"
-            />
-          </View>
-
-          {/* Heading */}
-          <Text className="text-3xl font-extrabold text-center text-[#222] mb-2">
-            Welcome Back!
-          </Text>
-
-          <Text className="text-base text-center text-gray-500 mb-10">
-            Sign in to continue
-          </Text>
-
-          {/* Error Message */}
-          {error && (
-            <View className="bg-red-100 border border-red-400 rounded-lg px-4 py-3 mb-4">
-              <Text className="text-red-700 text-sm">{error}</Text>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAwareScrollView
+          enableOnAndroid={true}
+          extraScrollHeight={20}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          enableAutomaticScroll={true}
+          contentContainerStyle={{
+            flexGrow: 1,
+          }}
+        >
+          <View className="flex-1 px-7 justify-center min-h-screen">
+            {/* Logo */}
+            <View className="items-center mb-2">
+              <Image
+                source={require("../../assets/images/logo.png")}
+                style={{
+                  width: 130,
+                  height: 130,
+                }}
+                resizeMode="contain"
+              />
             </View>
-          )}
 
-          {/* Email */}
-          <Text className="text-sm font-medium text-gray-600 mb-2">
-            Email Address
-          </Text>
-
-          <TextInput
-            className={`bg-[#EDEDED] rounded-xl px-4 py-4 mb-5 text-base ${
-              validationErrors.email ? "border-2 border-red-500" : ""
-            }`}
-            placeholder="Enter email address"
-            placeholderTextColor="#999"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            value={email}
-            onChangeText={setEmail}
-            editable={!isLoading}
-          />
-          {validationErrors.email && (
-            <Text className="text-red-500 text-xs mb-2">
-              {validationErrors.email}
+            {/* Heading */}
+            <Text className="text-3xl font-extrabold text-center text-[#222] mb-2">
+              Welcome
             </Text>
-          )}
 
-          {/* Password */}
-          <Text className="text-sm font-medium text-gray-600 mb-2">
-            Password
-          </Text>
-
-          <TextInput
-            className={`bg-[#EDEDED] rounded-xl px-4 py-4 mb-3 text-base ${
-              validationErrors.password ? "border-2 border-red-500" : ""
-            }`}
-            placeholder="Enter password"
-            placeholderTextColor="#999"
-            secureTextEntry
-            value={password}
-            onChangeText={setPassword}
-            editable={!isLoading}
-          />
-          {validationErrors.password && (
-            <Text className="text-red-500 text-xs mb-3">
-              {validationErrors.password}
+            <Text className="text-base text-center text-gray-500 mb-10">
+              Enter your phone number to get started
             </Text>
-          )}
 
-          {/* Forgot Password */}
-          <TouchableOpacity className="mb-7" disabled={isLoading}>
-            <Text className="text-right text-[#59C36A] text-sm font-semibold">
-              Forgot password?
+            {/* Phone Number */}
+            <Text className="text-sm font-medium text-gray-600 mb-2">
+              Phone Number
             </Text>
-          </TouchableOpacity>
 
-          {/* Sign In Button */}
-          <TouchableOpacity
-            onPress={handleSignIn}
-            disabled={isLoading}
-            className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${
-              isLoading ? "bg-gray-400" : "bg-[#59C36A]"
-            }`}
-            style={{
-              shadowColor: "#59C36A",
-              shadowOpacity: isLoading ? 0 : 0.2,
-              shadowRadius: 8,
-              elevation: isLoading ? 0 : 5,
-            }}
-          >
-            {isLoading ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Text className="text-white text-lg font-bold">Sign In</Text>
+            <TextInput
+              className="bg-[#EDEDED] rounded-xl px-4 py-4 mb-5 text-base"
+              placeholder="0771234567"
+              placeholderTextColor="#999"
+              keyboardType={Platform.OS === "ios" ? "number-pad" : "phone-pad"}
+              value={phoneNumber}
+              onChangeText={setPhoneNumber}
+              editable={!isLoading}
+              autoFocus={false}
+              returnKeyType="done"
+              blurOnSubmit={true}
+              textContentType="telephoneNumber"
+              autoComplete="tel"
+              importantForAutofill="yes"
+              maxLength={15}
+              onSubmitEditing={handleSignIn}
+            />
+
+            {/* Validation Error */}
+            {validationErrors.phoneNumber && (
+              <Text className="text-red-500 text-xs mb-5">
+                {validationErrors.phoneNumber}
+              </Text>
             )}
-          </TouchableOpacity>
 
-          {/* Bottom Text */}
-          <TouchableOpacity
-            onPress={() => router.push("/(auth)/signup")}
-            disabled={isLoading}
-          >
-            <Text className="text-center text-sm text-gray-500">
-              Don’t have an account?{" "}
-              <Text className="text-[#59C36A] font-bold">Sign Up</Text>
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+            {/* Sign In Button */}
+            <TouchableOpacity
+              onPress={handleSignIn}
+              disabled={isLoading}
+              activeOpacity={0.8}
+              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${
+                isLoading ? "bg-gray-400" : "bg-[#59C36A]"
+              }`}
+              style={{
+                shadowColor: "#59C36A",
+                shadowOpacity: isLoading ? 0 : 0.2,
+                shadowRadius: 8,
+                elevation: isLoading ? 0 : 5,
+              }}
+            >
+              {isLoading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Text className="text-white text-lg font-bold">Continue</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </KeyboardAwareScrollView>
+      </TouchableWithoutFeedback>
     </SafeAreaView>
   );
 }

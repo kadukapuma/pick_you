@@ -10,16 +10,25 @@ import {
   ActivityIndicator,
 } from "react-native";
 
-import MapView, { PROVIDER_GOOGLE, Marker, AnimatedRegion } from "react-native-maps";
+import MapView, { Marker, AnimatedRegion } from "react-native-maps";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import * as Location from "expo-location";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { MotiView, AnimatePresence } from "moti";
 import api from "../../services/api";
-
-// RIDE MODAL IMPORT
 import IncomingRideModal from "../../components/IncomingRideModel";
+import { normalizeRidePayload } from "../../utils/rideLocation";
+import {
+  connectRideRealtime,
+  disconnectRideRealtime,
+  enableRideFallbackSync,
+  syncPendingRideOnce,
+} from "../../services/rideRealtime";
+import {
+  startDriverLocationSync,
+  stopDriverLocationSync,
+} from "../../services/driverLocationSync";
 
 const HomeScreen = () => {
   const mapRef = useRef(null);
@@ -28,19 +37,33 @@ const HomeScreen = () => {
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
-
-  // --- MODAL & RIDE DATA STATES ---
+  const [wsConnected, setWsConnected] = useState(false);
+  const [activeVehicleType, setActiveVehicleType] = useState(null);
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
+  const [isRideHandled, setIsRideHandled] = useState(false);
+  const [driverId, setDriverId] = useState(null);
+
+  const toastTimerRef = useRef(null);
+  const lastNotifiedRideIdRef = useRef(null);
+  const isRideHandledRef = useRef(false);
+
+  useEffect(() => {
+    isRideHandledRef.current = isRideHandled;
+  }, [isRideHandled]);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
 
-  const showCustomToast = (type, message) => {
+  const showCustomToast = (type, message, duration = 35000) => {
+    if (toastTimerRef.current) {
+      clearTimeout(toastTimerRef.current);
+    }
+
     setToast({ visible: true, type, message });
-    setTimeout(() => {
+    toastTimerRef.current = setTimeout(() => {
       setToast((prev) => ({ ...prev, visible: false }));
-    }, 3500);
+    }, duration);
   };
 
   const [region] = useState(
@@ -59,53 +82,163 @@ const HomeScreen = () => {
       StatusBar.setTranslucent(false);
       StatusBar.setHidden(false);
 
+      // Reset ride handling refs when screen comes into focus
+      lastNotifiedRideIdRef.current = null;
+      setIsRideHandled(false);
+      isRideHandledRef.current = false;
+
       fetchDriverData();
-      return () => {};
+      return () => { };
     }, [])
   );
+
+  const presentIncomingRide = useCallback((ride) => {
+    if (!ride?.id) {
+      if (__DEV__) console.warn("presentIncomingRide: missing ride id", ride);
+      return;
+    }
+
+    const rideId = Number(ride.id);
+    if (
+      isRideHandledRef.current ||
+      Number(lastNotifiedRideIdRef.current) === rideId
+    ) {
+      if (__DEV__) {
+        console.log("presentIncomingRide: skipped duplicate/handled", rideId);
+      }
+      return;
+    }
+
+    if (__DEV__) console.log("presentIncomingRide: showing modal for ride", rideId);
+
+    // Show UI first — do not wait for sound or network
+    setShowRideModal(true);
+    setRideData(ride);
+    lastNotifiedRideIdRef.current = rideId;
+    setIsRideHandled(false);
+
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => {
+      setShowRideModal(false);
+      setRideData(null);
+      lastNotifiedRideIdRef.current = null;
+    }, 12000);
+  }, []);
+
+  // WebSocket-first ride delivery (no 5s polling — scales to large fleets)
+  // WebSocket + GPS while online (socket stays warm — popup is instant when a ride is broadcast)
+  useEffect(() => {
+    if (!isOnline || !driverId) {
+      disconnectRideRealtime();
+      stopDriverLocationSync();
+      setWsConnected(false);
+      lastNotifiedRideIdRef.current = null;
+      return;
+    }
+
+    let cancelled = false;
+
+    const startOnlineServices = async () => {
+      startDriverLocationSync();
+
+      try {
+        await connectRideRealtime(driverId, {
+          onRide: (ride) => {
+            if (!cancelled) presentIncomingRide(ride);
+          },
+          onConnectionChange: (connected) => {
+            if (!cancelled) setWsConnected(connected);
+          },
+        });
+      } catch (err) {
+        console.log("Ride realtime connect error:", err?.message || err);
+        if (!cancelled) {
+          setWsConnected(false);
+          enableRideFallbackSync();
+          await syncPendingRideOnce();
+        }
+      }
+    };
+
+    startOnlineServices();
+
+    return () => {
+      cancelled = true;
+      disconnectRideRealtime();
+      stopDriverLocationSync();
+    };
+  }, [isOnline, driverId, presentIncomingRide]);
+
+  // Clean up any pending timers when component unmounts
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
 
   const fetchDriverData = async () => {
     try {
       const response = await api.get("/user");
-      const driverAvailability = response.data?.driver?.availability;
+      const driverObj = response.data?.driver;
+      const driverAvailability = driverObj?.availability;
+      const primaryVehicle = driverObj?.vehicles?.[0];
       setIsOnline(driverAvailability === 1);
+      setDriverId(driverObj?.id || null);
+      setActiveVehicleType(
+        primaryVehicle?.vehicle_type || driverObj?.vehicle_type || null,
+      );
     } catch (error) {
       console.log("Error fetching driver data:", error);
     }
   };
 
-  // --- AUTOMATED FARE DISPATCH MOCK SIMULATION ---
-  useEffect(() => {
-    if (isOnline) {
-      const timer = setTimeout(() => {
-      const fakeRide = {
-            id: "RIDE-001",
-            customerName: "John David",
-            pickup: "Kandy City Center",
-            dropoff: "Peradeniya Junction",
-            distance: "4.8 km",
-            fare: "850",
-          };
+  const handleAcceptRide = async () => {
+    if (!rideData?.id) return;
+    const rideId = rideData.id;
+    try {
+      await api.post(`/rides/${rideId}/accept`);
 
-        setRideData(fakeRide);
-        setShowRideModal(true);
-      }, 5000);
+      let rideForNav = rideData;
+      try {
+        const detailRes = await api.get(`/rides/${rideId}`);
+        const detail = detailRes.data?.data ?? detailRes.data;
+        if (detail) {
+          rideForNav = normalizeRidePayload({ ...rideData, ...detail });
+        }
+      } catch (detailErr) {
+        console.log("Could not refresh ride details:", detailErr);
+      }
 
-      return () => clearTimeout(timer);
+      setShowRideModal(false);
+      setRideData(null);
+      lastNotifiedRideIdRef.current = null;
+      setIsRideHandled(true);
+      navigation.navigate("RideDetails", { ride: rideForNav });
+    } catch (error) {
+      console.log("Error accepting ride:", error);
+      showCustomToast(
+        "error",
+        error.response?.data?.message || "Failed to accept ride.",
+      );
     }
-  }, [isOnline]);
-
-  // --- RIDE MODAL ACTIONS ---
-  const handleAcceptRide = () => {
-    setShowRideModal(false);
-    navigation.navigate("RideDetails", {
-      ride: rideData,
-    });
   };
 
-  const handleRejectRide = () => {
+  const handleRejectRide = async () => {
+    if (!rideData?.id) return;
+    const rideId = rideData.id;
+
+    // Dismiss modal and prevent re‑showing this ride request
     setShowRideModal(false);
-    showCustomToast("error", "Ride request declined.");
+    setRideData(null);
+    lastNotifiedRideIdRef.current = null;
+    setIsRideHandled(true); // mark as handled to stop looping
+
+    try {
+      console.log("🔔 Driver rejecting ride request:", rideId);
+      await api.post(`/rides/${rideId}/reject`);
+    } catch (error) {
+      console.log("Error rejecting ride request on backend:", error);
+    }
   };
 
   const handleToggleAvailability = async (newValue) => {
@@ -162,7 +295,6 @@ const HomeScreen = () => {
 
       <MapView
         ref={mapRef}
-        provider={PROVIDER_GOOGLE}
         style={styles.map}
         initialRegion={{
           latitude: 6.9271,
@@ -225,7 +357,7 @@ const HomeScreen = () => {
             ]}
           >
             <View style={[
-              styles.statusIndicatorIndicator, 
+              styles.statusIndicatorIndicator,
               { backgroundColor: toast.type === "error" ? "#EF4444" : "#00A859" }
             ]} />
             <View style={styles.toastContentContainer}>
@@ -234,8 +366,8 @@ const HomeScreen = () => {
               </Text>
               <Text style={styles.toastBodyText}>{toast.message}</Text>
             </View>
-            <TouchableOpacity 
-              onPress={() => setToast((prev) => ({ ...prev, visible: false }))} 
+            <TouchableOpacity
+              onPress={() => setToast((prev) => ({ ...prev, visible: false }))}
               style={styles.toastCloseBtn}
             >
               <Ionicons name="close" size={16} color="#94A3B8" />
@@ -249,7 +381,7 @@ const HomeScreen = () => {
         edges={["bottom"]}
         style={[
           styles.bottomContainer,
-         { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
+          { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
         ]}
       >
         <View style={styles.statusCard}>
@@ -258,7 +390,11 @@ const HomeScreen = () => {
               {isOnline ? "You're Online" : "You're Offline"}
             </Text>
             <Text style={styles.statusSubtitle}>
-              {isOnline ? "Searching for trips..." : "Go online to start earning"}
+              {isOnline
+                ? wsConnected
+                  ? "Live — trips arrive instantly"
+                  : "Reconnecting… (backup sync active)"
+                : "Go online to start earning"}
             </Text>
           </View>
 
@@ -305,7 +441,7 @@ const styles = StyleSheet.create({
     left: "5%",
     right: "5%",
     width: "90%",
-    backgroundColor: "#1E293B", 
+    backgroundColor: "#1E293B",
     borderRadius: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
@@ -427,6 +563,93 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     elevation: 6,
+  },
+  requestContainer: {
+    position: "absolute",
+    width: "100%",
+    alignItems: "center",
+  },
+  requestCard: {
+    width: "90%",
+    backgroundColor: "#0F172A",
+    borderRadius: 24,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    elevation: 8,
+  },
+  requestHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  requestTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  requestSubtitle: {
+    marginTop: 2,
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  requestDetails: {
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderRadius: 18,
+    padding: 14,
+  },
+  requestLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    marginTop: 10,
+  },
+  requestValue: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 3,
+  },
+  requestMetaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 12,
+  },
+  requestMeta: {
+    color: "#E2E8F0",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  requestActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 14,
+  },
+  viewRequestBtn: {
+    flex: 1,
+    backgroundColor: "#1E293B",
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#334155",
+  },
+  viewRequestText: {
+    color: "#E2E8F0",
+    fontWeight: "800",
+  },
+  acceptRequestBtn: {
+    flex: 1,
+    backgroundColor: "#00A859",
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: "center",
+  },
+  acceptRequestText: {
+    color: "#FFF",
+    fontWeight: "800",
   },
   statusTitle: {
     fontSize: 18,
