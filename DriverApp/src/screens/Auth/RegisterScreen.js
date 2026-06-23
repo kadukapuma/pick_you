@@ -16,7 +16,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiView, MotiText } from "moti";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Customs imported from your friend's architecture
 import KeyboardAwareWrapper from "../../components/KeyboardAwareWrapper";
@@ -184,7 +183,7 @@ const RegisterScreen = ({ navigation }) => {
     try {
       setIsLoading(true);
 
-      const response = await api.post("/register", {
+      const response = await api.post("/driver/auth/register", {
         first_name: firstName,
         last_name: lastName || firstName,
         email,
@@ -194,12 +193,12 @@ const RegisterScreen = ({ navigation }) => {
         role: "driver"
       });
 
-      if (response.data?.data?.token) {
-        await AsyncStorage.setItem("userToken", response.data.data.token);
+      if (response.data?.data?.enrollment_token) {
         navigation?.navigate("OTP", {
           isRegistration: true,
           email,
           phone,
+          enrollmentToken: response.data.data.enrollment_token,
         });
       }
     } catch (error) {

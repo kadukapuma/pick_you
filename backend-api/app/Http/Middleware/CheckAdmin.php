@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\User;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,7 +16,8 @@ class CheckAdmin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!$request->user() || !in_array($request->user()->role, ['admin', 'super_admin'])) {
+        if (! $request->user() || (! $request->user()->canActAs(User::ROLE_ADMIN)
+            && ! $request->user()->canActAs(User::ROLE_SUPER_ADMIN))) {
             return response()->json([
                 'status' => 'error',
                 'message' => 'Unauthorized. Admin access required.'

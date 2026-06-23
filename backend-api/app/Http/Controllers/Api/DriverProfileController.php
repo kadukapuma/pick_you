@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Media\ImageStorageService;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
 
@@ -10,11 +11,11 @@ class DriverProfileController extends Controller
 {
     use ApiResponse;
 
-    public function getProfile(Request $request)
+    public function getProfile(Request $request, ImageStorageService $images)
     {
         $user = $request->user()->load(['driver.vehicles.vehicleType', 'driver.vehicles.images']);
 
-        if ($user->role !== 'driver' || !$user->driver) {
+        if (! $user->canActAs('driver') || !$user->driver) {
             return $this->error('Driver profile not found', 404);
         }
 
@@ -23,7 +24,7 @@ class DriverProfileController extends Controller
         $tripsCount = $driver->rides()->where('status', 'completed')->count();
         $rating = $driver->rating ?? 0.0;
 
-        $profilePictureUrl = $this->resolveImageUrl($user->profile_picture_path);
+        $profilePictureUrl = $images->url($user->profile_picture_path);
 
         $vehicle = $driver->vehicles->first();
 
@@ -33,9 +34,9 @@ class DriverProfileController extends Controller
             'back' => null,
         ];
         if ($vehicle && $vehicle->images) {
-            if ($vehicle->images->v_front) $vehicleImages['front'] = $this->resolveImageUrl($vehicle->images->v_front);
-            if ($vehicle->images->v_side) $vehicleImages['side'] = $this->resolveImageUrl($vehicle->images->v_side);
-            if ($vehicle->images->v_back) $vehicleImages['back'] = $this->resolveImageUrl($vehicle->images->v_back);
+            if ($vehicle->images->v_front) $vehicleImages['front'] = $images->url($vehicle->images->v_front);
+            if ($vehicle->images->v_side) $vehicleImages['side'] = $images->url($vehicle->images->v_side);
+            if ($vehicle->images->v_back) $vehicleImages['back'] = $images->url($vehicle->images->v_back);
         }
 
         $vehicleData = [
@@ -51,7 +52,7 @@ class DriverProfileController extends Controller
 
         return $this->success([
             'name' => trim($user->first_name . ' ' . $user->last_name),
-            'email' => $user->email,
+            'email' => $user->driver->credential?->login_email ?? $user->email,
             'phone' => $user->phone,
             'profile_picture' => $profilePictureUrl,
             'trips' => $tripsCount,
@@ -60,18 +61,5 @@ class DriverProfileController extends Controller
             'cancellation' => '2%', // Replace with actual calculation logic when available
             'vehicle' => $vehicleData,
         ], 'Driver profile retrieved successfully');
-    }
-
-    private function resolveImageUrl(?string $path): ?string
-    {
-        if (!$path) {
-            return null;
-        }
-
-        if (filter_var($path, FILTER_VALIDATE_URL)) {
-            return $path;
-        }
-
-        return url($path);
     }
 }

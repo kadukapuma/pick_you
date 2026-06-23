@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Media\ImageStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
@@ -11,25 +12,25 @@ class PassengerProfileController extends Controller
 {
   use ApiResponse;
 
-  public function getProfile(Request $request)
+  public function getProfile(Request $request, ImageStorageService $images)
   {
     $user = $request->user()->load('passenger');
 
-    if ($user->role !== 'passenger' || !$user->passenger) {
+    if (! $user->canActAs('passenger') || !$user->passenger) {
       return $this->error('Passenger profile not found', 404);
     }
 
     return $this->success(
-      $this->buildProfileData($user),
+      $this->buildProfileData($user, $images),
       'Passenger profile retrieved successfully'
     );
   }
 
-  public function updateProfile(Request $request)
+  public function updateProfile(Request $request, ImageStorageService $images)
   {
     $user = $request->user()->load('passenger');
 
-    if ($user->role !== 'passenger' || !$user->passenger) {
+    if (! $user->canActAs('passenger') || !$user->passenger) {
       return $this->error('Passenger profile not found', 404);
     }
 
@@ -52,12 +53,12 @@ class PassengerProfileController extends Controller
     $user->refresh()->load('passenger');
 
     return $this->success(
-      $this->buildProfileData($user),
+      $this->buildProfileData($user, $images),
       'Passenger profile updated successfully'
     );
   }
 
-  public function updateProfilePicture(Request $request)
+  public function updateProfilePicture(Request $request, ImageStorageService $images)
   {
     $request->validate([
       'profile_picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
@@ -65,39 +66,30 @@ class PassengerProfileController extends Controller
 
     $user = $request->user()->load('passenger');
 
-    if ($user->role !== 'passenger' || !$user->passenger) {
+    if (! $user->canActAs('passenger') || !$user->passenger) {
       return $this->error('Passenger profile not found', 404);
     }
 
     $file = $request->file('profile_picture');
+    $previousPath = $user->profile_picture_path;
 
-    if ($user->profile_picture_path && !filter_var($user->profile_picture_path, FILTER_VALIDATE_URL)) {
-      $oldLocal = public_path($user->profile_picture_path);
-      if (file_exists($oldLocal)) {
-        @unlink($oldLocal);
-      }
-    }
-
-    $uploadedUrl = $this->uploadImageToCloudinary(
+    $storedPath = $images->store(
       $file,
-      'users/' . $user->id,
-      'passenger_profile_' . time()
+      'users/' . $user->id . '/profiles',
+      'passenger-profile',
     );
 
-    if (!$uploadedUrl) {
-      return $this->error('Failed to upload profile picture', 500);
-    }
-
-    $user->update(['profile_picture_path' => $uploadedUrl]);
+    $user->update(['profile_picture_path' => $storedPath]);
+    $images->deleteLocal($previousPath);
     $user->refresh()->load('passenger');
 
     return $this->success(
-      $this->buildProfileData($user),
+      $this->buildProfileData($user, $images),
       'Passenger profile picture updated successfully'
     );
   }
 
-  private function buildProfileData($user): array
+  private function buildProfileData($user, ImageStorageService $images): array
   {
     return [
       'id' => $user->id,
@@ -105,36 +97,9 @@ class PassengerProfileController extends Controller
       'last_name' => $user->last_name,
       'email' => $user->email,
       'phone' => $user->phone,
-      'profile_picture' => $this->resolveImageUrl($user->profile_picture_path),
+      'profile_picture' => $images->url($user->profile_picture_path),
       'wallet_balance' => optional($user->passenger)->wallet_balance,
     ];
   }
 
-  private function resolveImageUrl(?string $path): ?string
-  {
-    if (!$path) {
-      return null;
-    }
-
-    if (filter_var($path, FILTER_VALIDATE_URL)) {
-      return $path;
-    }
-
-    return url($path);
-  }
-
-  private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
-  {
-    $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
-      'folder' => $folder,
-      'public_id' => $publicId,
-      'overwrite' => true,
-      'invalidate' => true,
-      'resource_type' => 'image',
-    ]);
-
-    return data_get($uploadResult, 'secure_url')
-      ?? data_get($uploadResult, 'url')
-      ?? null;
-  }
 }

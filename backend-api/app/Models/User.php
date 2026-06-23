@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Laravel\Sanctum\PersonalAccessToken;
 
 use App\Models\RolePermission;
 
@@ -52,6 +53,7 @@ class User extends Authenticatable
         'last_name',
         'email',
         'phone',
+        'phone_normalized',
         'password',
         'role',
         'is_active',
@@ -101,6 +103,84 @@ class User extends Authenticatable
     public function rolePermissions(): HasMany
     {
         return $this->hasMany(RolePermission::class, 'role', 'role');
+    }
+
+    public function roles(): HasMany
+    {
+        return $this->hasMany(UserRole::class);
+    }
+
+    public function hasRole(string $role): bool
+    {
+        if (! $this->exists) {
+            return $this->role === $role;
+        }
+
+        return $this->roles()->where('role', $role)->exists()
+            || (! $this->roles()->exists() && $this->role === $role);
+    }
+
+    public function hasActiveRole(string $role): bool
+    {
+        if (! $this->exists) {
+            return $this->role === $role;
+        }
+
+        return $this->roles()->where('role', $role)->where('is_active', true)->exists()
+            || (! $this->roles()->exists() && $this->role === $role);
+    }
+
+    public function ensureRole(string $role, bool $active = true): UserRole
+    {
+        return $this->roles()->updateOrCreate(
+            ['role' => $role],
+            ['is_active' => $active],
+        );
+    }
+
+    public function canActAs(string $role): bool
+    {
+        if ($this->is_active === false || ! $this->hasActiveRole($role)) {
+            return false;
+        }
+
+        $token = $this->currentAccessToken();
+        if ($token === null) {
+            return $this->role === $role;
+        }
+
+        if (! $token instanceof PersonalAccessToken || ! $token->exists) {
+            return $token->can('role:'.$role);
+        }
+
+        $abilities = $token->abilities ?? [];
+        if (in_array('role:'.$role, $abilities, true)) {
+            return true;
+        }
+
+        $allowLegacyTokens = ! app()->bound('config')
+            || (bool) config('auth.allow_legacy_role_tokens', true);
+
+        return $allowLegacyTokens && in_array('*', $abilities, true) && $this->role === $role;
+    }
+
+    public function activeRole(): ?string
+    {
+        foreach ([self::ROLE_PASSENGER, self::ROLE_DRIVER, self::ROLE_SUPER_ADMIN, self::ROLE_ADMIN, self::ROLE_OPERATOR] as $role) {
+            if ($this->canActAs($role)) {
+                return $role;
+            }
+        }
+
+        return null;
+    }
+
+    /** @return array<int, string> */
+    public function activeRoles(): array
+    {
+        $roles = $this->roles()->where('is_active', true)->pluck('role')->values()->all();
+
+        return $roles === [] && $this->role ? [$this->role] : $roles;
     }
 
     public function hasPermission(string $permission): bool

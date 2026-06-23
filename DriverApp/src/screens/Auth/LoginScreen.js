@@ -56,9 +56,10 @@ const LoginScreen = ({
 
     setIsLoading(true);
     try {
-      const response = await api.post("/login", {
+      const response = await api.post("/driver/auth/login", {
         email,
         password,
+        role: "driver",
       });
 
       if (response.data?.data?.token) {

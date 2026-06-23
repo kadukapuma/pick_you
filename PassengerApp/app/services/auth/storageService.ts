@@ -13,6 +13,8 @@ export interface StoredUser {
   phone: string;
   profile_picture_path?: string;
   role: "passenger" | "driver" | "admin";
+  roles?: ("passenger" | "driver" | "admin")[];
+  active_role?: "passenger" | "driver" | "admin";
   is_active: boolean;
   created_at?: string;
   passenger?: {

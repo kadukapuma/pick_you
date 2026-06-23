@@ -1,4 +1,5 @@
 import { apiClient } from "../api/apiClient";
+import { resolveAssetUrl } from "../api/assetUrl";
 import { API_CONFIG, API_ENDPOINTS } from "../api/config";
 import { StorageService, StoredUser } from "./storageService";
 
@@ -31,11 +32,9 @@ function mapUserToProfile(user: any): PassengerProfile {
     lastName: String(user?.last_name ?? user?.lastName ?? ""),
     email: user?.email ? String(user.email) : null,
     phone: String(user?.phone || ""),
-    profileImage: user?.profile_picture
-      ? String(user.profile_picture)
-      : user?.profileImage
-        ? String(user.profileImage)
-        : null,
+    profileImage: resolveAssetUrl(
+      user?.profile_picture ?? user?.profileImage ?? null,
+    ),
     walletBalance:
       user?.wallet_balance !== undefined && user?.wallet_balance !== null
         ? Number(user.wallet_balance)

@@ -14,6 +14,8 @@ export interface AuthResponse {
   user: StoredUser;
   token: string;
   registered: boolean;
+  roles?: ("passenger" | "driver" | "admin")[];
+  active_role?: "passenger" | "driver" | "admin";
   phone?: string;
   normalized_phone?: string;
 }

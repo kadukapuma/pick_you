@@ -29,14 +29,14 @@ class RidePolicy
 
     private function isOwningPassenger(User $user, Ride $ride): bool
     {
-        return $user->role === User::ROLE_PASSENGER
+        return $user->canActAs(User::ROLE_PASSENGER)
             && $user->passenger !== null
             && (int) $user->passenger->id === (int) $ride->passenger_id;
     }
 
     private function isAssignedDriver(User $user, Ride $ride): bool
     {
-        return $user->role === User::ROLE_DRIVER
+        return $user->canActAs(User::ROLE_DRIVER)
             && $user->driver !== null
             && $ride->driver_id !== null
             && (int) $user->driver->id === (int) $ride->driver_id;
@@ -44,15 +44,13 @@ class RidePolicy
 
     private function isAdministrator(User $user): bool
     {
-        return in_array($user->role, [
-            User::ROLE_ADMIN,
-            User::ROLE_SUPER_ADMIN,
-        ], true);
+        return $user->canActAs(User::ROLE_ADMIN)
+            || $user->canActAs(User::ROLE_SUPER_ADMIN);
     }
 
     private function isPrivilegedUser(User $user): bool
     {
         return $this->isAdministrator($user)
-            || $user->role === User::ROLE_OPERATOR;
+            || $user->canActAs(User::ROLE_OPERATOR);
     }
 }

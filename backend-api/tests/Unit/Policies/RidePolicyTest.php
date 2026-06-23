@@ -40,14 +40,14 @@ class RidePolicyTest extends TestCase
         $this->assertFalse($this->policy->processPayment($user, $ride));
     }
 
-    public function test_assigned_driver_can_view_but_cannot_cancel_or_pay(): void
+    public function test_assigned_driver_can_view_and_confirm_payment_but_cannot_cancel(): void
     {
         $user = $this->driverUser(20);
         $ride = $this->ride(passengerId: 10, driverId: 20);
 
         $this->assertTrue($this->policy->view($user, $ride));
         $this->assertFalse($this->policy->cancel($user, $ride));
-        $this->assertFalse($this->policy->processPayment($user, $ride));
+        $this->assertTrue($this->policy->processPayment($user, $ride));
     }
 
     public function test_unassigned_driver_cannot_access_ride(): void
