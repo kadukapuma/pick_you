@@ -6,6 +6,7 @@ import LandingLayout from '../views/Landing/LandingLayout'
 import Home from '../views/Landing/Home'
 import AboutUs from '../views/Landing/AboutUs'
 import ContactUs from '../views/Landing/ContactUs'
+import ForDrivers from '../views/Landing/ForDrivers'
 
 // Admin Views
 import AdminLayout from '../views/AdminLayout'
@@ -22,6 +23,7 @@ import FareConfigs from '../views/FareConfigs'
 import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
+import LandingPage from '../views/Landing/LandingPage/LandingPage'
 
 import SuperDashboard from '../views/SuperDashboard'
 import Admins from '../views/Admins'
@@ -52,7 +54,9 @@ const AppRoutes = () => {
         <Routes>
             {/* Public Landing Area */}
             <Route path="/" element={<LandingLayout />}>
-                <Route index element={<Home />} />
+                <Route index element={<LandingPage />} />
+                <Route path="for-drivers" element={<ForDrivers />} />
+                {/* <Route index element={<Home />} /> */}
                 <Route path="about" element={<AboutUs />} />
                 <Route path="contact" element={<ContactUs />} />
             </Route>

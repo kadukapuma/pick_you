@@ -9,6 +9,7 @@ use App\Models\OtpVerification;
 use App\Models\PendingDriverEnrollment;
 use App\Models\User;
 use App\Services\Auth\AuthPayload;
+use App\Services\Auth\NotifySmsSender;
 use App\Services\Auth\PhoneIdentityConflict;
 use App\Services\Auth\PhoneIdentityResolver;
 use App\Services\Auth\PhoneNumberNormalizer;
@@ -17,7 +18,6 @@ use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
@@ -30,6 +30,7 @@ class DriverAuthController extends Controller
         private readonly PhoneNumberNormalizer $phones,
         private readonly PhoneIdentityResolver $phoneIdentities,
         private readonly AuthPayload $authPayload,
+        private readonly NotifySmsSender $sms,
     ) {}
 
     public function register(Request $request)
@@ -103,14 +104,10 @@ class DriverAuthController extends Controller
             'expires_at' => now()->addMinutes(5),
         ]);
 
-        $response = Http::get('https://app.notify.lk/api/v1/send', [
-            'user_id' => env('NOTIFYLK_USER_ID'),
-            'api_key' => env('NOTIFYLK_API_KEY'),
-            'sender_id' => env('NOTIFYLK_SENDER_ID'),
-            'to' => $enrollment->phone_normalized,
-            'message' => "Your OTP: {$otpCode} Please use the above PickYou OTP to complete your driver registration. Do not share this OTP with anyone.",
-        ]);
-        if (! $response->successful()) {
+        if (! $this->sms->send(
+            $enrollment->phone_normalized,
+            "Your OTP: {$otpCode} Please use the above PickYou OTP to complete your driver registration. Do not share this OTP with anyone.",
+        )) {
             return $this->error('Failed to send OTP SMS', 502);
         }
 

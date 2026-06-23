@@ -1,0 +1,167 @@
+.benefits-section-main {
+    padding: 4rem 1.5rem 8.5rem;
+    /* Reduced top padding from 8.5rem to 4rem */
+    background: #ffffff;
+}
+
+.benefits-container-inner {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+.section-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    margin-bottom: 3.5rem;
+}
+
+.section-badge {
+    display: inline-block;
+    background: rgba(34, 197, 94, 0.1);
+    color: #16a34a;
+    border: 1px solid rgba(8, 214, 18, 0.25);
+    border-radius: 9999px;
+    padding: 0.25rem 1rem;
+    font-size: 0.825rem;
+    margin-bottom: 1.25rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.section-title {
+    font-size: 2.5rem;
+    color: #0d2d35;
+    margin-bottom: 0.75rem;
+    font-weight: 800;
+    line-height: 1.2;
+}
+
+@media (min-width: 1024px) {
+    .section-title {
+        font-size: 4.25rem;
+    }
+}
+
+.text-active {
+    color: #0e5c6b;
+}
+
+.section-desc {
+    color: #6b7280;
+    font-size: 1.25rem;
+    max-width: 40rem;
+    margin: 0 auto;
+    line-height: 1.625;
+}
+
+/* Benefits Grid */
+.benefits-grid {
+    display: grid;
+    grid-template-columns: repeat(1, 1fr);
+    gap: 1.5rem;
+    margin-top: 4rem;
+}
+
+@media (min-width: 768px) and (max-width: 1199px) {
+    .benefits-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .benefits-grid {
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1.5rem;
+    }
+}
+
+/* Benefit Card Premium */
+.benefit-card-premium {
+    border-radius: 2.5rem;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 500px;
+    /* Reduced height */
+    transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.4s ease;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.benefit-card-premium.img-top {
+    flex-direction: column-reverse;
+}
+
+/* Stagger Effect for Desktop */
+@media (min-width: 1200px) {
+    .benefit-card-premium:nth-child(even) {
+        transform: translateY(30px);
+    }
+
+    .benefit-card-premium:nth-child(even):hover {
+        transform: translateY(20px) scale(1.02);
+    }
+}
+
+.benefit-card-premium:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 30px 60px rgba(0, 0, 0, 0.12);
+    z-index: 2;
+}
+
+.benefit-card-content {
+    padding: 2.25rem 1.75rem;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.benefit-card-title {
+    font-size: 1.55rem;
+    color: #0f172a;
+    font-weight: 800;
+    margin-bottom: 0.75rem;
+    line-height: 1.2;
+}
+
+.benefit-card-desc {
+    color: #475569;
+    font-size: 1.05rem;
+    line-height: 1.55;
+    margin: 0;
+}
+
+.benefit-card-image {
+    width: 100%;
+    height: 260px;
+    /* Reduced image height too */
+    overflow: hidden;
+}
+
+.benefit-card-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.6s ease;
+}
+
+.benefit-card-premium:hover .benefit-card-image img {
+    transform: scale(1.1);
+}
+
+/* Specific behaviors for alternating cards */
+.benefit-card-premium.img-top .benefit-card-content {
+    justify-content: flex-end;
+}
+
+.benefit-card-premium.img-bottom .benefit-card-image {
+    mask-image: linear-gradient(to top, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0));
+}
+
+.benefit-card-premium.img-top .benefit-card-image {
+    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 80%, rgba(0, 0, 0, 0));
+}

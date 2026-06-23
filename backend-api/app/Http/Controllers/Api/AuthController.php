@@ -10,19 +10,22 @@ use App\Models\SuperAdminNotificationLog;
 use App\Models\User;
 use App\Models\DriverCredential;
 use App\Services\Auth\AuthPayload;
+use App\Services\Auth\NotifySmsSender;
 use App\Services\Media\ImageStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly AuthPayload $authPayload) {}
+    public function __construct(
+        private readonly AuthPayload $authPayload,
+        private readonly NotifySmsSender $sms,
+    ) {}
 
     private function resolveOtpUser(Request $request): ?User
     {
@@ -275,19 +278,11 @@ class AuthController extends Controller
         ]);
 
         // Send SMS using Notify.lk
-        $response = Http::get('https://app.notify.lk/api/v1/send', [
-            'user_id' => env('NOTIFYLK_USER_ID'),
-            'api_key' => env('NOTIFYLK_API_KEY'),
-            'sender_id' => env('NOTIFYLK_SENDER_ID'),
-            'to' => $notifyPhone,
-            // 'message' => "Your OTP is: $otpCode"
-            'message' => "Your OTP: $otpCode Please use the above PickYou OTP to complete your action. Do not share this OTP with anyone."
-        ]);
-
-        if (!$response->successful()) {
-            return $this->error('Failed to send OTP SMS', 502, [
-                'provider_response' => $response->body(),
-            ]);
+        if (! $this->sms->send(
+            $notifyPhone,
+            "Your OTP: $otpCode Please use the above PickYou OTP to complete your action. Do not share this OTP with anyone.",
+        )) {
+            return $this->error('Failed to send OTP SMS', 502);
         }
         // Integrate Email Gateway here (e.g., Mail, SendGrid, etc.)
         // For now, we will just return it in the response for testing

@@ -8,12 +8,12 @@ use App\Models\OtpVerification;
 use App\Traits\ApiResponse;
 use App\Services\Auth\AuthPayload;
 use App\Services\Auth\PhoneNumberNormalizer;
+use App\Services\Auth\NotifySmsSender;
 use App\Services\Auth\PhoneIdentityConflict;
 use App\Services\Auth\PhoneIdentityResolver;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 
 class PassengerAuthController extends Controller
@@ -24,6 +24,7 @@ class PassengerAuthController extends Controller
         private readonly PhoneNumberNormalizer $phones,
         private readonly PhoneIdentityResolver $phoneIdentities,
         private readonly AuthPayload $authPayload,
+        private readonly NotifySmsSender $sms,
     ) {}
 
     private function normalizePhoneNumber($phone)
@@ -64,18 +65,11 @@ class PassengerAuthController extends Controller
             'expires_at' => now()->addMinutes(5)
         ]);
 
-        $response = Http::get('https://app.notify.lk/api/v1/send', [
-            'user_id' => env('NOTIFYLK_USER_ID'),
-            'api_key' => env('NOTIFYLK_API_KEY'),
-            'sender_id' => env('NOTIFYLK_SENDER_ID'),
-            'to' => $notifyPhone,
-            'message' => "Your OTP: $otpCode Please use the above PickYou OTP to complete your login. Do not share this OTP with anyone."
-        ]);
-
-        if (!$response->successful()) {
-            return $this->error('Failed to send OTP SMS', 502, [
-                'provider_response' => $response->body()
-            ]);
+        if (! $this->sms->send(
+            $notifyPhone,
+            "Your OTP: $otpCode Please use the above PickYou OTP to complete your login. Do not share this OTP with anyone.",
+        )) {
+            return $this->error('Failed to send OTP SMS', 502);
         }
 
         return $this->success(['otp' => $otpCode], 'OTP sent successfully');

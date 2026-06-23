@@ -7,12 +7,38 @@ use App\Models\OtpVerification;
 use App\Models\PendingDriverEnrollment;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class MultiRoleAccountTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_driver_enrollment_otp_uses_configured_notify_service(): void
+    {
+        config(['services.notifylk' => [
+            'url' => 'https://notify.test/send',
+            'user_id' => '12345',
+            'api_key' => 'test-key',
+            'sender_id' => 'PickYou',
+        ]]);
+        Http::fake(['https://notify.test/*' => Http::response(['status' => 'success'])]);
+
+        $registration = $this->postJson('/api/driver/auth/register', [
+            'first_name' => 'Driver', 'last_name' => 'Person',
+            'email' => 'otp-driver@example.com', 'phone' => '0771234567',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ])->assertStatus(202);
+
+        $this->postJson('/api/driver/auth/otp/send', [
+            'enrollment_token' => $registration->json('data.enrollment_token'),
+        ])->assertOk();
+
+        Http::assertSent(fn ($request) => str_starts_with($request->url(), 'https://notify.test/send?')
+            && $request['user_id'] === '12345'
+            && $request['to'] === '94771234567');
+    }
 
     public function test_existing_driver_becomes_a_passenger_after_passenger_otp_verification(): void
     {

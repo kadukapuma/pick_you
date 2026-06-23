@@ -64,6 +64,10 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
       // }
     } catch (err) {
       console.log("Error sending OTP", err.response?.data || err.message);
+      Alert.alert(
+        "Unable to Send OTP",
+        err.response?.data?.message || "Please check your connection and try again."
+      );
     }
   }, [email, phone, otpRecipient, isForgotPassword, isRegistration, enrollmentToken]);
 
