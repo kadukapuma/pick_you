@@ -30,9 +30,20 @@ const buildBounds = (coordinates, edgePadding) => {
   const lats = valid.map((coordinate) => coordinate.latitude);
   const lngs = valid.map((coordinate) => coordinate.longitude);
 
+  const maxLat = Math.max(...lats);
+  const minLat = Math.min(...lats);
+  const maxLng = Math.max(...lngs);
+  const minLng = Math.min(...lngs);
+
+  // Balanced optimization: if locations are identical or too close, bypass bounds 
+  // to avoid infinite tight/extreme zooming (Uber & PickMe approach)
+  if (Math.abs(maxLat - minLat) < 0.0002 && Math.abs(maxLng - minLng) < 0.0002) {
+    return null;
+  }
+
   return {
-    ne: [Math.max(...lngs), Math.max(...lats)],
-    sw: [Math.min(...lngs), Math.min(...lats)],
+    ne: [maxLng, maxLat],
+    sw: [minLng, minLat],
     paddingTop: edgePadding?.top ?? 140,
     paddingRight: edgePadding?.right ?? 70,
     paddingBottom: edgePadding?.bottom ?? 260,
@@ -83,9 +94,10 @@ export default function MapboxRideMap({
   destinationColor = "#00A859",
   vehicleImage,
   vehicleHeading = 0,
-  vehicleSize = 76,
+  vehicleSize = 10,
   edgePadding,
   style,
+  cameraRef, // Handled target reference passing flawlessly
 }) {
   const visibleCoordinates = useMemo(
     () => [origin, destination, ...routeCoordinates].filter(isValidCoordinate),
@@ -117,9 +129,10 @@ export default function MapboxRideMap({
       compassEnabled={false}
     >
       <MapboxGL.Camera
+        ref={cameraRef}
         bounds={bounds || undefined}
         centerCoordinate={!bounds ? toPosition(origin) : undefined}
-        zoomLevel={!bounds ? 14 : undefined}
+        zoomLevel={!bounds ? 15 : undefined} // Clean balanced fallback zoom mirroring high-end dispatch maps
         animationDuration={500}
       />
 
