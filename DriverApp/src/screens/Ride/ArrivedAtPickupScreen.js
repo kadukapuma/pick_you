@@ -43,6 +43,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
   // 1. Setup active state for tracking elapsed seconds
   const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [isStartingRide, setIsStartingRide] = useState(false);
+  const [followVehicle, setFollowVehicle] = useState(true);
 
   // 2. Active Interval Timer Hook (Increments every 1000ms)
   useEffect(() => {
@@ -102,10 +103,23 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
         routeColor="#00A859"
         destinationColor="#00A859"
         vehicleImage={require("../../assets/car3d.png")}
-        vehicleHeading={38}
         vehicleSize={100}
         edgePadding={mapPadding}
+        followVehicle={followVehicle}
+        followZoom={16}
+        followPitch={45}
+        onFollowStateChange={setFollowVehicle}
       />
+
+      {!followVehicle ? (
+        <TouchableOpacity
+          style={styles.recenterButton}
+          onPress={() => setFollowVehicle(true)}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="locate" size={22} color="#0F172A" />
+        </TouchableOpacity>
+      ) : null}
 
       {/* ARRIVED STATUS FLOATING ALERT BADGE UI CARD OVERLAY */}
       <View style={styles.arrivedStatusCardContainer} pointerEvents="box-none">
@@ -203,6 +217,19 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  recenterButton: {
+    position: "absolute",
+    right: 20,
+    top: 190,
+    zIndex: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
   },
   header: {
     position: "absolute",

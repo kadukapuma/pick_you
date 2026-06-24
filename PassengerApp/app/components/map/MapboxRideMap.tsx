@@ -1,7 +1,7 @@
 import MapboxGL from "@rnmapbox/maps";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useMemo } from "react";
+import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
 export type MapCoordinate = {
   latitude: number;
@@ -21,6 +21,10 @@ type Props = {
   onMapPress?: (event: {
     nativeEvent: { coordinate: { latitude: number; longitude: number } };
   }) => void;
+  followVehicle?: boolean;
+  followZoom?: number;
+  followPitch?: number;
+  onFollowStateChange?: (following: boolean) => void;
 };
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_API_KEY || "";
@@ -75,8 +79,12 @@ function DotMarker({ color }: { color: string }) {
 
 function DriverMarker({ heading = 0 }: { heading?: number }) {
   return (
-    <View style={[styles.driverMarker, { transform: [{ rotate: `${heading}deg` }] }]}>
-      <MaterialCommunityIcons name="car-sports" size={28} color="#00A859" />
+    <View style={styles.driverMarker}>
+      <Image
+        source={require("../../../assets/images/vehicles/car3d.png")}
+        style={[styles.driverVehicleImage, { transform: [{ rotate: `${heading - 90}deg` }] }]}
+        resizeMode="contain"
+      />
     </View>
   );
 }
@@ -91,7 +99,14 @@ export default function MapboxRideMap({
   dropoffColor = "#F97316",
   style,
   onMapPress,
+  followVehicle = false,
+  followZoom = 16,
+  followPitch = 45,
+  onFollowStateChange,
 }: Props) {
+  const { location: smoothDriverLocation } = useSmoothLocation(driverLocation);
+  const renderedDriverLocation = smoothDriverLocation ?? driverLocation;
+  const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
     () =>
       [pickup, dropoff, driverLocation, ...(routeCoordinates || [])].filter(
@@ -134,12 +149,23 @@ export default function MapboxRideMap({
       attributionEnabled={false}
       compassEnabled={false}
       onPress={handlePress}
+      onTouchStart={() => {
+        if (followVehicle) onFollowStateChange?.(false);
+      }}
     >
       <MapboxGL.Camera
-        bounds={bounds || undefined}
-        centerCoordinate={!bounds ? toPosition(pickup) : undefined}
-        zoomLevel={!bounds ? 14 : undefined}
-        animationDuration={500}
+        bounds={!followVehicle && !cameraIsFree ? bounds || undefined : undefined}
+        centerCoordinate={
+          followVehicle && renderedDriverLocation
+            ? toPosition(renderedDriverLocation)
+            : !cameraIsFree && !bounds
+              ? toPosition(pickup)
+              : undefined
+        }
+        zoomLevel={followVehicle ? followZoom : !cameraIsFree && !bounds ? 14 : undefined}
+        pitch={followVehicle ? followPitch : cameraIsFree ? undefined : 0}
+        heading={followVehicle ? renderedDriverLocation?.heading ?? 0 : cameraIsFree ? undefined : 0}
+        animationDuration={followVehicle ? 0 : 500}
       />
 
       {routeShape ? (
@@ -166,9 +192,9 @@ export default function MapboxRideMap({
         </MapboxGL.MarkerView>
       ) : null}
 
-      {driverLocation ? (
-        <MapboxGL.MarkerView coordinate={toPosition(driverLocation)}>
-          <DriverMarker heading={driverLocation.heading} />
+      {renderedDriverLocation ? (
+        <MapboxGL.MarkerView coordinate={toPosition(renderedDriverLocation)}>
+          <DriverMarker heading={renderedDriverLocation.heading} />
         </MapboxGL.MarkerView>
       ) : null}
     </MapboxGL.MapView>
@@ -194,10 +220,8 @@ const styles = StyleSheet.create({
     borderColor: "#FFFFFF",
   },
   driverMarker: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    width: 64,
+    height: 64,
     justifyContent: "center",
     alignItems: "center",
     shadowColor: "#000",
@@ -205,5 +229,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  driverVehicleImage: {
+    width: 60,
+    height: 60,
   },
 });

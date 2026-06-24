@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import RideMap from "./RideMap";
 
 export default function LiveRideTracker({ rideData, driverLocation, trackingStatus }: any) {
+    const [followVehicle, setFollowVehicle] = React.useState(true);
     const driverName = [
         rideData.driver?.user?.first_name,
         rideData.driver?.user?.last_name,
@@ -54,8 +55,35 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                     }}
                     driverLocation={driverLocation}
                     rideStatus={rideStatus}
+                    followVehicle={followVehicle && !!driverLocation}
+                    onFollowStateChange={setFollowVehicle}
                 />
             </View>
+
+            {!followVehicle && driverLocation ? (
+                <TouchableOpacity
+                    onPress={() => setFollowVehicle(true)}
+                    activeOpacity={0.8}
+                    style={{
+                        position: "absolute",
+                        right: 18,
+                        top: 110,
+                        zIndex: 12,
+                        width: 48,
+                        height: 48,
+                        borderRadius: 24,
+                        backgroundColor: "#FFFFFF",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        elevation: 6,
+                        shadowColor: "#000",
+                        shadowOpacity: 0.18,
+                        shadowRadius: 5,
+                    }}
+                >
+                    <Ionicons name="locate" size={24} color="#0F172A" />
+                </TouchableOpacity>
+            ) : null}
 
             {/* Bottom popup - SMALL */}
             <View

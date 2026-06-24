@@ -37,6 +37,9 @@ export function useDriverLocation() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             heading: position.coords.heading ?? 0,
+            speed: position.coords.speed ?? 0,
+            accuracy: position.coords.accuracy ?? null,
+            timestamp: position.timestamp,
           });
           setError(null);
         };
