@@ -1,4 +1,4 @@
-import HomeHeader from "../../components/home/HomeHeader";
+import HomeHeader from "../../../components/home/HomeHeader";
 import { View, Text } from "react-native";
 
 export default function NotificationScreen() {

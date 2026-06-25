@@ -1,5 +1,5 @@
-import { View, Text, TouchableOpacity, Animated, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type TripType = "one-way" | "return-trip";
 
@@ -19,7 +19,7 @@ export default function TripTypeToggle({ tripType, onToggle, pillTranslateX }: P
           { transform: [{ translateX: pillTranslateX }] },
         ]}
       />
-      
+
       <TouchableOpacity
         style={styles.toggleOption}
         onPress={() => onToggle("one-way")}

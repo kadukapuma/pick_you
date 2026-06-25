@@ -1,3 +1,5 @@
+import { Ionicons } from "@expo/vector-icons";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -7,11 +9,9 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
-import { apiClient } from "../services/api/apiClient";
-import { subscribeToRideLocation } from "../services/location/trackingService";
-import { useRideSearch } from "../context/RideSearchContext";
+import { useRideSearch } from "../../context/RideSearchContext";
+import { apiClient } from "../../services/api/apiClient";
+import { subscribeToRideLocation } from "../../services/location/trackingService";
 
 export default function SearchingScreen() {
   const params = useLocalSearchParams();
@@ -57,7 +57,7 @@ export default function SearchingScreen() {
 
     subscribeToRideLocation(
       rideId,
-      () => {},
+      () => { },
       undefined,
       acceptRideUpdate,
     ).then((cleanup) => {
@@ -142,7 +142,7 @@ export default function SearchingScreen() {
               ? "Passenger on board. You can follow the trip to drop-off."
               : isAccepted
                 ? "You can now view the driver's live location on the map."
-            : "Please wait while we send your request to the nearest available driver."}
+                : "Please wait while we send your request to the nearest available driver."}
         </Text>
 
         {isAccepted ? (

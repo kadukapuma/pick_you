@@ -2,10 +2,10 @@ import "../global.css";
 import { useEffect, useRef, useState } from "react";
 import { Stack, router } from "expo-router";
 import { AppState, AppStateStatus, ActivityIndicator, View } from "react-native";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { RideSearchProvider } from "./context/RideSearchContext";
-import MaintenanceScreen from "./components/MaintenanceScreen";
-import { fetchMaintenanceMode } from "./services/maintenanceService";
+import { AuthProvider, useAuth } from "../context/AuthContext";
+import { RideSearchProvider } from "../context/RideSearchContext";
+import MaintenanceScreen from "../components/MaintenanceScreen";
+import { fetchMaintenanceMode } from "../services/maintenanceService";
 
 function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();

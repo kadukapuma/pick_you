@@ -1,10 +1,10 @@
-import { StyleSheet, View, TouchableOpacity, Text } from "react-native";
-import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
-import LocationDualPicker from "../components/ride/LocationDualPicker";
-import { useRideSearch } from "../context/RideSearchContext";
-import type { LocationSuggestion } from "../services/location/locationSuggestionsService";
+import LocationDualPicker from "../../components/ride/LocationDualPicker";
+import { useRideSearch } from "../../context/RideSearchContext";
+import type { LocationSuggestion } from "../../services/location/locationSuggestionsService";
 
 export default function ReturnTripLocationScreen() {
   const { outboundTrip, setReturnPickup, setReturnDropoff } = useRideSearch();

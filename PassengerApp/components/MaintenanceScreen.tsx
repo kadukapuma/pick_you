@@ -1,6 +1,6 @@
+import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Image, Text, TouchableOpacity, View } from "react-native";
-import { router } from "expo-router";
 import { useAuth } from "../context/AuthContext";
 
 export default function MaintenanceScreen() {
@@ -117,7 +117,7 @@ export default function MaintenanceScreen() {
                     <Animated.View style={{ transform: [{ translateY: logoLift }] }}>
                         <View className="h-28 w-28 items-center justify-center rounded-full bg-white/10 mb-6">
                             <Image
-                                source={require("../../assets/images/logo.png")}
+                                source={require("../assets/images/logo.png")}
                                 style={{ width: 120, height: 120, resizeMode: "contain" }}
                             />
                         </View>

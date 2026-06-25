@@ -1,3 +1,4 @@
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -8,15 +9,14 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { router, useLocalSearchParams } from "expo-router";
-import LiveRideTracker from "./components/ride/LiveRideTracker";
-import { useRideSearch } from "./context/RideSearchContext";
-import { apiClient } from "./services/api/apiClient";
+import LiveRideTracker from "../components/ride/LiveRideTracker";
+import { useRideSearch } from "../context/RideSearchContext";
+import { apiClient } from "../services/api/apiClient";
 import {
     DriverLocationUpdate,
     subscribeToRideLocation,
     TrackingStatus,
-} from "./services/location/trackingService";
+} from "../services/location/trackingService";
 
 export default function LiveTrackerPage() {
     const params = useLocalSearchParams();

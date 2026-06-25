@@ -18,10 +18,10 @@ import { Ionicons } from "@expo/vector-icons";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../services/routing/mapboxRoutingService";
-import { useRideSearch, type RideOption } from "../context/RideSearchContext";
-import { apiClient } from "../services/api/apiClient";
-import MapboxRideMap from "../components/map/MapboxRideMap";
+} from "../../services/routing/mapboxRoutingService";
+import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
+import { apiClient } from "../../services/api/apiClient";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {

@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import ActivityTabHeader from "../../components/activities/ActivityTabHeader";
+import ActivityTabHeader from "../../../components/activities/ActivityTabHeader";
 
 export default function ActivitiesScreen() {
   return (

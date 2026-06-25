@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
+import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
 import { ProfileService } from "../../services/auth/profileService";
@@ -64,7 +64,7 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           }}
         >
           <Image
-            source={require("../../../assets/images/logo.png")}
+            source={require("../../assets/images/logo.png")}
             style={{
               width: compact ? 210 : 270, // slightly larger
               height: compact ? 78 : 100, // slightly larger
