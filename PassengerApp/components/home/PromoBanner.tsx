@@ -1,5 +1,5 @@
-import { Image, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { Image, Text, TouchableOpacity, View } from "react-native";
 
 type PromoBannerProps = {
   compact?: boolean;
@@ -126,7 +126,7 @@ export default function PromoBanner({ compact = false }: PromoBannerProps) {
 
         {/* IMAGE */}
         <Image
-          source={require("../../../assets/images/banner.png")}
+          source={require("../../assets/images/banner.png")}
           style={{
             width: compact ? 82 : 120,
             height: compact ? 82 : 120,

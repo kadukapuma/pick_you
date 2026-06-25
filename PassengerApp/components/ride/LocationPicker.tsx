@@ -1,17 +1,17 @@
-import { useState, useRef } from "react";
-import {
-  StyleSheet,
-  View,
-  TextInput,
-  ScrollView,
-  TouchableOpacity,
-  Text,
-  ActivityIndicator,
-} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRef, useState } from "react";
 import {
-  searchLocationSuggestions,
+  ActivityIndicator,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import {
   LocationSuggestion,
+  searchLocationSuggestions,
 } from "../../services/location/multiProviderService";
 
 interface LocationPickerProps {

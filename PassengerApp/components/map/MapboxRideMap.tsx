@@ -1,6 +1,6 @@
 import MapboxGL from "@rnmapbox/maps";
-import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useMemo } from "react";
+import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
 export type MapCoordinate = {
@@ -81,7 +81,7 @@ function DriverMarker({ heading = 0 }: { heading?: number }) {
   return (
     <View style={styles.driverMarker}>
       <Image
-        source={require("../../../assets/images/vehicles/car3d.png")}
+        source={require("../../assets/images/vehicles/car3d.png")}
         style={[styles.driverVehicleImage, { transform: [{ rotate: `${heading - 90}deg` }] }]}
         resizeMode="contain"
       />

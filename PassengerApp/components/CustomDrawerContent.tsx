@@ -42,7 +42,7 @@ export default function CustomDrawerContent(props: any) {
 
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
-      { text: "Cancel", onPress: () => {}, style: "cancel" },
+      { text: "Cancel", onPress: () => { }, style: "cancel" },
       {
         text: "Logout",
         onPress: async () => {
@@ -72,7 +72,7 @@ export default function CustomDrawerContent(props: any) {
       <View style={styles.logoWrap}>
         <View style={styles.logoBox}>
           <Image
-            source={require("../../assets/images/logo.png")}
+            source={require("../assets/images/logo.png")}
             style={{
               width: 142,
               height: 74,
