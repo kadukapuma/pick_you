@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
 import {
   getCachedDirections_withCache,
@@ -157,6 +158,7 @@ export default function SelectRideReturnScreen() {
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   const { returnTrip, setReturnRide } = useRideSearch();
+  const insets = useSafeAreaInsets();
 
   // Fetch real directions when component loads
   useEffect(() => {
@@ -208,7 +210,7 @@ export default function SelectRideReturnScreen() {
   // Compute dyn pricing once both vehicle types and routing directions are ready
   useEffect(() => {
     if (directions && dbVehicles.length > 0) {
-      const mapped = dbVehicles.map(vt => 
+      const mapped = dbVehicles.map(vt =>
         mapDBVehicleToOption(vt, directions.distance, directions.duration)
       );
       setRideOptions(mapped);
@@ -301,7 +303,7 @@ export default function SelectRideReturnScreen() {
       ) : null}
 
       {/* Bottom Sheet - Ride Selection */}
-      <View style={styles.bottomSheet}>
+      <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20 }]}>
         {/* Header with Close */}
         <View style={styles.header}>
           <View>
