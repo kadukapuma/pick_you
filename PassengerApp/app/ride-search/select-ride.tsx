@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   getCachedDirections_withCache,
@@ -324,6 +325,7 @@ export default function SelectRideScreen() {
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
+  const insets = useSafeAreaInsets();
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
 
@@ -480,7 +482,11 @@ export default function SelectRideScreen() {
       <Animated.View
         style={[
           styles.sheet,
-          { opacity: sheetOpacity, transform: [{ translateY: sheetY }] },
+          {
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetY }],
+            paddingBottom: insets.bottom + 20,
+          },
         ]}
       >
         {/* Handle */}
