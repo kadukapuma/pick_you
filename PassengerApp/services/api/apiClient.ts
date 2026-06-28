@@ -1,5 +1,6 @@
 import { API_CONFIG } from "./config";
 import { StorageService } from "../auth/storageService";
+import { router } from "expo-router";
 
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -10,6 +11,8 @@ export interface ApiResponse<T = any> {
 
 type ApiRequestOptions = RequestInit & {
   suppressErrorLog?: boolean;
+  /** Set true to skip the global 401 auto-logout handler (e.g. during token validation on startup) */
+  skipAuthCheck?: boolean;
 };
 
 class ApiClient {
@@ -60,6 +63,14 @@ class ApiClient {
         if (!options.suppressErrorLog) {
           console.error(`[${response.status}] ${endpoint}:`, data);
         }
+
+        // Global 401 handler — token was revoked mid-session
+        if (response.status === 401 && !options.skipAuthCheck) {
+          console.warn("🔒 401 received mid-session — clearing auth and redirecting to login");
+          await StorageService.clearAuth();
+          router.replace("/(auth)/get-started" as any);
+        }
+
         return {
           success: false,
           message: data.message || "An error occurred",
