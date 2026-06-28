@@ -88,7 +88,7 @@ export class AuthService {
         errors: response.errors,
       };
     } catch (error: any) {
-      console.error("Registration error:", error);
+      if (__DEV__) console.warn("Registration error:", error);
       return {
         success: false,
         message: error.message || "Registration failed",
@@ -106,7 +106,7 @@ export class AuthService {
       console.log("✅ User logged out and auth cleared");
       return { success: true, message: "Logged out successfully" };
     } catch (error: any) {
-      console.error("Logout error:", error);
+      if (__DEV__) console.warn("Logout error:", error);
       await StorageService.clearAuth();
       return { success: true, message: "Logged out" };
     }
@@ -153,7 +153,7 @@ export class AuthService {
       console.log("✅ Auth restored: User", user.id);
       return { success: true, user };
     } catch (error) {
-      console.error("Restore auth error:", error);
+      if (__DEV__) console.warn("Restore auth error:", error);
       return { success: false };
     }
   }
@@ -226,7 +226,7 @@ export class AuthService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error("OTP verification error:", error);
+      if (__DEV__) console.warn("OTP verification error:", error);
       return {
         success: false,
         message: error.message || "Failed to verify OTP",

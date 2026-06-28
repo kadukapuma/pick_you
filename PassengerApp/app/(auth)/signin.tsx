@@ -14,9 +14,10 @@ import {
 } from "react-native";
 
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { AuthService } from "../../services/auth/authService";
+import InlineError from "../../components/ui/InlineError";
+import { getFriendlyError } from "../../utils/errorMessages";
 
 export default function SignInScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
@@ -67,12 +68,12 @@ export default function SignInScreen() {
         });
       } else {
         setValidationErrors({
-          phoneNumber: result.message || "Failed to send OTP",
+          phoneNumber: getFriendlyError(result.message),
         });
       }
     } catch (err: any) {
       setValidationErrors({
-        phoneNumber: err.message || "Failed to send OTP",
+        phoneNumber: getFriendlyError(err.message),
       });
     } finally {
       setIsLoading(false);
@@ -138,20 +139,15 @@ export default function SignInScreen() {
             />
 
             {/* Validation Error */}
-            {validationErrors.phoneNumber && (
-              <Text className="text-red-500 text-xs mb-5">
-                {validationErrors.phoneNumber}
-              </Text>
-            )}
+            <InlineError message={validationErrors.phoneNumber} marginTop={-12} />
 
             {/* Sign In Button */}
             <TouchableOpacity
               onPress={handleSignIn}
               disabled={isLoading}
               activeOpacity={0.8}
-              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${
-                isLoading ? "bg-gray-400" : "bg-[#59C36A]"
-              }`}
+              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${isLoading ? "bg-gray-400" : "bg-[#59C36A]"
+                }`}
               style={{
                 shadowColor: "#59C36A",
                 shadowOpacity: isLoading ? 0 : 0.2,

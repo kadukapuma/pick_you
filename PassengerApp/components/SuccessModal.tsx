@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, Modal, Animated, TouchableOpacity } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import React, { useEffect, useRef } from "react";
+import { View, Text, Modal, TouchableOpacity, Animated } from "react-native";
+import LottieView from "lottie-react-native";
 
 interface SuccessModalProps {
   visible: boolean;
@@ -21,33 +21,23 @@ export default function SuccessModal({
   onClose,
   buttonText = "OK",
   autoClose = true,
-  autoCloseDuration = 2000,
+  autoCloseDuration = 2800,
 }: SuccessModalProps) {
-  const [scaleAnim] = useState(new Animated.Value(0));
-  const [opacityAnim] = useState(new Animated.Value(0));
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const opacityAnim = useRef(new Animated.Value(0)).current;
+  const lottieRef = useRef<LottieView>(null);
 
   useEffect(() => {
     if (visible) {
-      // Animate in
+      lottieRef.current?.play();
+
       Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 6,
-          useNativeDriver: true,
-        }),
-        Animated.timing(opacityAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
+        Animated.timing(opacityAnim, { toValue: 1, duration: 280, useNativeDriver: true }),
       ]).start();
 
-      // Auto-dismiss
       if (autoClose) {
-        const timer = setTimeout(() => {
-          animateOut();
-        }, autoCloseDuration);
-
+        const timer = setTimeout(animateOut, autoCloseDuration);
         return () => clearTimeout(timer);
       }
     }
@@ -55,16 +45,8 @@ export default function SuccessModal({
 
   const animateOut = () => {
     Animated.parallel([
-      Animated.spring(scaleAnim, {
-        toValue: 0.8,
-        friction: 6,
-        useNativeDriver: true,
-      }),
-      Animated.timing(opacityAnim, {
-        toValue: 0,
-        duration: 300,
-        useNativeDriver: true,
-      }),
+      Animated.spring(scaleAnim, { toValue: 0.85, friction: 6, useNativeDriver: true }),
+      Animated.timing(opacityAnim, { toValue: 0, duration: 260, useNativeDriver: true }),
     ]).start(() => {
       onDismiss?.();
       onClose?.();
@@ -72,41 +54,42 @@ export default function SuccessModal({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={animateOut}
-    >
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={animateOut}>
       <View className="flex-1 justify-center items-center bg-black/40">
         <Animated.View
-          style={{
-            transform: [{ scale: scaleAnim }],
-            opacity: opacityAnim,
-          }}
-          className="bg-white rounded-2xl px-8 py-8 items-center w-80"
+          style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }}
+          className="bg-white rounded-3xl px-8 py-8 items-center w-80"
         >
-          {/* Checkmark Icon */}
-          <View className="w-16 h-16 rounded-full bg-[#E8F5E9] items-center justify-center mb-4">
-            <Ionicons name="checkmark-circle" size={56} color="#4CAF50" />
-          </View>
+          {/* Lottie tick animation */}
+          <LottieView
+            ref={lottieRef}
+            source={require("../assets/animations/success-tick.json")}
+            autoPlay={false}
+            loop={false}
+            style={{ width: 120, height: 120 }}
+          />
 
           {/* Title */}
-          <Text className="text-xl font-bold text-gray-900 mb-2 text-center">
+          <Text className="text-xl font-bold text-gray-900 mb-2 text-center mt-2">
             {title}
           </Text>
 
           {/* Message */}
-          {message && (
-            <Text className="text-sm text-gray-600 text-center">{message}</Text>
+          {message ? (
+            <Text className="text-sm text-gray-500 text-center leading-5 mb-6">
+              {message}
+            </Text>
+          ) : (
+            <View className="mb-4" />
           )}
+
           {/* Button */}
           <TouchableOpacity
             onPress={animateOut}
             activeOpacity={0.8}
-            className="mt-6 bg-[#59C36A] rounded-lg px-6 py-3"
+            className="bg-[#59C36A] rounded-xl px-8 py-3 w-full items-center"
           >
-            <Text className="text-white font-semibold text-center">{buttonText}</Text>
+            <Text className="text-white font-semibold text-base">{buttonText}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>

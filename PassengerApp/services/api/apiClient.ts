@@ -61,7 +61,7 @@ class ApiClient {
 
       if (!response.ok) {
         if (!options.suppressErrorLog) {
-          console.error(`[${response.status}] ${endpoint}:`, data);
+          if (__DEV__) console.warn(`[DEV] [${response.status}] ${endpoint}:`, data);
         }
 
         // Global 401 handler — token was revoked mid-session

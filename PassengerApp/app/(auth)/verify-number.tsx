@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Text,
@@ -13,6 +12,9 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthService } from "../../services/auth/authService";
 import { useAuth } from "../../context/AuthContext";
+import { useToast } from "../../hooks/useToast";
+import { getFriendlyError, SuccessMessages } from "../../utils/errorMessages";
+import InlineError from "../../components/ui/InlineError";
 
 export default function VerifyNumberScreen() {
   const { mobileNumber, testOtp } = useLocalSearchParams<{
@@ -21,39 +23,18 @@ export default function VerifyNumberScreen() {
   }>();
 
   const { updateUser } = useAuth();
+  const { showToast } = useToast();
 
   const [code, setCode] = useState(["", "", "", ""]);
   const [isVerifying, setIsVerifying] = useState(false);
   const [timeLeft, setTimeLeft] = useState(58);
   const [canResend, setCanResend] = useState(false);
-  const [showOtpPopup, setShowOtpPopup] = useState(true);
+  const [otpError, setOtpError] = useState<string | null>(null);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const displayNumber = mobileNumber || "your phone number";
   const isCodeComplete = code.every(Boolean);
   const otpCode = code.join("");
-
-  // Show OTP popup on first load (for testing purposes until SMS/Email gateway is set up)
-  useEffect(() => {
-    if (showOtpPopup && mobileNumber) {
-      const message = testOtp
-        ? "📧 OTP has been sent to: \n\n🔐 FOR TESTING (DEV): Your OTP code is: \n\nEnter it in the field below to verify."
-        : "📧 OTP has been sent to: \n\nIn development, check:\n• Your backend logs\n• Email received\n• Backend console output\n\nThe OTP is typically a 4-digit code.\n\nEnter it in the field below to verify.";
-
-      // In development, show a popup with info on how to get the OTP
-      Alert.alert(
-        "🔐 OTP for Testing",
-        message,
-        [
-          {
-            text: "OK, I have the code",
-            onPress: () => setShowOtpPopup(false),
-          },
-        ],
-        { cancelable: false },
-      );
-    }
-  }, [mobileNumber, testOtp]);
 
   // Timer for resend countdown
   useEffect(() => {
@@ -69,6 +50,11 @@ export default function VerifyNumberScreen() {
     return () => clearTimeout(timer);
   }, [timeLeft]);
 
+  // Clear inline error when user types
+  useEffect(() => {
+    if (code.some(Boolean)) setOtpError(null);
+  }, [code]);
+
   // Auto-verify when code is complete
   useEffect(() => {
     if (isCodeComplete && !isVerifying) {
@@ -80,76 +66,46 @@ export default function VerifyNumberScreen() {
     if (!otpCode || otpCode.length !== 4) return;
 
     setIsVerifying(true);
+    setOtpError(null);
+
     try {
-      // Verify OTP
       const result = await AuthService.verifyOtp(mobileNumber || "", otpCode);
 
       if (result.success) {
         if (result.data?.registered) {
-          // User exists - login successful
-          // ✅ UPDATE AUTH CONTEXT BEFORE NAVIGATION
+          // Existing user — login
           if (result.data.user) {
             updateUser(result.data.user);
-            console.log("✅ User context updated after login");
+            if (__DEV__) console.log("✅ User context updated after login");
           }
-
-          Alert.alert("Success", "Logged in successfully!", [
-            {
-              text: "OK",
-              onPress: () => {
-                router.replace("/(drawer)/(tabs)/home");
-              },
-            },
-          ]);
+          showToast(SuccessMessages.LOGIN, "success");
+          setTimeout(() => router.replace("/(drawer)/(tabs)/home"), 400);
         } else {
-          // New User - store user data for signup
+          // New user — go to signup
           if (result.data?.user) {
             updateUser(result.data.user);
-            console.log("✅ User context updated for new registration");
+            if (__DEV__) console.log("✅ User context updated for new registration");
           }
-
-          Alert.alert("Welcome!", "Complete your profile to get started", [
-            {
-              text: "OK",
-              onPress: () => {
-                router.replace({
-                  pathname: "/(auth)/signup",
-                  params: { mobileNumber },
-                });
-              },
-            },
-          ]);
+          showToast("Welcome! Let's complete your profile.", "success");
+          setTimeout(
+            () =>
+              router.replace({
+                pathname: "/(auth)/signup",
+                params: { mobileNumber },
+              }),
+            400,
+          );
         }
       } else {
-        // Verification failed
-        Alert.alert(
-          "Verification Failed",
-          result.message || "Invalid OTP. Please try again.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                setCode(["", "", "", ""]);
-                inputRefs.current[0]?.focus();
-              },
-            },
-          ],
-        );
+        // OTP failed — show inline error, clear inputs
+        setOtpError(getFriendlyError(result.message));
+        setCode(["", "", "", ""]);
+        setTimeout(() => inputRefs.current[0]?.focus(), 100);
       }
     } catch (error: any) {
-      Alert.alert(
-        "Error",
-        error.message || "An error occurred. Please try again.",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              setCode(["", "", "", ""]);
-              inputRefs.current[0]?.focus();
-            },
-          },
-        ],
-      );
+      setOtpError(getFriendlyError(error?.message));
+      setCode(["", "", "", ""]);
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
     } finally {
       setIsVerifying(false);
     }
@@ -164,17 +120,14 @@ export default function VerifyNumberScreen() {
         setTimeLeft(58);
         setCanResend(false);
         setCode(["", "", "", ""]);
+        setOtpError(null);
         inputRefs.current[0]?.focus();
-
-        const successMsg = result.otp
-          ? "OTP sent again. Your new OTP is: "
-          : "OTP sent again. Check your SMS.";
-        Alert.alert("Success", successMsg);
+        showToast(SuccessMessages.OTP_RESENT, "info");
       } else {
-        Alert.alert("Error", result.message || "Failed to resend OTP");
+        showToast(getFriendlyError(result.message), "error");
       }
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Failed to resend OTP");
+      showToast(getFriendlyError(error?.message), "error");
     }
   };
 
@@ -211,20 +164,21 @@ export default function VerifyNumberScreen() {
           <View className="mb-6 flex-row items-center rounded-lg bg-[#EAF4FF] px-4 py-3">
             <Ionicons name="information-circle" size={20} color="#0071E3" />
             <Text className="ml-2 flex-1 text-sm text-gray-600">
-              We sent a code to
+              We sent a code to{" "}
               <Text className="font-semibold">{displayNumber}</Text>
             </Text>
           </View>
 
           {/* OTP Input Fields */}
-          <View className="mb-6 flex-row justify-between gap-2">
+          <View className="mb-2 flex-row justify-between gap-2">
             {[0, 1, 2, 3].map((index) => (
               <TextInput
                 key={index}
                 ref={(ref) => {
                   inputRefs.current[index] = ref;
                 }}
-                className="flex-1 rounded-lg border border-gray-300 bg-white text-center text-2xl font-bold text-black"
+                className={`flex-1 rounded-lg border bg-white text-center text-2xl font-bold text-black ${otpError ? "border-red-400" : "border-gray-300"
+                  }`}
                 style={{ height: 60 }}
                 placeholder="0"
                 placeholderTextColor="#999"
@@ -239,16 +193,16 @@ export default function VerifyNumberScreen() {
             ))}
           </View>
 
+          {/* Inline OTP error */}
+          <InlineError message={otpError} marginTop={6} />
+
           {/* Resend Section */}
-          <View className="mb-6 flex-row items-center justify-center">
+          <View className="mt-6 mb-6 flex-row items-center justify-center">
             <Text className="text-sm text-gray-600">
               {canResend ? "Didn't receive? " : `Resend in ${timeLeft}s `}
             </Text>
             {canResend && (
-              <TouchableOpacity
-                onPress={handleResendOTP}
-                disabled={isVerifying}
-              >
+              <TouchableOpacity onPress={handleResendOTP} disabled={isVerifying}>
                 <Text className="text-sm font-semibold text-blue-600">
                   Resend OTP
                 </Text>
@@ -256,14 +210,13 @@ export default function VerifyNumberScreen() {
             )}
           </View>
 
-          {/* Manual Verify Button (optional) */}
+          {/* Manual Verify Button */}
           {isCodeComplete && (
             <TouchableOpacity
               onPress={verifyOTP}
               disabled={isVerifying}
-              className={`rounded-lg py-4 ${
-                isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
-              }`}
+              className={`rounded-lg py-4 ${isVerifying ? "bg-gray-400" : "bg-[#59C36A]"
+                }`}
             >
               <Text className="text-center font-semibold text-white">
                 {isVerifying ? "Verifying..." : "Verify Code"}
