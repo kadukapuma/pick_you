@@ -36,6 +36,7 @@ import Benefits from "../Benefits";
 import RideTypes from "../RideTypes";
 import Download from "../Download";
 import ForDrivers from "../ForDrivers";
+import Preloader from "./Preloader";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LandingLayout = () => {
@@ -48,6 +49,23 @@ const LandingLayout = () => {
   const navigate = useNavigate();
   const isHomePage = location.pathname === "/";
   const [activeSection, setActiveSection] = useState("home");
+  const [showPreloader, setShowPreloader] = useState(true);
+  const [isPreloaderFading, setIsPreloaderFading] = useState(false);
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ─── Effect: Preloader Timeout ──────────────────────────────────────────────
+  useEffect(() => {
+    // Only show preloader on initial home page load
+    if (isHomePage) {
+      const timer = setTimeout(() => {
+        setIsPreloaderFading(true);
+        setTimeout(() => setShowPreloader(false), 500); // Wait for fade out animation
+      }, 2500); // Play animation for 2.5 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setShowPreloader(false);
+    }
+  }, []);
   // ───────────────────────────────────────────────────────────────────────────
 
   // ─── Refs: Section Anchors for Smooth Scroll Navigation ───────────────────
@@ -184,6 +202,9 @@ const LandingLayout = () => {
 
   return (
     <div className="landing-shell">
+      {/* ── Preloader ───────────────────────────────────────────────────────── */}
+      {showPreloader && <Preloader isFading={isPreloaderFading} />}
+
       {/* ── Scroll Progress Bar ─────────────────────────────────────────────── */}
       <div
         className="scroll-progress"
