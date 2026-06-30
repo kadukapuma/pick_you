@@ -9,20 +9,31 @@ import {
   FaAward,
 } from "react-icons/fa";
 import DriverDownload from "./DriverDownload";
+import happyfamily from "../../../assets/happyfamily.png";
+import yourshedule from "../../../assets/yourshedule.png";
+
+// Benefit Images
+import earnMoreTrip from "../../../assets/earnmoretrip.png";
+import flexibleSchedule from "../../../assets/flexibleshedule.png";
+import instantPay from "../../../assets/instantpay.png";
+import driverProtection from "../../../assets/support24.png";
+import smartAnalytics from "../../../assets/smartanalytics.png";
+import driverRewards from "../../../assets/driverrewards.png";
+import happyearning from "../../../assets/happyearning.png";
 
 const heroSlides = [
   {
-    img: "https://images.unsplash.com/photo-1549491745-f0ea83b7aa94?w=1600&h=900&fit=crop&auto=format", // Placeholder for driver/road
+    img: yourshedule, // Placeholder for driver/road
     headline: "Your Vehicle. Your Schedule.",
     sub: "Join the most reliable driver network in Jaffna and take control of your time.",
   },
   {
-    img: "https://images.unsplash.com/photo-1580273916550-e323be2ae537?w=1600&h=900&fit=crop&auto=format", // Placeholder for car/earning
+    img: happyearning, // Placeholder for car/earning
     headline: "Keep More of What You Earn",
     sub: "Industry-leading fare splits. No hidden fees. Instant cash out any time.",
   },
   {
-    img: "https://images.unsplash.com/photo-1516738901171-8eb4fc13bd20?w=1600&h=900&fit=crop&auto=format", // Placeholder for freedom/map
+    img: happyfamily, // Placeholder for freedom/map
     headline: "Drive for Your Future",
     sub: "Professional support, insurance coverage, and constant ride requests.",
   },
@@ -62,6 +73,7 @@ const driverBenefits = [
     bg: "#dcfce7",
     title: "Earn More Per Trip",
     desc: "Keep up to 85% of every fare. Transparent pay structure with no hidden deductions ever.",
+    image: earnMoreTrip,
   },
   {
     icon: <FaCalendarAlt size={22} />,
@@ -69,6 +81,7 @@ const driverBenefits = [
     bg: "#e0f2fe",
     title: "Flexible Schedule",
     desc: "Drive when you want — morning, evening, weekends. You're the boss of your own time.",
+    image: flexibleSchedule,
   },
   {
     icon: <FaBolt size={22} />,
@@ -76,6 +89,7 @@ const driverBenefits = [
     bg: "#fef3c7",
     title: "Instant Pay",
     desc: "Cash out earnings any time, any day. No waiting — money in your account within minutes.",
+    image: instantPay,
   },
   {
     icon: <FaShieldAlt size={22} />,
@@ -83,6 +97,7 @@ const driverBenefits = [
     bg: "#ede9fe",
     title: "Driver Protection",
     desc: "Full insurance coverage on every trip plus 24/7 emergency support when you need it most.",
+    image: driverProtection,
   },
   {
     icon: <FaChartBar size={22} />,
@@ -90,6 +105,7 @@ const driverBenefits = [
     bg: "#fee2e2",
     title: "Smart Analytics",
     desc: "Know your best hours, busiest routes, and peak earning windows with built-in insights.",
+    image: smartAnalytics,
   },
   {
     icon: <FaAward size={22} />,
@@ -97,6 +113,7 @@ const driverBenefits = [
     bg: "#f0fdf4",
     title: "Driver Rewards",
     desc: "Hit weekly trip targets and unlock bonuses, fuel discounts, and exclusive driver perks.",
+    image: driverRewards,
   },
 ];
 
@@ -141,7 +158,7 @@ export default function ForDrivers() {
             {heroSlides[slideIndex].sub}
           </p>
           <div className="hero-actions">
-            <button className="hero-btn primary">Register to Drive</button>
+            <a href="#driver-download" className="hero-btn primary" style={{ textDecoration: 'none', display: 'inline-block' }}>Register to Drive</a>
             <button className="hero-btn secondary">View Requirements</button>
           </div>
         </div>
@@ -194,12 +211,12 @@ export default function ForDrivers() {
             </h3>
             <div className="driver-benefits-grid">
               {driverBenefits.map((b, i) => (
-                <div key={i} className="driver-benefit-card">
-                  <div
-                    className="driver-icon-box"
-                    style={{ backgroundColor: b.bg, color: b.color }}
-                  >
-                    {b.icon}
+                <div key={i} className="driver-benefit-card enhanced">
+                  <div className="benefit-card-visual">
+                    <img src={b.image} alt={b.title} className="benefit-image" />
+                    <div className="benefit-icon-overlay" style={{ backgroundColor: b.bg, color: b.color }}>
+                      {b.icon}
+                    </div>
                   </div>
                   <div className="driver-benefit-content">
                     <h4 className="driver-benefit-title">{b.title}</h4>

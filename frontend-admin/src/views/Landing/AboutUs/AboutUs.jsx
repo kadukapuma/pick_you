@@ -1,24 +1,28 @@
 import "./AboutUs.css";
+import drivegreen from "../../../assets/drivegreen.png";
+import saferide from "../../../assets/saferide.png";
+import profitable from "../../../assets/profitable.png";
+import fastarrive from "../../../assets/fastarrive.png";
 
 const AboutUs = () => {
   const features = [
     {
-      icon: "🚗",
+      image: saferide,
       title: "Safe Rides",
       description: "Fully vetted drivers with background checks",
     },
     {
-      icon: "⚡",
+      image: fastarrive, // using as placeholder for now
       title: "Fast Pickup",
       description: "Average wait time under 5 minutes",
     },
     {
-      icon: "💰",
+      image: profitable, // using as placeholder for now
       title: "Best Prices",
       description: "Competitive rates with no surge pricing",
     },
     {
-      icon: "🌍",
+      image: drivegreen, // using as placeholder for now
       title: "Eco-Friendly",
       description: "Electric and hybrid vehicle options for sustainable travel",
     },
@@ -47,9 +51,12 @@ const AboutUs = () => {
       <div className="features-grid">
         {features.map((feature, index) => (
           <div key={index} className="feature-card">
-            <div className="feature-icon">{feature.icon}</div>
-            <h3>{feature.title}</h3>
-            <p>{feature.description}</p>
+            <img src={feature.image} alt={feature.title} className="feature-background" />
+            <div className="feature-overlay"></div>
+            <div className="feature-content-modern">
+              <h3>{feature.title}</h3>
+              <p>{feature.description}</p>
+            </div>
           </div>
         ))}
       </div>

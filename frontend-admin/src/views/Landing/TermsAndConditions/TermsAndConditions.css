@@ -1,4 +1,4 @@
-/* === PickU Legal Document Styles === */
+/* === PickU Terms & Conditions Styles === */
 /* Typography: a quiet serif for headings (document authority),
    a neutral sans for body text and UI chrome. */
 
@@ -241,4 +241,4 @@
     .legal-toc {
         grid-template-columns: 1fr;
     }
-}   
+}
