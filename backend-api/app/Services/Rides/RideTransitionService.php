@@ -46,6 +46,7 @@ class RideTransitionService
     {
         return match ($status) {
             RideStateMachine::ACCEPTED => ['accepted_at' => now()],
+            RideStateMachine::ARRIVED => ['arrived_at' => now()],
             RideStateMachine::STARTED => ['started_at' => now()],
             RideStateMachine::COMPLETED => ['completed_at' => now()],
             RideStateMachine::CANCELLED => ['cancelled_at' => now()],

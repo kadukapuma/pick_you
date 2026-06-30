@@ -18,6 +18,7 @@ class StoreDriverLocationRequest extends FormRequest
         return [
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
+            'ride_id' => ['nullable', 'integer', 'exists:rides,id'],
             'heading' => ['nullable', 'numeric', 'between:0,360'],
             'speed' => ['nullable', 'numeric', 'min:0', 'max:150'],
             'accuracy' => ['nullable', 'numeric', 'min:0', 'max:5000'],
@@ -25,7 +26,7 @@ class StoreDriverLocationRequest extends FormRequest
                 'nullable',
                 'date',
                 'before_or_equal:now',
-                'after_or_equal:'.now()->subMinutes(2)->toIso8601String(),
+                'after_or_equal:'.now()->subHours(24)->toIso8601String(),
             ],
             'sequence' => ['nullable', 'integer', 'min:0'],
         ];

@@ -6,13 +6,23 @@ import api from "./api";
 
 const BACKGROUND_TASK = "active-ride-location";
 const ACTIVE_RIDE_KEY = "activeRideLocationId";
-const PENDING_LOCATION_KEY = "pendingDriverLocation";
+const PENDING_LOCATION_KEY = "pendingDriverLocations";
+const LEGACY_PENDING_LOCATION_KEY = "pendingDriverLocation";
+const LOCATION_SEQUENCE_KEY = "driverLocationSequence";
 
 let watchSubscription = null;
 let heartbeatTimer = null;
 let activeRideId = null;
+let locationSequence = Date.now();
 
-const buildPayload = (coords, rideId = activeRideId) => ({
+const nextSequence = async () => {
+  const stored = Number(await AsyncStorage.getItem(LOCATION_SEQUENCE_KEY));
+  locationSequence = Math.max(locationSequence, Number.isFinite(stored) ? stored : 0) + 1;
+  await AsyncStorage.setItem(LOCATION_SEQUENCE_KEY, String(locationSequence));
+  return locationSequence;
+};
+
+const buildPayload = async (coords, rideId = activeRideId) => ({
   ride_id: rideId || undefined,
   latitude: coords.latitude,
   longitude: coords.longitude,
@@ -20,28 +30,57 @@ const buildPayload = (coords, rideId = activeRideId) => ({
   speed: Math.max(coords.speed ?? 0, 0),
   accuracy: coords.accuracy ?? null,
   recorded_at: new Date().toISOString(),
-  sequence: Date.now(),
+  sequence: await nextSequence(),
 });
+
+const readPendingQueue = async () => {
+  const current = await AsyncStorage.getItem(PENDING_LOCATION_KEY);
+  const legacy = await AsyncStorage.getItem(LEGACY_PENDING_LOCATION_KEY);
+  const queue = current ? JSON.parse(current) : [];
+
+  if (legacy) {
+    queue.push(JSON.parse(legacy));
+    await AsyncStorage.removeItem(LEGACY_PENDING_LOCATION_KEY);
+  }
+
+  return Array.isArray(queue) ? queue : [];
+};
+
+const writePendingQueue = async (queue) => {
+  if (queue.length === 0) {
+    await AsyncStorage.removeItem(PENDING_LOCATION_KEY);
+    return;
+  }
+
+  await AsyncStorage.setItem(PENDING_LOCATION_KEY, JSON.stringify(queue.slice(-500)));
+};
+
+const enqueuePayload = async (payload) => {
+  const queue = await readPendingQueue();
+  queue.push(payload);
+  await writePendingQueue(queue);
+};
 
 const publishPayload = async (payload) => {
   const network = await NetInfo.fetch();
 
   if (!network.isConnected) {
-    await AsyncStorage.setItem(PENDING_LOCATION_KEY, JSON.stringify(payload));
+    await enqueuePayload(payload);
     return;
   }
 
   try {
-    const pending = await AsyncStorage.getItem(PENDING_LOCATION_KEY);
-    if (pending) {
-      const pendingResponse = await api.post("/driver-locations", JSON.parse(pending));
+    const pendingQueue = await readPendingQueue();
+    for (const pendingPayload of pendingQueue) {
+      const pendingResponse = await api.post("/driver-locations", pendingPayload);
       await handleServerResponse(pendingResponse);
-      await AsyncStorage.removeItem(PENDING_LOCATION_KEY);
     }
+    await writePendingQueue([]);
+
     const response = await api.post("/driver-locations", payload);
     await handleServerResponse(response);
   } catch (error) {
-    await AsyncStorage.setItem(PENDING_LOCATION_KEY, JSON.stringify(payload));
+    await enqueuePayload(payload);
     if (__DEV__) console.log("driverLocationSync:", error?.message || error);
   }
 };
@@ -55,7 +94,7 @@ const handleServerResponse = async (response) => {
 
 const postLocation = async (coords, rideId = activeRideId) => {
   if (coords?.latitude == null || coords?.longitude == null) return;
-  await publishPayload(buildPayload(coords, rideId));
+  await publishPayload(await buildPayload(coords, rideId));
 };
 
 TaskManager.defineTask(BACKGROUND_TASK, async ({ data, error }) => {

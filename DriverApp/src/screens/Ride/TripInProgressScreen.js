@@ -40,6 +40,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const ride = route?.params?.ride || {};
   const customerName = ride?.customerName || "John David";
   const destinationLabel = ride?.drop || "Destination";
+  const summaryDistanceKm = Number(
+    ride?.actual_distance_km || ride?.estimated_distance_km || ride?.distance_km || 0,
+  );
+  const summaryFare = Number(ride?.final_fare || ride?.estimated_fare || 0);
   const dropCoord = getDropCoordinate(ride);
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
@@ -238,7 +242,10 @@ const TripInProgressScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.summaryMetaContainer}>
-            <Text style={styles.summaryMetaText}>6.2 km • Rs. 850</Text>
+            <Text style={styles.summaryMetaText}>
+              {summaryDistanceKm > 0 ? `${summaryDistanceKm.toFixed(1)} km` : "Distance pending"} • Rs.{" "}
+              {summaryFare > 0 ? summaryFare.toFixed(2) : "0.00"}
+            </Text>
             <Text style={styles.summaryDestinationName} numberOfLines={1}>
               To: {destinationLabel}
             </Text>

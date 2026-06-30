@@ -31,6 +31,11 @@ class Driver extends Model
         return $this->hasMany(Ride::class);
     }
 
+    public function ratings()
+    {
+        return $this->hasMany(Rating::class);
+    }
+
     public function credential()
     {
         return $this->hasOne(DriverCredential::class);

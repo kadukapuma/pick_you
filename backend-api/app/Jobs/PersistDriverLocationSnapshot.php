@@ -2,9 +2,11 @@
 
 namespace App\Jobs;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 class PersistDriverLocationSnapshot implements ShouldQueue
 {
@@ -16,21 +18,59 @@ class PersistDriverLocationSnapshot implements ShouldQueue
         public readonly float $longitude,
         public readonly float $heading,
         public readonly float $speed,
+        public readonly ?int $rideId = null,
+        public readonly ?string $recordedAt = null,
+        public readonly ?int $sequence = null,
     ) {
         $this->onQueue(config('location.queue', 'locations'));
     }
 
     public function handle(): void
     {
-        DB::statement('
-            INSERT INTO driver_locations (driver_id, location, location_geog, heading, speed, created_at, updated_at)
-            VALUES (?, point(?, ?), ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography, ?, ?, NOW(), NOW())
-            ON CONFLICT (driver_id)
-            DO UPDATE SET location = EXCLUDED.location, location_geog = EXCLUDED.location_geog,
-                heading = EXCLUDED.heading, speed = EXCLUDED.speed, updated_at = NOW()
-        ', [
-            $this->driverId, $this->longitude, $this->latitude, $this->longitude,
-            $this->latitude, $this->heading, $this->speed,
+        $recordedAt = $this->recordedAt
+            ? CarbonImmutable::parse($this->recordedAt)->utc()
+            : CarbonImmutable::now('UTC');
+        $now = CarbonImmutable::now('UTC');
+
+        $latestPayload = $this->withSpatialColumns([
+            'driver_id' => $this->driverId,
+            'latitude' => $this->latitude,
+            'longitude' => $this->longitude,
+            'heading' => $this->heading,
+            'speed' => $this->speed,
+            'recorded_at' => $recordedAt,
+            'sequence' => $this->sequence,
+            'updated_at' => $now,
         ]);
+
+        $updated = DB::table('driver_locations')
+            ->where('driver_id', $this->driverId)
+            ->update($latestPayload);
+
+        if ($updated === 0) {
+            DB::table('driver_locations')->insert([
+                ...$latestPayload,
+                'created_at' => $now,
+            ]);
+        }
+
+        if ($this->rideId === null) {
+            return;
+        }
+    }
+
+    private function withSpatialColumns(array $payload): array
+    {
+        if (Schema::hasColumn('driver_locations', 'location')) {
+            $payload['location'] = DB::raw("point({$this->longitude}, {$this->latitude})");
+        }
+
+        if (Schema::hasColumn('driver_locations', 'location_geog')) {
+            $payload['location_geog'] = DB::raw(
+                "ST_SetSRID(ST_MakePoint({$this->longitude}, {$this->latitude}), 4326)::geography"
+            );
+        }
+
+        return $payload;
     }
 }

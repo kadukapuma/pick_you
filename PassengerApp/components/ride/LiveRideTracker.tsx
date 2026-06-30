@@ -5,6 +5,15 @@ import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import RideMap from "./RideMap";
 
+const toNumber = (value: any): number => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+};
+
+const money = (value: any): string => toNumber(value).toFixed(2);
+
+const km = (value: any): string => toNumber(value).toFixed(2);
+
 export default function LiveRideTracker({ rideData, driverLocation, trackingStatus }: any) {
     const [followVehicle, setFollowVehicle] = React.useState(true);
     const driverName = [
@@ -17,12 +26,16 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
         "Vehicle";
     const rideStatus = String(rideData.status || "").toUpperCase();
     const paymentStatus = String(rideData.payment?.payment_status || "").toUpperCase();
-    const fareAmount =
-        rideData.final_fare ||
-        rideData.estimated_fare ||
-        rideData.payment?.amount ||
-        rideData.distance_km;
+    const estimatedFare = toNumber(rideData.estimated_fare);
+    const finalFare = toNumber(rideData.final_fare);
+    const fareAmount = finalFare || estimatedFare || toNumber(rideData.payment?.amount);
+    const extraDistanceKm = toNumber(rideData.extra_distance_km);
+    const extraDistanceFare = toNumber(rideData.extra_distance_fare);
+    const waitingMinutes = toNumber(rideData.waiting_minutes);
+    const chargeableWaitingMinutes = toNumber(rideData.chargeable_waiting_minutes);
+    const waitingFare = toNumber(rideData.waiting_fare);
     const showPaymentDetails = rideStatus === "COMPLETED";
+    const hasFareExtras = extraDistanceFare > 0 || waitingFare > 0;
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
@@ -125,10 +138,48 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                         </Text>
                         {showPaymentDetails ? (
                             <View style={{ marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: "#E2E8F0" }}>
-                                <Text style={{ fontWeight: "800", color: "#0F172A", fontSize: 13 }}>
-                                    Fare: Rs. {fareAmount}
-                                </Text>
-                                <Text style={{ color: "#64748B", fontSize: 12, marginTop: 2 }}>
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
+                                    <Text style={{ fontWeight: "700", color: "#64748B", fontSize: 12 }}>
+                                        Estimated fare
+                                    </Text>
+                                    <Text style={{ fontWeight: "800", color: "#0F172A", fontSize: 12 }}>
+                                        Rs. {money(estimatedFare)}
+                                    </Text>
+                                </View>
+                                {extraDistanceFare > 0 ? (
+                                    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
+                                        <Text style={{ fontWeight: "700", color: "#64748B", fontSize: 12 }}>
+                                            Extra distance ({km(extraDistanceKm)} km)
+                                        </Text>
+                                        <Text style={{ fontWeight: "800", color: "#0F172A", fontSize: 12 }}>
+                                            Rs. {money(extraDistanceFare)}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                                {waitingFare > 0 ? (
+                                    <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 4 }}>
+                                        <Text style={{ fontWeight: "700", color: "#64748B", fontSize: 12 }}>
+                                            Waiting ({chargeableWaitingMinutes.toFixed(0)} min)
+                                        </Text>
+                                        <Text style={{ fontWeight: "800", color: "#0F172A", fontSize: 12 }}>
+                                            Rs. {money(waitingFare)}
+                                        </Text>
+                                    </View>
+                                ) : null}
+                                <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12, marginTop: 6, paddingTop: 6, borderTopWidth: hasFareExtras ? 1 : 0, borderTopColor: "#E2E8F0" }}>
+                                    <Text style={{ fontWeight: "900", color: "#0F172A", fontSize: 13 }}>
+                                        Final fare
+                                    </Text>
+                                    <Text style={{ fontWeight: "900", color: "#0F172A", fontSize: 13 }}>
+                                        Rs. {money(fareAmount)}
+                                    </Text>
+                                </View>
+                                {waitingMinutes > 0 && waitingFare === 0 ? (
+                                    <Text style={{ color: "#64748B", fontSize: 11, marginTop: 3 }}>
+                                        Waiting time was within the free allowance.
+                                    </Text>
+                                ) : null}
+                                <Text style={{ color: "#64748B", fontSize: 12, marginTop: 6 }}>
                                     Payment: Cash • {paymentStatus === "COMPLETED" ? "Collected" : "Pending collection"}
                                 </Text>
                             </View>

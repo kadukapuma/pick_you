@@ -34,6 +34,7 @@ class DriverMatchingQuery
             INNER JOIN drivers AS d ON dl.driver_id = d.id
             WHERE d.availability = 1
               AND d.status = 'approved'
+              AND dl.ride_id IS NULL
               AND dl.location_geog IS NOT NULL
               AND ST_DWithin(dl.location_geog, {$pickupPoint}, ?)
               AND EXISTS (
