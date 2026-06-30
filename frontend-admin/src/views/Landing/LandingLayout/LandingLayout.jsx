@@ -360,9 +360,15 @@ const LandingLayout = () => {
           </div>
         </div>
 
-        {/* Footer Bottom: Copyright & Payment Method Icons */}
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} PickYou. All rights reserved.</p>
+          <div className="footer-bottom-left">
+            <p>&copy; {new Date().getFullYear()} PickYou. All rights reserved.</p>
+            <div className="legal-links">
+              <Link to="/privacy-policy" onClick={() => window.scrollTo(0, 0)}>Privacy Policy</Link>
+              <span className="legal-separator">|</span>
+              <Link to="/terms-and-conditions" onClick={() => window.scrollTo(0, 0)}>Terms &amp; Conditions</Link>
+            </div>
+          </div>
           <div className="footer-actions">
             <div className="payment-methods">
               <FaCreditCard className="pay-icon" title="Credit Card" />

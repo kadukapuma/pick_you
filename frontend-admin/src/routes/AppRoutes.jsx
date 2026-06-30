@@ -7,6 +7,8 @@ import Home from '../views/Landing/Home'
 import AboutUs from '../views/Landing/AboutUs'
 import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
+import PrivacyPolicy from '../views/Landing/PrivacyPolicy/PrivacyPolicy'
+import TermsAndConditions from '../views/Landing/TermsAndConditions/TermsAndConditions'
 
 // Admin Views
 import AdminLayout from '../views/AdminLayout'
@@ -59,6 +61,8 @@ const AppRoutes = () => {
                 {/* <Route index element={<Home />} /> */}
                 <Route path="about" element={<AboutUs />} />
                 <Route path="contact" element={<ContactUs />} />
+                <Route path="privacy-policy" element={<PrivacyPolicy />} />
+                <Route path="terms-and-conditions" element={<TermsAndConditions />} />
             </Route>
 
             {/* Hidden Admin Portal */}
