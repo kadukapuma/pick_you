@@ -175,6 +175,35 @@ const LandingLayout = () => {
       }, 500); // Wait for page content to settle
     }
   }, [location.hash, location.pathname]);
+
+  // ─── Global Scroll Reveal Animation Effect ────────────────────────────────
+  useEffect(() => {
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("reveal-active");
+            // Optional: comment out the next line if you want the animation to repeat when scrolling up/down
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
+    );
+
+    // Select major containers to animate
+    const revealTargets = document.querySelectorAll("section, .about-container, .features-grid, .map-text-column, .feature-card, .footer-section, .about-info-card, .benefits-container-inner > div");
+
+    revealTargets.forEach((el) => {
+      // Add base class if not already present
+      if (!el.classList.contains("scroll-reveal")) {
+        el.classList.add("scroll-reveal");
+      }
+      revealObserver.observe(el);
+    });
+
+    return () => revealObserver.disconnect();
+  }, [location.pathname]);
   // ───────────────────────────────────────────────────────────────────────────
 
   // ─── Helpers: Navigation & Scroll Utilities ────────────────────────────────

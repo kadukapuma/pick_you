@@ -8,6 +8,20 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ── Global Scroll Reveal Animation ───────────────────────────────────────── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+    transform 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.reveal-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* ── Base Shell: Full-height flex column, font & color defaults ──────────────── */
 .landing-shell {
   display: flex;

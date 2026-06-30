@@ -1,7 +1,7 @@
 .about-container {
   padding: 6rem 5% 4rem;
-  background: #fdfaff;
-  /* Light lavender tint from image */
+  background: #f4f7fa;
+  /* Adjusted to a slightly more apparent light gray-blue background */
 }
 
 /* Hero Section */
@@ -51,84 +51,43 @@
   color: #64748b;
 }
 
-/* Features Grid */
-.features-grid {
+/* About Info Cards Grid */
+.about-cards-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 2rem;
-  margin-bottom: 2rem;
-  /* Reduced from 4rem */
+  margin-bottom: 4rem;
+  max-width: 1200px;
+  margin-left: auto;
+  margin-right: auto;
 }
 
-.feature-card {
-  position: relative;
-  height: 350px;
+.about-info-card {
+  background: white;
+  padding: 2.5rem;
   border-radius: 16px;
-  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border-top: 4px solid #08d612;
   transition: transform 0.4s ease, box-shadow 0.4s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
   text-align: left;
-  border: none;
 }
 
-.feature-background {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.6s ease;
-  z-index: 0;
-}
-
-.feature-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.3) 60%, transparent 100%);
-  transition: background 0.4s ease;
-  z-index: 1;
-}
-
-.feature-content-modern {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  padding: 24px;
-  color: white;
-  z-index: 2;
-}
-
-.feature-content-modern h3 {
-  font-size: 1.4rem;
-  margin-bottom: 8px;
-  color: white;
-  font-weight: 700;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
-}
-
-.feature-content-modern p {
-  color: rgba(255, 255, 255, 0.85);
-  font-size: 0.95rem;
-  line-height: 1.5;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-}
-
-.feature-card:hover {
+.about-info-card:hover {
   transform: translateY(-8px);
   box-shadow: 0 15px 30px rgba(8, 214, 18, 0.15);
 }
 
-.feature-card:hover .feature-background {
-  transform: scale(1.1);
+.about-info-card h3 {
+  font-size: 1.5rem;
+  color: #1a1f2b;
+  margin-bottom: 1rem;
+  font-weight: 700;
 }
 
-.feature-card:hover .feature-overlay {
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.95) 0%, rgba(0, 0, 0, 0.5) 60%, rgba(0, 0, 0, 0.1) 100%);
+.about-info-card p {
+  color: #64748b;
+  line-height: 1.7;
+  font-size: 1.05rem;
 }
 
 

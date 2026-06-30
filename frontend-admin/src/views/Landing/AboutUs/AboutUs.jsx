@@ -1,31 +1,27 @@
+import React from 'react';
 import "./AboutUs.css";
-import drivegreen from "../../../assets/drivegreen.png";
-import saferide from "../../../assets/saferide.png";
-import profitable from "../../../assets/profitable.png";
-import fastarrive from "../../../assets/fastarrive.png";
 
 const AboutUs = () => {
-  const features = [
+  const aboutItems = [
     {
-      image: saferide,
-      title: "Safe Rides",
-      description: "Fully vetted drivers with background checks",
+      title: "Who We Are",
+      description: "PickYou started with a simple idea: to make urban transportation more accessible, reliable, and fair for everyone. We believe in empowering both riders and drivers through innovative technology and a commitment to transparency.",
     },
     {
-      image: fastarrive, // using as placeholder for now
-      title: "Fast Pickup",
-      description: "Average wait time under 5 minutes",
+      title: "Our Vision",
+      description: "To build a future where mobility is seamless, sustainable, and entirely focused on the needs of the community. We're continuously working to reduce environmental impact while maximizing efficiency.",
     },
     {
-      image: profitable, // using as placeholder for now
-      title: "Best Prices",
-      description: "Competitive rates with no surge pricing",
-    },
-    {
-      image: drivegreen, // using as placeholder for now
-      title: "Eco-Friendly",
-      description: "Electric and hybrid vehicle options for sustainable travel",
-    },
+      title: "Core Values",
+      description: "Integrity, safety, and community drive everything we do. We prioritize the well-being of our users by ensuring rigorous safety standards and fostering a culture of mutual respect on our platform.",
+    }
+  ];
+
+  const statsData = [
+    { number: "1M+", label: "Rides Completed" },
+    { number: "50k+", label: "Registered Drivers" },
+    { number: "25+", label: "Cities Covered" },
+    { number: "4.9", label: "Average Rating" },
   ];
 
   return (
@@ -43,20 +39,16 @@ const AboutUs = () => {
         <h2>Our Mission</h2>
         <p>
           To provide seamless, safe, and sustainable transportation that
-          connects people to places they love.
+          connects people to places they love, while creating meaningful opportunities for our drivers.
         </p>
       </div>
 
-      {/* Features Grid */}
-      <div className="features-grid">
-        {features.map((feature, index) => (
-          <div key={index} className="feature-card">
-            <img src={feature.image} alt={feature.title} className="feature-background" />
-            <div className="feature-overlay"></div>
-            <div className="feature-content-modern">
-              <h3>{feature.title}</h3>
-              <p>{feature.description}</p>
-            </div>
+      {/* Info Cards Grid */}
+      <div className="about-cards-container">
+        {aboutItems.map((item, index) => (
+          <div key={index} className="about-info-card">
+            <h3>{item.title}</h3>
+            <p>{item.description}</p>
           </div>
         ))}
       </div>
