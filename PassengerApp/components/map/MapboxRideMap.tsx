@@ -1,5 +1,5 @@
 import MapboxGL from "@rnmapbox/maps";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
@@ -69,6 +69,59 @@ const buildBounds = (coordinates: MapCoordinate[]) => {
   };
 };
 
+const CAMERA_UPDATE_INTERVAL_MS = 250;
+const FOLLOW_CAMERA_ANIMATION_MS = 350;
+
+const useFollowCameraLocation = (
+  location: MapCoordinate | null | undefined,
+  enabled: boolean,
+) => {
+  const [cameraLocation, setCameraLocation] = useState(location);
+  const lastUpdateRef = useRef(0);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestLocationRef = useRef(location);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !location) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+      latestLocationRef.current = location;
+      setCameraLocation(location);
+      return;
+    }
+
+    latestLocationRef.current = location;
+    const now = Date.now();
+    const elapsed = now - lastUpdateRef.current;
+    const publish = () => {
+      lastUpdateRef.current = Date.now();
+      timeoutRef.current = null;
+      setCameraLocation(latestLocationRef.current);
+    };
+
+    if (elapsed >= CAMERA_UPDATE_INTERVAL_MS) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      publish();
+      return;
+    }
+
+    if (!timeoutRef.current) {
+      timeoutRef.current = setTimeout(
+        publish,
+        CAMERA_UPDATE_INTERVAL_MS - elapsed,
+      );
+    }
+  }, [enabled, location]);
+
+  return cameraLocation;
+};
+
 function DotMarker({ color }: { color: string }) {
   return (
     <View style={[styles.dotOuter, { backgroundColor: `${color}33` }]}>
@@ -77,12 +130,23 @@ function DotMarker({ color }: { color: string }) {
   );
 }
 
-function DriverMarker({ heading = 0 }: { heading?: number }) {
+function DriverMarker({
+  heading = 0,
+  fixedForward = false,
+}: {
+  heading?: number;
+  fixedForward?: boolean;
+}) {
+  const visualHeading = fixedForward ? 0 : heading;
+
   return (
     <View style={styles.driverMarker}>
       <Image
         source={require("../../assets/images/vehicles/car3d.png")}
-        style={[styles.driverVehicleImage, { transform: [{ rotate: `${heading - 90}deg` }] }]}
+        style={[
+          styles.driverVehicleImage,
+          { transform: [{ rotate: `${visualHeading - 90}deg` }] },
+        ]}
         resizeMode="contain"
       />
     </View>
@@ -106,6 +170,10 @@ export default function MapboxRideMap({
 }: Props) {
   const { location: smoothDriverLocation } = useSmoothLocation(driverLocation);
   const renderedDriverLocation = smoothDriverLocation ?? driverLocation;
+  const cameraDriverLocation = useFollowCameraLocation(
+    renderedDriverLocation,
+    followVehicle,
+  );
   const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
     () =>
@@ -156,16 +224,20 @@ export default function MapboxRideMap({
       <MapboxGL.Camera
         bounds={!followVehicle && !cameraIsFree ? bounds || undefined : undefined}
         centerCoordinate={
-          followVehicle && renderedDriverLocation
-            ? toPosition(renderedDriverLocation)
+          followVehicle && (cameraDriverLocation ?? renderedDriverLocation)
+            ? toPosition((cameraDriverLocation ?? renderedDriverLocation) as MapCoordinate)
             : !cameraIsFree && !bounds
               ? toPosition(pickup)
               : undefined
         }
         zoomLevel={followVehicle ? followZoom : !cameraIsFree && !bounds ? 14 : undefined}
         pitch={followVehicle ? followPitch : cameraIsFree ? undefined : 0}
-        heading={followVehicle ? renderedDriverLocation?.heading ?? 0 : cameraIsFree ? undefined : 0}
-        animationDuration={followVehicle ? 0 : 500}
+        heading={
+          followVehicle
+            ? cameraDriverLocation?.heading ?? renderedDriverLocation?.heading ?? 0
+            : cameraIsFree ? undefined : 0
+        }
+        animationDuration={followVehicle ? FOLLOW_CAMERA_ANIMATION_MS : 500}
       />
 
       {routeShape ? (
@@ -194,7 +266,10 @@ export default function MapboxRideMap({
 
       {renderedDriverLocation ? (
         <MapboxGL.MarkerView coordinate={toPosition(renderedDriverLocation)}>
-          <DriverMarker heading={renderedDriverLocation.heading} />
+          <DriverMarker
+            heading={renderedDriverLocation.heading}
+            fixedForward={followVehicle}
+          />
         </MapboxGL.MarkerView>
       ) : null}
     </MapboxGL.MapView>

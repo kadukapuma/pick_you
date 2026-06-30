@@ -5,6 +5,7 @@ const MAX_ACCURACY_METERS = 100;
 const MAX_PLAUSIBLE_SPEED_MPS = 60;
 const SNAP_AFTER_MS = 20000;
 const STALE_AFTER_MS = 30000;
+const MIN_GPS_HEADING_SPEED_MPS = 3;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const toRadians = (value) => (value * Math.PI) / 180;
@@ -195,16 +196,22 @@ export function useSmoothLocation(rawLocation) {
       return;
     }
 
-    const rawHeading =
-      Number.isFinite(sample.heading) && sample.heading >= 0 && sample.speed >= 1.5
-        ? sample.heading % 360
-        : distance >= 4
-          ? bearingBetween(previous, sample)
-          : previous.heading;
+    const movingBearing = distance >= 4 ? bearingBetween(previous, sample) : previous.heading;
+    const gpsHeadingIsReliable =
+      Number.isFinite(sample.heading) &&
+      sample.heading >= 0 &&
+      sample.speed >= MIN_GPS_HEADING_SPEED_MPS;
+    const rawHeading = gpsHeadingIsReliable ? sample.heading % 360 : movingBearing;
+    const headingWeight = gpsHeadingIsReliable ? 0.45 : 0.35;
+
     const target = {
       latitude: previous.latitude + (sample.latitude - previous.latitude) * 0.75,
       longitude: previous.longitude + (sample.longitude - previous.longitude) * 0.75,
-      heading: (previous.heading + shortestHeadingDelta(previous.heading, rawHeading) + 360) % 360,
+      heading:
+        (previous.heading +
+          shortestHeadingDelta(previous.heading, rawHeading) * headingWeight +
+          360) %
+        360,
     };
     acceptedRef.current = { ...sample, ...target };
 

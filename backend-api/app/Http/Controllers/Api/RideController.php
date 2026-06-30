@@ -6,6 +6,7 @@ use App\Events\RideStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\FareConfig;
 use App\Models\Ride;
+use App\Services\Fares\FareCalculationService;
 use App\Services\RideMatching\RideMatchingRedis;
 use App\Services\RideMatching\RideMatchingService;
 use App\Services\Rides\RideStateMachine;
@@ -25,6 +26,7 @@ class RideController extends Controller
         private readonly RideMatchingService $rideMatching,
         private readonly RideMatchingRedis $rideMatchingRedis,
         private readonly RideTransitionService $rideTransition,
+        private readonly FareCalculationService $fares,
     ) {}
 
     /**
@@ -124,6 +126,7 @@ class RideController extends Controller
             'drop_lat' => 'required|numeric',
             'drop_lng' => 'required|numeric',
             'distance_km' => 'required|numeric',
+            'estimated_duration_minutes' => 'nullable|numeric|min:0',
         ]);
 
         if ($validator->fails()) {
@@ -137,12 +140,19 @@ class RideController extends Controller
             return $this->error('Selected vehicle type is currently unavailable', 400);
         }
 
-        $estimatedFare = $fareConfig->base_fare + ($request->distance_km * $fareConfig->per_km_rate);
-
         $pickupLng = (float) $request->pickup_lng;
         $pickupLat = (float) $request->pickup_lat;
         $dropLng = (float) $request->drop_lng;
         $dropLat = (float) $request->drop_lat;
+        $fareEstimate = $this->fares->estimate(
+            $fareConfig,
+            (float) $request->distance_km,
+            (float) $request->input('estimated_duration_minutes', 0),
+            $pickupLat,
+            $pickupLng,
+            $dropLat,
+            $dropLng,
+        );
 
         $ride = Ride::create([
             'ride_code' => strtoupper(Str::random(8)),
@@ -154,8 +164,15 @@ class RideController extends Controller
             'drop_address' => $request->drop_address,
             'drop_point' => DB::raw("point($dropLng, $dropLat)"),
             'drop_geog' => DB::raw("ST_SetSRID(ST_MakePoint($dropLng, $dropLat), 4326)::geography"),
-            'distance_km' => $request->distance_km,
-            'estimated_fare' => $estimatedFare,
+            'distance_km' => $fareEstimate['distance_km'],
+            'estimated_distance_km' => $fareEstimate['distance_km'],
+            'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
+            'estimated_fare' => $fareEstimate['estimated_fare'],
+            'fare_breakdown' => [
+                'policy' => 'estimate_plus_extras',
+                'version' => 1,
+                'estimate' => $fareEstimate['breakdown'],
+            ],
             'status' => 'REQUESTED',
             'requested_at' => now(),
         ]);
@@ -358,12 +375,9 @@ class RideController extends Controller
                 $ride->id,
                 RideStateMachine::COMPLETED,
                 'Driver completed the ride.',
-                [
-                    'final_fare' => $ride->final_fare > 0
-                        ? $ride->final_fare
-                        : $ride->estimated_fare,
-                ],
             );
+            $ride->update($this->fares->completionBreakdown($ride));
+            $ride->refresh();
         } catch (DomainException) {
             return $this->error('Ride cannot be completed', 409);
         }

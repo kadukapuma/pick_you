@@ -18,6 +18,7 @@ export type SmoothCoordinate = {
 };
 
 const R = 6371000;
+const MIN_GPS_HEADING_SPEED_MPS = 3;
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 const rad = (v: number) => (v * Math.PI) / 180;
 const deg = (v: number) => (v * 180) / Math.PI;
@@ -123,13 +124,24 @@ export function useSmoothLocation(raw?: RawLocation | null) {
       return;
     }
 
-    const measuredHeading = Number.isFinite(Number(rawHeading)) && Number(rawHeading) >= 0 && Number(rawSpeed) >= 1.5
+    const movingBearing = moved >= 4 ? bearing(previous, sample) : previous.heading;
+    const gpsHeadingIsReliable =
+      Number.isFinite(Number(rawHeading)) &&
+      Number(rawHeading) >= 0 &&
+      Number(rawSpeed) >= MIN_GPS_HEADING_SPEED_MPS;
+    const measuredHeading = gpsHeadingIsReliable
       ? Number(rawHeading) % 360
-      : moved >= 4 ? bearing(previous, sample) : previous.heading;
+      : movingBearing;
+    const headingWeight = gpsHeadingIsReliable ? 0.45 : 0.35;
+
     const target: SmoothCoordinate = {
       latitude: previous.latitude + (latitude - previous.latitude) * 0.75,
       longitude: previous.longitude + (longitude - previous.longitude) * 0.75,
-      heading: (previous.heading + headingDelta(previous.heading, measuredHeading) + 360) % 360,
+      heading:
+        (previous.heading +
+          headingDelta(previous.heading, measuredHeading) * headingWeight +
+          360) %
+        360,
     };
     accepted.current = { ...sample, ...target };
     if (receiveGap >= 20000) {

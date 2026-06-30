@@ -131,6 +131,9 @@ export default function ConfirmationScreen() {
       const distance_km = directions
         ? parseFloat((directions.distance / 1000).toFixed(2))
         : 5.0;
+      const estimated_duration_minutes = directions
+        ? parseFloat((directions.duration / 60).toFixed(2))
+        : 0;
 
       const payload = {
         vehicle_type: outboundTrip.selectedRide!.id,
@@ -141,6 +144,7 @@ export default function ConfirmationScreen() {
         drop_lat: outboundTrip.dropoff!.latitude,
         drop_lng: outboundTrip.dropoff!.longitude,
         distance_km,
+        estimated_duration_minutes,
       };
 
       const response = await apiClient.post("/rides", payload);

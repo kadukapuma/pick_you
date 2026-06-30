@@ -54,6 +54,7 @@ const HomeScreen = () => {
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
   const [isRideHandled, setIsRideHandled] = useState(false);
+  const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
   const [screenError, setScreenError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -129,6 +130,7 @@ const HomeScreen = () => {
     // Show UI first — do not wait for sound or network
     setShowRideModal(true);
     setRideData(ride);
+    setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = rideId;
     setIsRideHandled(false);
 
@@ -241,30 +243,34 @@ const HomeScreen = () => {
   };
 
   const handleAcceptRide = async () => {
-    if (!rideData?.id) return;
+    if (!rideData?.id || isAcceptingRide) return;
     const rideId = rideData.id;
-    try {
-      await api.post(`/rides/${rideId}/accept`);
-      await setActiveRideLocationSync(rideId);
+    setIsAcceptingRide(true);
 
-      let rideForNav = rideData;
-      try {
-        const detailRes = await api.get(`/rides/${rideId}`);
-        const detail = detailRes.data?.data ?? detailRes.data;
-        if (detail) {
-          rideForNav = normalizeRidePayload({ ...rideData, ...detail });
-        }
-      } catch (detailErr) {
-        console.log("Could not refresh ride details:", detailErr);
-      }
+    try {
+      const acceptRes = await api.post(`/rides/${rideId}/accept`);
+      const acceptedRide = acceptRes.data?.data ?? acceptRes.data;
+      const rideForNav = acceptedRide
+        ? normalizeRidePayload({ ...rideData, ...acceptedRide })
+        : rideData;
 
       setShowRideModal(false);
       setRideData(null);
+      setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
       setIsRideHandled(true);
       navigation.navigate("RideDetails", { ride: rideForNav });
+
+      setActiveRideLocationSync(rideId).catch((syncErr) => {
+        console.log("Could not start active ride location sync:", syncErr);
+      });
+
+      api.get(`/rides/${rideId}`).catch((detailErr) => {
+        console.log("Could not refresh ride details:", detailErr);
+      });
     } catch (error) {
       console.log("Error accepting ride:", error);
+      setIsAcceptingRide(false);
       showCustomToast(
         "error",
         error.response?.data?.message || "Failed to accept ride.",
@@ -273,12 +279,13 @@ const HomeScreen = () => {
   };
 
   const handleRejectRide = async () => {
-    if (!rideData?.id) return;
+    if (!rideData?.id || isAcceptingRide) return;
     const rideId = rideData.id;
 
     // Dismiss modal and prevent re‑showing this ride request
     setShowRideModal(false);
     setRideData(null);
+    setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = null;
     setIsRideHandled(true); // mark as handled to stop looping
 
@@ -506,6 +513,7 @@ const HomeScreen = () => {
             rideData={rideData}
             onAccept={handleAcceptRide}
             onReject={handleRejectRide}
+            isAccepting={isAcceptingRide}
           />
         </>
       )}
