@@ -39,6 +39,7 @@ const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const cameraRef = useRef(null);
   const {
     location: driverCoord,
     loading: isLocationLoading,
@@ -53,6 +54,7 @@ const HomeScreen = () => {
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
   const [isRideHandled, setIsRideHandled] = useState(false);
+  const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
   const [screenError, setScreenError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -128,6 +130,7 @@ const HomeScreen = () => {
     // Show UI first — do not wait for sound or network
     setShowRideModal(true);
     setRideData(ride);
+    setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = rideId;
     setIsRideHandled(false);
 
@@ -240,30 +243,34 @@ const HomeScreen = () => {
   };
 
   const handleAcceptRide = async () => {
-    if (!rideData?.id) return;
+    if (!rideData?.id || isAcceptingRide) return;
     const rideId = rideData.id;
-    try {
-      await api.post(`/rides/${rideId}/accept`);
-      await setActiveRideLocationSync(rideId);
+    setIsAcceptingRide(true);
 
-      let rideForNav = rideData;
-      try {
-        const detailRes = await api.get(`/rides/${rideId}`);
-        const detail = detailRes.data?.data ?? detailRes.data;
-        if (detail) {
-          rideForNav = normalizeRidePayload({ ...rideData, ...detail });
-        }
-      } catch (detailErr) {
-        console.log("Could not refresh ride details:", detailErr);
-      }
+    try {
+      const acceptRes = await api.post(`/rides/${rideId}/accept`);
+      const acceptedRide = acceptRes.data?.data ?? acceptRes.data;
+      const rideForNav = acceptedRide
+        ? normalizeRidePayload({ ...rideData, ...acceptedRide })
+        : rideData;
 
       setShowRideModal(false);
       setRideData(null);
+      setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
       setIsRideHandled(true);
       navigation.navigate("RideDetails", { ride: rideForNav });
+
+      setActiveRideLocationSync(rideId).catch((syncErr) => {
+        console.log("Could not start active ride location sync:", syncErr);
+      });
+
+      api.get(`/rides/${rideId}`).catch((detailErr) => {
+        console.log("Could not refresh ride details:", detailErr);
+      });
     } catch (error) {
       console.log("Error accepting ride:", error);
+      setIsAcceptingRide(false);
       showCustomToast(
         "error",
         error.response?.data?.message || "Failed to accept ride.",
@@ -272,12 +279,13 @@ const HomeScreen = () => {
   };
 
   const handleRejectRide = async () => {
-    if (!rideData?.id) return;
+    if (!rideData?.id || isAcceptingRide) return;
     const rideId = rideData.id;
 
     // Dismiss modal and prevent re‑showing this ride request
     setShowRideModal(false);
     setRideData(null);
+    setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = null;
     setIsRideHandled(true); // mark as handled to stop looping
 
@@ -314,6 +322,17 @@ const HomeScreen = () => {
       showCustomToast("error", errorMessage);
     } finally {
       setIsToggling(false);
+    }
+  };
+
+  // Center Map Viewport cleanly over Driver Coordinates
+  const handleCenterLocation = () => {
+    if (cameraRef.current && mapOrigin) {
+      cameraRef.current.setCamera({
+        centerCoordinate: [mapOrigin.longitude, mapOrigin.latitude],
+        zoomLevel: 15,
+        animationDuration: 600,
+      });
     }
   };
 
@@ -356,6 +375,7 @@ const HomeScreen = () => {
           {/* MAP VIEWPORT */}
           <View style={styles.map}>
             <MapboxRideMap
+              cameraRef={cameraRef}
               style={styles.map}
               origin={mapOrigin}
               routeCoordinates={[mapOrigin]}
@@ -385,10 +405,11 @@ const HomeScreen = () => {
             style={[styles.topContainer, { paddingTop: insets.top }]}
           >
             <View style={styles.headerRow}>
-              <TouchableOpacity style={styles.locationButton}>
-                <Feather name="navigation" size={16} color="#00A859" />
-                <Text style={styles.locationText}>Downtown Area</Text>
-              </TouchableOpacity>
+              {/* TODAY'S EARNINGS DISPLAY SHEET */}
+              <View style={styles.earningsCard}>
+                <Text style={styles.earningsLabel}>Todays Earnings</Text>
+                <Text style={styles.earningsAmount}>LKR 0.00</Text>
+              </View>
 
               <TouchableOpacity
                 style={styles.notificationButton}
@@ -402,6 +423,10 @@ const HomeScreen = () => {
 
           {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
           <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
+            <TouchableOpacity style={styles.floatingBtn} onPress={handleCenterLocation}>
+              <Ionicons name="locate" size={22} color="#00A859" />
+            </TouchableOpacity>
+            
             <TouchableOpacity style={styles.floatingBtn}>
               <Feather name="refresh-cw" size={18} color="#0F172A" />
             </TouchableOpacity>
@@ -488,6 +513,7 @@ const HomeScreen = () => {
             rideData={rideData}
             onAccept={handleAcceptRide}
             onReject={handleRejectRide}
+            isAccepting={isAcceptingRide}
           />
         </>
       )}
@@ -598,20 +624,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 10,
   },
-  locationButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  earningsCard: {
     backgroundColor: "#FFF",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    alignItems: "flex-start",
+    minWidth: 150,
   },
-  locationText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: "700",
+  earningsLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  earningsAmount: {
+    fontSize: 16,
+    fontWeight: "800",
     color: "#0F172A",
+    marginTop: 2,
   },
   notificationButton: {
     width: 46,
@@ -621,6 +658,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   dot: {
     position: "absolute",
@@ -634,6 +675,7 @@ const styles = StyleSheet.create({
   rightButtons: {
     position: "absolute",
     right: 18,
+    gap: 2,
   },
   floatingBtn: {
     width: 50,
@@ -644,6 +686,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   bottomContainer: {
     position: "absolute",

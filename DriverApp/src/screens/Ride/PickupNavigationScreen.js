@@ -25,6 +25,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   const destination = pickupCoord ?? origin;
   const { directions } = useMapboxRoute(origin, destination);
   const [isMarkingArrived, setIsMarkingArrived] = useState(false);
+  const [followVehicle, setFollowVehicle] = useState(true);
 
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Pickup";
@@ -88,10 +89,23 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         routeColor="#00A859"
         destinationColor="#00A859"
         vehicleImage={require("../../assets/car3d.png")}
-        vehicleHeading={38}
         vehicleSize={76}
         edgePadding={mapPadding}
+        followVehicle={followVehicle}
+        followZoom={16}
+        followPitch={45}
+        onFollowStateChange={setFollowVehicle}
       />
+
+      {!followVehicle ? (
+        <TouchableOpacity
+          style={styles.recenterButton}
+          onPress={() => setFollowVehicle(true)}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#0F172A" />
+        </TouchableOpacity>
+      ) : null}
 
       {/* FLOATING CORNER ETA STATUS DETAILS */}
       <View style={styles.etaCardContainer} pointerEvents="none">
@@ -203,6 +217,19 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  recenterButton: {
+    position: "absolute",
+    right: 20,
+    top: 190,
+    zIndex: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
   },
   header: {
     position: "absolute",

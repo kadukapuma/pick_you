@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { View, Image } from "react-native";
 import { router } from "expo-router";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../../context/AuthContext";
 
 export default function Splash() {
   const { isAuthenticated, isLoading } = useAuth();

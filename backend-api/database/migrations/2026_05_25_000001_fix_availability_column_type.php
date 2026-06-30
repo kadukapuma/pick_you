@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         // First, update existing string values to integers
         DB::statement("UPDATE drivers SET availability = CASE
             WHEN availability = 'online' THEN '1'
@@ -31,6 +35,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::statement("ALTER TABLE drivers ALTER COLUMN availability TYPE varchar USING availability::text");
         DB::statement("ALTER TABLE drivers ALTER COLUMN availability SET DEFAULT 'offline'");
     }

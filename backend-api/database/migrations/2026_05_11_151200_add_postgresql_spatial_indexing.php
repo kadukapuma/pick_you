@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         // Add point column to driver_locations
         DB::statement("ALTER TABLE driver_locations ADD COLUMN location point");
         
@@ -39,6 +43,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::statement("DROP INDEX IF EXISTS driver_locations_gist_index");
         DB::statement("ALTER TABLE driver_locations DROP COLUMN IF EXISTS location");
 

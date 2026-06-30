@@ -1,24 +1,23 @@
+import { Ionicons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { router } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  TouchableOpacity,
-  Text,
   ActivityIndicator,
   Animated,
   ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import * as Location from "expo-location";
-import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 
-import LocationPicker from "../components/ride/LocationPicker";
-import ReturnLocationPicker from "../components/ride/ReturnLocationPicker";
-import TripTypeToggle from "../components/ride/ridesearch_TripTypeToggle";
-import BookForFriendToggle from "../components/ride/ridesearch_BookForFriendToggle";
-import SavedAddresses from "../components/ride/ridesearch_SavedAddresses";
-import { LocationSuggestion } from "../services/location/locationSuggestionsService";
-import { useRideSearch } from "../context/RideSearchContext";
+import LocationPicker from "../../components/ride/LocationPicker";
+import ReturnLocationPicker from "../../components/ride/ReturnLocationPicker";
+import BookForFriendToggle from "../../components/ride/ridesearch_BookForFriendToggle";
+import TripTypeToggle from "../../components/ride/ridesearch_TripTypeToggle";
+import { useRideSearch } from "../../context/RideSearchContext";
+import { LocationSuggestion } from "../../services/location/locationSuggestionsService";
 
 type TripType = "one-way" | "return-trip";
 

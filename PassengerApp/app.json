@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "PickU",
+    "slug": "PickU",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/vehicles/icon.jpeg",
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -12,11 +12,12 @@
       "supportsTablet": true
     },
     "android": {
+      "apkType": "universal",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/logo.png",
-        "backgroundImage": "./assets/images/logo.png",
+        "foregroundImage": "./assets/images/vehicles/icon.jpeg",
+        "backgroundImage": "./assets/images/vehicles/icon.jpeg",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
@@ -43,7 +44,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/logo.png",
+          "image": "./assets/images/vehicles/logo.jpeg",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -60,8 +61,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "df8bb069-135c-465d-b925-a516de6fba0f"
+        "projectId": "65715559-f53b-4c1d-a0fb-33946cb21206"
       }
-    }
+    },
+    "owner": "enjoyfree"
   }
 }

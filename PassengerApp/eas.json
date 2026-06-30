@@ -5,9 +5,13 @@
   },
   "build": {
     "development": {
+      "android": {
+        "buildType": "apk"
+      },
       "developmentClient": true,
       "distribution": "internal",
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://picku.lk",
         "EXPO_PUBLIC_WS_HOST": "picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
@@ -17,6 +21,7 @@
     "preview": {
       "distribution": "internal",
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://picku.lk",
         "EXPO_PUBLIC_WS_HOST": "picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
@@ -26,6 +31,7 @@
     "production": {
       "autoIncrement": true,
       "env": {
+        "EXPO_PUBLIC_API_URL": "https://picku.lk",
         "EXPO_PUBLIC_WS_HOST": "picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
@@ -37,4 +43,3 @@
     "production": {}
   }
 }
-

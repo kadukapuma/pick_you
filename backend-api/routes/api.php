@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DriverController;
+use App\Http\Controllers\Api\DriverAuthController;
 use App\Http\Controllers\Api\DriverDocumentController;
 use App\Http\Controllers\Api\DriverLocationController;
 use App\Http\Controllers\Api\DriverProfileController;
@@ -28,6 +29,14 @@ use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\WalletTransactionController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
+use App\Services\Auth\AuthPayload;
+
+Route::prefix('driver/auth')->group(function () {
+    Route::post('/register', [DriverAuthController::class, 'register']);
+    Route::post('/otp/send', [DriverAuthController::class, 'sendOtp']);
+    Route::post('/otp/verify', [DriverAuthController::class, 'verifyOtp']);
+    Route::post('/login', [DriverAuthController::class, 'login']);
+});
 
 // Passenger App Auth routes
 Route::prefix('passenger/auth')->group(function () {
@@ -50,8 +59,11 @@ Route::get('/app-settings/maintenance-mode', [AppSettingsController::class, 'get
 
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
-    Route::get('/user', function (Request $request) {
-        return $request->user()->load(['driver.vehicles', 'rolePermissions']);
+    Route::get('/user', function (Request $request, AuthPayload $payload) {
+        $user = $request->user();
+        $activeRole = $user->activeRole();
+
+        return response()->json($payload->for($user, $activeRole ?? $user->role)['user']);
     });
     Route::middleware('role:passenger')->group(function () {
         Route::get('/passenger/profile', [PassengerProfileController::class, 'getProfile']);

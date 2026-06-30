@@ -31,10 +31,24 @@ const apiFetch = async (path, { method = 'GET', body, token } = {}) => {
 
 const resolveAssetUrl = (url) => {
   if (!url) return null
-  if (url.startsWith('http')) return url
 
   const origin = API_BASE.replace(/\/api$/, '')
-  const normalized = url.startsWith('/') ? url : `/${url}`
+  const value = String(url).trim()
+
+  if (value.startsWith('http')) {
+    try {
+      const parsed = new URL(value)
+      if (parsed.pathname.startsWith('/storage/') || parsed.pathname.startsWith('/uploads/')) {
+        return `${origin}${parsed.pathname}${parsed.search}`
+      }
+    } catch {
+      return value
+    }
+
+    return value
+  }
+
+  const normalized = value.startsWith('/') ? value : `/${value}`
 
   if (normalized.startsWith('/uploads/') || normalized.startsWith('/storage/')) {
     return `${origin}${normalized}`

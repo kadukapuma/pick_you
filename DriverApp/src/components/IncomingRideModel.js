@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import { MotiView } from "moti";
 import { MaterialCommunityIcons, Feather, Ionicons } from "@expo/vector-icons";
@@ -14,10 +15,21 @@ import { Audio } from "expo-av";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
+const IncomingRideModal = ({
+  visible,
+  onAccept,
+  onReject,
+  rideData,
+  isAccepting = false,
+}) => {
   const OFFER_SECONDS = 12;
   const [countdown, setCountdown] = useState(OFFER_SECONDS);
   const soundRef = useRef(null);
+  const onRejectRef = useRef(onReject);
+
+  useEffect(() => {
+    onRejectRef.current = onReject;
+  }, [onReject]);
 
   // Sound Handler
   useEffect(() => {
@@ -36,9 +48,10 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
   // Precise 15s Countdown & Automatic Job Rejection Loop
   useEffect(() => {
     if (!visible) return;
+    if (isAccepting) return;
 
     if (countdown === 0) {
-      onReject(); // Fire parent automatic denial update block
+      onRejectRef.current?.(); // Fire parent automatic denial update block
       return;
     }
 
@@ -47,7 +60,11 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [countdown, visible]);
+  }, [countdown, visible, isAccepting]);
+
+  useEffect(() => {
+    if (isAccepting) stopSound();
+  }, [isAccepting]);
 
   const playSound = async () => {
     try {
@@ -204,21 +221,29 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
             {/* Action Buttons */}
             <View style={styles.buttonActionRow}>
               <TouchableOpacity
-                style={styles.rejectButton}
+                style={[styles.rejectButton, isAccepting && styles.disabledButton]}
                 onPress={onReject}
                 activeOpacity={0.7}
+                disabled={isAccepting}
               >
                 <Ionicons name="close-circle-outline" size={20} color="#EF4444" style={{ marginRight: 6 }} />
                 <Text style={styles.rejectBtnText}>Reject</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.acceptButton}
+                style={[styles.acceptButton, isAccepting && styles.acceptButtonLoading]}
                 onPress={onAccept}
                 activeOpacity={0.85}
+                disabled={isAccepting}
               >
-                <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.acceptBtnText}>Accept Ride</Text>
+                {isAccepting ? (
+                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 6 }} />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
+                )}
+                <Text style={styles.acceptBtnText}>
+                  {isAccepting ? "Accepting..." : "Accept Ride"}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -496,6 +521,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 10,
   },
+  disabledButton: {
+    opacity: 0.55,
+  },
   rejectBtnText: {
     color: "#EF4444",
     fontWeight: "800",
@@ -514,6 +542,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 4,
+  },
+  acceptButtonLoading: {
+    backgroundColor: "#059669",
   },
   acceptBtnText: {
     color: "#FFFFFF",

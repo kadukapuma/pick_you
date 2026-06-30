@@ -9,13 +9,13 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRideSearch, type RideOption } from "../context/RideSearchContext";
+import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../services/routing/mapboxRoutingService";
-import { apiClient } from "../services/api/apiClient";
-import MapboxRideMap from "../components/map/MapboxRideMap";
+} from "../../services/routing/mapboxRoutingService";
+import { apiClient } from "../../services/api/apiClient";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
 
 interface DBVehicleType {
   id: number;

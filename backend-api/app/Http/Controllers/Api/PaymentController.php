@@ -31,7 +31,7 @@ class PaymentController extends Controller
         ]);
         $paymentMethod = $validated['payment_method'] ?? 'cash';
 
-        if ($request->user()->role === User::ROLE_DRIVER && $paymentMethod !== 'cash') {
+        if ($request->user()->canActAs(User::ROLE_DRIVER) && $paymentMethod !== 'cash') {
             return $this->error('Drivers can only confirm cash payments.', 422);
         }
 

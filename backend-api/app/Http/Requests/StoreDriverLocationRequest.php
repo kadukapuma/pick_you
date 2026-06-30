@@ -9,7 +9,7 @@ class StoreDriverLocationRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === User::ROLE_DRIVER
+        return $this->user()?->canActAs(User::ROLE_DRIVER)
             && $this->user()?->driver !== null;
     }
 

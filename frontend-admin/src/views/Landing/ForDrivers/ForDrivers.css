@@ -1,0 +1,649 @@
+/* ═══════════════════════════════════════════════════════════════
+   ForDrivers.css  –  PickYou Driver Landing Page
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Base page wrapper ─────────────────────────────────────────── */
+.for-drivers-page {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   HERO BANNER
+   ═══════════════════════════════════════════════════════════════ */
+.driver-hero-banner {
+    position: relative;
+    height: 75vh;
+    min-height: 560px;
+    background: #071e24;
+    overflow: hidden;
+    color: white;
+}
+
+/* ── Slide fader ───────────────────────────────────────────────── */
+.hero-slide-fader {
+    position: absolute;
+    inset: 0;
+    transition: opacity 1.4s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+}
+
+.hero-slide-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.04);
+    animation: heroKenBurns 6s ease-in-out forwards;
+    will-change: transform;
+}
+
+@keyframes heroKenBurns {
+    from {
+        transform: scale(1.04);
+    }
+
+    to {
+        transform: scale(1.0);
+    }
+}
+
+/* ── Overlay ───────────────────────────────────────────────────── */
+.hero-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to right,
+            rgba(7, 30, 36, 0.88) 0%,
+            rgba(7, 30, 36, 0.55) 55%,
+            rgba(7, 30, 36, 0.15) 100%);
+    z-index: 2;
+}
+
+/* Bottom vignette for legibility */
+.driver-hero-banner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to top, rgba(7, 30, 36, 0.5) 0%, transparent 40%);
+    z-index: 3;
+    pointer-events: none;
+}
+
+/* ── Hero content ──────────────────────────────────────────────── */
+.for-drivers-page .hero-content {
+    position: relative;
+    z-index: 10;
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 0 5%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    height: 100%;
+}
+
+/* ── Badge ─────────────────────────────────────────────────────── */
+.for-drivers-page .hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.4rem 1rem;
+    background: rgba(34, 197, 94, 0.1);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.22);
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    margin-bottom: 1.75rem;
+    backdrop-filter: blur(10px);
+    width: fit-content;
+    animation: fadeSlideUp 0.7s ease-out both;
+}
+
+.badge-pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+    animation: pulseGreen 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    flex-shrink: 0;
+}
+
+@keyframes pulseGreen {
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.4;
+        transform: scale(0.82);
+    }
+}
+
+/* ── Hero title ────────────────────────────────────────────────── */
+.for-drivers-page .hero-title {
+    font-size: clamp(2.4rem, 5vw, 4.2rem);
+    font-weight: 800;
+    line-height: 1.06;
+    letter-spacing: -0.025em;
+    margin: 0 0 1.25rem;
+}
+
+.hero-title-line {
+    display: block;
+    animation: fadeSlideUp 0.65s ease-out both;
+}
+
+/* ── Hero description ──────────────────────────────────────────── */
+.for-drivers-page .hero-desc {
+    font-size: 1.15rem;
+    color: rgba(255, 255, 255, 0.72);
+    max-width: 540px;
+    margin: 0 0 2.25rem;
+    line-height: 1.65;
+    animation: fadeSlideUp 0.65s ease-out 0.28s both;
+}
+
+/* ── Hero action buttons ───────────────────────────────────────── */
+.for-drivers-page .hero-actions {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    animation: fadeSlideUp 0.65s ease-out 0.42s both;
+}
+
+.for-drivers-page .hero-btn {
+    padding: 0.9rem 1.85rem;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+    border: none;
+    line-height: 1;
+}
+
+.for-drivers-page .hero-btn.primary {
+    background: #22c55e;
+    color: white;
+    box-shadow: 0 6px 18px rgba(34, 197, 94, 0.28);
+}
+
+.for-drivers-page .hero-btn.primary:hover {
+    background: #16a34a;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 24px rgba(34, 197, 94, 0.38);
+}
+
+.for-drivers-page .hero-btn.primary:active {
+    transform: translateY(0);
+}
+
+.for-drivers-page .hero-btn.secondary {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(12px);
+}
+
+.for-drivers-page .hero-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.38);
+    transform: translateY(-2px);
+}
+
+.for-drivers-page .hero-btn.secondary:active {
+    transform: translateY(0);
+}
+
+/* ── Slide indicators ──────────────────────────────────────────── */
+.hero-indicators {
+    position: absolute;
+    bottom: 2rem;
+    left: 5%;
+    z-index: 20;
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.indicator-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.28);
+    cursor: pointer;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: 0;
+    outline: none;
+}
+
+.indicator-dot.active {
+    background: #22c55e;
+    width: 28px;
+    border-radius: 5px;
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.45);
+    border-color: transparent;
+}
+
+.indicator-dot:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.55);
+}
+
+.indicator-dot:focus-visible {
+    outline: 2px solid #22c55e;
+    outline-offset: 3px;
+}
+
+/* ── Progress bar ──────────────────────────────────────────────── */
+.hero-progress-bar {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    background: #22c55e;
+    z-index: 20;
+    animation: heroProgress 6s linear forwards;
+    transform-origin: left;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+}
+
+@keyframes heroProgress {
+    from {
+        width: 0%;
+    }
+
+    to {
+        width: 100%;
+    }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   SHARED ANIMATION
+   ───────────────────────────────────────────────────────────────── */
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(22px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MAIN SECTION
+   ═══════════════════════════════════════════════════════════════ */
+.drivers-section-main {
+    padding: 5.5rem 1.5rem 4rem;
+    background: #f8fafc;
+}
+
+.drivers-container-inner {
+    max-width: 1320px;
+    margin: 0 auto;
+}
+
+/* ── Section header ────────────────────────────────────────────── */
+.drivers-header {
+    text-align: center;
+    margin-bottom: 3.5rem;
+}
+
+.drivers-badge {
+    display: inline-block;
+    background: rgba(14, 92, 107, 0.08);
+    color: #0e5c6b;
+    border: 1px solid rgba(14, 92, 107, 0.18);
+    border-radius: 9999px;
+    padding: 0.3rem 1rem;
+    font-size: 0.8rem;
+    letter-spacing: 0.06em;
+    margin-bottom: 1rem;
+    font-weight: 600;
+}
+
+.drivers-title {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    color: #0d2d35;
+    margin: 0 0 1rem;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.drivers-title .text-highlight {
+    color: #22c55e;
+}
+
+.drivers-subtitle {
+    color: #6b7280;
+    font-size: 1.15rem;
+    max-width: 40rem;
+    margin: 0 auto;
+    line-height: 1.7;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   OPPORTUNITY STATS
+   ═══════════════════════════════════════════════════════════════ */
+.opportunity-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.1rem;
+    margin-bottom: 4rem;
+}
+
+@media (min-width: 1024px) {
+    .opportunity-stats-grid {
+        grid-template-columns: repeat(4, 1fr);
+    }
+}
+
+.stat-card {
+    background: white;
+    border-radius: 1.1rem;
+    padding: 1.6rem 1.25rem;
+    text-align: center;
+    border: 1px solid #e8edf2;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.stat-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+    border-color: #d1dde6;
+}
+
+.stat-value {
+    font-size: clamp(1.9rem, 3vw, 2.85rem);
+    font-weight: 800;
+    margin: 0 0 0.2rem;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+    color: #0d2d35;
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.2rem;
+}
+
+.stat-sub {
+    color: #9ca3af;
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   DRIVER BENEFITS
+   ═══════════════════════════════════════════════════════════════ */
+.driver-benefits-section {
+    margin-bottom: 4rem;
+}
+
+.benefits-section-title {
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #0d2d35;
+    margin: 0 0 2rem;
+    text-align: center;
+}
+
+.text-secondary-highlight {
+    color: #0e5c6b;
+}
+
+.driver-benefits-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.1rem;
+}
+
+@media (min-width: 640px) {
+    .driver-benefits-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (min-width: 1024px) {
+    .driver-benefits-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+/* ── Benefit card with scroll-reveal ──────────────────────────── */
+.driver-benefit-card {
+    background: white;
+    border-radius: 1.1rem;
+    padding: 1.4rem;
+    border: 1px solid #e8edf2;
+    display: flex;
+    gap: 1.1rem;
+    align-items: flex-start;
+    transition:
+        transform 0.28s cubic-bezier(0.34, 1.56, 0.64, 1),
+        box-shadow 0.28s ease,
+        border-color 0.28s ease,
+        opacity 0.5s ease;
+    /* scroll-reveal initial state */
+    opacity: 0;
+    transform: translateY(18px);
+}
+
+.driver-benefit-card.card-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.driver-benefit-card:hover {
+    transform: translateY(-4px) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.07);
+    border-color: #d1dde6;
+}
+
+.driver-icon-box {
+    width: 2.75rem;
+    height: 2.75rem;
+    border-radius: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: transform 0.2s ease;
+}
+
+.driver-benefit-card:hover .driver-icon-box {
+    transform: scale(1.08);
+}
+
+.driver-benefit-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.driver-benefit-title {
+    color: #0d2d35;
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.35rem;
+    line-height: 1.3;
+}
+
+.driver-benefit-desc {
+    color: #6b7280;
+    font-size: 0.9rem;
+    line-height: 1.65;
+    margin: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   CTA BANNER
+   ═══════════════════════════════════════════════════════════════ */
+.driver-cta-banner {
+    border-radius: 1.6rem;
+    padding: 2.5rem;
+    background: linear-gradient(135deg, #071e24 0%, #0d3a46 60%, #0e4a5a 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    gap: 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Subtle decorative ring */
+.driver-cta-banner::before {
+    content: "";
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 220px;
+    height: 220px;
+    border-radius: 50%;
+    border: 1px solid rgba(34, 197, 94, 0.1);
+    pointer-events: none;
+}
+
+.driver-cta-banner::after {
+    content: "";
+    position: absolute;
+    top: -30px;
+    right: -30px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    border: 1px solid rgba(34, 197, 94, 0.08);
+    pointer-events: none;
+}
+
+@media (min-width: 1024px) {
+    .driver-cta-banner {
+        flex-direction: row;
+        padding: 3.25rem 3.5rem;
+    }
+}
+
+.cta-banner-text {
+    text-align: center;
+    position: relative;
+    z-index: 1;
+}
+
+@media (min-width: 1024px) {
+    .cta-banner-text {
+        text-align: left;
+    }
+}
+
+.cta-tag {
+    color: #22c55e;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin: 0 0 0.4rem;
+}
+
+.cta-title {
+    color: white;
+    font-size: clamp(1.6rem, 3vw, 2.1rem);
+    font-weight: 800;
+    margin: 0 0 0.4rem;
+    line-height: 1.2;
+}
+
+.cta-desc {
+    color: rgba(255, 255, 255, 0.55);
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+.cta-banner-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.85rem;
+    flex-shrink: 0;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+}
+
+.cta-btn {
+    padding: 0.85rem 1.85rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    transition: transform 0.22s ease, box-shadow 0.22s ease, background 0.22s ease;
+    text-decoration: none;
+    display: inline-block;
+    line-height: 1;
+    cursor: pointer;
+    border: none;
+}
+
+.cta-btn.primary {
+    background: #22c55e;
+    color: white;
+}
+
+.cta-btn.primary:hover {
+    background: #16a34a;
+    box-shadow: 0 8px 20px rgba(34, 197, 94, 0.32);
+    transform: translateY(-2px);
+}
+
+.cta-btn.secondary {
+    background: rgba(255, 255, 255, 0.09);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.cta-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: rgba(255, 255, 255, 0.35);
+    transform: translateY(-2px);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   REDUCED MOTION SUPPORT
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    .driver-benefit-card {
+        flex-direction: column;
+        text-align: center;
+        align-items: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+    .hero-slide-img,
+    .hero-progress-bar,
+    .badge-pulse-dot,
+    .hero-title-line,
+    .for-drivers-page .hero-desc,
+    .for-drivers-page .hero-actions,
+    .for-drivers-page .hero-badge {
+        animation: none !important;
+    }
+
+    .driver-benefit-card {
+        opacity: 1;
+        transform: none;
+    }
+
+    .driver-benefit-card:hover,
+    .for-drivers-page .hero-btn:hover,
+    .stat-card:hover,
+    .cta-btn:hover {
+        transform: none !important;
+    }
+}

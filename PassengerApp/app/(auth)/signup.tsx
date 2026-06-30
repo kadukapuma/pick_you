@@ -15,14 +15,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
-import SuccessModal from "../components/SuccessModal";
+import SuccessModal from "../../components/SuccessModal";
 
-import { AuthService } from "../services/auth/authService";
+import { AuthService } from "../../services/auth/authService";
 
 import {
   getUserFriendlyError,
   getValidationErrors,
-} from "../utils/errorHandler";
+} from "../../utils/errorHandler";
 
 export default function SignUpScreen() {
   const { mobileNumber } = useLocalSearchParams<{

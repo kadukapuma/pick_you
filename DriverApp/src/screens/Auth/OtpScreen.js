@@ -35,7 +35,41 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
   const shouldAutoSendOtp = route?.params?.shouldAutoSendOtp ?? true;
   const email = route?.params?.email ?? "";
   const phone = route?.params?.phone ?? "";
+  const enrollmentToken = route?.params?.enrollmentToken ?? "";
   const otpRecipient = phone || email;
+
+  // 2. Updated sendOtpRequest() with conditional purpose
+  const sendOtpRequest = useCallback(async () => {
+    if (!otpRecipient) {
+      Alert.alert("Missing Contact", "A mobile number or email address is required to send the OTP.");
+      return;
+    }
+    try {
+      const payload = isRegistration && enrollmentToken
+        ? { enrollment_token: enrollmentToken }
+        : { purpose: isForgotPassword ? "forgot_password" : "verification" };
+
+      if (!enrollmentToken && phone) {
+        payload.phone = phone;
+      } else if (!enrollmentToken) {
+        payload.email = email;
+      }
+
+      const endpoint = isRegistration && enrollmentToken
+        ? "/driver/auth/otp/send"
+        : "/otp/send";
+      await api.post(endpoint, payload);
+      // if (res.data?.data?.otp) {
+      //   Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
+      // }
+    } catch (err) {
+      console.log("Error sending OTP", err.response?.data || err.message);
+      Alert.alert(
+        "Unable to Send OTP",
+        err.response?.data?.message || "Please check your connection and try again."
+      );
+    }
+  }, [email, phone, otpRecipient, isForgotPassword, isRegistration, enrollmentToken]);
 
   // Automatically request OTP when screen mounts
   useEffect(() => {
@@ -48,32 +82,6 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
     }, 1000);
     return () => clearInterval(interval);
   }, [shouldAutoSendOtp, sendOtpRequest]);
-
-  // 2. Updated sendOtpRequest() with conditional purpose
-  const sendOtpRequest = useCallback(async () => {
-    if (!otpRecipient) {
-      Alert.alert("Missing Contact", "A mobile number or email address is required to send the OTP.");
-      return;
-    }
-    try {
-      const payload = {
-        purpose: isForgotPassword ? "forgot_password" : "verification",
-      };
-
-      if (phone) {
-        payload.phone = phone;
-      } else {
-        payload.email = email;
-      }
-
-      const res = await api.post("/otp/send", payload);
-      // if (res.data?.data?.otp) {
-      //   Alert.alert("Test Mode", `Your OTP is: ${res.data.data.otp}`);
-      // }
-    } catch (err) {
-      console.log("Error sending OTP", err.response?.data || err.message);
-    }
-  }, [email, phone, otpRecipient, isForgotPassword]);
 
   const formatTime = (seconds) => {
     const mins = Math.floor(seconds / 60);
@@ -114,18 +122,27 @@ const OTPScreen = ({ navigation, route, setIsLoggedIn, setIsNewUser, setDriverSt
     setIsLoading(true);
 
     try {
-      const payload = {
-        otp_code: otpCode,
-        purpose: isForgotPassword ? "forgot_password" : "verification",
-      };
+      const payload = isRegistration && enrollmentToken
+        ? { otp_code: otpCode, enrollment_token: enrollmentToken }
+        : {
+            otp_code: otpCode,
+            purpose: isForgotPassword ? "forgot_password" : "verification",
+          };
 
-      if (phone) {
+      if (!enrollmentToken && phone) {
         payload.phone = phone;
-      } else {
+      } else if (!enrollmentToken) {
         payload.email = email;
       }
 
-      await api.post("/otp/verify", payload);
+      const verifyEndpoint = isRegistration && enrollmentToken
+        ? "/driver/auth/otp/verify"
+        : "/otp/verify";
+      const verifyResponse = await api.post(verifyEndpoint, payload);
+      const issuedToken = verifyResponse.data?.data?.token;
+      if (issuedToken) {
+        await AsyncStorage.setItem("userToken", issuedToken);
+      }
 
       // ==========================
       // FORGOT PASSWORD FLOW

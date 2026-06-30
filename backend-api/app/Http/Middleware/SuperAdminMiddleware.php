@@ -15,7 +15,7 @@ class SuperAdminMiddleware
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if ($request->user() && $request->user()->role === \App\Models\User::ROLE_SUPER_ADMIN) {
+        if ($request->user()?->canActAs(\App\Models\User::ROLE_SUPER_ADMIN)) {
             return $next($request);
         }
 

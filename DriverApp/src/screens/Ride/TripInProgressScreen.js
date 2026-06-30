@@ -63,6 +63,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const slideX = useRef(new Animated.Value(0)).current;
   const [completed, setCompleted] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const [followVehicle, setFollowVehicle] = useState(true);
 
   const progressWidth = slideX.interpolate({
     inputRange: [0, SLIDER_WIDTH - THUMB_SIZE - 10],
@@ -188,8 +189,13 @@ const TripInProgressScreen = ({ navigation, route }) => {
         routeCoordinates={routeCoordinates}
         routeColor="#2F80ED"
         destinationColor="#EF4444"
-        vehicleHeading={145}
+        vehicleImage={require("../../assets/car3d.png")}
+        vehicleSize={76}
         edgePadding={mapPadding}
+        followVehicle={followVehicle}
+        followZoom={16}
+        followPitch={45}
+        onFollowStateChange={setFollowVehicle}
       />
 
       {/* FLOATING ACTION UTILITIES */}
@@ -201,9 +207,15 @@ const TripInProgressScreen = ({ navigation, route }) => {
             color="#334155"
           />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.mapUtilityBtn} activeOpacity={0.8}>
-          <Ionicons name="compass-outline" size={22} color="#334155" />
-        </TouchableOpacity>
+        {!followVehicle ? (
+          <TouchableOpacity
+            style={styles.mapUtilityBtn}
+            activeOpacity={0.8}
+            onPress={() => setFollowVehicle(true)}
+          >
+            <Ionicons name="locate" size={22} color="#334155" />
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       {/* DRIVER NAVIGATION BOTTOM CARD */}

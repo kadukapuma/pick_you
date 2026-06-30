@@ -87,9 +87,7 @@ class PassengerController extends Controller
         $passenger = Passenger::with('user')->find($id);
         if (!$passenger) return $this->error('Passenger not found.', 404);
 
-        if ($passenger->user) {
-            $passenger->user->update(['is_active' => $request->is_active]);
-        }
+        $passenger->user?->ensureRole('passenger', (bool) $request->is_active);
 
         event(new DashboardUpdated('passenger.account', [
             'passenger_id' => $passenger->id,

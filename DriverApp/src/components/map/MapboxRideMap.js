@@ -2,6 +2,7 @@ import MapboxGL from "@rnmapbox/maps";
 import { Image, StyleSheet, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { useMemo } from "react";
+import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_API_KEY || "";
 
@@ -30,9 +31,20 @@ const buildBounds = (coordinates, edgePadding) => {
   const lats = valid.map((coordinate) => coordinate.latitude);
   const lngs = valid.map((coordinate) => coordinate.longitude);
 
+  const maxLat = Math.max(...lats);
+  const minLat = Math.min(...lats);
+  const maxLng = Math.max(...lngs);
+  const minLng = Math.min(...lngs);
+
+  // Balanced optimization: if locations are identical or too close, bypass bounds 
+  // to avoid infinite tight/extreme zooming (Uber & PickMe approach)
+  if (Math.abs(maxLat - minLat) < 0.0002 && Math.abs(maxLng - minLng) < 0.0002) {
+    return null;
+  }
+
   return {
-    ne: [Math.max(...lngs), Math.max(...lats)],
-    sw: [Math.min(...lngs), Math.min(...lats)],
+    ne: [maxLng, maxLat],
+    sw: [minLng, minLat],
     paddingTop: edgePadding?.top ?? 140,
     paddingRight: edgePadding?.right ?? 70,
     paddingBottom: edgePadding?.bottom ?? 260,
@@ -59,7 +71,8 @@ function VehicleMarker({ source, heading = 0, size = 76 }) {
             {
               width: size,
               height: size,
-              transform: [{ rotate: `${heading}deg` }],
+              // car3d.png points east; subtract 90deg so zero heading points north.
+              transform: [{ rotate: `${heading - 90}deg` }],
             },
           ]}
           resizeMode="contain"
@@ -83,10 +96,18 @@ export default function MapboxRideMap({
   destinationColor = "#00A859",
   vehicleImage,
   vehicleHeading = 0,
-  vehicleSize = 76,
+  vehicleSize = 10,
   edgePadding,
   style,
+  cameraRef,
+  followVehicle = false,
+  followZoom = 16,
+  followPitch = 45,
+  onFollowStateChange,
 }) {
+  const { location: smoothOrigin } = useSmoothLocation(origin);
+  const renderedOrigin = smoothOrigin ?? origin;
+  const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
     () => [origin, destination, ...routeCoordinates].filter(isValidCoordinate),
     [origin, destination, routeCoordinates],
@@ -115,12 +136,24 @@ export default function MapboxRideMap({
       logoEnabled={false}
       attributionEnabled={false}
       compassEnabled={false}
+      onTouchStart={() => {
+        if (followVehicle) onFollowStateChange?.(false);
+      }}
     >
       <MapboxGL.Camera
-        bounds={bounds || undefined}
-        centerCoordinate={!bounds ? toPosition(origin) : undefined}
-        zoomLevel={!bounds ? 14 : undefined}
-        animationDuration={500}
+        ref={cameraRef}
+        bounds={!followVehicle && !cameraIsFree ? bounds || undefined : undefined}
+        centerCoordinate={
+          followVehicle
+            ? toPosition(renderedOrigin)
+            : !cameraIsFree && !bounds
+              ? toPosition(origin)
+              : undefined
+        }
+        zoomLevel={followVehicle ? followZoom : !cameraIsFree && !bounds ? 15 : undefined}
+        pitch={followVehicle ? followPitch : cameraIsFree ? undefined : 0}
+        heading={followVehicle ? renderedOrigin.heading ?? 0 : cameraIsFree ? undefined : 0}
+        animationDuration={followVehicle ? 0 : 500}
       />
 
       {routeShape ? (
@@ -137,10 +170,10 @@ export default function MapboxRideMap({
         </MapboxGL.ShapeSource>
       ) : null}
 
-      <MapboxGL.MarkerView coordinate={toPosition(origin)}>
+      <MapboxGL.MarkerView coordinate={toPosition(renderedOrigin)}>
         <VehicleMarker
           source={vehicleImage}
-          heading={vehicleHeading}
+          heading={renderedOrigin.heading ?? vehicleHeading}
           size={vehicleSize}
         />
       </MapboxGL.MarkerView>
