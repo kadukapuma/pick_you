@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\Media\ImageStorageService;
+use App\Services\Rides\RideStateMachine;
 use Illuminate\Http\Request;
 use App\Traits\ApiResponse;
 
@@ -21,7 +22,7 @@ class DriverProfileController extends Controller
 
         $driver = $user->driver;
 
-        $tripsCount = $driver->rides()->where('status', 'completed')->count();
+        $tripsCount = $driver->rides()->where('status', RideStateMachine::COMPLETED)->count();
         $rating = $driver->rating ?? 0.0;
 
         $profilePictureUrl = $images->url($user->profile_picture_path);

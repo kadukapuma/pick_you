@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Models\DriverCredential;
 use App\Services\Auth\AuthPayload;
 use App\Services\Auth\NotifySmsSender;
+use App\Services\Auth\OtpCodeService;
 use App\Services\Media\ImageStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
@@ -25,6 +26,7 @@ class AuthController extends Controller
     public function __construct(
         private readonly AuthPayload $authPayload,
         private readonly NotifySmsSender $sms,
+        private readonly OtpCodeService $otpCodes,
     ) {}
 
     private function resolveOtpUser(Request $request): ?User
@@ -266,12 +268,11 @@ class AuthController extends Controller
             ]);
         }
 
-        // Generate a 4 digit OTP
-        $otpCode = rand(1000, 9999);
+        $otpCode = $this->otpCodes->generate();
 
         // Store OTP
         $user->otpVerifications()->create([
-            'otp_code' => $otpCode,
+            'otp_code' => $this->otpCodes->storeValue($otpCode),
             'purpose' => $request->purpose,
             'is_verified' => false,
             'expires_at' => now()->addMinutes(5)
@@ -284,9 +285,7 @@ class AuthController extends Controller
         )) {
             return $this->error('Failed to send OTP SMS', 502);
         }
-        // Integrate Email Gateway here (e.g., Mail, SendGrid, etc.)
-        // For now, we will just return it in the response for testing
-        return $this->success(['otp' => $otpCode], 'OTP sent successfully');
+        return $this->success($this->otpCodes->debugPayload($otpCode), 'OTP sent successfully');
     }
 
     public function verifyOtp(Request $request)
@@ -312,12 +311,12 @@ class AuthController extends Controller
         }
 
         $otp = $user->otpVerifications()
-            ->where('otp_code', $request->otp_code)
             ->where('purpose', $request->purpose)
             ->where('is_verified', false)
             ->where('expires_at', '>', now())
             ->latest()
-            ->first();
+            ->get()
+            ->first(fn ($otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
 
         if (!$otp) {
             return $this->error('Invalid or expired OTP', 400);

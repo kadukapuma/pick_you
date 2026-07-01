@@ -31,7 +31,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Services\Auth\AuthPayload;
 
-Route::prefix('driver/auth')->group(function () {
+Route::prefix('driver/auth')->middleware('throttle:auth')->group(function () {
     Route::post('/register', [DriverAuthController::class, 'register']);
     Route::post('/otp/send', [DriverAuthController::class, 'sendOtp']);
     Route::post('/otp/verify', [DriverAuthController::class, 'verifyOtp']);
@@ -39,20 +39,22 @@ Route::prefix('driver/auth')->group(function () {
 });
 
 // Passenger App Auth routes
-Route::prefix('passenger/auth')->group(function () {
+Route::prefix('passenger/auth')->middleware('throttle:auth')->group(function () {
     Route::post('/otp/send', [PassengerAuthController::class, 'sendOtp']);
     Route::post('/otp/verify', [PassengerAuthController::class, 'verifyOtp']);
     Route::post('/register', [PassengerAuthController::class, 'completeRegistration']);
-    Route::middleware('auth:sanctum')->post('/logout', [PassengerAuthController::class, 'logout']);
 });
+Route::middleware('auth:sanctum')->post('/passenger/auth/logout', [PassengerAuthController::class, 'logout']);
 
 // Public routes
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/login', [AuthController::class, 'login']);
-Route::post('/otp/send', [AuthController::class, 'sendOtp']);
-Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
-Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA']);
+Route::middleware('throttle:auth')->group(function () {
+    Route::post('/register', [AuthController::class, 'register']);
+    Route::post('/login', [AuthController::class, 'login']);
+    Route::post('/otp/send', [AuthController::class, 'sendOtp']);
+    Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
+    Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA']);
+});
 
 // Public app settings (maintenance mode check for all users)
 Route::get('/app-settings/maintenance-mode', [AppSettingsController::class, 'getMaintenanceMode']);

@@ -83,22 +83,25 @@ export default function LiveTrackerPage() {
         if (!rideId || isSubmittingRating) return;
 
         setIsSubmittingRating(true);
-        const response = await apiClient.post("/ratings", {
-            ride_id: rideId,
-            rating,
-            review: review.trim() || undefined,
-        });
-        setIsSubmittingRating(false);
+        try {
+            const response = await apiClient.post("/ratings", {
+                ride_id: rideId,
+                rating,
+                review: review.trim() || undefined,
+            });
 
-        if (response.success) {
-            setRatingSubmitted(true);
-            setShowRatingModal(false);
-            resetTrip();
-            router.replace("/(drawer)/(tabs)/home");
-            return;
+            if (response.success) {
+                setRatingSubmitted(true);
+                setShowRatingModal(false);
+                resetTrip();
+                router.replace("/(drawer)/(tabs)/home");
+                return;
+            }
+
+            Alert.alert("Rating failed", response.message || "Please try again.");
+        } finally {
+            setIsSubmittingRating(false);
         }
-
-        Alert.alert("Rating failed", response.message || "Please try again.");
     };
 
     return (

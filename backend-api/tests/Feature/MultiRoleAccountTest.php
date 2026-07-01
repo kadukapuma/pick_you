@@ -93,6 +93,25 @@ class MultiRoleAccountTest extends TestCase
         $this->assertDatabaseHas('user_roles', ['user_id' => $user->id, 'role' => 'driver', 'is_active' => 1]);
     }
 
+    public function test_stale_driver_role_without_driver_profile_does_not_block_new_enrollment(): void
+    {
+        $user = $this->user(User::ROLE_DRIVER, '94771234567');
+        $user->ensureRole(User::ROLE_DRIVER);
+
+        $response = $this->postJson('/api/driver/auth/register', [
+            'first_name' => 'Driver', 'last_name' => 'Person',
+            'email' => 'stale-driver-role@example.com', 'phone' => '0771234567',
+            'password' => 'secret123', 'password_confirmation' => 'secret123',
+        ])->assertStatus(202);
+
+        $this->assertNotNull($response->json('data.enrollment_token'));
+        $this->assertDatabaseHas('pending_driver_enrollments', [
+            'phone_normalized' => '94771234567',
+            'login_email' => 'stale-driver-role@example.com',
+            'consumed_at' => null,
+        ]);
+    }
+
     public function test_scoped_tokens_cannot_cross_between_passenger_and_driver_routes(): void
     {
         $user = $this->user(User::ROLE_DRIVER, '94771234567');

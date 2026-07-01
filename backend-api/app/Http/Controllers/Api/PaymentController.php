@@ -36,6 +36,7 @@ class PaymentController extends Controller
         }
 
         try {
+            $alreadyProcessed = false;
             $payment = DB::transaction(function () use ($ride_id, $paymentMethod) {
                 $lockedRide = Ride::lockForUpdate()->findOrFail($ride_id);
 
@@ -86,6 +87,7 @@ class PaymentController extends Controller
 
                 return $payment->refresh();
             }, 3);
+            $alreadyProcessed = $payment->wasRecentlyCreated === false;
         } catch (DomainException $exception) {
             return $this->error($exception->getMessage(), 422);
         } catch (Throwable) {
@@ -94,6 +96,9 @@ class PaymentController extends Controller
 
         event(new RideStatusUpdated(Ride::findOrFail($ride_id)));
 
-        return $this->success($payment, 'Payment processed successfully');
+        return $this->success(
+            $payment,
+            $alreadyProcessed ? 'Payment already processed.' : 'Payment processed successfully'
+        );
     }
 }

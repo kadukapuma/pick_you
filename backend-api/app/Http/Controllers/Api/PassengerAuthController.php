@@ -9,6 +9,7 @@ use App\Traits\ApiResponse;
 use App\Services\Auth\AuthPayload;
 use App\Services\Auth\PhoneNumberNormalizer;
 use App\Services\Auth\NotifySmsSender;
+use App\Services\Auth\OtpCodeService;
 use App\Services\Auth\PhoneIdentityConflict;
 use App\Services\Auth\PhoneIdentityResolver;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ class PassengerAuthController extends Controller
         private readonly PhoneIdentityResolver $phoneIdentities,
         private readonly AuthPayload $authPayload,
         private readonly NotifySmsSender $sms,
+        private readonly OtpCodeService $otpCodes,
     ) {}
 
     private function normalizePhoneNumber($phone)
@@ -55,12 +57,12 @@ class PassengerAuthController extends Controller
             ]);
         }
 
-        $otpCode = rand(1000, 9999);
+        $otpCode = $this->otpCodes->generate();
 
         OtpVerification::create([
             'contact' => $notifyPhone,
             'purpose' => 'passenger_login',
-            'otp_code' => $otpCode,
+            'otp_code' => $this->otpCodes->storeValue($otpCode),
             'is_verified' => false,
             'expires_at' => now()->addMinutes(5)
         ]);
@@ -72,7 +74,7 @@ class PassengerAuthController extends Controller
             return $this->error('Failed to send OTP SMS', 502);
         }
 
-        return $this->success(['otp' => $otpCode], 'OTP sent successfully');
+        return $this->success($this->otpCodes->debugPayload($otpCode), 'OTP sent successfully');
     }
 
     public function verifyOtp(Request $request)
@@ -89,12 +91,12 @@ class PassengerAuthController extends Controller
         $notifyPhone = $this->normalizePhoneNumber($request->phone);
 
         $otp = OtpVerification::where('contact', $notifyPhone)
-            ->where('otp_code', $request->otp_code)
             ->where('purpose', 'passenger_login')
             ->where('is_verified', false)
             ->where('expires_at', '>', now())
             ->latest()
-            ->first();
+            ->get()
+            ->first(fn (OtpVerification $otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
 
         if (!$otp) {
             return $this->error('Invalid or expired OTP', 400);

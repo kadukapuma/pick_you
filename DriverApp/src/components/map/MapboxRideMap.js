@@ -1,7 +1,7 @@
 import MapboxGL from "@rnmapbox/maps";
 import { Image, StyleSheet, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_API_KEY || "";
@@ -52,6 +52,56 @@ const buildBounds = (coordinates, edgePadding) => {
   };
 };
 
+const CAMERA_UPDATE_INTERVAL_MS = 250;
+const FOLLOW_CAMERA_ANIMATION_MS = 350;
+
+const useFollowCameraLocation = (location, enabled) => {
+  const [cameraLocation, setCameraLocation] = useState(location);
+  const lastUpdateRef = useRef(0);
+  const timeoutRef = useRef(null);
+  const latestLocationRef = useRef(location);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!enabled || !location) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+      latestLocationRef.current = location;
+      setCameraLocation(location);
+      return;
+    }
+
+    latestLocationRef.current = location;
+    const now = Date.now();
+    const elapsed = now - lastUpdateRef.current;
+    const publish = () => {
+      lastUpdateRef.current = Date.now();
+      timeoutRef.current = null;
+      setCameraLocation(latestLocationRef.current);
+    };
+
+    if (elapsed >= CAMERA_UPDATE_INTERVAL_MS) {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      publish();
+      return;
+    }
+
+    if (!timeoutRef.current) {
+      timeoutRef.current = setTimeout(
+        publish,
+        CAMERA_UPDATE_INTERVAL_MS - elapsed,
+      );
+    }
+  }, [enabled, location]);
+
+  return cameraLocation;
+};
+
 function DotMarker({ color = "#00A859" }) {
   return (
     <View style={[styles.dotOuter, { backgroundColor: `${color}33` }]}>
@@ -60,7 +110,9 @@ function DotMarker({ color = "#00A859" }) {
   );
 }
 
-function VehicleMarker({ source, heading = 0, size = 76 }) {
+function VehicleMarker({ source, heading = 0, size = 76, fixedForward = false }) {
+  const visualHeading = fixedForward ? 0 : heading;
+
   if (source) {
     return (
       <View style={[styles.vehicleImageFrame, { width: size, height: size }]}>
@@ -72,7 +124,7 @@ function VehicleMarker({ source, heading = 0, size = 76 }) {
               width: size,
               height: size,
               // car3d.png points east; subtract 90deg so zero heading points north.
-              transform: [{ rotate: `${heading - 90}deg` }],
+              transform: [{ rotate: `${visualHeading - 90}deg` }],
             },
           ]}
           resizeMode="contain"
@@ -82,7 +134,7 @@ function VehicleMarker({ source, heading = 0, size = 76 }) {
   }
 
   return (
-    <View style={[styles.navigationMarker, { transform: [{ rotate: `${heading}deg` }] }]}>
+    <View style={[styles.navigationMarker, { transform: [{ rotate: `${visualHeading}deg` }] }]}>
       <MaterialCommunityIcons name="navigation" size={20} color="#FFFFFF" />
     </View>
   );
@@ -107,6 +159,7 @@ export default function MapboxRideMap({
 }) {
   const { location: smoothOrigin } = useSmoothLocation(origin);
   const renderedOrigin = smoothOrigin ?? origin;
+  const cameraOrigin = useFollowCameraLocation(renderedOrigin, followVehicle);
   const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
     () => [origin, destination, ...routeCoordinates].filter(isValidCoordinate),
@@ -145,15 +198,15 @@ export default function MapboxRideMap({
         bounds={!followVehicle && !cameraIsFree ? bounds || undefined : undefined}
         centerCoordinate={
           followVehicle
-            ? toPosition(renderedOrigin)
+            ? toPosition(cameraOrigin ?? renderedOrigin)
             : !cameraIsFree && !bounds
               ? toPosition(origin)
               : undefined
         }
         zoomLevel={followVehicle ? followZoom : !cameraIsFree && !bounds ? 15 : undefined}
         pitch={followVehicle ? followPitch : cameraIsFree ? undefined : 0}
-        heading={followVehicle ? renderedOrigin.heading ?? 0 : cameraIsFree ? undefined : 0}
-        animationDuration={followVehicle ? 0 : 500}
+        heading={followVehicle ? cameraOrigin?.heading ?? renderedOrigin.heading ?? 0 : cameraIsFree ? undefined : 0}
+        animationDuration={followVehicle ? FOLLOW_CAMERA_ANIMATION_MS : 500}
       />
 
       {routeShape ? (
@@ -175,6 +228,7 @@ export default function MapboxRideMap({
           source={vehicleImage}
           heading={renderedOrigin.heading ?? vehicleHeading}
           size={vehicleSize}
+          fixedForward={followVehicle}
         />
       </MapboxGL.MarkerView>
 

@@ -8,6 +8,7 @@ class RideMatchingRedis
 {
     private const MATCHING_DRIVERS_PREFIX = 'ride:matching_drivers:';
     private const CURRENT_DRIVER_PREFIX = 'ride:current_driver:';
+    private const DRIVER_CURRENT_RIDES_PREFIX = 'driver:current_rides:';
 
     /**
      * @param  array<int>  $driverIds
@@ -38,8 +39,19 @@ class RideMatchingRedis
     public function setCurrentDriver(int $rideId, int $driverId): void
     {
         $ttl = (int) config('ride.redis.current_driver_ttl', 42);
+        $currentDriverKey = $this->currentDriverKey($rideId);
+        $previousDriverId = $this->getCurrentDriver($rideId);
 
-        Redis::setex($this->currentDriverKey($rideId), $ttl, (string) $driverId);
+        Redis::pipeline(function ($pipe) use ($currentDriverKey, $rideId, $driverId, $previousDriverId, $ttl) {
+            if ($previousDriverId !== null && $previousDriverId !== $driverId) {
+                $pipe->srem($this->driverCurrentRidesKey($previousDriverId), (string) $rideId);
+            }
+
+            $driverRidesKey = $this->driverCurrentRidesKey($driverId);
+            $pipe->setex($currentDriverKey, $ttl, (string) $driverId);
+            $pipe->sadd($driverRidesKey, (string) $rideId);
+            $pipe->expire($driverRidesKey, $ttl);
+        });
     }
 
     public function getCurrentDriver(int $rideId): ?int
@@ -58,15 +70,33 @@ class RideMatchingRedis
 
     public function cleanup(int $rideId): void
     {
+        $driverId = $this->getCurrentDriver($rideId);
+
         Redis::del(
             $this->matchingDriversKey($rideId),
             $this->currentDriverKey($rideId),
         );
+
+        if ($driverId !== null) {
+            Redis::srem($this->driverCurrentRidesKey($driverId), (string) $rideId);
+        }
     }
 
     public function matchingQueueLength(int $rideId): int
     {
         return (int) Redis::llen($this->matchingDriversKey($rideId));
+    }
+
+    /**
+     * @return array<int>
+     */
+    public function currentRideIdsForDriver(int $driverId): array
+    {
+        return collect(Redis::smembers($this->driverCurrentRidesKey($driverId)))
+            ->map(fn ($rideId) => (int) $rideId)
+            ->filter()
+            ->values()
+            ->all();
     }
 
     private function matchingDriversKey(int $rideId): string
@@ -77,5 +107,10 @@ class RideMatchingRedis
     private function currentDriverKey(int $rideId): string
     {
         return self::CURRENT_DRIVER_PREFIX . $rideId;
+    }
+
+    private function driverCurrentRidesKey(int $driverId): string
+    {
+        return self::DRIVER_CURRENT_RIDES_PREFIX . $driverId;
     }
 }

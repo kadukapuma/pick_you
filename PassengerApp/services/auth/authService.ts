@@ -149,7 +149,7 @@ export class AuthService {
     if (IS_DEV_MODE) return this.sendOtpDev(phone);
 
     try {
-      const response = await apiClient.post<{ otp: number }>(
+      const response = await apiClient.post<{ otp?: number }>(
         API_ENDPOINTS.AUTH.OTP_SEND,
         {
           phone,

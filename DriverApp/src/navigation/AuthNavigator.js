@@ -6,6 +6,7 @@ import OTPScreen from "../screens/Auth/OtpScreen";
 import RegisterScreen from "../screens/Auth/RegisterScreen";
 import ForgotPasswordScreen from "../screens/Auth/ForgotPasswordScreen";
 import ResetPasswordScreen from "../screens/Auth/ResetPasswordScreen";
+import LegalDocumentScreen from "../screens/Auth/LegalDocumentScreen";
 
 const Stack = createNativeStackNavigator();
 
@@ -94,6 +95,24 @@ const AuthNavigator = ({
           <ResetPasswordScreen
             {...props}
             onExit={() => handleExitToGetStarted(props.navigation)}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="PrivacyPolicy">
+        {(props) => (
+          <LegalDocumentScreen
+            {...props}
+            route={{ ...props.route, params: { type: "privacy" } }}
+          />
+        )}
+      </Stack.Screen>
+
+      <Stack.Screen name="TermsConditions">
+        {(props) => (
+          <LegalDocumentScreen
+            {...props}
+            route={{ ...props.route, params: { type: "terms" } }}
           />
         )}
       </Stack.Screen>

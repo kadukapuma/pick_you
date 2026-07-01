@@ -6,6 +6,11 @@ import EmptyState from "./EmptyState";
 import { router } from "expo-router";
 import { Ionicons, Feather } from "@expo/vector-icons";
 
+const toNumber = (value: any): number => {
+    const number = Number(value);
+    return Number.isFinite(number) ? number : 0;
+};
+
 export default function OngoingTab() {
     const {
         isSearchingForDriver,
@@ -100,6 +105,7 @@ export default function OngoingTab() {
     if (["ACCEPTED", "ARRIVED", "STARTED"].includes(activeRideStatus || "") && rideData) {
         const driver = rideData.driver;
         const vehicle = rideData.vehicle;
+        const estimatedFare = toNumber(rideData.estimated_fare);
 
         return (
             <View className="flex-1 -mx-4 -mb-4">
@@ -195,6 +201,22 @@ export default function OngoingTab() {
                                     <Text className="text-xs font-bold text-slate-400 uppercase tracking-widest">Drop-off</Text>
                                     <Text className="text-slate-900 font-semibold truncate">{rideData.drop_address}</Text>
                                 </View>
+                            </View>
+                        </View>
+
+                        <View className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6">
+                            <View className="flex-row items-center justify-between">
+                                <View>
+                                    <Text className="text-xs font-bold text-amber-700 uppercase tracking-widest">
+                                        Estimated fare
+                                    </Text>
+                                    <Text className="text-slate-500 text-xs mt-1">
+                                        Final fare appears after trip completion
+                                    </Text>
+                                </View>
+                                <Text className="text-lg font-black text-slate-900">
+                                    Rs. {estimatedFare.toFixed(2)}
+                                </Text>
                             </View>
                         </View>
 

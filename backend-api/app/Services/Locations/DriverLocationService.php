@@ -4,6 +4,7 @@ namespace App\Services\Locations;
 
 use App\Events\DriverLocationUpdated;
 use App\Jobs\PersistDriverLocationSnapshot;
+use App\Jobs\ProcessRideLocationPoint;
 use App\Models\Driver;
 use App\Models\DriverLocation;
 use App\Models\Ride;
@@ -47,11 +48,23 @@ class DriverLocationService
             'sequence' => (int) ($data['sequence'] ?? $recordedAt->getTimestampMs()),
         ];
 
-        $activeRide = Ride::query()
-            ->where('driver_id', $driver->id)
-            ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
-            ->latest('accepted_at')
-            ->first();
+        $activeRide = null;
+
+        if (! empty($data['ride_id'])) {
+            $activeRide = Ride::query()
+                ->where('id', $data['ride_id'])
+                ->where('driver_id', $driver->id)
+                ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
+                ->first();
+        }
+
+        if (! $activeRide) {
+            $activeRide = Ride::query()
+                ->where('driver_id', $driver->id)
+                ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
+                ->latest('accepted_at')
+                ->first();
+        }
 
         if ($activeRide) {
             $payload['ride_id'] = (int) $activeRide->id;
@@ -78,6 +91,14 @@ class DriverLocationService
                     $payload['latitude'],
                     (string) $payload['driver_id'],
                 );
+
+                if (! empty($payload['ride_id'])) {
+                    $pipe->setex(
+                        $this->latestRideKey((int) $payload['ride_id']),
+                        config('location.latest_ttl_seconds', 60),
+                        json_encode($payload, JSON_THROW_ON_ERROR),
+                    );
+                }
             });
         } catch (Throwable $exception) {
             Log::warning('Driver location Redis write failed; snapshot queued.', [
@@ -119,6 +140,16 @@ class DriverLocationService
         }
 
         try {
+            $rideEncoded = Redis::get($this->latestRideKey((int) $ride->id));
+
+            if ($rideEncoded) {
+                $payload = json_decode($rideEncoded, true, flags: JSON_THROW_ON_ERROR);
+                $payload['is_stale'] = CarbonImmutable::parse($payload['recorded_at'])
+                    ->lt(CarbonImmutable::now('UTC')->subSeconds(config('location.stale_after_seconds', 20)));
+
+                return $payload;
+            }
+
             $encoded = Redis::get($this->latestKey((int) $ride->driver_id));
 
             if ($encoded) {
@@ -136,7 +167,9 @@ class DriverLocationService
             ]);
         }
 
-        $location = DriverLocation::query()->where('driver_id', $ride->driver_id)->first();
+        $location = DriverLocation::query()
+            ->where('driver_id', $ride->driver_id)
+            ->first();
 
         if (! $location) {
             return null;
@@ -159,14 +192,18 @@ class DriverLocationService
 
     private function queueSnapshot(array $payload): void
     {
-        try {
-            $shouldPersist = Cache::store('redis')->add(
-                'driver:location:snapshot-lock:'.$payload['driver_id'],
-                true,
-                config('location.snapshot_interval_seconds', 30),
-            );
-        } catch (Throwable) {
+        if (! empty($payload['ride_id'])) {
             $shouldPersist = true;
+        } else {
+            try {
+                $shouldPersist = Cache::store('redis')->add(
+                    'driver:location:snapshot-lock:'.$payload['driver_id'],
+                    true,
+                    config('location.snapshot_interval_seconds', 30),
+                );
+            } catch (Throwable) {
+                $shouldPersist = true;
+            }
         }
 
         if ($shouldPersist) {
@@ -176,7 +213,23 @@ class DriverLocationService
                 $payload['longitude'],
                 $payload['heading'],
                 $payload['speed'],
+                $payload['ride_id'] ?? null,
+                $payload['recorded_at'] ?? null,
+                $payload['sequence'] ?? null,
             );
+
+            if (empty($payload['ride_id'])) {
+                try {
+                    $job->handle();
+                } catch (Throwable $exception) {
+                    Log::warning('Idle driver location snapshot could not be persisted directly.', [
+                        'driver_id' => $payload['driver_id'],
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+
+                return;
+            }
 
             try {
                 dispatch($job);
@@ -188,10 +241,30 @@ class DriverLocationService
                 $job->handle();
             }
         }
+
+        if (! empty($payload['ride_id'])) {
+            $job = new ProcessRideLocationPoint($payload);
+
+            try {
+                dispatch($job);
+            } catch (Throwable $exception) {
+                Log::warning('Ride location processing queue unavailable; processing directly.', [
+                    'ride_id' => $payload['ride_id'],
+                    'driver_id' => $payload['driver_id'],
+                    'error' => $exception->getMessage(),
+                ]);
+                app(\App\Services\Locations\RideLocationPointProcessor::class)->process($payload);
+            }
+        }
     }
 
     private function latestKey(int $driverId): string
     {
         return 'driver:location:'.$driverId;
+    }
+
+    private function latestRideKey(int $rideId): string
+    {
+        return 'ride:location:'.$rideId;
     }
 }
