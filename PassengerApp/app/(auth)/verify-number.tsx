@@ -33,17 +33,12 @@ export default function VerifyNumberScreen() {
   const isCodeComplete = code.every(Boolean);
   const otpCode = code.join("");
 
-  // Show OTP popup on first load (for testing purposes until SMS/Email gateway is set up)
+  // Show OTP popup only when the backend/dev mock explicitly returns a test OTP.
   useEffect(() => {
-    if (showOtpPopup && mobileNumber) {
-      const message = testOtp
-        ? "📧 OTP has been sent to: \n\n🔐 FOR TESTING (DEV): Your OTP code is: \n\nEnter it in the field below to verify."
-        : "📧 OTP has been sent to: \n\nIn development, check:\n• Your backend logs\n• Email received\n• Backend console output\n\nThe OTP is typically a 4-digit code.\n\nEnter it in the field below to verify.";
-
-      // In development, show a popup with info on how to get the OTP
+    if (showOtpPopup && mobileNumber && testOtp) {
       Alert.alert(
         "🔐 OTP for Testing",
-        message,
+        `OTP has been sent to ${mobileNumber}.\n\nFOR TESTING (DEV): Your OTP code is ${testOtp}.\n\nEnter it in the field below to verify.`,
         [
           {
             text: "OK, I have the code",
@@ -167,7 +162,7 @@ export default function VerifyNumberScreen() {
         inputRefs.current[0]?.focus();
 
         const successMsg = result.otp
-          ? "OTP sent again. Your new OTP is: "
+          ? `OTP sent again. Your new OTP is: ${result.otp}`
           : "OTP sent again. Check your SMS.";
         Alert.alert("Success", successMsg);
       } else {

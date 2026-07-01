@@ -218,6 +218,19 @@ class DriverLocationService
                 $payload['sequence'] ?? null,
             );
 
+            if (empty($payload['ride_id'])) {
+                try {
+                    $job->handle();
+                } catch (Throwable $exception) {
+                    Log::warning('Idle driver location snapshot could not be persisted directly.', [
+                        'driver_id' => $payload['driver_id'],
+                        'error' => $exception->getMessage(),
+                    ]);
+                }
+
+                return;
+            }
+
             try {
                 dispatch($job);
             } catch (Throwable $exception) {

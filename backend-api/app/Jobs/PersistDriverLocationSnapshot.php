@@ -36,6 +36,7 @@ class PersistDriverLocationSnapshot implements ShouldQueue
             'driver_id' => $this->driverId,
             'latitude' => $this->latitude,
             'longitude' => $this->longitude,
+            'ride_id' => $this->rideId,
             'heading' => $this->heading,
             'speed' => $this->speed,
             'recorded_at' => $recordedAt,
@@ -61,6 +62,10 @@ class PersistDriverLocationSnapshot implements ShouldQueue
 
     private function withSpatialColumns(array $payload): array
     {
+        if (! Schema::hasColumn('driver_locations', 'ride_id')) {
+            unset($payload['ride_id']);
+        }
+
         if (Schema::hasColumn('driver_locations', 'location')) {
             $payload['location'] = DB::raw("point({$this->longitude}, {$this->latitude})");
         }

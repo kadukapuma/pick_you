@@ -148,6 +148,28 @@ class FareExtrasAndPaymentTest extends TestCase
         $this->assertSame(2, DB::table('ride_location_points')->where('ride_id', $ride->id)->where('accepted_for_fare', true)->count());
         $this->assertGreaterThan(1.9, (float) $ride->fresh()->actual_distance_km);
         $this->assertSame(1, DB::table('driver_locations')->where('driver_id', $driver->id)->count());
+        $this->assertSame($ride->id, DB::table('driver_locations')->where('driver_id', $driver->id)->value('ride_id'));
+    }
+
+    public function test_idle_driver_location_is_persisted_immediately_for_matching(): void
+    {
+        [$driverUser, $driver] = $this->driver();
+        Sanctum::actingAs($driverUser, ['role:driver']);
+
+        $this->postJson('/api/driver-locations', [
+            'latitude' => 6.90000000,
+            'longitude' => 79.80000000,
+            'accuracy' => 10,
+            'speed' => 0,
+            'heading' => 0,
+            'recorded_at' => now()->subSecond()->toIso8601String(),
+            'sequence' => 150,
+        ])->assertOk();
+
+        $this->assertDatabaseHas('driver_locations', [
+            'driver_id' => $driver->id,
+            'ride_id' => null,
+        ]);
     }
 
     public function test_rejected_noisy_and_duplicate_points_do_not_affect_fare_distance(): void

@@ -8,6 +8,9 @@ use App\Http\Middleware\SuperAdminMiddleware;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
+use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -31,4 +34,16 @@ return Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
-    })->create();
+    })
+    ->booted(function (): void {
+        RateLimiter::for('auth', function (Request $request) {
+            $identity = $request->input('email')
+                ?? $request->input('phone')
+                ?? $request->input('enrollment_token')
+                ?? $request->ip();
+
+            return Limit::perMinute((int) config('auth.auth_rate_limit_per_minute', 10))
+                ->by($request->ip().'|'.sha1((string) $identity));
+        });
+    })
+    ->create();
