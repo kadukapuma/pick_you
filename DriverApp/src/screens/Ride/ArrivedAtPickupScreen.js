@@ -1,3 +1,4 @@
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useState } from "react";
 import {
     StatusBar,
@@ -6,13 +7,12 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
-import { Feather, Ionicons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
-import { getPickupCoordinate } from "../../utils/rideLocation";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
 import api from "../../services/api";
+import { getPickupCoordinate } from "../../utils/rideLocation";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -27,7 +27,6 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Pickup";
-  const rating = ride?.rating || "4.9";
 
   const routeCoordinates =
     directions?.polyline?.length > 0
@@ -166,15 +165,6 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
-              <View style={styles.ratingRow}>
-                <Ionicons
-                  name="star"
-                  size={13}
-                  color="#0F172A"
-                  style={{ marginRight: 4 }}
-                />
-                <Text style={styles.ratingText}>{rating} Customer Rating</Text>
-              </View>
             </View>
           </View>
 
