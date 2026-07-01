@@ -41,27 +41,27 @@ const heroSlides = [
 
 const opportunityStats = [
   {
-    value: "85%",
-    label: "Fare you keep",
-    sub: "Industry-leading split",
+    value: "High",
+    label: "Local Earnings",
+    sub: "Keep most of your fares",
     color: "#22c55e",
   },
   {
-    value: "$2,000+",
-    label: "Top monthly earnings",
-    sub: "For full-time drivers",
+    value: "Any",
+    label: "Time You Want",
+    sub: "Drive around Jaffna easily",
     color: "#0e5c6b",
   },
   {
-    value: "100+",
-    label: "Cities available",
-    sub: "And expanding fast",
+    value: "Wide",
+    label: "Network Reach",
+    sub: "Growing across Sri Lanka",
     color: "#f59e0b",
   },
   {
-    value: "24/7",
-    label: "Instant cash out",
-    sub: "No waiting for pay day",
+    value: "Fast",
+    label: "Cash Payouts",
+    sub: "Quick access to your money",
     color: "#8b5cf6",
   },
 ];
@@ -72,7 +72,7 @@ const driverBenefits = [
     color: "#22c55e",
     bg: "#dcfce7",
     title: "Earn More Per Trip",
-    desc: "Keep up to 85% of every fare. Transparent pay structure with no hidden deductions ever.",
+    desc: "Maximize your daily income with our driver-friendly fare structure. Transparent pay with no hidden deductions.",
     image: earnMoreTrip,
   },
   {
@@ -80,39 +80,39 @@ const driverBenefits = [
     color: "#0e5c6b",
     bg: "#e0f2fe",
     title: "Flexible Schedule",
-    desc: "Drive when you want — morning, evening, weekends. You're the boss of your own time.",
+    desc: "Drive around Jaffna on your own terms. Morning, evening, or weekends—you are the boss of your own time.",
     image: flexibleSchedule,
   },
   {
     icon: <FaBolt size={22} />,
     color: "#f59e0b",
     bg: "#fef3c7",
-    title: "Instant Pay",
-    desc: "Cash out earnings any time, any day. No waiting — money in your account within minutes.",
+    title: "Fast Payments",
+    desc: "Access your earnings quickly and reliably with seamless local bank transfers in Sri Lanka.",
     image: instantPay,
   },
   {
     icon: <FaShieldAlt size={22} />,
     color: "#8b5cf6",
     bg: "#ede9fe",
-    title: "Driver Protection",
-    desc: "Full insurance coverage on every trip plus 24/7 emergency support when you need it most.",
+    title: "Driver Safety First",
+    desc: "Your safety matters. Enjoy dedicated local support tailored for our Sri Lankan driver partners.",
     image: driverProtection,
   },
   {
     icon: <FaChartBar size={22} />,
     color: "#ef4444",
     bg: "#fee2e2",
-    title: "Smart Analytics",
-    desc: "Know your best hours, busiest routes, and peak earning windows with built-in insights.",
+    title: "Smart Insights",
+    desc: "Know the busiest times and most requested routes across town to optimize your daily earnings.",
     image: smartAnalytics,
   },
   {
     icon: <FaAward size={22} />,
     color: "#0e5c6b",
     bg: "#f0fdf4",
-    title: "Driver Rewards",
-    desc: "Hit weekly trip targets and unlock bonuses, fuel discounts, and exclusive driver perks.",
+    title: "Local Driver Perks",
+    desc: "Hit your weekly trip targets to unlock exclusive local rewards and community-focused perks.",
     image: driverRewards,
   },
 ];
@@ -191,7 +191,7 @@ export default function ForDrivers() {
             </p>
           </div>
 
-          {/* Opportunity stats */}
+      
           <div className="opportunity-stats-grid">
             {opportunityStats.map((s, i) => (
               <div key={i} className="stat-card">

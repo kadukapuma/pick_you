@@ -349,7 +349,11 @@
 .stat-card {
     background: white;
     border-radius: 1.1rem;
-    padding: 1.6rem 1.25rem;
+    padding: 2.2rem 1.25rem;
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
     text-align: center;
     border: 1px solid #e8edf2;
     transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
@@ -425,6 +429,7 @@
     background: white;
     border-radius: 1.5rem;
     padding: 0;
+    min-height: 460px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -444,7 +449,7 @@
 
 .benefit-card-visual {
     position: relative;
-    height: 180px;
+    height: 260px;
     width: 100%;
     overflow: hidden;
     background: #f8fafc;
