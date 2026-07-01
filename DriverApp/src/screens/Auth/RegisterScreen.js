@@ -515,8 +515,19 @@ const RegisterScreen = ({ navigation }) => {
 
                   <Text style={styles.termsText}>
                     I agree to the{" "}
-                    <Text style={styles.linkText}>Terms of Service</Text> and{" "}
-                    <Text style={styles.linkText}>Privacy Policy</Text>
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => navigation?.navigate("TermsConditions")}
+                    >
+                      Terms & Conditions
+                    </Text>{" "}
+                    and{" "}
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => navigation?.navigate("PrivacyPolicy")}
+                    >
+                      Privacy Policy
+                    </Text>
                   </Text>
                 </MotiView>
 
