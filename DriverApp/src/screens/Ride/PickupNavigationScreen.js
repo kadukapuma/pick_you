@@ -1,18 +1,26 @@
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { useMemo, useState } from "react";
 import {
+    Alert,
+    Dimensions,
+    Modal,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
+    TextInput,
     TouchableOpacity,
     View,
 } from "react-native";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { SafeAreaView } from "react-native-safe-area-context";
+import MapboxRideMap from "../../components/map/MapboxRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useMapboxRoute } from "../../hooks/useMapboxRoute";
-import { getPickupCoordinate } from "../../utils/rideLocation";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
 import api from "../../services/api";
+import { getPickupCoordinate } from "../../utils/rideLocation";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -27,9 +35,24 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   const [isMarkingArrived, setIsMarkingArrived] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
+  // Cancel trip states
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedReasons, setSelectedReasons] = useState({});
+  const [otherReason, setOtherReason] = useState("");
+  const [showOtherInput, setShowOtherInput] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [showCompletionAnimation, setShowCompletionAnimation] = useState(false);
+  const [showCarAnimation, setShowCarAnimation] = useState(false);
+
+  const cancellationReasons = [
+    "Customer didn't pick up the phone",
+    "Customer didn't come out",
+    "Wrong location",
+    "Vehicle breakdown",
+  ];
+
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Pickup";
-  const rating = ride?.rating || "4.9";
 
   const routeCoordinates =
     directions?.polyline?.length > 0
@@ -72,6 +95,89 @@ const PickupNavigationScreen = ({ navigation, route }) => {
     markArrived();
   };
 
+  const handleCancelTrip = () => {
+    setShowCancelModal(true);
+  };
+
+  const handleSelectReason = (reason) => {
+    setSelectedReasons((prev) => ({
+      ...prev,
+      [reason]: !prev[reason],
+    }));
+  };
+
+  const handleSubmitCancel = async () => {
+    // Validate that at least one reason is selected
+    const selectedCount = Object.values(selectedReasons).filter(
+      (v) => v,
+    ).length;
+    if (selectedCount === 0 && !otherReason.trim()) {
+      Alert.alert(
+        "Error",
+        "Please select or provide a reason for cancellation",
+      );
+      return;
+    }
+
+    // Collect reasons
+    const reasons = Object.keys(selectedReasons)
+      .filter((key) => selectedReasons[key])
+      .join(", ");
+
+    const finalReason = otherReason.trim()
+      ? `${reasons} - ${otherReason}`
+      : reasons;
+
+    setIsCancelling(true);
+    try {
+      // Call API to cancel the trip
+      if (ride?.id) {
+        await api.post(`/rides/${ride.id}/cancel`, {
+          cancelReason: finalReason,
+          cancelledBy: "driver",
+        });
+      }
+
+      // Close modal
+      setShowCancelModal(false);
+
+      // Show completion animation
+      setShowCompletionAnimation(true);
+
+      // After animation completes, show car animation then navigate
+      setTimeout(() => {
+        setShowCompletionAnimation(false);
+        setShowCarAnimation(true);
+
+        setTimeout(() => {
+          setShowCarAnimation(false);
+          // Reset state
+          setSelectedReasons({});
+          setOtherReason("");
+          setShowOtherInput(false);
+          // Navigate to home
+          navigation.navigate("HomeScreen");
+        }, 3000);
+      }, 2500);
+    } catch (error) {
+      console.log("Error cancelling trip:", error.response?.data || error);
+      Alert.alert(
+        "Error",
+        error.response?.data?.message ||
+          "Failed to cancel trip. Please try again.",
+      );
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleCloseCancel = () => {
+    setShowCancelModal(false);
+    setSelectedReasons({});
+    setOtherReason("");
+    setShowOtherInput(false);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar
@@ -103,7 +209,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           onPress={() => setFollowVehicle(true)}
           activeOpacity={0.8}
         >
-          <MaterialCommunityIcons name="crosshairs-gps" size={22} color="#0F172A" />
+          <MaterialCommunityIcons
+            name="crosshairs-gps"
+            size={22}
+            color="#0F172A"
+          />
         </TouchableOpacity>
       ) : null}
 
@@ -151,10 +261,6 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
-              <View style={styles.ratingRow}>
-                <Ionicons name="star" size={14} color="#F59E0B" />
-                <Text style={styles.ratingText}>{rating} Customer Rating</Text>
-              </View>
             </View>
             <TouchableOpacity
               style={styles.inlineNavCircle}
@@ -182,9 +288,22 @@ const PickupNavigationScreen = ({ navigation, route }) => {
               <Feather name="phone" size={18} color="#0F172A" />
               <Text style={styles.actionText}>Call</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
-              <Feather name="message-square" size={18} color="#0F172A" />
-              <Text style={styles.actionText}>Message</Text>
+            <TouchableOpacity
+              style={[
+                styles.actionBtn,
+                { borderColor: "#EF4444", borderWidth: 2 },
+              ]}
+              onPress={handleCancelTrip}
+              activeOpacity={0.7}
+            >
+              <MaterialCommunityIcons
+                name="close-circle"
+                size={18}
+                color="#EF4444"
+              />
+              <Text style={[styles.actionText, { color: "#EF4444" }]}>
+                Cancel
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -204,6 +323,124 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         </View>
         <SafeAreaView edges={["bottom"]} style={styles.blackBottomSafeArea} />
       </View>
+
+      {/* CANCEL TRIP MODAL */}
+      <Modal
+        visible={showCancelModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleCloseCancel}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.cancelModalContent}>
+            <View style={styles.cancelModalHeader}>
+              <TouchableOpacity onPress={handleCloseCancel}>
+                <Feather name="arrow-left" size={24} color="#0F172A" />
+              </TouchableOpacity>
+              <Text style={styles.cancelModalTitle}>Cancel Trip</Text>
+              <View style={{ width: 24 }} />
+            </View>
+
+            <Text style={styles.cancelReasonLabel}>
+              Why are you canceling this trip?
+            </Text>
+
+            <ScrollView
+              style={styles.reasonsContainer}
+              showsVerticalScrollIndicator={false}
+            >
+              {cancellationReasons.map((reason, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.reasonCheckboxRow}
+                  onPress={() => handleSelectReason(reason)}
+                >
+                  <View
+                    style={[
+                      styles.checkbox,
+                      selectedReasons[reason] && styles.checkboxSelected,
+                    ]}
+                  >
+                    {selectedReasons[reason] && (
+                      <Feather name="check" size={16} color="#00A859" />
+                    )}
+                  </View>
+                  <Text style={styles.reasonText}>{reason}</Text>
+                </TouchableOpacity>
+              ))}
+
+              <TouchableOpacity
+                style={styles.reasonCheckboxRow}
+                onPress={() => setShowOtherInput(!showOtherInput)}
+              >
+                <View
+                  style={[
+                    styles.checkbox,
+                    showOtherInput && styles.checkboxSelected,
+                  ]}
+                >
+                  {showOtherInput && (
+                    <Feather name="check" size={16} color="#00A859" />
+                  )}
+                </View>
+                <Text style={styles.reasonText}>Other</Text>
+              </TouchableOpacity>
+
+              {showOtherInput && (
+                <TextInput
+                  style={styles.otherReasonInput}
+                  placeholder="Please explain..."
+                  placeholderTextColor="#94A3B8"
+                  value={otherReason}
+                  onChangeText={setOtherReason}
+                  multiline
+                  numberOfLines={4}
+                />
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.submitCancelBtn, isCancelling && { opacity: 0.6 }]}
+              onPress={handleSubmitCancel}
+              disabled={isCancelling}
+              activeOpacity={0.9}
+            >
+              <Text style={styles.submitCancelText}>
+                {isCancelling ? "Canceling..." : "Submit"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* COMPLETION ANIMATION MODAL */}
+      <Modal visible={showCompletionAnimation} transparent animationType="fade">
+        <View style={styles.animationOverlay}>
+          <View style={styles.animationContainer}>
+            <LottieView
+              source={require("../../assets/Upload Complete.json")}
+              autoPlay
+              loop={false}
+              style={styles.completionAnimation}
+            />
+            <Text style={styles.animationText}>Trip Cancelled</Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* CAR ANIMATION MODAL */}
+      <Modal visible={showCarAnimation} transparent animationType="fade">
+        <View style={styles.animationOverlay}>
+          <View style={styles.animationContainer}>
+            <LottieView
+              source={require("../../assets/Car Animation.json")}
+              autoPlay
+              loop={false}
+              style={styles.carAnimation}
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -475,5 +712,121 @@ const styles = StyleSheet.create({
   },
   blackBottomSafeArea: {
     backgroundColor: "#000000",
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  cancelModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    maxHeight: "80%",
+  },
+  cancelModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 24,
+  },
+  cancelModalTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#0F172A",
+    flex: 1,
+    textAlign: "center",
+  },
+  cancelReasonLabel: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 18,
+  },
+  reasonsContainer: {
+    maxHeight: 320,
+    marginBottom: 20,
+  },
+  reasonCheckboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  checkboxSelected: {
+    backgroundColor: "#E0F6EE",
+    borderColor: "#00A859",
+  },
+  reasonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#0F172A",
+    flex: 1,
+  },
+  otherReasonInput: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    marginLeft: 38,
+    fontSize: 14,
+    color: "#0F172A",
+    fontWeight: "500",
+    maxHeight: 100,
+  },
+  submitCancelBtn: {
+    backgroundColor: "#EF4444",
+    borderRadius: 16,
+    height: 56,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  submitCancelText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  // Animation styles
+  animationOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  animationContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  completionAnimation: {
+    width: 240,
+    height: 240,
+  },
+  carAnimation: {
+    width: 300,
+    height: 300,
+  },
+  animationText: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#FFFFFF",
+    marginTop: 20,
   },
 });
