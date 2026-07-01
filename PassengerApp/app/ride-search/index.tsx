@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import LocationPicker from "../../components/ride/LocationPicker";
 import ReturnLocationPicker from "../../components/ride/ReturnLocationPicker";
@@ -120,7 +121,7 @@ export default function RideSearchScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -160,7 +161,7 @@ export default function RideSearchScreen() {
             ))}
         </Animated.View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 
   function handleLocationConfirm(
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   header: {
-    marginTop: 52,
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
