@@ -15,8 +15,10 @@ use App\Traits\ApiResponse;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Throwable;
 
 class RideController extends Controller
 {
@@ -75,8 +77,24 @@ class RideController extends Controller
             return $this->success([], 'No active vehicle type found');
         }
 
+        try {
+            $targetedRideIds = $this->rideMatchingRedis->currentRideIdsForDriver((int) $driver->id);
+        } catch (Throwable $exception) {
+            Log::warning('Could not read targeted rides from Redis.', [
+                'driver_id' => $driver->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return $this->error('Ride request service is temporarily unavailable.', 503);
+        }
+
+        if ($targetedRideIds === []) {
+            return $this->success([], 'Driver ride requests retrieved successfully');
+        }
+
         $rides = Ride::with(['passenger.user', 'fareConfig'])
             ->where('status', 'REQUESTED')
+            ->whereIn('id', $targetedRideIds)
             ->whereHas('fareConfig', function ($query) use ($vehicleTypeName) {
                 $query->where('vehicle_type', $vehicleTypeName);
             })
@@ -184,12 +202,36 @@ class RideController extends Controller
             'notes' => 'Passenger requested a ride.',
         ]);
 
-        $matched = $this->rideMatching->startMatching(
-            $ride,
-            $pickupLat,
-            $pickupLng,
-            (string) $request->vehicle_type,
-        );
+        try {
+            $matched = $this->rideMatching->startMatching(
+                $ride,
+                $pickupLat,
+                $pickupLng,
+                (string) $request->vehicle_type,
+            );
+        } catch (Throwable $exception) {
+            Log::error('Ride matching failed after ride creation.', [
+                'ride_id' => $ride->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            $ride->update([
+                'status' => 'CANCELLED',
+                'cancelled_at' => now(),
+            ]);
+            $ride->statuses()->create([
+                'status' => 'CANCELLED',
+                'notes' => 'Ride matching service was unavailable.',
+            ]);
+
+            try {
+                $this->rideMatching->cleanup($ride->id);
+            } catch (Throwable) {
+                //
+            }
+
+            return $this->error('Ride matching service is temporarily unavailable. Please try again.', 503);
+        }
 
         if (! $matched) {
             $ride->update([

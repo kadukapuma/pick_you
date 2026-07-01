@@ -10,6 +10,7 @@ use App\Models\PendingDriverEnrollment;
 use App\Models\User;
 use App\Services\Auth\AuthPayload;
 use App\Services\Auth\NotifySmsSender;
+use App\Services\Auth\OtpCodeService;
 use App\Services\Auth\PhoneIdentityConflict;
 use App\Services\Auth\PhoneIdentityResolver;
 use App\Services\Auth\PhoneNumberNormalizer;
@@ -31,6 +32,7 @@ class DriverAuthController extends Controller
         private readonly PhoneIdentityResolver $phoneIdentities,
         private readonly AuthPayload $authPayload,
         private readonly NotifySmsSender $sms,
+        private readonly OtpCodeService $otpCodes,
     ) {}
 
     public function register(Request $request)
@@ -62,7 +64,7 @@ class DriverAuthController extends Controller
         } catch (PhoneIdentityConflict $exception) {
             return $this->error($exception->getMessage(), 409);
         }
-        if ($existingUser?->driver || $existingUser?->hasRole(User::ROLE_DRIVER)) {
+        if ($existingUser?->driver) {
             return $this->error('This phone number already has a driver account. Please log in.', 409);
         }
 
@@ -95,11 +97,11 @@ class DriverAuthController extends Controller
             return $this->error('Driver enrollment is invalid or expired.', 410);
         }
 
-        $otpCode = (string) random_int(1000, 9999);
+        $otpCode = $this->otpCodes->generate();
         OtpVerification::create([
             'contact' => $enrollment->phone_normalized,
             'purpose' => 'driver_registration',
-            'otp_code' => $otpCode,
+            'otp_code' => $this->otpCodes->storeValue($otpCode),
             'is_verified' => false,
             'expires_at' => now()->addMinutes(5),
         ]);
@@ -111,7 +113,7 @@ class DriverAuthController extends Controller
             return $this->error('Failed to send OTP SMS', 502);
         }
 
-        return $this->success(['otp' => $otpCode], 'OTP sent successfully');
+        return $this->success($this->otpCodes->debugPayload($otpCode), 'OTP sent successfully');
     }
 
     public function verifyOtp(Request $request)
@@ -127,10 +129,11 @@ class DriverAuthController extends Controller
 
         $otp = OtpVerification::where('contact', $pending->phone_normalized)
             ->where('purpose', 'driver_registration')
-            ->where('otp_code', $request->otp_code)
             ->where('is_verified', false)
             ->where('expires_at', '>', now())
-            ->latest()->first();
+            ->latest()
+            ->get()
+            ->first(fn (OtpVerification $otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
         if (! $otp) {
             return $this->error('Invalid or expired OTP', 400);
         }
@@ -158,7 +161,7 @@ class DriverAuthController extends Controller
                 } else {
                     $user->update(['phone_normalized' => $locked->phone_normalized, 'is_verified' => true]);
                 }
-                if ($user->driver || $user->hasRole(User::ROLE_DRIVER)) {
+                if ($user->driver) {
                     throw new InvalidArgumentException('This phone number already has a driver account.');
                 }
 
