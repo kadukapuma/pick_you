@@ -12,6 +12,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -120,6 +121,15 @@ const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
   tuk: "car",
   bike: "bicycle",
   suv: "bus",
+};
+
+const VEHICLE_IMAGE_MAP: Record<string, any> = {
+  car: require("../../assets/images/vehicles/car.png"),
+  tuk: require("../../assets/images/vehicles/threewheel.png"),
+  bike: require("../../assets/images/vehicles/bike.png"),
+  suv: require("../../assets/images/vehicles/minivan.png"),
+  van: require("../../assets/images/vehicles/van.png"),
+  minicar: require("../../assets/images/vehicles/minicar.png"),
 };
 const ETA_MAP: Record<string, string> = {
   bike: "1 min",
@@ -239,25 +249,19 @@ function RideCard({
           style={[
             styles.rideCard,
             { borderColor },
-            selected && styles.rideCardSelected,
+            selected && { backgroundColor: "#F3F4F6" },
           ]}
         >
           {/* Icon area */}
-          <View
-            style={[
-              styles.cardIconWrap,
-              selected && styles.cardIconWrapSelected,
-            ]}
-          >
-            <Ionicons
-              name={ride.icon as any}
-              size={26}
-              color={selected ? "#fff" : GREEN}
+          <View style={styles.cardIconWrap}>
+            <Image
+              source={VEHICLE_IMAGE_MAP[ride.id] || VEHICLE_IMAGE_MAP.car}
+              style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
 
           {/* Name + seats row */}
-          <Text style={[styles.cardName, selected && styles.cardTextWhite]}>
+          <Text style={styles.cardName}>
             {ride.name}
           </Text>
 
@@ -265,44 +269,29 @@ function RideCard({
             <Ionicons
               name="person-outline"
               size={11}
-              color={selected ? "rgba(255,255,255,0.75)" : "#9CA3AF"}
+              color="#9CA3AF"
             />
-            <Text
-              style={[
-                styles.cardEta,
-                selected && { color: "rgba(255,255,255,0.8)" },
-              ]}
-            >
+            <Text style={styles.cardEta}>
               {ride.eta}
             </Text>
           </View>
 
           {/* Price */}
-          <Text style={[styles.cardPrice, selected && styles.cardTextWhite]}>
+          <Text style={styles.cardPrice}>
             LKR {ride.price.toFixed(2)}
           </Text>
 
           {/* Stars earned */}
           <View style={styles.starsRow}>
             <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text
-              style={[
-                styles.starsText,
-                selected && { color: "rgba(255,255,255,0.85)" },
-              ]}
-            >
+            <Text style={styles.starsText}>
               Earn {stars}
             </Text>
           </View>
 
           {/* Route info */}
           {directions && (
-            <Text
-              style={[
-                styles.cardRoute,
-                selected && { color: "rgba(255,255,255,0.7)" },
-              ]}
-            >
+            <Text style={styles.cardRoute}>
               {directions.distanceText} · {directions.durationText}
             </Text>
           )}
@@ -732,32 +721,22 @@ const styles = StyleSheet.create({
   },
 
   rideCardSelected: {
-    backgroundColor: GREEN,
+    backgroundColor: "#F3F4F6",
     borderColor: GREEN,
   },
 
   cardIconWrap: {
-    width: 46,
+    width: "100%",
     height: 46,
-    borderRadius: 23,
-    backgroundColor: GREEN_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
-  },
-
-  cardIconWrapSelected: {
-    backgroundColor: GREEN_DARK,
   },
 
   cardName: {
     fontSize: 13,
     fontWeight: "700",
     color: "#111827",
-  },
-
-  cardTextWhite: {
-    color: "#fff",
   },
 
   cardMeta: {
