@@ -260,8 +260,8 @@ export default function SearchingScreen() {
         <View style={styles.sheetLayout}>
           <View style={styles.sheetTopRow}>
             <View style={styles.statusWrap}>
-              <Text style={styles.statusTitleSinhala}>අවට රියදුරු සොයමින් පවතී</Text>
               <Text style={styles.statusTitleEnglish}>Searching nearby drivers...</Text>
+
             </View>
 
             <View style={styles.searchIconWrap}>
@@ -277,12 +277,13 @@ export default function SearchingScreen() {
           <ProgressSegments />
 
           <View style={styles.footerRow}>
-            <Text style={styles.footerSubSinhala}>වාහන වර්ග කිහිපයක් තෝරන්න</Text>
+            <Text style={styles.footerSubSinhala}>Select multiple vehicle types</Text>
             <TouchableOpacity style={styles.retryBtn}>
-              <Text style={styles.retryText}>දැන් උත්සාහ කරන්න</Text>
+              <Text style={styles.retryText}>Try again now</Text>
               <Ionicons name="chevron-down" size={16} color="#B45309" />
             </TouchableOpacity>
           </View>
+
         </View>
 
         {isAccepted && (
@@ -422,17 +423,13 @@ const styles = StyleSheet.create({
   statusWrap: {
     flex: 1,
   },
-  statusTitleSinhala: {
+  statusTitleEnglish: {
     fontSize: 20,
     fontWeight: "800",
     color: "#111827",
     marginBottom: 4,
   },
-  statusTitleEnglish: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
+
   searchIconWrap: {
     width: 60,
     height: 60,

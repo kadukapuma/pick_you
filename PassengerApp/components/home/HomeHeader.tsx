@@ -42,37 +42,22 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
         alignItems: "center",
         justifyContent: "space-between",
         width: "100%",
-        paddingTop: 2,
+        paddingTop: 8,
       }}
     >
       {/* LEFT SIDE */}
-      <View
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          flex: 1,
-        }}
-      >
+      <View style={{ flex: 1, justifyContent: "center", height: 44 }}>
         {/* LOGO CONTAINER */}
-        <View
+        <Image
+          source={require("../../assets/images/logo.png")}
           style={{
-            justifyContent: "center",
-            alignItems: "flex-start",
-            width: compact ? 140 : 170,
-            height: compact ? 50 : 65,
-            marginLeft: compact ? -25 : -35,
+            position: "absolute",
+            left: -10,
+            width: 170, // Make it massively wide if desired visually
+            height: 110, // Make it extremely tall visually
+            resizeMode: "contain",
           }}
-        >
-          <Image
-            source={require("../../assets/images/logo.png")}
-            style={{
-              width: compact ? 210 : 270, // slightly larger
-              height: compact ? 78 : 100, // slightly larger
-              resizeMode: "contain",
-              marginLeft: compact ? -45 : -65, // adjusted to keep same position
-            }}
-          />
-        </View>
+        />
       </View>
 
       {/* RIGHT SIDE */}
@@ -87,28 +72,26 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           activeOpacity={0.8}
           onPress={() => router.push("/(drawer)/(tabs)/notification")}
           style={{
-            width: compact ? 42 : 44,
-            height: compact ? 42 : 44,
-            borderRadius: compact ? 21 : 22,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
             backgroundColor: "#FFFFFF",
             alignItems: "center",
             justifyContent: "center",
+            borderWidth: 1,
+            borderColor: "#E5E7EB",
 
-            // Cross-platform shadow
+            // Subtle Shadow
             shadowColor: "#000",
-            shadowOffset: {
-              width: 0,
-              height: 2,
-            },
-            shadowOpacity: 0.08,
-            shadowRadius: 4,
-
-            elevation: 3,
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.05,
+            shadowRadius: 2,
+            elevation: 1,
           }}
         >
           <Ionicons
             name="notifications-outline"
-            size={compact ? 20 : 22}
+            size={22}
             color="#0B3D2E"
           />
 
@@ -116,8 +99,8 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           <View
             style={{
               position: "absolute",
-              right: compact ? 10 : 11,
-              top: compact ? 9 : 10,
+              right: 12,
+              top: 10,
               width: 8,
               height: 8,
               borderRadius: 4,
@@ -131,16 +114,15 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           activeOpacity={0.8}
           onPress={() => router.push("/(drawer)/(tabs)/account")}
           style={{
-            width: compact ? 40 : 44,
-            height: compact ? 40 : 44,
-            borderRadius: compact ? 20 : 22,
+            width: 44,
+            height: 44,
+            borderRadius: 22,
             overflow: "hidden",
-            backgroundColor: "#D1D5DB",
-            marginLeft: 10,
+            backgroundColor: "#F3F4F6",
+            marginLeft: 12,
 
-            // Better Android rendering
-            borderWidth: Platform.OS === "android" ? 0.3 : 0,
-            borderColor: "#D1D5DB",
+            borderWidth: 1.5,
+            borderColor: "#E5E7EB",
           }}
         >
           {profileImage ? (
@@ -156,9 +138,13 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
               style={{
                 width: "100%",
                 height: "100%",
+                alignItems: "center",
+                justifyContent: "center",
                 backgroundColor: "#E5E7EB",
               }}
-            />
+            >
+              <Ionicons name="person" size={24} color="#9CA3AF" />
+            </View>
           )}
         </TouchableOpacity>
       </View>
