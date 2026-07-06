@@ -1,19 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { getCachedDirections_withCache } from "../services/routing/mapboxRoutingService";
+import { getCachedDirections_withCache } from "../services/routing/googleRoutingService";
 
 const routeDistanceMeters = (from, to) => {
   const latScale = 111320;
-  const lngScale = latScale * Math.cos(((from.latitude + to.latitude) / 2) * Math.PI / 180);
+  const lngScale =
+    latScale * Math.cos(((from.latitude + to.latitude) / 2) * Math.PI / 180);
   return Math.hypot(
     (to.latitude - from.latitude) * latScale,
     (to.longitude - from.longitude) * lngScale,
   );
 };
 
-/**
- * Fetches a road-following route between two coordinates via Mapbox Directions API.
- */
-export function useMapboxRoute(origin, destination) {
+export function useGoogleRoute(origin, destination) {
   const originLatitude = origin.latitude;
   const originLongitude = origin.longitude;
   const [directions, setDirections] = useState(null);
@@ -43,18 +41,12 @@ export function useMapboxRoute(origin, destination) {
           destination.latitude,
           destination.longitude,
         );
-        if (!cancelled) {
-          setDirections(result);
-        }
+        if (!cancelled) setDirections(result);
       } catch (error) {
-        console.error("useMapboxRoute:", error);
-        if (!cancelled) {
-          setDirections(null);
-        }
+        console.error("useGoogleRoute:", error);
+        if (!cancelled) setDirections(null);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        if (!cancelled) setLoading(false);
       }
     };
 

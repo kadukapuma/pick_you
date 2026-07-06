@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "lk.picku.passenger",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "apkType": "universal",
@@ -34,7 +38,6 @@
     },
     "plugins": [
       "expo-router",
-      "@rnmapbox/maps",
       [
         "expo-camera",
         {
@@ -61,7 +64,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "48914c34-fef9-4960-8080-0212e208de72"
+        "projectId": "e3777b37-3bd1-47a0-bf78-6620f4fc9916"
       }
     }
   }

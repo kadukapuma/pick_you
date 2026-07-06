@@ -2338,11 +2338,11 @@ Total Monitoring: $950/month
 
 #### Third-party Services
 ```yaml
-Mapbox API:
-  - Geocoding: $500/month
-  - Directions: $300/month
-  - Maps: $200/month
-Total Mapbox: $1,000/month
+Google Maps Platform:
+  - Places and Geocoding: $500/month
+  - Routes: $300/month
+  - Native Maps SDK usage: $200/month
+Total Maps Platform: $1,000/month
 
 Pusher (if not using Reverb):
   - 1M connections: $2,500/month

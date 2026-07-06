@@ -14,9 +14,9 @@ import { useRideSearch, type RideOption } from "../../context/RideSearchContext"
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../../services/routing/mapboxRoutingService";
+} from "../../services/routing/googleRoutingService";
 import { apiClient } from "../../services/api/apiClient";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 interface DBVehicleType {
   id: number;
@@ -33,6 +33,11 @@ interface DBVehicleType {
     cancellation_fee: string;
     is_active: boolean;
   } | null;
+}
+
+interface RideEstimateResponse {
+  route: DirectionsResult;
+  estimated_fare: number;
 }
 
 const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
@@ -158,6 +163,8 @@ export default function SelectRideReturnScreen() {
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
   const { returnTrip, setReturnRide } = useRideSearch();
+  const pickup = returnTrip.pickup;
+  const dropoff = returnTrip.dropoff;
   const insets = useSafeAreaInsets();
 
   // Fetch real directions when component loads
@@ -189,9 +196,13 @@ export default function SelectRideReturnScreen() {
     const fetchVehicles = async () => {
       setLoadingVehicles(true);
       try {
-        const response = await apiClient.get<DBVehicleType[]>("/vehicle-types");
-        if (response.success && response.data && response.data.length > 0) {
-          const active = response.data.filter(vt => vt.is_active);
+        const response = await apiClient.get<DBVehicleType[]>(
+          "/vehicle-types?active_only=1&available_only=1",
+        );
+        if (response.success && Array.isArray(response.data)) {
+          const active = response.data.filter(
+            (vt) => vt.is_active && vt.fare_config?.is_active,
+          );
           setDbVehicles(active);
         } else {
           console.warn("API returned empty vehicle list or failed, falling back to mock data.");
@@ -209,20 +220,53 @@ export default function SelectRideReturnScreen() {
 
   // Compute dyn pricing once both vehicle types and routing directions are ready
   useEffect(() => {
-    if (directions && dbVehicles.length > 0) {
-      const mapped = dbVehicles.map(vt =>
-        mapDBVehicleToOption(vt, directions.distance, directions.duration)
-      );
-      setRideOptions(mapped);
-      // Auto select first option if none is selected
-      if (mapped.length > 0 && !selectedRide) {
-        setSelectedRide(mapped[0].id);
-      }
+    if (directions && dbVehicles.length > 0 && pickup && dropoff) {
+      let cancelled = false;
+      const loadEstimates = async () => {
+        const mapped = await Promise.all(
+          dbVehicles.map(async (vt) => {
+            const fallback = mapDBVehicleToOption(
+              vt,
+              directions.distance,
+              directions.duration,
+            );
+            const estimate = await apiClient.post<RideEstimateResponse>(
+              "/rides/estimate",
+              {
+                vehicle_type: vt.name,
+                pickup_lat: pickup.latitude,
+                pickup_lng: pickup.longitude,
+                drop_lat: dropoff.latitude,
+                drop_lng: dropoff.longitude,
+              },
+            );
+
+            if (!estimate.success || !estimate.data) return fallback;
+
+            return {
+              ...fallback,
+              price: Number(estimate.data.estimated_fare) || fallback.price,
+            };
+          }),
+        );
+
+        if (cancelled) return;
+        setRideOptions(mapped);
+        if (mapped.length > 0 && !selectedRide) {
+          setSelectedRide(mapped[0].id);
+        }
+      };
+
+      loadEstimates();
+
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [directions, dbVehicles]);
+  }, [directions, dbVehicles, pickup, dropoff, selectedRide]);
 
   // Validate data
-  if (!returnTrip.pickup || !returnTrip.dropoff) {
+  if (!pickup || !dropoff) {
     return (
       <View style={styles.errorContainer}>
         <Ionicons name="alert-circle" size={48} color="#EF4444" />
@@ -236,9 +280,6 @@ export default function SelectRideReturnScreen() {
       </View>
     );
   }
-
-  const pickup = returnTrip.pickup;
-  const dropoff = returnTrip.dropoff;
 
   const handleSelectRide = (rideId: string) => {
     setSelectedRide(rideId);
@@ -264,7 +305,7 @@ export default function SelectRideReturnScreen() {
   return (
     <View style={styles.container}>
       {/* MAP */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         pickup={pickup}
         dropoff={dropoff}

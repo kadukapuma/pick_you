@@ -20,10 +20,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../../services/routing/mapboxRoutingService";
+} from "../../services/routing/googleRoutingService";
 import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -41,6 +41,11 @@ interface DBVehicleType {
     cancellation_fee: string;
     is_active: boolean;
   } | null;
+}
+
+interface RideEstimateResponse {
+  route: DirectionsResult;
+  estimated_fare: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -368,10 +373,12 @@ export default function SelectRideScreen() {
     (async () => {
       setLoadingVehicles(true);
       try {
-        const res = await apiClient.get<DBVehicleType[]>("/vehicle-types");
+        const res = await apiClient.get<DBVehicleType[]>(
+          "/vehicle-types?active_only=1&available_only=1",
+        );
         const data =
-          res.success && res.data && res.data.length > 0
-            ? res.data.filter((v) => v.is_active)
+          res.success && Array.isArray(res.data)
+            ? res.data.filter((v) => v.is_active && v.fare_config?.is_active)
             : MOCK_VEHICLE_TYPES;
         if (!cancelled) {
           _setRawVehicles(data);
@@ -394,14 +401,50 @@ export default function SelectRideScreen() {
   // Compute pricing once both are ready
   useEffect(() => {
     if (!directions || _rawVehicles.length === 0) return;
-    const mapped = _rawVehicles.map((v) =>
-      mapDBVehicleToOption(v, directions.distance, directions.duration),
-    );
-    setRideOptions(mapped);
-    if (mapped.length > 0) setSelectedRide(mapped[0].id);
-    animateSheetIn();
-    setLoadingVehicles(false);
-  }, [directions, _rawVehicles]);
+
+    let cancelled = false;
+    const loadEstimates = async () => {
+      const mapped = await Promise.all(
+        _rawVehicles.map(async (vehicle) => {
+          const fallback = mapDBVehicleToOption(
+            vehicle,
+            directions.distance,
+            directions.duration,
+          );
+
+          const estimate = await apiClient.post<RideEstimateResponse>(
+            "/rides/estimate",
+            {
+              vehicle_type: vehicle.name,
+              pickup_lat: pickup.latitude,
+              pickup_lng: pickup.longitude,
+              drop_lat: destination.latitude,
+              drop_lng: destination.longitude,
+            },
+          );
+
+          if (!estimate.success || !estimate.data) return fallback;
+
+          return {
+            ...fallback,
+            price: Number(estimate.data.estimated_fare) || fallback.price,
+          };
+        }),
+      );
+
+      if (cancelled) return;
+      setRideOptions(mapped);
+      if (mapped.length > 0) setSelectedRide(mapped[0].id);
+      animateSheetIn();
+      setLoadingVehicles(false);
+    };
+
+    loadEstimates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [animateSheetIn, destination.latitude, destination.longitude, directions, pickup.latitude, pickup.longitude, _rawVehicles]);
 
   const handleBookNow = useCallback(() => {
     if (!selectedRide || rideOptions.length === 0) return;
@@ -428,7 +471,7 @@ export default function SelectRideScreen() {
       />
 
       {/* ── MAP ──────────────────────────────────────────────────────────── */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         pickup={pickup}
         dropoff={destination}

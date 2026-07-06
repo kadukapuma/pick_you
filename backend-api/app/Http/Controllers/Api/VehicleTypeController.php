@@ -27,6 +27,10 @@ class VehicleTypeController extends Controller
             return $vt;
         });
 
+        if ($request->boolean('available_only')) {
+            $data = $data->filter(fn ($vt) => $vt->fare_config !== null)->values();
+        }
+
         return $this->success($data, 'Vehicle types retrieved successfully.');
     }
 

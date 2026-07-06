@@ -11,7 +11,9 @@ import {
   Image,
 } from "react-native";
 import {
+  createPlacesSessionToken,
   LocationSuggestion,
+  resolveLocationSuggestion,
   searchLocationSuggestions,
 } from "../../services/location/multiProviderService";
 
@@ -90,6 +92,14 @@ export default function LocationPicker({
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const sessionTokens = useRef<Record<"pickup" | "drop", string>>({
+    pickup: createPlacesSessionToken(),
+    drop: createPlacesSessionToken(),
+  });
+
+  const resetSessionToken = (field: "pickup" | "drop") => {
+    sessionTokens.current[field] = createPlacesSessionToken();
+  };
 
   const handleSearch = (text: string, field: "pickup" | "drop") => {
     if (field === "pickup") setPickupSearch(text);
@@ -105,7 +115,9 @@ export default function LocationPicker({
     debounceTimer.current = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const results = await searchLocationSuggestions(text);
+        const results = await searchLocationSuggestions(text, {
+          sessionToken: sessionTokens.current[field],
+        });
         setSuggestions(results);
       } catch (error) {
         console.log("Search error:", error);
@@ -115,18 +127,29 @@ export default function LocationPicker({
     }, 500);
   };
 
-  const handleSelectLocation = (location: LocationSuggestion) => {
+  const handleSelectLocation = async (location: LocationSuggestion) => {
+    if (!activeField) return;
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current[activeField],
+    );
+    setIsLoading(false);
+
+    if (!resolvedLocation) return;
+
     if (activeField === "pickup") {
-      setPickup(location);
-      setPickupSearch(location.address);
+      setPickup(resolvedLocation);
+      setPickupSearch(resolvedLocation.address);
       if (destination && destination.id === pickup?.id) {
         setDestination(null);
         setDropSearch("");
       }
     } else if (activeField === "drop") {
-      setDestination(location);
-      setDropSearch(location.address);
+      setDestination(resolvedLocation);
+      setDropSearch(resolvedLocation.address);
     }
+    resetSessionToken(activeField);
     setActiveField(null);
     setSuggestions([]);
   };
@@ -174,56 +197,56 @@ export default function LocationPicker({
       <View style={styles.fieldWrapper}>
         <Text style={styles.label}>{label}</Text>
 
-        <View style={styles.inputContainer}>
-          {isActive ? (
-            <View style={styles.inputWrapper}>
-              <TextInput
-                style={styles.input}
-                placeholder={placeholder}
-                placeholderTextColor="#B0C4C4"
-                value={value}
-                onChangeText={(text) => handleSearch(text, field)}
-                autoFocus
-                returnKeyType="search"
-              />
-              {value.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => {
-                    if (field === "pickup") {
-                      setPickupSearch("");
-                      setPickup(null);
-                    }
-                    if (field === "drop") {
-                      setDropSearch("");
-                      setDestination(null);
-                    }
-                    setSuggestions([]);
-                  }}
-                >
-                  <Ionicons name="close-circle" size={18} color="#B0C4C4" />
-                </TouchableOpacity>
-              )}
+        {isActive ? (
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={placeholder}
+              placeholderTextColor="#B0C4C4"
+              value={value}
+              onChangeText={(text) => handleSearch(text, field)}
+              autoFocus
+              returnKeyType="search"
+            />
+            {value.length > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  if (field === "pickup") {
+                    setPickupSearch("");
+                    setPickup(null);
+                  }
+                  if (field === "drop") {
+                    setDropSearch("");
+                    setDestination(null);
+                  }
+                  setSuggestions([]);
+                }}
+              >
+                <Ionicons name="close-circle" size={20} color="#B0C4C4" />
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : hasValue ? (
+          <TouchableOpacity
+            style={styles.valueWrapper}
+            onPress={() => handleFieldFocus(field)}
+          >
+            <Text style={styles.valueText} numberOfLines={1}>
+              {selectedLocation.address}
+            </Text>
+            <View style={styles.editIcon}>
+              <Ionicons name="create-outline" size={18} color="#1B9E6E" />
             </View>
-          ) : hasValue ? (
-            <TouchableOpacity
-              style={styles.valueWrapper}
-              onPress={() => handleFieldFocus(field)}
-            >
-              <Text style={styles.valueText} numberOfLines={1}>
-                {selectedLocation.address}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity
-              style={styles.valueWrapper}
-              onPress={() => handleFieldFocus(field)}
-            >
-              <Text style={styles.placeholderText}>{placeholder}</Text>
-            </TouchableOpacity>
-          )}
-
-          <Ionicons name="location-outline" size={20} color="#000000" />
-        </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.valueWrapper}
+            onPress={() => handleFieldFocus(field)}
+          >
+            <Text style={styles.placeholderText}>{placeholder}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -287,6 +310,10 @@ export default function LocationPicker({
             )}
           </View>
         )}
+        {activeField &&
+          suggestions.some((suggestion) => suggestion.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
 
         {/* Saved Addresses Section */}
         {!activeField && (
@@ -317,10 +344,28 @@ export default function LocationPicker({
               <Text style={styles.savedText}>Google SF, Spear Tower</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="location-outline" size={24} color="#000" />
-              <Text style={styles.savedText}>Favorite Cafe, Oakland</Text>
-            </TouchableOpacity>
+            <View style={styles.divider} />
+
+            {QUICK_SAVED.map((location) => (
+              <TouchableOpacity
+                key={location.id}
+                style={styles.savedItem}
+                onPress={() => {
+                  if (!pickup) {
+                    handleSelectLocation(location);
+                  } else if (!destination) {
+                    handleSelectLocation(location);
+                  }
+                }}
+              >
+                <Ionicons name="location" size={22} color="#6B9E8E" />
+                <View style={styles.locationInfo}>
+                  <Text style={styles.savedText}>{location.address}</Text>
+                  <Text style={styles.locationDetail}>{location.details}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </ScrollView>
@@ -431,6 +476,9 @@ const styles = StyleSheet.create({
     color: "#9CA3AF",
     flex: 1,
   },
+  editIcon: {
+    padding: 4,
+  },
   suggestionsContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -462,6 +510,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B9E8E",
     marginTop: 2,
+  },
+  googleAttribution: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 12,
+    marginRight: 12,
   },
   savedSection: {
     backgroundColor: "#FFFFFF",

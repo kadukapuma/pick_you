@@ -1,59 +1,20 @@
-import MapboxGL from "@rnmapbox/maps";
-import { Image, StyleSheet, View } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Image, StyleSheet, View } from "react-native";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
-
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_API_KEY || "";
-
-if (MAPBOX_TOKEN) {
-  MapboxGL.setAccessToken(MAPBOX_TOKEN);
-}
-
-const toPosition = (coordinate) => [coordinate.longitude, coordinate.latitude];
 
 const isValidCoordinate = (coordinate) =>
   Number.isFinite(coordinate?.latitude) && Number.isFinite(coordinate?.longitude);
 
-const buildLineFeature = (coordinates) => ({
-  type: "Feature",
-  properties: {},
-  geometry: {
-    type: "LineString",
-    coordinates: coordinates.map(toPosition),
-  },
+const toLatLng = (coordinate) => ({
+  latitude: coordinate.latitude,
+  longitude: coordinate.longitude,
 });
-
-const buildBounds = (coordinates, edgePadding) => {
-  const valid = coordinates.filter(isValidCoordinate);
-  if (valid.length < 2) return null;
-
-  const lats = valid.map((coordinate) => coordinate.latitude);
-  const lngs = valid.map((coordinate) => coordinate.longitude);
-
-  const maxLat = Math.max(...lats);
-  const minLat = Math.min(...lats);
-  const maxLng = Math.max(...lngs);
-  const minLng = Math.min(...lngs);
-
-  // Balanced optimization: if locations are identical or too close, bypass bounds 
-  // to avoid infinite tight/extreme zooming (Uber & PickMe approach)
-  if (Math.abs(maxLat - minLat) < 0.0002 && Math.abs(maxLng - minLng) < 0.0002) {
-    return null;
-  }
-
-  return {
-    ne: [maxLng, maxLat],
-    sw: [minLng, minLat],
-    paddingTop: edgePadding?.top ?? 140,
-    paddingRight: edgePadding?.right ?? 70,
-    paddingBottom: edgePadding?.bottom ?? 260,
-    paddingLeft: edgePadding?.left ?? 70,
-  };
-};
 
 const CAMERA_UPDATE_INTERVAL_MS = 250;
 const FOLLOW_CAMERA_ANIMATION_MS = 350;
+const DEFAULT_DELTA = 0.04;
 
 const useFollowCameraLocation = (location, enabled) => {
   const [cameraLocation, setCameraLocation] = useState(location);
@@ -123,7 +84,6 @@ function VehicleMarker({ source, heading = 0, size = 76, fixedForward = false })
             {
               width: size,
               height: size,
-              // car3d.png points east; subtract 90deg so zero heading points north.
               transform: [{ rotate: `${visualHeading - 90}deg` }],
             },
           ]}
@@ -140,106 +100,155 @@ function VehicleMarker({ source, heading = 0, size = 76, fixedForward = false })
   );
 }
 
-export default function MapboxRideMap({
-  origin,
-  destination,
-  routeCoordinates = [],
-  routeColor = "#00A859",
-  destinationColor = "#00A859",
-  vehicleImage,
-  vehicleHeading = 0,
-  vehicleSize = 10,
-  edgePadding,
-  style,
-  cameraRef,
-  followVehicle = false,
-  followZoom = 16,
-  followPitch = 45,
-  onFollowStateChange,
-}) {
+const GoogleRideMap = forwardRef(function GoogleRideMap(
+  {
+    origin,
+    destination,
+    routeCoordinates = [],
+    routeColor = "#00A859",
+    destinationColor = "#00A859",
+    vehicleImage,
+    vehicleHeading = 0,
+    vehicleSize = 10,
+    edgePadding,
+    style,
+    cameraRef,
+    followVehicle = false,
+    followZoom = 16,
+    followPitch = 45,
+    onFollowStateChange,
+  },
+  forwardedRef,
+) {
+  const mapRef = useRef(null);
+  const hasFitInitialBounds = useRef(false);
   const { location: smoothOrigin } = useSmoothLocation(origin);
   const renderedOrigin = smoothOrigin ?? origin;
   const cameraOrigin = useFollowCameraLocation(renderedOrigin, followVehicle);
   const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
-    () => [origin, destination, ...routeCoordinates].filter(isValidCoordinate),
-    [origin, destination, routeCoordinates],
+    () => [renderedOrigin, destination, ...routeCoordinates].filter(isValidCoordinate).map(toLatLng),
+    [destination, renderedOrigin, routeCoordinates],
   );
-
-  const routeShape = useMemo(() => {
+  const routeLine = useMemo(() => {
     const lineCoordinates =
       routeCoordinates.length > 1
         ? routeCoordinates
         : destination
-          ? [origin, destination]
+          ? [renderedOrigin, destination]
           : [];
 
-    return lineCoordinates.length > 1 ? buildLineFeature(lineCoordinates) : null;
-  }, [destination, origin, routeCoordinates]);
+    return lineCoordinates.filter(isValidCoordinate).map(toLatLng);
+  }, [destination, renderedOrigin, routeCoordinates]);
 
-  const bounds = useMemo(
-    () => buildBounds(visibleCoordinates, edgePadding),
-    [visibleCoordinates, edgePadding],
+  const cameraHandle = useMemo(
+    () => ({
+      setCamera: (camera = {}) => {
+        const centerCoordinate = camera.centerCoordinate;
+        const center = Array.isArray(centerCoordinate)
+          ? { latitude: centerCoordinate[1], longitude: centerCoordinate[0] }
+          : camera.center || (isValidCoordinate(centerCoordinate) ? centerCoordinate : undefined);
+
+        mapRef.current?.animateCamera(
+          {
+            center,
+            heading: camera.heading ?? 0,
+            pitch: camera.pitch ?? 0,
+            zoom: camera.zoomLevel ?? camera.zoom,
+          },
+          { duration: camera.animationDuration ?? 350 },
+        );
+      },
+    }),
+    [],
   );
 
+  useImperativeHandle(forwardedRef, () => cameraHandle, [cameraHandle]);
+
+  useEffect(() => {
+    if (cameraRef) cameraRef.current = cameraHandle;
+  }, [cameraHandle, cameraRef]);
+
+  useEffect(() => {
+    if (followVehicle || cameraIsFree || visibleCoordinates.length < 2) return;
+
+    const timeout = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(visibleCoordinates, {
+        edgePadding: {
+          top: edgePadding?.top ?? 140,
+          right: edgePadding?.right ?? 70,
+          bottom: edgePadding?.bottom ?? 260,
+          left: edgePadding?.left ?? 70,
+        },
+        animated: true,
+      });
+      hasFitInitialBounds.current = true;
+    }, hasFitInitialBounds.current ? 0 : 500);
+
+    return () => clearTimeout(timeout);
+  }, [cameraIsFree, edgePadding, followVehicle, visibleCoordinates]);
+
+  useEffect(() => {
+    const next = cameraOrigin ?? renderedOrigin;
+    if (!followVehicle || !next) return;
+
+    mapRef.current?.animateCamera(
+      {
+        center: toLatLng(next),
+        heading: next.heading ?? vehicleHeading ?? 0,
+        pitch: followPitch,
+        zoom: followZoom,
+      },
+      { duration: FOLLOW_CAMERA_ANIMATION_MS },
+    );
+  }, [cameraOrigin, followPitch, followVehicle, followZoom, renderedOrigin, vehicleHeading]);
+
   return (
-    <MapboxGL.MapView
+    <MapView
+      ref={mapRef}
+      provider={PROVIDER_GOOGLE}
       style={[styles.map, style]}
-      styleURL={MapboxGL.StyleURL.Street}
-      logoEnabled={false}
-      attributionEnabled={false}
-      compassEnabled={false}
-      onTouchStart={() => {
+      initialRegion={{
+        latitude: origin.latitude,
+        longitude: origin.longitude,
+        latitudeDelta: DEFAULT_DELTA,
+        longitudeDelta: DEFAULT_DELTA,
+      }}
+      showsCompass={false}
+      showsMyLocationButton={false}
+      onPanDrag={() => {
         if (followVehicle) onFollowStateChange?.(false);
       }}
     >
-      <MapboxGL.Camera
-        ref={cameraRef}
-        bounds={!followVehicle && !cameraIsFree ? bounds || undefined : undefined}
-        centerCoordinate={
-          followVehicle
-            ? toPosition(cameraOrigin ?? renderedOrigin)
-            : !cameraIsFree && !bounds
-              ? toPosition(origin)
-              : undefined
-        }
-        zoomLevel={followVehicle ? followZoom : !cameraIsFree && !bounds ? 15 : undefined}
-        pitch={followVehicle ? followPitch : cameraIsFree ? undefined : 0}
-        heading={followVehicle ? cameraOrigin?.heading ?? renderedOrigin.heading ?? 0 : cameraIsFree ? undefined : 0}
-        animationDuration={followVehicle ? FOLLOW_CAMERA_ANIMATION_MS : 500}
-      />
-
-      {routeShape ? (
-        <MapboxGL.ShapeSource id="driver-route-source" shape={routeShape}>
-          <MapboxGL.LineLayer
-            id="driver-route-line"
-            style={{
-              lineColor: routeColor,
-              lineWidth: 5,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-          />
-        </MapboxGL.ShapeSource>
+      {routeLine.length > 1 ? (
+        <Polyline
+          coordinates={routeLine}
+          strokeColor={routeColor}
+          strokeWidth={5}
+          lineCap="round"
+          lineJoin="round"
+        />
       ) : null}
 
-      <MapboxGL.MarkerView coordinate={toPosition(renderedOrigin)}>
+      <Marker coordinate={toLatLng(renderedOrigin)} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
         <VehicleMarker
           source={vehicleImage}
           heading={renderedOrigin.heading ?? vehicleHeading}
           size={vehicleSize}
           fixedForward={followVehicle}
         />
-      </MapboxGL.MarkerView>
+      </Marker>
 
       {destination ? (
-        <MapboxGL.MarkerView coordinate={toPosition(destination)}>
+        <Marker coordinate={toLatLng(destination)} anchor={{ x: 0.5, y: 0.5 }}>
           <DotMarker color={destinationColor} />
-        </MapboxGL.MarkerView>
+        </Marker>
       ) : null}
-    </MapboxGL.MapView>
+    </MapView>
   );
-}
+});
+
+export default GoogleRideMap;
 
 const styles = StyleSheet.create({
   map: {

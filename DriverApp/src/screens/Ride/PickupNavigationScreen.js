@@ -2,25 +2,22 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import { useMemo, useState } from "react";
 import {
-    Alert,
-    Dimensions,
-    Modal,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  Alert,
+  Modal,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
 import { getPickupCoordinate } from "../../utils/rideLocation";
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -31,13 +28,13 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
   const origin = driverCoord ?? DEFAULT_COORD;
   const destination = pickupCoord ?? origin;
-  const { directions } = useMapboxRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination);
   const [isMarkingArrived, setIsMarkingArrived] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
   // Cancel trip states
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [selectedReasons, setSelectedReasons] = useState({});
+  const [selectedReason, setSelectedReason] = useState("");
   const [otherReason, setOtherReason] = useState("");
   const [showOtherInput, setShowOtherInput] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
@@ -100,33 +97,28 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   };
 
   const handleSelectReason = (reason) => {
-    setSelectedReasons((prev) => ({
-      ...prev,
-      [reason]: !prev[reason],
-    }));
+    setSelectedReason(reason);
+    if (reason === "other") {
+      setShowOtherInput(true);
+    } else {
+      setShowOtherInput(false);
+      setOtherReason("");
+    }
   };
 
   const handleSubmitCancel = async () => {
-    // Validate that at least one reason is selected
-    const selectedCount = Object.values(selectedReasons).filter(
-      (v) => v,
-    ).length;
-    if (selectedCount === 0 && !otherReason.trim()) {
-      Alert.alert(
-        "Error",
-        "Please select or provide a reason for cancellation",
-      );
+    if (!selectedReason) {
+      Alert.alert("Error", "Please select a reason for cancellation");
       return;
     }
 
-    // Collect reasons
-    const reasons = Object.keys(selectedReasons)
-      .filter((key) => selectedReasons[key])
-      .join(", ");
+    if (selectedReason === "other" && !otherReason.trim()) {
+      Alert.alert("Error", "Please write a reason in the other field");
+      return;
+    }
 
-    const finalReason = otherReason.trim()
-      ? `${reasons} - ${otherReason}`
-      : reasons;
+    const finalReason =
+      selectedReason === "other" ? otherReason.trim() : selectedReason;
 
     setIsCancelling(true);
     try {
@@ -152,7 +144,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         setTimeout(() => {
           setShowCarAnimation(false);
           // Reset state
-          setSelectedReasons({});
+          setSelectedReason("");
           setOtherReason("");
           setShowOtherInput(false);
           // Navigate to home
@@ -173,7 +165,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
   const handleCloseCancel = () => {
     setShowCancelModal(false);
-    setSelectedReasons({});
+    setSelectedReason("");
     setOtherReason("");
     setShowOtherInput(false);
   };
@@ -187,7 +179,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       />
 
       {/* MAP VIEWPORT */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         origin={origin}
         destination={destination}
@@ -358,10 +350,10 @@ const PickupNavigationScreen = ({ navigation, route }) => {
                   <View
                     style={[
                       styles.checkbox,
-                      selectedReasons[reason] && styles.checkboxSelected,
+                      selectedReason === reason && styles.checkboxSelected,
                     ]}
                   >
-                    {selectedReasons[reason] && (
+                    {selectedReason === reason && (
                       <Feather name="check" size={16} color="#00A859" />
                     )}
                   </View>
@@ -371,15 +363,15 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
               <TouchableOpacity
                 style={styles.reasonCheckboxRow}
-                onPress={() => setShowOtherInput(!showOtherInput)}
+                onPress={() => handleSelectReason("other")}
               >
                 <View
                   style={[
                     styles.checkbox,
-                    showOtherInput && styles.checkboxSelected,
+                    selectedReason === "other" && styles.checkboxSelected,
                   ]}
                 >
-                  {showOtherInput && (
+                  {selectedReason === "other" && (
                     <Feather name="check" size={16} color="#00A859" />
                   )}
                 </View>
@@ -712,6 +704,7 @@ const styles = StyleSheet.create({
   },
   blackBottomSafeArea: {
     backgroundColor: "#000000",
+    minHeight: 34,
   },
   // Modal styles
   modalOverlay: {

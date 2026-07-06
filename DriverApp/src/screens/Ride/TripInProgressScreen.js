@@ -17,14 +17,14 @@ import {
     useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
 import { clearActiveRideLocationSync } from "../../services/driverLocationSync";
 import {
     getDropCoordinate,
     getPickupCoordinate,
 } from "../../utils/rideLocation";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 const { width, height } = Dimensions.get("window");
 
@@ -50,7 +50,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
   const origin = driverCoord ?? pickupCoord ?? DEFAULT_COORD;
   const destination = dropCoord ?? origin;
-  const { directions } = useMapboxRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination);
 
   const routeCoordinates =
     directions?.polyline?.length > 0
@@ -186,7 +186,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       </SafeAreaView>
 
       {/* MAP VIEWER INTERACTIVE SYSTEM */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.mapViewport}
         origin={origin}
         destination={destination}
