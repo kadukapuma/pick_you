@@ -44,7 +44,8 @@ export default function HomeScreen() {
           styles.headerContainer,
           {
             paddingTop: headerTopPadding,
-            paddingHorizontal: horizontalPadding,
+            paddingLeft: 0,
+            paddingRight: horizontalPadding,
           },
         ]}
       >

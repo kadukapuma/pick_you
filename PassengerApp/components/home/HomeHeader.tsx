@@ -46,16 +46,20 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
       }}
     >
       {/* LEFT SIDE */}
-      <View style={{ flex: 1, justifyContent: "center", height: 44 }}>
-        {/* LOGO CONTAINER */}
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          height: 44,
+        }}
+      >
         <Image
           source={require("../../assets/images/logo.png")}
           style={{
-            position: "absolute",
-            left: -10,
-            width: 170, // Make it massively wide if desired visually
-            height: 110, // Make it extremely tall visually
+            width: 170,
+            height: 110,
             resizeMode: "contain",
+            marginLeft: -10, // Adjust to -8, -12, or -15 if needed
           }}
         />
       </View>
