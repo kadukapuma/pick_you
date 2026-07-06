@@ -11,6 +11,7 @@ use App\Http\Controllers\Api\DriverDocumentController;
 use App\Http\Controllers\Api\DriverLocationController;
 use App\Http\Controllers\Api\DriverProfileController;
 use App\Http\Controllers\Api\FareConfigController;
+use App\Http\Controllers\Api\MapsController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
@@ -96,6 +97,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/driver-documents/{id}', [DriverDocumentController::class, 'destroy']);
     });
     Route::get('/vehicle-types', [VehicleTypeController::class, 'index']);
+    Route::prefix('maps')->middleware('throttle:60,1')->group(function () {
+        Route::get('/places/autocomplete', [MapsController::class, 'autocomplete']);
+        Route::get('/places/details', [MapsController::class, 'details']);
+        Route::post('/geocode/reverse', [MapsController::class, 'reverseGeocode']);
+        Route::post('/routes', [MapsController::class, 'routes']);
+    });
+    Route::post('/rides/estimate', [RideController::class, 'estimate'])->middleware('role:passenger');
     Route::post('/rides', [RideController::class, 'store'])->middleware(['role:passenger', 'idempotent']);
     Route::get('/rides/{id}', [RideController::class, 'show']);
     Route::delete('/rides/{id}', [RideController::class, 'destroy'])->middleware('idempotent');

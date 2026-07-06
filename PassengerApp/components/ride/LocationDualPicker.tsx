@@ -11,7 +11,11 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { searchLocationSuggestions } from "../../services/location/multiProviderService";
+import {
+  createPlacesSessionToken,
+  resolveLocationSuggestion,
+  searchLocationSuggestions,
+} from "../../services/location/multiProviderService";
 import type { LocationSuggestion } from "../../services/location/multiProviderService";
 
 interface LocationDualPickerProps {
@@ -53,6 +57,14 @@ export default function LocationDualPicker({
   // Debounce timers (React Native setTimeout returns number, not Timeout)
   const pickupDebounceTimer = useRef<number | undefined>(undefined);
   const dropoffDebounceTimer = useRef<number | undefined>(undefined);
+  const sessionTokens = useRef<Record<"pickup" | "dropoff", string>>({
+    pickup: createPlacesSessionToken(),
+    dropoff: createPlacesSessionToken(),
+  });
+
+  const resetSessionToken = (field: "pickup" | "dropoff") => {
+    sessionTokens.current[field] = createPlacesSessionToken();
+  };
 
   // Auto-focus dropoff when pickup is selected
   useEffect(() => {
@@ -89,7 +101,9 @@ export default function LocationDualPicker({
       if (query.length > 2) {
         setIsLoading(true);
         try {
-          const results = await searchLocationSuggestions(query);
+          const results = await searchLocationSuggestions(query, {
+            sessionToken: sessionTokens.current.pickup,
+          });
           setPickupSuggestions(results);
         } catch (error) {
           console.log("Search error:", error);
@@ -116,7 +130,9 @@ export default function LocationDualPicker({
       if (query.length > 2) {
         setIsLoading(true);
         try {
-          const results = await searchLocationSuggestions(query);
+          const results = await searchLocationSuggestions(query, {
+            sessionToken: sessionTokens.current.dropoff,
+          });
           setDropoffSuggestions(results);
         } catch (error) {
           console.log("Search error:", error);
@@ -161,18 +177,36 @@ export default function LocationDualPicker({
   };
 
   // Select pickup location
-  const handleSelectPickup = (location: LocationSuggestion) => {
-    setSelectedPickup(location);
-    setPickupSearch(location.address);
+  const handleSelectPickup = async (location: LocationSuggestion) => {
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current.pickup,
+    );
+    setIsLoading(false);
+    if (!resolvedLocation) return;
+
+    setSelectedPickup(resolvedLocation);
+    setPickupSearch(resolvedLocation.address);
     setPickupSuggestions([]);
+    resetSessionToken("pickup");
     setActiveField("dropoff");
   };
 
   // Select dropoff location
-  const handleSelectDropoff = (location: LocationSuggestion) => {
-    setSelectedDropoff(location);
-    setDropoffSearch(location.address);
+  const handleSelectDropoff = async (location: LocationSuggestion) => {
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current.dropoff,
+    );
+    setIsLoading(false);
+    if (!resolvedLocation) return;
+
+    setSelectedDropoff(resolvedLocation);
+    setDropoffSearch(resolvedLocation.address);
     setDropoffSuggestions([]);
+    resetSessionToken("dropoff");
   };
 
   // Confirm selection
@@ -211,7 +245,14 @@ export default function LocationDualPicker({
             editable={true}
           />
           {pickupSearch && (
-            <TouchableOpacity onPress={() => setPickupSearch("")}>
+            <TouchableOpacity
+              onPress={() => {
+                setPickupSearch("");
+                setSelectedPickup(null);
+                setPickupSuggestions([]);
+                resetSessionToken("pickup");
+              }}
+            >
               <Ionicons name="close-circle" size={18} color="#9CA3AF" />
             </TouchableOpacity>
           )}
@@ -258,6 +299,10 @@ export default function LocationDualPicker({
             style={styles.suggestionsList}
           />
         )}
+        {activeField === "pickup" &&
+          pickupSuggestions.some((item) => item.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
       </View>
 
       {/* Swap Button */}
@@ -282,7 +327,14 @@ export default function LocationDualPicker({
             editable={true}
           />
           {dropoffSearch && (
-            <TouchableOpacity onPress={() => setDropoffSearch("")}>
+            <TouchableOpacity
+              onPress={() => {
+                setDropoffSearch("");
+                setSelectedDropoff(null);
+                setDropoffSuggestions([]);
+                resetSessionToken("dropoff");
+              }}
+            >
               <Ionicons name="close-circle" size={18} color="#9CA3AF" />
             </TouchableOpacity>
           )}
@@ -309,6 +361,10 @@ export default function LocationDualPicker({
             style={styles.suggestionsList}
           />
         )}
+        {activeField === "dropoff" &&
+          dropoffSuggestions.some((item) => item.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
       </View>
 
       {/* Confirm Button */}
@@ -406,6 +462,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
+  },
+  googleAttribution: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+    marginRight: 8,
   },
 
   swapButton: {

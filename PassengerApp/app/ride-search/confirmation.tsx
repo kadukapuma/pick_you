@@ -9,10 +9,13 @@ import {
 } from "react-native";
 import { useState } from "react";
 import { apiClient } from "../../services/api/apiClient";
-import { getCachedDirections_withCache } from "../../services/routing/mapboxRoutingService";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useRideSearch } from "../../context/RideSearchContext";
+
+interface RideBookingResponse {
+  id?: number | string;
+}
 
 export default function ConfirmationScreen() {
   const [isBooking, setIsBooking] = useState(false);
@@ -46,20 +49,6 @@ export default function ConfirmationScreen() {
   const handleConfirmBooking = async () => {
     setIsBooking(true);
     try {
-      const directions = await getCachedDirections_withCache(
-        outboundTrip.pickup!.latitude,
-        outboundTrip.pickup!.longitude,
-        outboundTrip.dropoff!.latitude,
-        outboundTrip.dropoff!.longitude,
-      );
-
-      const distance_km = directions
-        ? parseFloat((directions.distance / 1000).toFixed(2))
-        : 5.0;
-      const estimated_duration_minutes = directions
-        ? parseFloat((directions.duration / 60).toFixed(2))
-        : 0;
-
       const payload = {
         vehicle_type: outboundTrip.selectedRide!.id,
         pickup_address: outboundTrip.pickup!.address || "Unknown Pickup",
@@ -68,11 +57,9 @@ export default function ConfirmationScreen() {
         drop_address: outboundTrip.dropoff!.address || "Unknown Drop",
         drop_lat: outboundTrip.dropoff!.latitude,
         drop_lng: outboundTrip.dropoff!.longitude,
-        distance_km,
-        estimated_duration_minutes,
       };
 
-      const response = await apiClient.post("/rides", payload);
+      const response = await apiClient.post<RideBookingResponse>("/rides", payload);
 
       if (response.success) {
         const rideId = response.data?.id ? Number(response.data.id) : null;

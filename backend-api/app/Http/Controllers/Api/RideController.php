@@ -3,10 +3,12 @@
 namespace App\Http\Controllers\Api;
 
 use App\Events\RideStatusUpdated;
+use App\Exceptions\GoogleMapsException;
 use App\Http\Controllers\Controller;
 use App\Models\FareConfig;
 use App\Models\Ride;
 use App\Services\Fares\FareCalculationService;
+use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
 use App\Services\RideMatching\RideMatchingService;
 use App\Services\Rides\RideStateMachine;
@@ -29,6 +31,7 @@ class RideController extends Controller
         private readonly RideMatchingRedis $rideMatchingRedis,
         private readonly RideTransitionService $rideTransition,
         private readonly FareCalculationService $fares,
+        private readonly GoogleMapsService $maps,
     ) {}
 
     /**
@@ -143,7 +146,7 @@ class RideController extends Controller
             'drop_address' => 'required|string',
             'drop_lat' => 'required|numeric',
             'drop_lng' => 'required|numeric',
-            'distance_km' => 'required|numeric',
+            'distance_km' => 'nullable|numeric',
             'estimated_duration_minutes' => 'nullable|numeric|min:0',
         ]);
 
@@ -162,10 +165,17 @@ class RideController extends Controller
         $pickupLat = (float) $request->pickup_lat;
         $dropLng = (float) $request->drop_lng;
         $dropLat = (float) $request->drop_lat;
+
+        try {
+            $route = $this->maps->route($pickupLat, $pickupLng, $dropLat, $dropLng);
+        } catch (GoogleMapsException $exception) {
+            return $this->error($exception->getMessage(), $exception->statusCode());
+        }
+
         $fareEstimate = $this->fares->estimate(
             $fareConfig,
-            (float) $request->distance_km,
-            (float) $request->input('estimated_duration_minutes', 0),
+            ((float) $route['distance']) / 1000,
+            ((float) $route['duration']) / 60,
             $pickupLat,
             $pickupLng,
             $dropLat,
@@ -247,6 +257,60 @@ class RideController extends Controller
         }
 
         return $this->success($ride, 'Ride requested successfully', 201);
+    }
+
+    /**
+     * Passenger requests an authoritative route and fare estimate before booking.
+     */
+    public function estimate(Request $request)
+    {
+        $validator = Validator::make($request->all(), [
+            'vehicle_type' => 'required|string',
+            'pickup_lat' => 'required|numeric',
+            'pickup_lng' => 'required|numeric',
+            'drop_lat' => 'required|numeric',
+            'drop_lng' => 'required|numeric',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        $fareConfig = FareConfig::where('vehicle_type', $request->vehicle_type)->where('is_active', true)->first();
+        if (! $fareConfig) {
+            return $this->error('Selected vehicle type is currently unavailable', 400);
+        }
+
+        try {
+            $route = $this->maps->route(
+                (float) $request->pickup_lat,
+                (float) $request->pickup_lng,
+                (float) $request->drop_lat,
+                (float) $request->drop_lng,
+            );
+        } catch (GoogleMapsException $exception) {
+            return $this->error($exception->getMessage(), $exception->statusCode());
+        }
+
+        $fareEstimate = $this->fares->estimate(
+            $fareConfig,
+            ((float) $route['distance']) / 1000,
+            ((float) $route['duration']) / 60,
+            (float) $request->pickup_lat,
+            (float) $request->pickup_lng,
+            (float) $request->drop_lat,
+            (float) $request->drop_lng,
+        );
+
+        return $this->success([
+            'vehicle_type' => $fareConfig->vehicle_type,
+            'route' => $route,
+            'distance_km' => $fareEstimate['distance_km'],
+            'estimated_distance_km' => $fareEstimate['distance_km'],
+            'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
+            'estimated_fare' => $fareEstimate['estimated_fare'],
+            'fare_breakdown' => $fareEstimate['breakdown'],
+        ], 'Ride estimate calculated successfully');
     }
 
     /**

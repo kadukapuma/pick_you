@@ -1,6 +1,6 @@
-import MapboxRideMap from "../map/MapboxRideMap";
+import GoogleRideMap from "../map/GoogleRideMap";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCachedDirections_withCache } from "../../services/routing/mapboxRoutingService";
+import { getCachedDirections_withCache } from "../../services/routing/googleRoutingService";
 
 type Coordinate = { latitude: number; longitude: number; heading?: number };
 
@@ -117,7 +117,7 @@ export default function RideMap({
   }, [originLat, originLng, targetLat, targetLng, fallbackRouteCoordinates]);
 
   return (
-    <MapboxRideMap
+    <GoogleRideMap
       pickup={location}
       dropoff={destination}
       driverLocation={driverLocation}

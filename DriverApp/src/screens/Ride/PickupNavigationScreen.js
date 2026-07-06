@@ -13,9 +13,9 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
 import { getPickupCoordinate } from "../../utils/rideLocation";
 
@@ -28,7 +28,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
   const origin = driverCoord ?? DEFAULT_COORD;
   const destination = pickupCoord ?? origin;
-  const { directions } = useMapboxRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination);
   const [isMarkingArrived, setIsMarkingArrived] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
@@ -179,7 +179,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       />
 
       {/* MAP VIEWPORT */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         origin={origin}
         destination={destination}

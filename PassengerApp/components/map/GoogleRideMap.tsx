@@ -1,6 +1,17 @@
-import MapboxGL from "@rnmapbox/maps";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
+import {
+  Image,
+  StyleSheet,
+  View,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
+import MapView, {
+  Marker,
+  Polyline,
+  PROVIDER_GOOGLE,
+  type LatLng,
+} from "react-native-maps";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
 export type MapCoordinate = {
@@ -27,50 +38,20 @@ type Props = {
   onFollowStateChange?: (following: boolean) => void;
 };
 
-const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_API_KEY || "";
-
-if (MAPBOX_TOKEN) {
-  MapboxGL.setAccessToken(MAPBOX_TOKEN);
-}
-
-const toPosition = (coordinate: MapCoordinate): [number, number] => [
-  coordinate.longitude,
-  coordinate.latitude,
-];
+const CAMERA_UPDATE_INTERVAL_MS = 250;
+const FOLLOW_CAMERA_ANIMATION_MS = 350;
+const DEFAULT_DELTA = 0.04;
 
 const isValidCoordinate = (
   coordinate?: MapCoordinate | null,
 ): coordinate is MapCoordinate =>
-  Number.isFinite(coordinate?.latitude) && Number.isFinite(coordinate?.longitude);
+  Number.isFinite(coordinate?.latitude) &&
+  Number.isFinite(coordinate?.longitude);
 
-const buildLineFeature = (coordinates: MapCoordinate[]) => ({
-  type: "Feature" as const,
-  properties: {},
-  geometry: {
-    type: "LineString" as const,
-    coordinates: coordinates.map(toPosition),
-  },
+const toLatLng = (coordinate: MapCoordinate): LatLng => ({
+  latitude: coordinate.latitude,
+  longitude: coordinate.longitude,
 });
-
-const buildBounds = (coordinates: MapCoordinate[]) => {
-  const valid = coordinates.filter(isValidCoordinate);
-  if (valid.length < 2) return null;
-
-  const lats = valid.map((coordinate) => coordinate.latitude);
-  const lngs = valid.map((coordinate) => coordinate.longitude);
-
-  return {
-    ne: [Math.max(...lngs), Math.max(...lats)] as [number, number],
-    sw: [Math.min(...lngs), Math.min(...lats)] as [number, number],
-    paddingTop: 120,
-    paddingRight: 80,
-    paddingBottom: 120,
-    paddingLeft: 80,
-  };
-};
-
-const CAMERA_UPDATE_INTERVAL_MS = 250;
-const FOLLOW_CAMERA_ANIMATION_MS = 350;
 
 const useFollowCameraLocation = (
   location: MapCoordinate | null | undefined,
@@ -153,7 +134,7 @@ function DriverMarker({
   );
 }
 
-export default function MapboxRideMap({
+export default function GoogleRideMap({
   pickup,
   dropoff,
   driverLocation,
@@ -168,6 +149,8 @@ export default function MapboxRideMap({
   followPitch = 45,
   onFollowStateChange,
 }: Props) {
+  const mapRef = useRef<MapView | null>(null);
+  const hasFitInitialBounds = useRef(false);
   const { location: smoothDriverLocation } = useSmoothLocation(driverLocation);
   const renderedDriverLocation = smoothDriverLocation ?? driverLocation;
   const cameraDriverLocation = useFollowCameraLocation(
@@ -177,102 +160,98 @@ export default function MapboxRideMap({
   const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
     () =>
-      [pickup, dropoff, driverLocation, ...(routeCoordinates || [])].filter(
-        isValidCoordinate,
-      ),
-    [pickup, dropoff, driverLocation, routeCoordinates],
+      [pickup, dropoff, renderedDriverLocation, ...(routeCoordinates || [])]
+        .filter(isValidCoordinate)
+        .map(toLatLng),
+    [pickup, dropoff, renderedDriverLocation, routeCoordinates],
   );
-
-  const routeShape = useMemo(() => {
-    const lineCoordinates =
-      routeCoordinates && routeCoordinates.length > 1
-        ? routeCoordinates
-        : dropoff
-          ? [pickup, dropoff]
-          : [];
-
-    return lineCoordinates.length > 1 ? buildLineFeature(lineCoordinates) : null;
+  const routeLine = useMemo(() => {
+    if (routeCoordinates && routeCoordinates.length > 1) {
+      return routeCoordinates.filter(isValidCoordinate).map(toLatLng);
+    }
+    if (dropoff) return [pickup, dropoff].filter(isValidCoordinate).map(toLatLng);
+    return [];
   }, [dropoff, pickup, routeCoordinates]);
-  const bounds = useMemo(() => buildBounds(visibleCoordinates), [visibleCoordinates]);
 
-  const handlePress = (feature: GeoJSON.Feature) => {
-    const coordinates = feature.geometry?.type === "Point" ? feature.geometry.coordinates : null;
-    if (!coordinates || !onMapPress) return;
+  useEffect(() => {
+    if (followVehicle || cameraIsFree || visibleCoordinates.length < 2) return;
+    const timeout = setTimeout(() => {
+      mapRef.current?.fitToCoordinates(visibleCoordinates, {
+        edgePadding: { top: 120, right: 80, bottom: 120, left: 80 },
+        animated: true,
+      });
+      hasFitInitialBounds.current = true;
+    }, hasFitInitialBounds.current ? 0 : 500);
 
-    onMapPress({
-      nativeEvent: {
-        coordinate: {
-          latitude: coordinates[1],
-          longitude: coordinates[0],
-        },
+    return () => clearTimeout(timeout);
+  }, [cameraIsFree, followVehicle, visibleCoordinates]);
+
+  useEffect(() => {
+    const next = cameraDriverLocation ?? renderedDriverLocation;
+    if (!followVehicle || !next) return;
+
+    mapRef.current?.animateCamera(
+      {
+        center: toLatLng(next),
+        heading: next.heading ?? 0,
+        pitch: followPitch,
+        zoom: followZoom,
       },
-    });
-  };
+      { duration: FOLLOW_CAMERA_ANIMATION_MS },
+    );
+  }, [cameraDriverLocation, followPitch, followVehicle, followZoom, renderedDriverLocation]);
 
   return (
-    <MapboxGL.MapView
+    <MapView
+      ref={mapRef}
+      provider={PROVIDER_GOOGLE}
       style={[styles.map, style]}
-      styleURL={MapboxGL.StyleURL.Street}
-      logoEnabled={false}
-      attributionEnabled={false}
-      compassEnabled={false}
-      onPress={handlePress}
-      onTouchStart={() => {
+      initialRegion={{
+        latitude: pickup.latitude,
+        longitude: pickup.longitude,
+        latitudeDelta: DEFAULT_DELTA,
+        longitudeDelta: DEFAULT_DELTA,
+      }}
+      showsCompass={false}
+      showsMyLocationButton={false}
+      onPress={onMapPress}
+      onPanDrag={() => {
         if (followVehicle) onFollowStateChange?.(false);
       }}
     >
-      <MapboxGL.Camera
-        bounds={!followVehicle && !cameraIsFree ? bounds || undefined : undefined}
-        centerCoordinate={
-          followVehicle && (cameraDriverLocation ?? renderedDriverLocation)
-            ? toPosition((cameraDriverLocation ?? renderedDriverLocation) as MapCoordinate)
-            : !cameraIsFree && !bounds
-              ? toPosition(pickup)
-              : undefined
-        }
-        zoomLevel={followVehicle ? followZoom : !cameraIsFree && !bounds ? 14 : undefined}
-        pitch={followVehicle ? followPitch : cameraIsFree ? undefined : 0}
-        heading={
-          followVehicle
-            ? cameraDriverLocation?.heading ?? renderedDriverLocation?.heading ?? 0
-            : cameraIsFree ? undefined : 0
-        }
-        animationDuration={followVehicle ? FOLLOW_CAMERA_ANIMATION_MS : 500}
-      />
-
-      {routeShape ? (
-        <MapboxGL.ShapeSource id="route-source" shape={routeShape}>
-          <MapboxGL.LineLayer
-            id="route-line"
-            style={{
-              lineColor: routeColor,
-              lineWidth: 4,
-              lineCap: "round",
-              lineJoin: "round",
-            }}
-          />
-        </MapboxGL.ShapeSource>
+      {routeLine.length > 1 ? (
+        <Polyline
+          coordinates={routeLine}
+          strokeColor={routeColor}
+          strokeWidth={4}
+          lineCap="round"
+          lineJoin="round"
+        />
       ) : null}
 
-      <MapboxGL.MarkerView coordinate={toPosition(pickup)}>
+      <Marker coordinate={toLatLng(pickup)} anchor={{ x: 0.5, y: 0.5 }}>
         <DotMarker color={pickupColor} />
-      </MapboxGL.MarkerView>
+      </Marker>
 
       {dropoff ? (
-        <MapboxGL.MarkerView coordinate={toPosition(dropoff)}>
+        <Marker coordinate={toLatLng(dropoff)} anchor={{ x: 0.5, y: 0.5 }}>
           <DotMarker color={dropoffColor} />
-        </MapboxGL.MarkerView>
+        </Marker>
       ) : null}
 
       {renderedDriverLocation ? (
-        <MapboxGL.MarkerView coordinate={toPosition(renderedDriverLocation)}>
+        <Marker
+          coordinate={toLatLng(renderedDriverLocation)}
+          anchor={{ x: 0.5, y: 0.5 }}
+          tracksViewChanges={false}
+        >
           <DriverMarker
             heading={renderedDriverLocation.heading}
             fixedForward={followVehicle}
           />
-        </MapboxGL.MarkerView>
+        </Marker>
       ) : null}
-    </MapboxGL.MapView>
+    </MapView>
   );
 }
 

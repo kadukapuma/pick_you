@@ -54,7 +54,23 @@ class ApiClient {
 
       clearTimeout(timeoutId);
 
-      const data = await response.json();
+      const rawBody = await response.text();
+      let data: any = {};
+
+      if (rawBody) {
+        try {
+          data = JSON.parse(rawBody);
+        } catch {
+          data = {
+            message:
+              rawBody
+                .replace(/<[^>]*>/g, " ")
+                .replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 300) || `HTTP ${response.status}`,
+          };
+        }
+      }
 
       if (!response.ok) {
         if (!options.suppressErrorLog) {

@@ -10,6 +10,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  createPlacesSessionToken,
+  resolveLocationSuggestion,
   searchLocationSuggestions,
   LocationSuggestion,
 } from "../../services/location/multiProviderService";
@@ -82,6 +84,15 @@ export default function ReturnLocationPicker({
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const sessionTokens = useRef<Record<"pickup" | "stop" | "drop", string>>({
+    pickup: createPlacesSessionToken(),
+    stop: createPlacesSessionToken(),
+    drop: createPlacesSessionToken(),
+  });
+
+  const resetSessionToken = (field: "pickup" | "stop" | "drop") => {
+    sessionTokens.current[field] = createPlacesSessionToken();
+  };
 
   const handleSearch = (text: string, field: "pickup" | "stop" | "drop") => {
     if (field === "pickup") setPickupSearch(text);
@@ -98,7 +109,9 @@ export default function ReturnLocationPicker({
     debounceTimer.current = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const results = await searchLocationSuggestions(text);
+        const results = await searchLocationSuggestions(text, {
+          sessionToken: sessionTokens.current[field],
+        });
         setSuggestions(results);
       } catch (error) {
         console.log("Search error:", error);
@@ -108,17 +121,28 @@ export default function ReturnLocationPicker({
     }, 500);
   };
 
-  const handleSelectLocation = (location: LocationSuggestion) => {
+  const handleSelectLocation = async (location: LocationSuggestion) => {
+    if (!activeField) return;
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current[activeField],
+    );
+    setIsLoading(false);
+
+    if (!resolvedLocation) return;
+
     if (activeField === "pickup") {
-      setPickup(location);
-      setPickupSearch(location.address);
+      setPickup(resolvedLocation);
+      setPickupSearch(resolvedLocation.address);
     } else if (activeField === "stop") {
-      setStop(location);
-      setStopSearch(location.address);
+      setStop(resolvedLocation);
+      setStopSearch(resolvedLocation.address);
     } else if (activeField === "drop") {
-      setDropoff(location);
-      setDropSearch(location.address);
+      setDropoff(resolvedLocation);
+      setDropSearch(resolvedLocation.address);
     }
+    resetSessionToken(activeField);
     setActiveField(null);
     setSuggestions([]);
   };
@@ -191,6 +215,7 @@ export default function ReturnLocationPicker({
                         setDropSearch("");
                         setDropoff(null);
                       }
+                      resetSessionToken(field);
                       setSuggestions([]);
                     }}
                   >
@@ -314,6 +339,10 @@ export default function ReturnLocationPicker({
             )}
           </View>
         )}
+        {activeField &&
+          suggestions.some((suggestion) => suggestion.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
 
         {/* Saved Addresses Section */}
         {!activeField && (
@@ -522,6 +551,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B9E8E",
     marginTop: 2,
+  },
+  googleAttribution: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 12,
+    marginRight: 12,
   },
   savedSection: {
     backgroundColor: "#FFFFFF",
