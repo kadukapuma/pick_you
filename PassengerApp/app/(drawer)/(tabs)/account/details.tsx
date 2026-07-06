@@ -17,11 +17,11 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "../../../hooks/useAuth";
+import { useAuth } from "../../../../hooks/useAuth";
 import {
   PassengerProfile,
   ProfileService,
-} from "../../../services/auth/profileService";
+} from "../../../../services/auth/profileService";
 
 function ProfileRow({ label, value }: { label: string; value: string }) {
   return (
@@ -239,10 +239,17 @@ export default function AccountScreen() {
           styles.stickyHeader,
           {
             top: insets.top + 2,
+            justifyContent: "flex-start",
           },
         ]}
       >
-        <Text style={styles.stickyTitle}>Profile</Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={{ marginRight: 16 }}
+        >
+          <Ionicons name="arrow-back" size={24} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.stickyTitle}>Profile Details</Text>
       </View>
 
       {/* Avatar with edit button - ALWAYS VISIBLE */}
@@ -371,7 +378,7 @@ export default function AccountScreen() {
               <ProfileRow label="Phone Number" value={profile?.phone || "-"} />
 
               {profile?.walletBalance !== null &&
-              profile?.walletBalance !== undefined ? (
+                profile?.walletBalance !== undefined ? (
                 <ProfileRow
                   label="Wallet Balance"
                   value={`LKR ${Number(profile.walletBalance).toFixed(2)}`}

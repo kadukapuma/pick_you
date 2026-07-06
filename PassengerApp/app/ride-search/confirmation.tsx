@@ -1,13 +1,20 @@
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   StyleSheet,
   View,
   TouchableOpacity,
   Text,
-  ScrollView,
   Alert,
   ActivityIndicator,
+  Animated,
+  Easing,
+  StatusBar,
+  Platform,
 } from "react-native";
-import { useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import { apiClient } from "../../services/api/apiClient";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -19,6 +26,11 @@ interface RideBookingResponse {
 
 export default function ConfirmationScreen() {
   const [isBooking, setIsBooking] = useState(false);
+  const [showPaymentDetails, setShowPaymentDetails] = useState(false);
+  const [directions, setDirections] = useState<DirectionsResult | null>(null);
+  const [loadingRoute, setLoadingRoute] = useState(true);
+
+  const insets = useSafeAreaInsets();
   const {
     tripType,
     outboundTrip,
@@ -26,6 +38,67 @@ export default function ConfirmationScreen() {
     setIsSearchingForDriver,
     setActiveRide,
   } = useRideSearch();
+
+  // Bottom sheet animation
+  const sheetY = useRef(new Animated.Value(300)).current;
+  const sheetOpacity = useRef(new Animated.Value(0)).current;
+
+  // Payment details modal animation (if using a custom overlay)
+  const paymentModalOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Entrance animation for sheet
+    Animated.parallel([
+      Animated.timing(sheetY, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.timing(sheetOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (outboundTrip.pickup && outboundTrip.dropoff) {
+        setLoadingRoute(true);
+        try {
+          const res = await getCachedDirections_withCache(
+            outboundTrip.pickup.latitude,
+            outboundTrip.pickup.longitude,
+            outboundTrip.dropoff.latitude,
+            outboundTrip.dropoff.longitude,
+          );
+          if (!cancelled) setDirections(res);
+        } catch (e) {
+          console.error("Directions error in Confirmation:", e);
+        } finally {
+          if (!cancelled) setLoadingRoute(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [outboundTrip.pickup, outboundTrip.dropoff]);
+
+  const togglePaymentDetails = () => {
+    const toValue = showPaymentDetails ? 0 : 1;
+    if (!showPaymentDetails) setShowPaymentDetails(true);
+    Animated.timing(paymentModalOpacity, {
+      toValue,
+      duration: 200,
+      useNativeDriver: true,
+    }).start(() => {
+      if (toValue === 0) setShowPaymentDetails(false);
+    });
+  };
 
   if (
     !outboundTrip.pickup ||
@@ -86,191 +159,150 @@ export default function ConfirmationScreen() {
     }
   };
 
+  const totalPrice =
+    outboundTrip.selectedRide.price + (returnTrip.selectedRide?.price || 0);
+
+  const totalDistance = directions
+    ? (directions.distance / 1000).toFixed(2)
+    : "5.00";
+
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <Ionicons name="arrow-back" size={24} color="#000" />
-        </TouchableOpacity>
-        <Text style={styles.title}>Confirm Booking</Text>
-        <View style={{ width: 24 }} />
-      </View>
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Outbound Trip */}
-        <View style={styles.tripSection}>
-          <View style={styles.tripHeader}>
-            <Ionicons name="arrow-forward" size={20} color="#0B7BDC" />
-            <Text style={styles.tripTitle}>Outbound Trip</Text>
-          </View>
+      {/* ── MAP BACKGROUND ────────────────────────────────────────────────── */}
+      <MapboxRideMap
+        style={styles.map}
+        pickup={outboundTrip.pickup!}
+        dropoff={outboundTrip.dropoff!}
+        routeCoordinates={
+          directions && directions.polyline.length > 0
+            ? directions.polyline
+            : [outboundTrip.pickup!, outboundTrip.dropoff!]
+        }
+        routeColor="#20B768"
+        pickupColor="#20B768"
+        dropoffColor="#F97316"
+      />
 
-          {/* Pickup */}
-          <View style={styles.locationBox}>
-            <View style={styles.locationDot}>
-              <View style={[styles.dot, styles.dotPickup]} />
+      {/* ── BACK BUTTON ─────────────────────────────────────────────────── */}
+      <TouchableOpacity
+        style={[styles.backBtn, { top: (StatusBar.currentHeight ?? 24) + 12 }]}
+        onPress={() => router.back()}
+      >
+        <Ionicons name="arrow-back" size={20} color="#111827" />
+      </TouchableOpacity>
+
+      {/* ── PAYMENT MODAL OVERLAY ───────────────────────────────────────── */}
+      {showPaymentDetails && (
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          activeOpacity={1}
+          onPress={togglePaymentDetails}
+        >
+          <Animated.View
+            style={[
+              styles.paymentModal,
+              { opacity: paymentModalOpacity, bottom: 250 + insets.bottom },
+            ]}
+          >
+            <Text style={styles.modalTitle}>Trip Summary</Text>
+
+            <View style={styles.modalRow}>
+              <Text style={styles.modalLabel}>Vehicle</Text>
+              <Text style={styles.modalValue}>{outboundTrip.selectedRide.name}</Text>
             </View>
-            <View style={styles.locationContent}>
-              <Text style={styles.locationLabel}>Pickup</Text>
-              <Text style={styles.locationAddress}>
+
+            <View style={styles.modalRow}>
+              <Text style={styles.modalLabel}>Distance</Text>
+              <Text style={styles.modalValue}>{totalDistance} km</Text>
+            </View>
+
+            <View style={styles.priceDividerSmall} />
+
+            <View style={styles.modalLocationRow}>
+              <Ionicons name="radio-button-on" size={12} color="#20B768" />
+              <Text style={styles.modalLocationText} numberOfLines={1}>
                 {outboundTrip.pickup.address}
               </Text>
-              <Text style={styles.locationDetails}>
-                {outboundTrip.pickup.details}
-              </Text>
             </View>
-          </View>
-
-          {/* Line */}
-          <View style={styles.line} />
-
-          {/* Dropoff */}
-          <View style={styles.locationBox}>
-            <View style={styles.locationDot}>
-              <View style={[styles.dot, styles.dotDropoff]} />
-            </View>
-            <View style={styles.locationContent}>
-              <Text style={styles.locationLabel}>Drop-off</Text>
-              <Text style={styles.locationAddress}>
+            <View style={styles.modalLocationRow}>
+              <Ionicons name="location" size={12} color="#F97316" />
+              <Text style={styles.modalLocationText} numberOfLines={1}>
                 {outboundTrip.dropoff.address}
               </Text>
-              <Text style={styles.locationDetails}>
-                {outboundTrip.dropoff.details}
-              </Text>
             </View>
-          </View>
 
-          {/* Ride Selection */}
-          <View style={styles.rideBox}>
-            <Ionicons
-              name={outboundTrip.selectedRide.icon as any}
-              size={24}
-              color="#0B7BDC"
-            />
-            <View style={styles.rideContent}>
-              <Text style={styles.rideName}>
-                {outboundTrip.selectedRide.name}
-              </Text>
-              <Text style={styles.rideDetails}>
-                {outboundTrip.selectedRide.eta}
-              </Text>
+            <View style={styles.priceDividerSmall} />
+
+            <View style={styles.modalRow}>
+              <Text style={styles.modalLabel}>Payment Method</Text>
+              <Text style={styles.modalValue}>Cash</Text>
             </View>
-            <Text style={styles.ridePrice}>
-              LKR {outboundTrip.selectedRide.price.toFixed(2)}
-            </Text>
-          </View>
-        </View>
-
-        {/* Return Trip (if applicable) */}
-        {tripType === "return" &&
-          returnTrip.pickup &&
-          returnTrip.dropoff &&
-          returnTrip.selectedRide && (
-            <View style={styles.tripSection}>
-              <View style={styles.tripHeader}>
-                <Ionicons name="arrow-back" size={20} color="#10B981" />
-                <Text style={styles.tripTitle}>Return Trip</Text>
-              </View>
-
-              {/* Pickup */}
-              <View style={styles.locationBox}>
-                <View style={styles.locationDot}>
-                  <View style={[styles.dot, styles.dotPickup]} />
-                </View>
-                <View style={styles.locationContent}>
-                  <Text style={styles.locationLabel}>Pickup</Text>
-                  <Text style={styles.locationAddress}>
-                    {returnTrip.pickup.address}
-                  </Text>
-                  <Text style={styles.locationDetails}>
-                    {returnTrip.pickup.details}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Line */}
-              <View style={styles.line} />
-
-              {/* Dropoff */}
-              <View style={styles.locationBox}>
-                <View style={styles.locationDot}>
-                  <View style={[styles.dot, styles.dotDropoff]} />
-                </View>
-                <View style={styles.locationContent}>
-                  <Text style={styles.locationLabel}>Drop-off</Text>
-                  <Text style={styles.locationAddress}>
-                    {returnTrip.dropoff.address}
-                  </Text>
-                  <Text style={styles.locationDetails}>
-                    {returnTrip.dropoff.details}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Ride Selection */}
-              <View style={styles.rideBox}>
-                <Ionicons
-                  name={returnTrip.selectedRide.icon as any}
-                  size={24}
-                  color="#10B981"
-                />
-                <View style={styles.rideContent}>
-                  <Text style={styles.rideName}>
-                    {returnTrip.selectedRide.name}
-                  </Text>
-                  <Text style={styles.rideDetails}>
-                    {returnTrip.selectedRide.eta}
-                  </Text>
-                </View>
-                <Text style={styles.ridePrice}>
-                  LKR {returnTrip.selectedRide.price.toFixed(2)}
-                </Text>
-              </View>
+            <View style={styles.modalRow}>
+              <Text style={styles.modalLabel}>Total Amount</Text>
+              <Text style={styles.totalValueModal}>LKR {totalPrice.toFixed(2)}</Text>
             </View>
-          )}
+          </Animated.View>
+        </TouchableOpacity>
+      )}
 
-        {/* Price Summary */}
-        <View style={styles.priceSummary}>
-          <View style={styles.priceRow}>
-            <Text style={styles.priceLabel}>Outbound Trip</Text>
-            <Text style={styles.priceValue}>
-              LKR {outboundTrip.selectedRide.price.toFixed(2)}
-            </Text>
-          </View>
-          {tripType === "return" && returnTrip.selectedRide && (
-            <View style={styles.priceRow}>
-              <Text style={styles.priceLabel}>Return Trip</Text>
-              <Text style={styles.priceValue}>
-                LKR {returnTrip.selectedRide.price.toFixed(2)}
-              </Text>
-            </View>
-          )}
-          <View style={styles.priceDivider} />
-          <View style={styles.priceRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>
-              LKR{" "}
-              {(
-                outboundTrip.selectedRide.price +
-                (returnTrip.selectedRide?.price || 0)
-              ).toFixed(2)}
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-
-      {/* Confirm Button */}
-      <TouchableOpacity
-        style={styles.confirmButton}
-        onPress={handleConfirmBooking}
-        disabled={isBooking}
+      {/* ── BOTTOM SHEET ─────────────────────────────────────────────────── */}
+      <Animated.View
+        style={[
+          styles.sheet,
+          {
+            paddingBottom: insets.bottom + 20,
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetY }],
+          },
+        ]}
       >
-        {isBooking ? (
-          <ActivityIndicator color="#000" />
-        ) : (
-          <Text style={styles.confirmButtonText}>Confirm & Pay</Text>
-        )}
-      </TouchableOpacity>
+        <View style={styles.handle} />
+
+        <View style={styles.sheetContent}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Confirm Booking</Text>
+            <TouchableOpacity
+              style={styles.paymentToggleRow}
+              onPress={togglePaymentDetails}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="information-circle-outline" size={16} color="#20B768" />
+              <Text style={styles.paymentToggleText}>details</Text>
+              <Ionicons name="chevron-forward" size={14} color="#9CA3AF" />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.addressRow}>
+            <View style={styles.pickupDotWrap}>
+              <Ionicons name="location" size={20} color="#20B768" />
+            </View>
+            <View style={styles.addressTextWrap}>
+              <Text style={styles.addressMain}>
+                {outboundTrip.pickup.address.split(",")[0]}
+              </Text>
+              <Text style={styles.addressSub} numberOfLines={1}>
+                {outboundTrip.pickup.address}
+              </Text>
+            </View>
+          </View>
+
+          {/* Confirm Button */}
+          <TouchableOpacity
+            style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
+            onPress={handleConfirmBooking}
+            disabled={isBooking}
+            activeOpacity={0.8}
+          >
+            {isBooking ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.confirmBtnText}>Confirm Booking</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
     </View>
   );
 }
@@ -278,23 +310,200 @@ export default function ConfirmationScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F4FBFF",
+    backgroundColor: "#fff",
+  },
+  map: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  backBtn: {
+    position: "absolute",
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  paymentIconBtn: {
+    display: "none",
+  },
+  sheetHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 16,
+  },
+  paymentToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F3F4F6",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    gap: 4,
+  },
+  paymentToggleText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+  },
+
+  // ── Bottom Sheet ──
+  sheet: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+  },
+  handle: {
+    alignSelf: "center",
+    width: 40,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#E5E7EB",
+    marginBottom: 20,
+  },
+  sheetContent: {
+    width: "100%",
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 16,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F9FAFB",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    gap: 12,
+  },
+  pickupDotWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#E8F8F0",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addressTextWrap: {
+    flex: 1,
+  },
+  addressMain: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  addressSub: {
+    fontSize: 13,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  confirmBtn: {
+    backgroundColor: "#20B768", // Green theme color
+    paddingVertical: 16,
+    borderRadius: 20,
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  confirmBtnDisabled: {
+    opacity: 0.6,
+  },
+  confirmBtnText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
+  // ── Payment Modal ──
+  paymentModal: {
+    position: "absolute",
+    right: 16,
+    width: 260,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 20,
+    elevation: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 16,
+  },
+  modalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 10,
+    alignItems: "center",
+  },
+  modalLabel: {
+    fontSize: 13,
+    color: "#6B7280",
+    fontWeight: "500",
+  },
+  modalValue: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  modalLocationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  modalLocationText: {
+    fontSize: 12,
+    color: "#4B5563",
+    flex: 1,
+  },
+  priceDividerSmall: {
+    height: 1,
+    backgroundColor: "#F3F4F6",
+    marginVertical: 12,
+  },
+  totalValueModal: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#20B768",
   },
 
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F4FBFF",
+    backgroundColor: "#fff",
   },
-
   errorText: {
     marginTop: 16,
     fontSize: 16,
     color: "#EF4444",
     fontWeight: "500",
   },
-
   backButton: {
     marginTop: 20,
     backgroundColor: "#0B7BDC",
@@ -302,206 +511,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
   },
-
   backButtonText: {
     color: "#fff",
     fontWeight: "600",
-  },
-
-  header: {
-    marginTop: 50,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    marginBottom: 20,
-  },
-
-  title: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-    marginBottom: 100,
-  },
-
-  tripSection: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 1,
-  },
-
-  tripHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-
-  tripTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  locationBox: {
-    flexDirection: "row",
-    gap: 12,
-    marginBottom: 16,
-  },
-
-  locationDot: {
-    width: 24,
-    justifyContent: "flex-start",
-    paddingTop: 4,
-  },
-
-  dot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-
-  dotPickup: {
-    backgroundColor: "#2563EB",
-  },
-
-  dotDropoff: {
-    backgroundColor: "#F97316",
-  },
-
-  locationContent: {
-    flex: 1,
-  },
-
-  locationLabel: {
-    fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "500",
-    marginBottom: 2,
-  },
-
-  locationAddress: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 2,
-  },
-
-  locationDetails: {
-    fontSize: 12,
-    color: "#9CA3AF",
-  },
-
-  line: {
-    width: 1,
-    height: 20,
-    backgroundColor: "#E5E7EB",
-    marginLeft: 6,
-    marginBottom: 16,
-  },
-
-  rideBox: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: "#F9FAFB",
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 12,
-  },
-
-  rideContent: {
-    flex: 1,
-  },
-
-  rideName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-
-  rideDetails: {
-    fontSize: 12,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-
-  ridePrice: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  priceSummary: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    elevation: 1,
-  },
-
-  priceRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-
-  priceLabel: {
-    fontSize: 14,
-    color: "#6B7280",
-    fontWeight: "500",
-  },
-
-  priceValue: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#111827",
-  },
-
-  priceDivider: {
-    height: 1,
-    backgroundColor: "#E5E7EB",
-    marginVertical: 12,
-  },
-
-  totalLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
-
-  totalValue: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#0B7BDC",
-  },
-
-  confirmButton: {
-    position: "absolute",
-    bottom: 20,
-    left: 16,
-    right: 16,
-    backgroundColor: "#FBBF24",
-    paddingVertical: 16,
-    borderRadius: 20,
-    alignItems: "center",
-    elevation: 2,
-  },
-
-  confirmButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#000",
   },
 });

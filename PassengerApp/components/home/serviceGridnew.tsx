@@ -1,165 +1,109 @@
-import { Ionicons } from "@expo/vector-icons";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import React from "react";
+import { Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { Image } from "expo-image";
 
 const services = [
   {
-    title: "PickU Ride",
-    subtitle: "Car, Mini",
-    image: require("../../assets/images/car.png"),
-    bg: "#DDF5EC",
-    color: "#22B36A",
+    title: "Find Ride",
+    subtitle: "Book instantly",
+    image: require("../../assets/images/home/car_opt.png"),
   },
-  // {
-  //   title: "PickU Bike",
-  //   subtitle: "Bike Taxi",
-  //   image: require("../../assets/images/bike.png"),
-  //   bg: "#E6F8E8",
-  //   color: "#22B36A",
-  // },
-  // {
-  //   title: "PickU Food",
-  //   subtitle: "Delivery",
-  //   image: require("../../assets/images/food.png"),
-  //   bg: "#FFF1D8",
-  //   color: "#F59E0B",
-  // },
-  // {
-  //   title: "PickU Drop",
-  //   subtitle: "Parcel",
-  //   image: require("../../assets/images/parcel.png"),
-  //   bg: "#E6F4FB",
-  //   color: "#3BAAE8",
-  // },
-  // {
-  //   title: "PickU Load",
-  //   subtitle: "Lorries",
-  //   image: require("../../assets/images/truck.png"),
-  //   bg: "#EFEAFE",
-  //   color: "#8B5CF6",
-  // },
-  // {
-  //   title: "PickU Rent",
-  //   subtitle: "Cars",
-  //   image: require("../../assets/images/rent.png"),
-  //   bg: "#FFF7D6",
-  //   color: "#EAB308",
-  // },
-  // {
-  //   title: "PickU Mart",
-  //   subtitle: "Groceries",
-  //   image: require("../../assets/images/mart.png"),
-  //   bg: "#E8FAF0",
-  //   color: "#10B981",
-  // },
-  // {
-  //   title: "PickU Offers",
-  //   subtitle: "Best Deals",
-  //   image: require("../../assets/images/offers.png"),
-  //   bg: "#FFE6EF",
-  //   color: "#EC4899",
-  // },
+  {
+    title: "Delivery",
+    subtitle: "Fast items",
+    image: require("../../assets/images/home/bike_opt.png"),
+  },
+  {
+    title: "Parcels",
+    subtitle: "Send anywhere",
+    image: require("../../assets/images/home/truck_opt.png"),
+  },
+  {
+    title: "Find Food",
+    subtitle: "Favorite food",
+    image: require("../../assets/images/home/food_opt.png"),
+  },
 ];
-type ServiceGridProps = {
-  compact?: boolean;
-};
 
-export default function ServiceGridnew({ compact = false }: ServiceGridProps) {
+export default function ServiceGridnew({ compact = false }: { compact?: boolean }) {
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "space-between",
-      }}
-    >
+    <View style={styles.gridContainer}>
       {services.map((item, index) => (
         <TouchableOpacity
           key={index}
-          activeOpacity={0.85}
-          style={{
-            width: "100%",
-            flexDirection: "row",
-            alignItems: "center",
-
-            backgroundColor: item.bg,
-
-            borderRadius: compact ? 20 : 26,
-
-            paddingVertical: compact ? 18 : 24,
-            paddingHorizontal: compact ? 16 : 22,
-
-            marginBottom: compact ? 10 : 16,
-
-            minHeight: compact ? 115 : 145,
-          }}
+          activeOpacity={0.7}
+          style={[styles.card, { minHeight: compact ? 95 : 105 }]}
         >
-          {/* LEFT IMAGE */}
-          <Image
-            source={item.image}
-            style={{
-              width: compact ? 95 : 120,
-              height: compact ? 95 : 120,
-              resizeMode: "contain",
-            }}
-          />
-
-          {/* TEXT AREA */}
-          <View
-            style={{
-              flex: 1,
-              marginLeft: 10,
-              justifyContent: "center",
-            }}
-          >
-            <Text
-              style={{
-                color: "#111827",
-                fontWeight: "800",
-                fontSize: compact ? 20 : 26,
-                textAlign: "left",
-              }}
-              numberOfLines={1}
-            >
-              {item.title}
-            </Text>
-
-            <Text
-              style={{
-                color: "#6B7280",
-                fontSize: compact ? 15 : 18,
-                marginTop: 5,
-                textAlign: "left",
-                fontWeight: "600",
-              }}
-              numberOfLines={1}
-            >
-              {item.subtitle}
-            </Text>
+          {/* TOP IMAGE */}
+          <View style={styles.imageContainer}>
+            <Image
+              source={item.image}
+              style={styles.image}
+              contentFit="contain"
+            />
           </View>
 
-          {/* RIGHT ARROW */}
-          <View
-            style={{
-              width: compact ? 42 : 54,
-              height: compact ? 42 : 54,
-              borderRadius: compact ? 21 : 27,
-
-              backgroundColor: item.color,
-
-              alignItems: "center",
-              justifyContent: "center",
-
-              marginLeft: 10,
-            }}
-          >
-            <Ionicons
-              name="arrow-forward"
-              size={compact ? 22 : 30}
-              color="white"
-            />
+          {/* BOTTOM TEXT */}
+          <View style={styles.textContainer}>
+            <Text style={[styles.title, { fontSize: compact ? 13 : 14 }]} numberOfLines={1}>
+              {item.title}
+            </Text>
+            <Text style={[styles.subtitle, { fontSize: compact ? 10 : 11 }]} numberOfLines={1}>
+              {item.subtitle}
+            </Text>
           </View>
         </TouchableOpacity>
       ))}
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 12,
+    width: "100%",
+  },
+  card: {
+    width: "46%",
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 10,
+
+    // Lightweight shadow for performance over battery drain
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+  },
+  imageContainer: {
+    width: "100%",
+    aspectRatio: 1.4, // Lower ratio = taller image — makes icon bigger within card
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 4,
+  },
+  image: {
+    width: "100%",
+    height: "100%",
+  },
+  textContainer: {
+    width: "100%",
+  },
+  title: {
+    color: "#0F2E23",
+    fontWeight: "700",
+    marginBottom: 2,
+    letterSpacing: -0.2,
+  },
+  subtitle: {
+    color: "#6B7280",
+    fontWeight: "400",
+  },
+});

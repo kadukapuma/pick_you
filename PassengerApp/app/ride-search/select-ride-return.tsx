@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
 import {
   getCachedDirections_withCache,
@@ -164,6 +165,7 @@ export default function SelectRideReturnScreen() {
   const { returnTrip, setReturnRide } = useRideSearch();
   const pickup = returnTrip.pickup;
   const dropoff = returnTrip.dropoff;
+  const insets = useSafeAreaInsets();
 
   // Fetch real directions when component loads
   useEffect(() => {
@@ -342,7 +344,7 @@ export default function SelectRideReturnScreen() {
       ) : null}
 
       {/* Bottom Sheet - Ride Selection */}
-      <View style={styles.bottomSheet}>
+      <View style={[styles.bottomSheet, { paddingBottom: insets.bottom + 20 }]}>
         {/* Header with Close */}
         <View style={styles.header}>
           <View>

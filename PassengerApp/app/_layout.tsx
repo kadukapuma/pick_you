@@ -4,6 +4,7 @@ import { Stack, router } from "expo-router";
 import { AppState, AppStateStatus, ActivityIndicator, View } from "react-native";
 import { AuthProvider, useAuth } from "../context/AuthContext";
 import { RideSearchProvider } from "../context/RideSearchContext";
+import { ToastProvider } from "../context/ToastContext";
 import MaintenanceScreen from "../components/MaintenanceScreen";
 import { fetchMaintenanceMode } from "../services/maintenanceService";
 
@@ -133,10 +134,10 @@ function RootLayoutContent() {
     >
       {/* ✅ ALWAYS render (auth) - splash and onboarding screens */}
       <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-      
+
       {/* ✅ ALWAYS render (drawer) - app screens for authenticated users */}
       <Stack.Screen name="(drawer)" options={{ animation: "none" }} />
-      
+
       {/* Ride search overlay */}
       <Stack.Screen
         name="ride-search"
@@ -152,10 +153,12 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RideSearchProvider>
-        <RootLayoutContent />
-      </RideSearchProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <RideSearchProvider>
+          <RootLayoutContent />
+        </RideSearchProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }

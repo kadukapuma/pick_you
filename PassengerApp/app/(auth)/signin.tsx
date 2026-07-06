@@ -1,8 +1,8 @@
 import { router } from "expo-router";
 import { useEffect, useState } from "react";
-
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Keyboard,
   Platform,
@@ -12,20 +12,16 @@ import {
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-
 import { SafeAreaView } from "react-native-safe-area-context";
-
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { AuthService } from "../../services/auth/authService";
+import InlineError from "../../components/ui/InlineError";
+import { getFriendlyError } from "../../utils/errorMessages";
 
 export default function SignInScreen() {
   const [phoneNumber, setPhoneNumber] = useState("");
-
   const [isLoading, setIsLoading] = useState(false);
-
-  const [validationErrors, setValidationErrors] = useState<
-    Record<string, string>
-  >({});
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
   // Clear error when user types
   useEffect(() => {
@@ -37,12 +33,13 @@ export default function SignInScreen() {
 
     if (!phoneNumber.trim()) {
       errors.phoneNumber = "Phone number is required";
+      Alert.alert("Validation Error", errors.phoneNumber);
     } else if (phoneNumber.replace(/\D/g, "").length < 10) {
       errors.phoneNumber = "Phone number must be at least 10 digits";
+      Alert.alert("Validation Error", errors.phoneNumber);
     }
 
     setValidationErrors(errors);
-
     return Object.keys(errors).length === 0;
   };
 
@@ -66,14 +63,14 @@ export default function SignInScreen() {
           },
         });
       } else {
-        setValidationErrors({
-          phoneNumber: result.message || "Failed to send OTP",
-        });
+        const friendlyMessage = getFriendlyError(result.message);
+        setValidationErrors({ phoneNumber: friendlyMessage });
+        Alert.alert("Sign In Failed", friendlyMessage);
       }
     } catch (err: any) {
-      setValidationErrors({
-        phoneNumber: err.message || "Failed to send OTP",
-      });
+      const friendlyMessage = getFriendlyError(err.message);
+      setValidationErrors({ phoneNumber: friendlyMessage });
+      Alert.alert("Sign In Failed", friendlyMessage);
     } finally {
       setIsLoading(false);
     }
@@ -88,19 +85,14 @@ export default function SignInScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
           enableAutomaticScroll={true}
-          contentContainerStyle={{
-            flexGrow: 1,
-          }}
+          contentContainerStyle={{ flexGrow: 1 }}
         >
           <View className="flex-1 px-7 justify-center min-h-screen">
             {/* Logo */}
             <View className="items-center mb-2">
               <Image
                 source={require("../../assets/images/logo.png")}
-                style={{
-                  width: 130,
-                  height: 130,
-                }}
+                style={{ width: 130, height: 130 }}
                 resizeMode="contain"
               />
             </View>
@@ -109,7 +101,6 @@ export default function SignInScreen() {
             <Text className="text-3xl font-extrabold text-center text-[#222] mb-2">
               Welcome
             </Text>
-
             <Text className="text-base text-center text-gray-500 mb-10">
               Enter your phone number to get started
             </Text>
@@ -118,7 +109,6 @@ export default function SignInScreen() {
             <Text className="text-sm font-medium text-gray-600 mb-2">
               Phone Number
             </Text>
-
             <TextInput
               className="bg-[#EDEDED] rounded-xl px-4 py-4 mb-5 text-base"
               placeholder="0771234567"
@@ -138,20 +128,15 @@ export default function SignInScreen() {
             />
 
             {/* Validation Error */}
-            {validationErrors.phoneNumber && (
-              <Text className="text-red-500 text-xs mb-5">
-                {validationErrors.phoneNumber}
-              </Text>
-            )}
+            <InlineError message={validationErrors.phoneNumber} marginTop={-12} />
 
             {/* Sign In Button */}
             <TouchableOpacity
               onPress={handleSignIn}
               disabled={isLoading}
               activeOpacity={0.8}
-              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${
-                isLoading ? "bg-gray-400" : "bg-[#59C36A]"
-              }`}
+              className={`rounded-xl py-4 items-center mb-5 flex-row justify-center ${isLoading ? "bg-gray-400" : "bg-[#59C36A]"
+                }`}
               style={{
                 shadowColor: "#59C36A",
                 shadowOpacity: isLoading ? 0 : 0.2,

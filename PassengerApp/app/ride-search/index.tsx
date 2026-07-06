@@ -11,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import LocationPicker from "../../components/ride/LocationPicker";
 import ReturnLocationPicker from "../../components/ride/ReturnLocationPicker";
@@ -120,15 +121,15 @@ export default function RideSearchScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
-          <Ionicons name="chevron-back" size={24} color="#0D4F3C" />
+          <Ionicons name="close" size={26} color="#000000" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Book a ride</Text>
+        <Text style={styles.headerTitle}>Find Your Ride</Text>
         <View style={styles.headerSpacer} />
       </View>
 
@@ -160,7 +161,7 @@ export default function RideSearchScreen() {
             ))}
         </Animated.View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 
   function handleLocationConfirm(
@@ -201,12 +202,12 @@ export default function RideSearchScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#F0FAF5" },
+  container: { flex: 1, backgroundColor: "#FFFFFF" },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F0FAF5",
+    backgroundColor: "#FFFFFF",
   },
   loadingIconWrap: {
     width: 64,
@@ -223,7 +224,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   header: {
-    marginTop: 52,
+    marginTop: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -233,17 +234,10 @@ const styles = StyleSheet.create({
   backButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: "#FFFFFF",
     justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#0D4F3C",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
+    alignItems: "flex-start",
   },
-  headerTitle: { fontSize: 18, fontWeight: "700", color: "#0D4F3C" },
+  headerTitle: { fontSize: 20, fontWeight: "700", color: "#000000" },
   headerSpacer: { width: 40 },
   pickerWrap: { marginHorizontal: 16 },
 });
