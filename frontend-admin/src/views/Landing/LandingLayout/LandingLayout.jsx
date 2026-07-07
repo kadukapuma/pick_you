@@ -372,7 +372,7 @@ const LandingLayout = () => {
             <div className="contact-info">
               <div className="contact-item">
                 <FaMapMarkerAlt className="contact-icon" />
-                <span>123 Transportation Ave, New York, NY 10001</span>
+                <span>no 29, muneeswaran rd, jaffna</span>
               </div>
               <div className="contact-item">
                 <FaEnvelope className="contact-icon" />
@@ -380,7 +380,7 @@ const LandingLayout = () => {
               </div>
               <div className="contact-item">
                 <FaPhone className="contact-icon" />
-                <a href="tel:+15551234567">+1 (555) 123-4567</a>
+                <a href="tel:+15551234567"></a>
               </div>
               <div className="contact-item">
                 <FaCommentDots className="contact-icon" />
