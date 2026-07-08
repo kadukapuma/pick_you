@@ -13,6 +13,7 @@ import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
 import { getPickupCoordinate } from "../../utils/rideLocation";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -101,7 +102,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
         routeCoordinates={routeCoordinates}
         routeColor="#00A859"
         destinationColor="#00A859"
-        vehicleImage={require("../../assets/car3d.png")}
+        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
         vehicleSize={100}
         edgePadding={mapPadding}
         followVehicle={followVehicle}

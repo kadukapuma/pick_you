@@ -25,6 +25,12 @@ export function normalizeRidePayload(source = {}) {
   const dropLng = parseCoord(
     source.drop_lng ?? source.dropLng ?? source.drop_longitude,
   );
+  const vehicleType =
+    source.vehicle_type ??
+    source.fare_config?.vehicle_type ??
+    source.fareConfig?.vehicle_type ??
+    source.vehicle?.vehicle_type ??
+    source.vehicle?.vehicleType?.name;
 
   return {
     id: source.id ?? source.ride_id,
@@ -44,7 +50,7 @@ export function normalizeRidePayload(source = {}) {
     customerName:
       source.customerName ?? source.passenger_name ?? "Passenger",
     rating: source.rating,
-    vehicle_type: source.vehicle_type,
+    vehicle_type: vehicleType,
     requested_at: source.requested_at,
     status: source.status,
     paymentMode: source.paymentMode,

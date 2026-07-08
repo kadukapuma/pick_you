@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { View, Text, Modal, TouchableOpacity, Animated } from "react-native";
-import LottieView from "lottie-react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 interface SuccessModalProps {
   visible: boolean;
@@ -25,12 +25,9 @@ export default function SuccessModal({
 }: SuccessModalProps) {
   const scaleAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
-  const lottieRef = useRef<LottieView>(null);
 
   useEffect(() => {
     if (visible) {
-      lottieRef.current?.play();
-
       Animated.parallel([
         Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
         Animated.timing(opacityAnim, { toValue: 1, duration: 280, useNativeDriver: true }),
@@ -60,14 +57,9 @@ export default function SuccessModal({
           style={{ transform: [{ scale: scaleAnim }], opacity: opacityAnim }}
           className="bg-white rounded-3xl px-8 py-8 items-center w-80"
         >
-          {/* Lottie tick animation */}
-          <LottieView
-            ref={lottieRef}
-            source={require("../assets/animations/success-tick.json")}
-            autoPlay={false}
-            loop={false}
-            style={{ width: 120, height: 120 }}
-          />
+          <View className="w-24 h-24 rounded-full bg-[#E8F8F0] items-center justify-center">
+            <Ionicons name="checkmark-circle" size={72} color="#59C36A" />
+          </View>
 
           {/* Title */}
           <Text className="text-xl font-bold text-gray-900 mb-2 text-center mt-2">

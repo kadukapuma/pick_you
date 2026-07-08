@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  Image,
+  type ImageSourcePropType,
   StyleSheet,
   View,
   type StyleProp,
@@ -28,6 +28,7 @@ type Props = {
   routeColor?: string;
   pickupColor?: string;
   dropoffColor?: string;
+  vehicleImage?: ImageSourcePropType;
   style?: StyleProp<ViewStyle>;
   onMapPress?: (event: {
     nativeEvent: { coordinate: { latitude: number; longitude: number } };
@@ -111,29 +112,6 @@ function DotMarker({ color }: { color: string }) {
   );
 }
 
-function DriverMarker({
-  heading = 0,
-  fixedForward = false,
-}: {
-  heading?: number;
-  fixedForward?: boolean;
-}) {
-  const visualHeading = fixedForward ? 0 : heading;
-
-  return (
-    <View style={styles.driverMarker}>
-      <Image
-        source={require("../../assets/images/vehicles/car3d.png")}
-        style={[
-          styles.driverVehicleImage,
-          { transform: [{ rotate: `${visualHeading - 90}deg` }] },
-        ]}
-        resizeMode="contain"
-      />
-    </View>
-  );
-}
-
 export default function GoogleRideMap({
   pickup,
   dropoff,
@@ -142,6 +120,7 @@ export default function GoogleRideMap({
   routeColor = "#0B7BDC",
   pickupColor = "#0B7BDC",
   dropoffColor = "#F97316",
+  vehicleImage,
   style,
   onMapPress,
   followVehicle = false,
@@ -153,6 +132,12 @@ export default function GoogleRideMap({
   const hasFitInitialBounds = useRef(false);
   const { location: smoothDriverLocation } = useSmoothLocation(driverLocation);
   const renderedDriverLocation = smoothDriverLocation ?? driverLocation;
+  const driverMarkerImage =
+    vehicleImage || require("../../assets/icons/map/car.png");
+  const driverMarkerHeading = followVehicle
+    ? 0
+    : (renderedDriverLocation?.heading ?? 0);
+  const driverMarkerRotation = driverMarkerHeading - 90;
   const cameraDriverLocation = useFollowCameraLocation(
     renderedDriverLocation,
     followVehicle,
@@ -243,13 +228,11 @@ export default function GoogleRideMap({
         <Marker
           coordinate={toLatLng(renderedDriverLocation)}
           anchor={{ x: 0.5, y: 0.5 }}
+          image={driverMarkerImage as any}
+          rotation={driverMarkerRotation}
+          flat
           tracksViewChanges={false}
-        >
-          <DriverMarker
-            heading={renderedDriverLocation.heading}
-            fixedForward={followVehicle}
-          />
-        </Marker>
+        />
       ) : null}
     </MapView>
   );
@@ -272,20 +255,5 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     borderWidth: 2,
     borderColor: "#FFFFFF",
-  },
-  driverMarker: {
-    width: 64,
-    height: 64,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  driverVehicleImage: {
-    width: 60,
-    height: 60,
   },
 });

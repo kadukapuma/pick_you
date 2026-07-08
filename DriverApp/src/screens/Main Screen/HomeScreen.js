@@ -33,9 +33,23 @@ import {
   syncPendingRideOnce,
 } from "../../services/rideRealtime";
 import { normalizeRidePayload } from "../../utils/rideLocation";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
 const IS_AVAILABILITY_TOGGLE_DISABLED = false;
+
+const getActiveVehicleType = (driver) => {
+  const activeVehicle =
+    driver?.vehicles?.find((vehicle) => vehicle?.is_active) ??
+    driver?.vehicles?.[0];
+
+  return (
+    activeVehicle?.vehicle_type ||
+    activeVehicle?.vehicleType?.name ||
+    driver?.vehicle_type ||
+    null
+  );
+};
 
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
@@ -57,6 +71,7 @@ const HomeScreen = () => {
   const [isRideHandled, setIsRideHandled] = useState(false);
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
+  const [driverVehicleType, setDriverVehicleType] = useState(null);
   const [screenError, setScreenError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -223,15 +238,18 @@ const HomeScreen = () => {
     try {
       console.log("🔵 Fetching driver data...");
       const response = await api.get("/user");
-      console.log("✅ Driver data fetched:", response.data?.driver?.id);
+      const payload = response.data?.data ?? response.data ?? {};
+      const userObj = payload.user ?? payload;
+      const driverObj = payload.driver ?? userObj.driver;
+      console.log("✅ Driver data fetched:", driverObj?.id);
 
-      const driverObj = response.data?.driver;
       if (!driverObj) {
         throw new Error("No driver data returned from server");
       }
 
       setIsOnline(false);
       setDriverId(driverObj?.id || null);
+      setDriverVehicleType(getActiveVehicleType(driverObj));
       setScreenError(null);
     } catch (error) {
       console.error("❌ Error fetching driver data:", error.message || error);
@@ -381,7 +399,9 @@ const HomeScreen = () => {
               style={styles.map}
               origin={mapOrigin}
               routeCoordinates={[mapOrigin]}
-              vehicleImage={require("../../assets/car3d.png")}
+              vehicleImage={getVehicleMapIcon(
+                rideData?.vehicle_type || driverVehicleType,
+              )}
               vehicleHeading={mapOrigin.heading ?? 0}
               vehicleSize={70}
             />

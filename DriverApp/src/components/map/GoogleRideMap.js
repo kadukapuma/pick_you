@@ -71,7 +71,13 @@ function DotMarker({ color = "#00A859" }) {
   );
 }
 
-function VehicleMarker({ source, heading = 0, size = 76, fixedForward = false }) {
+function VehicleMarker({
+  source,
+  heading = 0,
+  size = 76,
+  fixedForward = false,
+  onImageReady,
+}) {
   const visualHeading = fixedForward ? 0 : heading;
 
   if (source) {
@@ -88,6 +94,7 @@ function VehicleMarker({ source, heading = 0, size = 76, fixedForward = false })
             },
           ]}
           resizeMode="contain"
+          onLoadEnd={onImageReady}
         />
       </View>
     );
@@ -122,6 +129,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 ) {
   const mapRef = useRef(null);
   const hasFitInitialBounds = useRef(false);
+  const [tracksVehicleMarkerChanges, setTracksVehicleMarkerChanges] = useState(true);
   const { location: smoothOrigin } = useSmoothLocation(origin);
   const renderedOrigin = smoothOrigin ?? origin;
   const cameraOrigin = useFollowCameraLocation(renderedOrigin, followVehicle);
@@ -168,6 +176,10 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
   useEffect(() => {
     if (cameraRef) cameraRef.current = cameraHandle;
   }, [cameraHandle, cameraRef]);
+
+  useEffect(() => {
+    setTracksVehicleMarkerChanges(Boolean(vehicleImage));
+  }, [vehicleImage]);
 
   useEffect(() => {
     if (followVehicle || cameraIsFree || visibleCoordinates.length < 2) return;
@@ -230,12 +242,17 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
         />
       ) : null}
 
-      <Marker coordinate={toLatLng(renderedOrigin)} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
+      <Marker
+        coordinate={toLatLng(renderedOrigin)}
+        anchor={{ x: 0.5, y: 0.5 }}
+        tracksViewChanges={vehicleImage ? tracksVehicleMarkerChanges : false}
+      >
         <VehicleMarker
           source={vehicleImage}
           heading={renderedOrigin.heading ?? vehicleHeading}
           size={vehicleSize}
           fixedForward={followVehicle}
+          onImageReady={() => setTracksVehicleMarkerChanges(false)}
         />
       </Marker>
 

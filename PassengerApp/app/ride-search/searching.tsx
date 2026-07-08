@@ -1,5 +1,4 @@
 import {
-  ActivityIndicator,
   Alert,
   StyleSheet,
   Text,
@@ -8,7 +7,6 @@ import {
   Animated,
   Easing,
   StatusBar,
-  Dimensions,
 } from "react-native";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
@@ -18,11 +16,21 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRideSearch } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
 import { subscribeToRideLocation } from "../../services/location/trackingService";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
-const { width } = Dimensions.get("window");
 const GREEN = "#20B768";
-const GREEN_LIGHT = "#E8F8F0";
+
+const mergeRideData = (previous: any, next: any) => ({
+  ...(previous || {}),
+  ...(next || {}),
+  vehicle_type:
+    next?.vehicle_type ||
+    next?.fare_config?.vehicle_type ||
+    next?.fareConfig?.vehicle_type ||
+    next?.vehicle?.vehicle_type ||
+    next?.vehicle?.vehicleType?.name ||
+    previous?.vehicle_type,
+});
 
 export default function SearchingScreen() {
   const params = useLocalSearchParams();
@@ -88,7 +96,7 @@ export default function SearchingScreen() {
       if (cancelled || !ride) return;
 
       const status = String(ride.status || "").toUpperCase();
-      setRideData(ride);
+      setRideData((previous: any) => mergeRideData(previous, ride));
       setActiveRide(rideId, status);
 
       if (["ACCEPTED", "ARRIVED", "STARTED"].includes(status)) {
@@ -204,7 +212,7 @@ export default function SearchingScreen() {
 
       {/* ── MAP BACKGROUND ────────────────────────────────────────────────── */}
       <View style={styles.mapWrap}>
-        <MapboxRideMap
+        <GoogleRideMap
           style={styles.map}
           pickup={pickupCoord}
           dropoff={pickupCoord} // Simple focus on pickup

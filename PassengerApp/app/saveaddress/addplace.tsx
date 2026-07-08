@@ -3,7 +3,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import ActivityTabHeader from "../../components/activities/ActivityTabHeader";
 
-export default function addplace() {
+export default function AddPlace() {
   const router = useRouter();
 
   return (
