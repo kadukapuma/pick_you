@@ -36,7 +36,7 @@ import { normalizeRidePayload } from "../../utils/rideLocation";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
-const IS_AVAILABILITY_TOGGLE_DISABLED = false;
+const IS_AVAILABILITY_TOGGLE_DISABLED = true;
 
 const getActiveVehicleType = (driver) => {
   const activeVehicle =

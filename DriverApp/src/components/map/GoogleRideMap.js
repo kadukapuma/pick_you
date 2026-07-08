@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { Image, Platform, StyleSheet, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
@@ -11,6 +11,18 @@ const toLatLng = (coordinate) => ({
   latitude: coordinate.latitude,
   longitude: coordinate.longitude,
 });
+
+const isSameLatLng = (first, second) =>
+  Math.abs(first.latitude - second.latitude) < 0.000001 &&
+  Math.abs(first.longitude - second.longitude) < 0.000001;
+
+const toUniqueLatLngs = (coordinates) =>
+  coordinates.reduce((uniqueCoordinates, coordinate) => {
+    if (!uniqueCoordinates.some((item) => isSameLatLng(item, coordinate))) {
+      uniqueCoordinates.push(coordinate);
+    }
+    return uniqueCoordinates;
+  }, []);
 
 const CAMERA_UPDATE_INTERVAL_MS = 250;
 const FOLLOW_CAMERA_ANIMATION_MS = 350;
@@ -129,13 +141,19 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 ) {
   const mapRef = useRef(null);
   const hasFitInitialBounds = useRef(false);
+  const markerTrackingTimeoutRef = useRef(null);
   const [tracksVehicleMarkerChanges, setTracksVehicleMarkerChanges] = useState(true);
   const { location: smoothOrigin } = useSmoothLocation(origin);
   const renderedOrigin = smoothOrigin ?? origin;
   const cameraOrigin = useFollowCameraLocation(renderedOrigin, followVehicle);
   const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
   const visibleCoordinates = useMemo(
-    () => [renderedOrigin, destination, ...routeCoordinates].filter(isValidCoordinate).map(toLatLng),
+    () =>
+      toUniqueLatLngs(
+        [renderedOrigin, destination, ...routeCoordinates]
+          .filter(isValidCoordinate)
+          .map(toLatLng),
+      ),
     [destination, renderedOrigin, routeCoordinates],
   );
   const routeLine = useMemo(() => {
@@ -179,12 +197,49 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 
   useEffect(() => {
     setTracksVehicleMarkerChanges(Boolean(vehicleImage));
+    if (markerTrackingTimeoutRef.current) {
+      clearTimeout(markerTrackingTimeoutRef.current);
+      markerTrackingTimeoutRef.current = null;
+    }
   }, [vehicleImage]);
 
   useEffect(() => {
-    if (followVehicle || cameraIsFree || visibleCoordinates.length < 2) return;
+    return () => {
+      if (markerTrackingTimeoutRef.current) {
+        clearTimeout(markerTrackingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleVehicleImageReady = useCallback(() => {
+    if (!vehicleImage) return;
+    if (markerTrackingTimeoutRef.current) {
+      clearTimeout(markerTrackingTimeoutRef.current);
+    }
+    markerTrackingTimeoutRef.current = setTimeout(
+      () => setTracksVehicleMarkerChanges(false),
+      Platform.OS === "android" ? 700 : 150,
+    );
+  }, [vehicleImage]);
+
+  useEffect(() => {
+    if (followVehicle || cameraIsFree || visibleCoordinates.length < 1) return;
 
     const timeout = setTimeout(() => {
+      if (visibleCoordinates.length === 1) {
+        mapRef.current?.animateCamera(
+          {
+            center: visibleCoordinates[0],
+            heading: vehicleHeading ?? 0,
+            pitch: 0,
+            zoom: followZoom,
+          },
+          { duration: hasFitInitialBounds.current ? 350 : 600 },
+        );
+        hasFitInitialBounds.current = true;
+        return;
+      }
+
       mapRef.current?.fitToCoordinates(visibleCoordinates, {
         edgePadding: {
           top: edgePadding?.top ?? 140,
@@ -198,7 +253,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     }, hasFitInitialBounds.current ? 0 : 500);
 
     return () => clearTimeout(timeout);
-  }, [cameraIsFree, edgePadding, followVehicle, visibleCoordinates]);
+  }, [cameraIsFree, edgePadding, followVehicle, followZoom, vehicleHeading, visibleCoordinates]);
 
   useEffect(() => {
     const next = cameraOrigin ?? renderedOrigin;
@@ -252,7 +307,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
           heading={renderedOrigin.heading ?? vehicleHeading}
           size={vehicleSize}
           fixedForward={followVehicle}
-          onImageReady={() => setTracksVehicleMarkerChanges(false)}
+          onImageReady={handleVehicleImageReady}
         />
       </Marker>
 

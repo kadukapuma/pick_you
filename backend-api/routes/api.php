@@ -77,6 +77,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
     Route::middleware('role:driver')->group(function () {
         Route::get('/driver/profile', [DriverProfileController::class, 'getProfile']);
+        Route::put('/driver/profile', [DriverProfileController::class, 'updateProfile']);
+        Route::post('/driver/profile/update-bank', [DriverProfileController::class, 'updateBank']);
         Route::post('/driver/complete-profile', [DriverController::class, 'completeProfile']);
         Route::post('/driver/license-images', [DriverController::class, 'updateLicenseImages']);
         Route::put('/driver/availability', [DriverController::class, 'updateOwnAvailability']);

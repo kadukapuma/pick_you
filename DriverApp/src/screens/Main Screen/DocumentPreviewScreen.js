@@ -8,21 +8,33 @@ import {
   Image,
   ScrollView,
   Platform,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import ThemedFeedbackModal from "../../components/ThemedFeedbackModal";
 
 const DocumentPreviewScreen = ({ navigation, route }) => {
   const {
     title = "Driving License Front",
     status = "verified",
     image = null,
+    uploadedAt = null,
+    updatedAt = null,
   } = route.params || {};
 
   const [selectedImage, setSelectedImage] = useState(image);
+  const [feedback, setFeedback] = useState({
+    visible: false,
+    type: "warning",
+    title: "",
+    message: "",
+  });
+
+  const closeFeedback = () => {
+    setFeedback((prev) => ({ ...prev, visible: false }));
+  };
 
   /* ---------------- STATUS UI ---------------- */
 
@@ -44,6 +56,14 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
           icon: "clock",
         };
 
+      case "rejected":
+        return {
+          bg: "#FEE2E2",
+          text: "#DC2626",
+          label: "Rejected",
+          icon: "x-circle",
+        };
+
       default:
         return {
           bg: "#FEE2E2",
@@ -56,6 +76,19 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
 
   const statusUI = getStatusUI();
 
+  const formatDate = (dateValue) => {
+    if (!dateValue) return "Not available";
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return "Not available";
+
+    return date.toLocaleDateString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
+  };
+
   /* ---------------- IMAGE PICKER ---------------- */
 
   const pickImage = async () => {
@@ -64,10 +97,12 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
         await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
-        Alert.alert(
-          "Permission Required",
-          "Please allow gallery access."
-        );
+        setFeedback({
+          visible: true,
+          type: "warning",
+          title: "Gallery Access Needed",
+          message: "Please allow gallery access to upload or replace this document.",
+        });
         return;
       }
 
@@ -212,7 +247,7 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
             </Text>
 
             <Text style={styles.detailValue}>
-              15 Aug 2026
+              {formatDate(uploadedAt)}
             </Text>
           </View>
 
@@ -222,7 +257,7 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
             </Text>
 
             <Text style={styles.detailValue}>
-              18 Aug 2026
+              {formatDate(updatedAt)}
             </Text>
           </View>
         </View>
@@ -270,6 +305,15 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </SafeAreaView>
+
+      <ThemedFeedbackModal
+        visible={feedback.visible}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+        onClose={closeFeedback}
+        onPrimary={closeFeedback}
+      />
     </View>
   );
 };

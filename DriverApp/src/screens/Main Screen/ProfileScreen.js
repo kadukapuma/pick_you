@@ -1,6 +1,6 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useState, useEffect } from "react";
+import { useCallback, useState } from "react";
 import {
   Modal,
   ScrollView,
@@ -13,6 +13,7 @@ import {
   Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../services/api";
 
@@ -21,11 +22,7 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const response = await api.get("/driver/profile");
       if (response.data.status === 'success') {
@@ -34,9 +31,15 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     } catch (error) {
       console.log("Error fetching profile:", error);
     } finally {
-      loading && setLoading(false);
+      setLoading(false);
     }
-  };
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile]),
+  );
 
   const confirmLogout = async () => {
     setShowLogoutModal(false);
@@ -107,6 +110,26 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
     // Mask all but last 4 digits cleanly
     const maskedNum = accNum.length > 4 ? `•••• ${accNum.slice(-4)}` : accNum;
     return `${bankName} • ${maskedNum}`;
+  };
+
+  const getDocumentsSummary = () => {
+    const documents = Object.values(user?.documents || {});
+    if (documents.length === 0) return 'Not set';
+
+    const uploadedCount = documents.filter((doc) => doc?.status !== 'not_set').length;
+    const verifiedCount = documents.filter((doc) => doc?.status === 'verified').length;
+    const pendingCount = documents.filter((doc) => doc?.status === 'pending').length;
+    const rejectedCount = documents.filter((doc) => doc?.status === 'rejected').length;
+
+    if (rejectedCount > 0) return `${rejectedCount} rejected`;
+    if (pendingCount > 0) return `${pendingCount} pending`;
+    if (verifiedCount === documents.length) return 'Verified';
+    return `${uploadedCount}/${documents.length} uploaded`;
+  };
+
+  const areDocumentsVerified = () => {
+    const documents = Object.values(user?.documents || {});
+    return documents.length > 0 && documents.every((doc) => doc?.status === 'verified');
   };
 
   return (
@@ -183,8 +206,8 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
                 <MenuItem
                   icon="file-text"
                   label="Documents"
-                  value="Verified"
-                  showBadge
+                  value={getDocumentsSummary()}
+                  showBadge={areDocumentsVerified()}
                   onPress={() => navigation.navigate("Documents")}
                 />
                 {/* NEW: Bank Details menu option item added at the bottom of the stack */}
