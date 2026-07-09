@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -29,11 +29,20 @@ export default function RideSearchScreen() {
     setTripType: setContextTripType,
   } = useRideSearch();
 
+  const params = useLocalSearchParams<{
+    pickupAddress?: string;
+    pickupLat?: string;
+    pickupLng?: string;
+    tripType?: string;
+  }>();
+
   const [currentLocation, setCurrentLocation] =
     useState<LocationSuggestion | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
   const [locationError, setLocationError] = useState<string | null>(null);
-  const [tripType, setTripType] = useState<TripType>("one-way");
+  const [tripType, setTripType] = useState<TripType>(
+    (params.tripType === "return-trip" || params.tripType === "return") ? "return-trip" : "one-way"
+  );
   const [bookForFriend, setBookForFriend] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -72,8 +81,20 @@ export default function RideSearchScreen() {
   };
 
   useEffect(() => {
-    fetchLocation();
-  }, []);
+    if (params.pickupLat && params.pickupLng) {
+      setCurrentLocation({
+        id: "find_ride_custom",
+        address: params.pickupAddress || "Selected Location",
+        details: "Map pickup location",
+        latitude: parseFloat(params.pickupLat),
+        longitude: parseFloat(params.pickupLng),
+        placeType: "address",
+      });
+      setIsLoadingLocation(false);
+    } else {
+      fetchLocation();
+    }
+  }, [params.pickupLat, params.pickupLng, params.pickupAddress]);
 
   const handleTripTypeChange = (value: TripType) => {
     if (value === tripType) return;
