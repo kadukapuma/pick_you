@@ -1,6 +1,7 @@
 import React from "react";
 import { Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import { Image } from "expo-image";
+import { router } from "expo-router";
 
 const services = [
   {
@@ -33,6 +34,9 @@ export default function ServiceGridnew({ compact = false }: { compact?: boolean 
           key={index}
           activeOpacity={0.7}
           style={[styles.card, { minHeight: compact ? 95 : 105 }]}
+          onPress={() => {
+            if (index === 0) router.push("/find-ride" as any);
+          }}
         >
           {/* TOP IMAGE */}
           <View style={styles.imageContainer}>

@@ -13,7 +13,6 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { apiClient } from "../../services/api/apiClient";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useRideSearch } from "../../context/RideSearchContext";

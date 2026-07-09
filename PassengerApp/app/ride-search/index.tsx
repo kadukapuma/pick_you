@@ -32,41 +32,47 @@ export default function RideSearchScreen() {
   const [currentLocation, setCurrentLocation] =
     useState<LocationSuggestion | null>(null);
   const [isLoadingLocation, setIsLoadingLocation] = useState(true);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [tripType, setTripType] = useState<TripType>("one-way");
   const [bookForFriend, setBookForFriend] = useState(false);
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
 
-  useEffect(() => {
-    let cancelled = false;
-    const getCurrentLocation = async () => {
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== "granted" || cancelled) return;
-        const current = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        if (!cancelled) {
-          setCurrentLocation({
-            id: "current",
-            address: "Your Location",
-            details: "Current position",
-            latitude: current.coords.latitude,
-            longitude: current.coords.longitude,
-            placeType: "address",
-          });
-        }
-      } catch (error) {
-        console.error(error);
-      } finally {
-        if (!cancelled) setIsLoadingLocation(false);
+  const fetchLocation = async () => {
+    setIsLoadingLocation(true);
+    setLocationError(null);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationError(
+          "Location permission denied. Please enable it in your device Settings to auto-fill your pickup point."
+        );
+        return;
       }
-    };
-    getCurrentLocation();
-    return () => {
-      cancelled = true;
-    };
+      const current = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      setCurrentLocation({
+        id: "current",
+        address: "Your Location",
+        details: "Current position",
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+        placeType: "address",
+      });
+    } catch (error) {
+      console.error(error);
+      setLocationError(
+        "Could not detect your location. Please check that Location Services are enabled for this app."
+      );
+    } finally {
+      setIsLoadingLocation(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchLocation();
   }, []);
 
   const handleTripTypeChange = (value: TripType) => {
@@ -146,19 +152,28 @@ export default function RideSearchScreen() {
           pillTranslateX={pillTranslateX}
         />
 
+        {locationError && (
+          <View style={styles.locationErrorBanner}>
+            <Ionicons name="warning-outline" size={18} color="#B45309" />
+            <Text style={styles.locationErrorText}>{locationError}</Text>
+            <TouchableOpacity onPress={fetchLocation} style={styles.retryButton}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
         <Animated.View style={[styles.pickerWrap, { opacity: contentOpacity }]}>
-          {currentLocation &&
-            (tripType === "one-way" ? (
-              <LocationPicker
-                onConfirm={handleLocationConfirm}
-                currentLocation={currentLocation}
-              />
-            ) : (
-              <ReturnLocationPicker
-                onConfirm={handleReturnConfirm}
-                currentLocation={currentLocation}
-              />
-            ))}
+          {tripType === "one-way" ? (
+            <LocationPicker
+              onConfirm={handleLocationConfirm}
+              currentLocation={currentLocation ?? undefined}
+            />
+          ) : (
+            <ReturnLocationPicker
+              onConfirm={handleReturnConfirm}
+              currentLocation={currentLocation ?? undefined}
+            />
+          )}
         </Animated.View>
       </ScrollView>
     </SafeAreaView>
@@ -240,4 +255,31 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#000000" },
   headerSpacer: { width: 40 },
   pickerWrap: { marginHorizontal: 16 },
+  locationErrorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    borderRadius: 10,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 12,
+    gap: 8,
+  },
+  locationErrorText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#92400E",
+    lineHeight: 18,
+  },
+  retryButton: {
+    backgroundColor: "#B45309",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });

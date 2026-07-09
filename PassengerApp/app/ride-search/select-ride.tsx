@@ -124,29 +124,70 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
 const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
   car: "car",
   tuk: "car",
+  tuktuk: "car",
+  threewheel: "car",
   bike: "bicycle",
+  motorbike: "bicycle",
+  motorcycle: "bicycle",
   suv: "bus",
+  van: "bus",
+  minivan: "bus",
+  minicar: "car",
+  mini: "car",
 };
+
+// Normalise any backend vehicle name to a consistent key
+function normaliseVehicleKey(raw: string): string {
+  return raw.toLowerCase().replace(/[\s_\-]+/g, "");
+}
 
 const VEHICLE_IMAGE_MAP: Record<string, any> = {
   car: require("../../assets/images/vehicles/car.png"),
   tuk: require("../../assets/images/vehicles/threewheel.png"),
+  tuktuk: require("../../assets/images/vehicles/threewheel.png"),
+  threewheel: require("../../assets/images/vehicles/threewheel.png"),
   bike: require("../../assets/images/vehicles/bike.png"),
+  motorbike: require("../../assets/images/vehicles/bike.png"),
+  motorcycle: require("../../assets/images/vehicles/bike.png"),
   suv: require("../../assets/images/vehicles/minivan.png"),
   van: require("../../assets/images/vehicles/van.png"),
+  minivan: require("../../assets/images/vehicles/van.png"),
   minicar: require("../../assets/images/vehicles/minicar.png"),
+  mini: require("../../assets/images/vehicles/minicar.png"),
 };
+
+function getVehicleImage(id: string) {
+  const key = normaliseVehicleKey(id);
+  return VEHICLE_IMAGE_MAP[key] ?? VEHICLE_IMAGE_MAP.car;
+}
+
 const ETA_MAP: Record<string, string> = {
   bike: "1 min",
+  motorbike: "1 min",
+  motorcycle: "1 min",
   tuk: "2 mins",
+  tuktuk: "2 mins",
+  threewheel: "2 mins",
+  minicar: "2 mins",
+  mini: "2 mins",
   car: "3 mins",
   suv: "5 mins",
+  van: "5 mins",
+  minivan: "5 mins",
 };
 const RATING_MAP: Record<string, number> = {
   bike: 4.5,
+  motorbike: 4.5,
+  motorcycle: 4.5,
   tuk: 4.7,
+  tuktuk: 4.7,
+  threewheel: 4.7,
   car: 4.8,
+  minicar: 4.8,
+  mini: 4.8,
   suv: 4.9,
+  van: 4.9,
+  minivan: 4.9,
 };
 // Approx stars earned per LKR spent
 const STARS_PER_LKR = 0.01;
@@ -166,13 +207,16 @@ function mapDBVehicleToOption(
   } else {
     price = 150 + (distanceMeters / 1000) * 60;
   }
+  
+  const safeName = normaliseVehicleKey(vt.name ?? "car");
+  
   return {
-    id: vt.name,
+    id: vt.name, // Keep original for backend queries
     name: vt.display_name,
-    icon: ICON_MAP[vt.name] ?? "car",
+    icon: ICON_MAP[safeName] ?? "car",
     price: parseFloat(price.toFixed(2)),
-    eta: ETA_MAP[vt.name] ?? "4 mins",
-    rating: RATING_MAP[vt.name] ?? 4.6,
+    eta: ETA_MAP[safeName] ?? "4 mins",
+    rating: RATING_MAP[safeName] ?? 4.6,
   };
 }
 
@@ -260,43 +304,45 @@ function RideCard({
           {/* Icon area */}
           <View style={styles.cardIconWrap}>
             <Image
-              source={VEHICLE_IMAGE_MAP[ride.id] || VEHICLE_IMAGE_MAP.car}
+              source={getVehicleImage(ride.id ?? "car")}
               style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
 
-          {/* Name + seats row */}
-          <Text style={styles.cardName}>
+          {/* Name */}
+          <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
             {ride.name}
           </Text>
 
+          {/* ETA */}
           <View style={styles.cardMeta}>
-            <Ionicons
-              name="person-outline"
-              size={11}
-              color="#9CA3AF"
-            />
-            <Text style={styles.cardEta}>
+            <Ionicons name="person-outline" size={11} color="#9CA3AF" />
+            <Text style={styles.cardEta} numberOfLines={1}>
               {ride.eta}
             </Text>
           </View>
 
           {/* Price */}
-          <Text style={styles.cardPrice}>
+          <Text
+            style={styles.cardPrice}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
             LKR {ride.price.toFixed(2)}
           </Text>
 
           {/* Stars earned */}
           <View style={styles.starsRow}>
             <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text style={styles.starsText}>
+            <Text style={styles.starsText} numberOfLines={1}>
               Earn {stars}
             </Text>
           </View>
 
           {/* Route info */}
           {directions && (
-            <Text style={styles.cardRoute}>
+            <Text style={styles.cardRoute} numberOfLines={1}>
               {directions.distanceText} · {directions.durationText}
             </Text>
           )}
@@ -425,9 +471,14 @@ export default function SelectRideScreen() {
 
           if (!estimate.success || !estimate.data) return fallback;
 
+          const apifare = Number(estimate.data.estimated_fare);
+          // Sanity-check: if the API returns an obviously wrong value
+          // (e.g. zero, negative, or > 10× the local fallback) trust fallback
+          const sane =
+            apifare > 0 && apifare < fallback.price * 10;
           return {
             ...fallback,
-            price: Number(estimate.data.estimated_fare) || fallback.price,
+            price: sane ? parseFloat(apifare.toFixed(2)) : fallback.price,
           };
         }),
       );
@@ -752,7 +803,8 @@ const styles = StyleSheet.create({
   },
 
   rideCard: {
-    width: 106,
+    width: 112,
+    height: 180,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: "#E5E7EB",
@@ -760,6 +812,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 10,
     alignItems: "center",
+    justifyContent: "center",
     gap: 3,
   },
 

@@ -64,29 +64,32 @@ export default function HomeScreen() {
       >
         <View style={{ paddingHorizontal: horizontalPadding }}>
 
-          {/* WELCOME BACK TEXT */}
-          <View style={{ alignItems: "center", marginBottom: sectionGap, marginTop: 10 }}>
-            <Text style={{ fontSize: 16, fontWeight: "600", color: "#9CA3AF", letterSpacing: 0.5 }}>
-              WELCOME BACK!
-            </Text>
-          </View>
+          
 
           {/* MAP GRAPHIC & PROMO TEXT */}
           <View
             style={{
               flexDirection: "row",
-              alignItems: "flex-start",
+              alignItems: "center",
               justifyContent: "space-between",
               marginBottom: 20,
+              marginTop: 18,
             }}
           >
             {/* Promo Text (Left Side) */}
-            <View style={{ flex: 1, maxWidth: width * 0.42, paddingRight: 8, paddingTop: 4 }}>
-              <Text style={{ fontSize: 18, fontWeight: "800", color: "#0B3D2E", marginBottom: 2 }}>
-                Where to?
+            <View style={{ flex: 1.2, paddingRight: 4 }}>
+              <Text style={{ fontSize: 42, fontWeight: "900", color: "#0B3D2E", lineHeight: 42 }}>
+                WHERE
               </Text>
-              <Text style={{ fontSize: 13, color: "#6B7280", lineHeight: 18, fontWeight: "500" }}>
-                Book your next safe ride with ease.
+              <Text style={{ fontSize: 42, fontWeight: "900", color: "#0B3D2E", lineHeight: 42 }}>
+                TO
+              </Text>
+              <Text style={{ fontSize: 42, fontWeight: "900", color: "#0b9e54", lineHeight: 42 }}>
+                PICK?
+              </Text>
+              <Text style={{ fontSize: 18, color: "#6B7280", lineHeight: 24, marginTop: 16 }}>
+                Book your next{"\n"}
+                <Text style={{ fontWeight: "700", color: "#0b9e54" }}>ride</Text> with us
               </Text>
             </View>
 
