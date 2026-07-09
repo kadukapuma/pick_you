@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import UnderConstructionBanner from "../components/UnderConstructionBanner";
 
 const dummyNotifications = [
   { id: "1", type: "earnings", icon: "dollar-sign", title: "Daily Earnings Goal Reached!", message: "Congratulations! You earned $250 today.", time: "2 hours ago", color: "#22C55E" },
@@ -87,6 +88,8 @@ const NotificationScreen = () => {
           </TouchableOpacity>
         </View>
 
+        <UnderConstructionBanner style={styles.constructionBanner} />
+
         {/* List */}
         <FlatList
           data={dummyNotifications}
@@ -154,6 +157,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 20,
+  },
+  constructionBanner: {
+    marginHorizontal: 20,
+    marginBottom: 12,
   },
   notificationItem: {
     flexDirection: "row",

@@ -9,7 +9,22 @@ class Driver extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'license_number', 'license_front_path', 'license_back_path', 'vehicle_type', 'availability', 'status', 'rating', 'dob', 'address'];
+    protected $fillable = [
+        'user_id',
+        'license_number',
+        'license_front_path',
+        'license_back_path',
+        'vehicle_type',
+        'availability',
+        'status',
+        'rating',
+        'dob',
+        'address',
+        'bank_name',
+        'bank_branch',
+        'account_name',
+        'account_number',
+    ];
 
     public function user()
     {

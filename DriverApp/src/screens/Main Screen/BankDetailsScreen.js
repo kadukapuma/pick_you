@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   StyleSheet,
   View,
@@ -9,12 +9,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
+import ThemedFeedbackModal from '../../components/ThemedFeedbackModal';
 
 const BankDetailsScreen = ({ navigation }) => {
   const [bankName, setBankName] = useState('');
@@ -23,12 +23,23 @@ const BankDetailsScreen = ({ navigation }) => {
   const [accountNumber, setAccountNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+    onPrimary: null,
+  });
 
-  useEffect(() => {
-    fetchBankDetails();
+  const showFeedback = useCallback(({ type = 'success', title, message, onPrimary }) => {
+    setFeedback({ visible: true, type, title, message, onPrimary });
   }, []);
 
-  const fetchBankDetails = async () => {
+  const closeFeedback = useCallback(() => {
+    setFeedback((prev) => ({ ...prev, visible: false, onPrimary: null }));
+  }, []);
+
+  const fetchBankDetails = useCallback(async () => {
     try {
       const response = await api.get('/driver/profile');
       if (response.data.status === 'success') {
@@ -40,15 +51,27 @@ const BankDetailsScreen = ({ navigation }) => {
       }
     } catch (error) {
       console.log('Error fetching bank details:', error);
-      Alert.alert('Error', 'Failed to retrieve current bank settings.');
+      showFeedback({
+        type: 'error',
+        title: 'Bank Details Unavailable',
+        message: 'Failed to retrieve your current bank settings.',
+      });
     } finally {
       setLoading(false);
     }
-  };
+  }, [showFeedback]);
+
+  useEffect(() => {
+    fetchBankDetails();
+  }, [fetchBankDetails]);
 
   const handleSave = async () => {
     if (!bankName || !accountName || !accountNumber) {
-      Alert.alert('Required Fields', 'Please complete Bank Name, Account Name, and Account Number.');
+      showFeedback({
+        type: 'warning',
+        title: 'Required Details',
+        message: 'Please complete Bank Name, Account Name, and Account Number.',
+      });
       return;
     }
 
@@ -63,13 +86,20 @@ const BankDetailsScreen = ({ navigation }) => {
       });
 
       if (response.data.status === 'success') {
-        Alert.alert('Success', 'Bank details updated securely.', [
-          { text: 'OK', onPress: () => navigation.goBack() }
-        ]);
+        showFeedback({
+          type: 'success',
+          title: 'Bank Details Saved',
+          message: 'Your payout account details have been updated securely.',
+          onPrimary: () => navigation.goBack(),
+        });
       }
     } catch (error) {
       console.log('Error updating bank details:', error);
-      Alert.alert('Submission Failed', 'Could not store your banking settings. Please try again.');
+      showFeedback({
+        type: 'error',
+        title: 'Submission Failed',
+        message: 'Could not store your banking settings. Please try again.',
+      });
     } finally {
       setSaving(false);
     }
@@ -174,6 +204,19 @@ const BankDetailsScreen = ({ navigation }) => {
           </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      <ThemedFeedbackModal
+        visible={feedback.visible}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+        onClose={closeFeedback}
+        onPrimary={() => {
+          const action = feedback.onPrimary;
+          closeFeedback();
+          action?.();
+        }}
+      />
     </View>
   );
 };

@@ -1,5 +1,6 @@
 import GoogleRideMap from "../map/GoogleRideMap";
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { ImageSourcePropType } from "react-native";
 import { getCachedDirections_withCache } from "../../services/routing/googleRoutingService";
 
 type Coordinate = { latitude: number; longitude: number; heading?: number };
@@ -12,6 +13,7 @@ type Props = {
   onMapPress?: (event: any) => void;
   followVehicle?: boolean;
   onFollowStateChange?: (following: boolean) => void;
+  vehicleImage?: ImageSourcePropType;
 };
 
 const roundCoordinate = (value?: number) =>
@@ -34,6 +36,7 @@ export default function RideMap({
   onMapPress,
   followVehicle = false,
   onFollowStateChange,
+  vehicleImage,
 }: Props) {
   const isOnTrip = String(rideStatus || "").toUpperCase() === "STARTED";
   const activeTarget = isOnTrip && destination ? destination : location;
@@ -125,6 +128,7 @@ export default function RideMap({
       onMapPress={onMapPress}
       followVehicle={followVehicle}
       onFollowStateChange={onFollowStateChange}
+      vehicleImage={vehicleImage}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -9,18 +9,17 @@ import {
   Animated,
   Easing,
   StatusBar,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiClient } from "../../services/api/apiClient";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useRideSearch } from "../../context/RideSearchContext";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/routing/googleRoutingService";
-import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 interface RideBookingResponse {
   id?: number | string;
@@ -145,7 +144,12 @@ export default function ConfirmationScreen() {
         // as a driver accepts the request.
         router.replace({
           pathname: "/ride-search/searching",
-          params: { rideData: JSON.stringify(response.data) }
+          params: {
+            rideData: JSON.stringify({
+              ...response.data,
+              vehicle_type: payload.vehicle_type,
+            }),
+          }
         });
       } else {
         const errorMsg =

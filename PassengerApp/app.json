@@ -4,7 +4,7 @@
     "slug": "PickU",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/vehicles/icon.jpeg",
+    "icon": "./assets/images/vehicles/icon.png",
     "scheme": "frontend",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,

@@ -24,6 +24,7 @@ import {
     getDropCoordinate,
     getPickupCoordinate,
 } from "../../utils/rideLocation";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 const { width, height } = Dimensions.get("window");
@@ -193,7 +194,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
         routeCoordinates={routeCoordinates}
         routeColor="#2F80ED"
         destinationColor="#EF4444"
-        vehicleImage={require("../../assets/car3d.png")}
+        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
         vehicleSize={76}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
