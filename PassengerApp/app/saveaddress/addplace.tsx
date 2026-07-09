@@ -1,74 +1,635 @@
-import { View, Text, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
-import ActivityTabHeader from "../../components/activities/ActivityTabHeader";
+import * as Location from "expo-location";
+import { Image } from "expo-image";
+import { router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Animated,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
+import { useSavedPlaces, PlaceType } from "../../hooks/useSavedPlaces";
 
-export default function addplace() {
-  const router = useRouter();
+const DEFAULT_REGION: Region = {
+  latitude: 7.2906,
+  longitude: 80.6337,
+  latitudeDelta: 0.008,
+  longitudeDelta: 0.008,
+};
+
+const TYPE_OPTIONS: { value: PlaceType; label: string; icon: any; color: string }[] = [
+  { value: "home", label: "Home", icon: "home", color: "#22B36A" },
+  { value: "office", label: "Office", icon: "business", color: "#3BAAE8" },
+  { value: "other", label: "Other Location", icon: "location", color: "#F59E0B" },
+];
+
+export default function AddPlaceScreen() {
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    editId?: string;
+    editType?: PlaceType;
+    editLabel?: string;
+    editAddress?: string;
+    editLat?: string;
+    editLng?: string;
+  }>();
+
+  const isEditing = !!params.editId;
+  const mapRef = useRef<MapView | null>(null);
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [fetchedAddress, setFetchedAddress] = useState(params.editAddress ?? "");
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(!isEditing);
+
+  const [saveAs, setSaveAs] = useState(params.editLabel ?? "");
+  const [selectedType, setSelectedType] = useState<PlaceType>(params.editType ?? "home");
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dropdownAnim] = useState(new Animated.Value(0));
+
+  const { addPlace, updatePlace, places } = useSavedPlaces();
+
+  const toggleDropdown = (open: boolean) => {
+    setShowTypePicker(open);
+    Animated.spring(dropdownAnim, {
+      toValue: open ? 1 : 0,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 200,
+    }).start();
+  };
+
+  // Location setup
+  useEffect(() => {
+    (async () => {
+      if (isEditing && params.editLat && params.editLng) {
+        const r: Region = {
+          latitude: parseFloat(params.editLat),
+          longitude: parseFloat(params.editLng),
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        };
+        setRegion(r);
+        // Wait minor delay for map mount so ref is available
+        setTimeout(() => mapRef.current?.animateToRegion(r, 100), 50);
+        setIsLoadingLocation(false);
+        return;
+      }
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") { setIsLoadingLocation(false); return; }
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const r: Region = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        };
+        setRegion(r);
+        mapRef.current?.animateToRegion(r, 600);
+        reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      } catch {
+        reverseGeocode(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    })();
+  }, []);
+
+  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    setIsGeocoding(true);
+    try {
+      const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      if (results?.length > 0) {
+        const r = results[0];
+        const parts = [r.name, r.street, r.district, r.city].filter(Boolean).join(", ");
+        setFetchedAddress(parts || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      } else {
+        setFetchedAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      }
+    } catch {
+      setFetchedAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } finally {
+      setIsGeocoding(false);
+    }
+  }, []);
+
+  const handleRegionChange = useCallback((r: Region) => {
+    setRegion(r);
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    geocodeTimer.current = setTimeout(() => reverseGeocode(r.latitude, r.longitude), 650);
+  }, [reverseGeocode]);
+
+  const handleSave = async () => {
+    if (!fetchedAddress) {
+      Alert.alert("No location", "Please move the pin to your location on the map.");
+      return;
+    }
+    const label = saveAs.trim() ||
+      (selectedType === "home" ? "Home" : selectedType === "office" ? "Office" : "My Place");
+    setSaving(true);
+    try {
+      let ok: boolean;
+      if (isEditing && params.editId) {
+        ok = await updatePlace(params.editId, {
+          type: selectedType,
+          label,
+          address: fetchedAddress,
+          latitude: region.latitude,
+          longitude: region.longitude,
+        });
+      } else {
+        ok = await addPlace({
+          type: selectedType,
+          label,
+          address: fetchedAddress,
+          latitude: region.latitude,
+          longitude: region.longitude,
+        });
+      }
+      if (!ok) {
+        Alert.alert(
+          "Already exists",
+          `You already have a ${selectedType === "home" ? "Home" : "Office"} address. Only one is allowed.`
+        );
+        return;
+      }
+      router.back();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const existingTypes = places.map((p) => p.type);
+  const isTypeBlocked = (t: PlaceType) => {
+    if (t === "other") return false;
+    if (isEditing && params.editType === t) return false;
+    return existingTypes.includes(t);
+  };
+
+  const selectedCfg = TYPE_OPTIONS.find((o) => o.value === selectedType)!;
+  const statusBarH = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F0FAF5" }}>
-      {/* Header */}
-      <View
-        style={{
-          backgroundColor: "#FFFFFF",
-          paddingTop: 48,
-          paddingHorizontal: 20,
-          paddingBottom: 8,
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 4,
-          elevation: 2,
-        }}
-      >
-        {/* Title Row */}
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 12,
-          }}
-        >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-            >
-              <Ionicons name="arrow-back" size={22} color="#0D4F3C" />
-            </TouchableOpacity>
-            <Text
-              style={{
-                fontSize: 20,
-                fontWeight: "bold",
-                color: "#0D4F3C",
-              }}
-            >
-              Add Place
-            </Text>
-          </View>
+    <View style={styles.root}>
+      <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
 
-          <TouchableOpacity
-            style={{
-              width: 32,
-              height: 32,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "#D6F2E7",
-              borderRadius: 16,
-            }}
-          >
-            <Ionicons name="options-outline" size={18} color="#1B9E6E" />
-          </TouchableOpacity>
-        </View>
+      {/* ── HEADER ── */}
+      <View
+        style={[
+          styles.header,
+          { paddingTop: (insets.top || statusBarH) + 10 },
+        ]}
+      >
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={22} color="#111827" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>
+          {isEditing ? "Edit Address" : "Add Saved Address"}
+        </Text>
+        <View style={{ width: 40 }} />
       </View>
 
-      {/* Tab View - This handles everything automatically */}
-      <ActivityTabHeader
-        activeTab="Ongoing"
-        onTabChange={(tab) => console.log(tab)}
-      />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          style={{ flex: 1, backgroundColor: "#F4F6F9" }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 96 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* ── MAP ── */}
+          <View style={styles.mapContainer}>
+            <MapView
+              ref={mapRef}
+              provider={PROVIDER_GOOGLE}
+              style={StyleSheet.absoluteFill}
+              initialRegion={region}
+              showsUserLocation={false}
+              showsMyLocationButton={false}
+              showsCompass={false}
+              onRegionChange={handleRegionChange}
+            />
+
+            {/* Fixed center pin */}
+            <View style={styles.markerWrap} pointerEvents="none">
+              <Image
+                source={require("../../assets/images/vehicles/Umarker.png")}
+                style={styles.markerImg}
+                contentFit="contain"
+              />
+              <View style={styles.markerShadow} />
+            </View>
+
+            {/* Move pin hint */}
+            <View style={styles.hintBadge} pointerEvents="none">
+              <Ionicons name="move" size={13} color="#FFFFFF" />
+              <Text style={styles.hintText}>Move pin</Text>
+            </View>
+
+            {/* Recenter */}
+            <TouchableOpacity
+              style={styles.recenterBtn}
+              onPress={async () => {
+                try {
+                  const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                  mapRef.current?.animateToRegion({
+                    latitude: pos.coords.latitude,
+                    longitude: pos.coords.longitude,
+                    latitudeDelta: 0.008,
+                    longitudeDelta: 0.008,
+                  }, 500);
+                } catch { /* ignore */ }
+              }}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="locate" size={18} color="#0b9e54" />
+            </TouchableOpacity>
+          </View>
+
+          {/* ── FORM CARD ── */}
+          <View style={styles.formCard}>
+            {/* Fetched address row */}
+            <View style={styles.addressRow}>
+              <View style={styles.addressIconWrap}>
+                <Ionicons name="location" size={18} color="#F97316" />
+              </View>
+              <View style={{ flex: 1 }}>
+                {isGeocoding || isLoadingLocation ? (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <ActivityIndicator size="small" color="#0b9e54" />
+                    <Text style={styles.addressLoadingText}>Fetching location…</Text>
+                  </View>
+                ) : (
+                  <Text style={styles.addressText} numberOfLines={2}>
+                    {fetchedAddress || "Pan the map to select location"}
+                  </Text>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.formDivider} />
+
+            {/* Save As */}
+            <Text style={styles.fieldLabel}>Save Address as *</Text>
+            <TextInput
+              style={styles.textInput}
+              value={saveAs}
+              onChangeText={setSaveAs}
+              placeholder="Eg: Home / Work"
+              placeholderTextColor="#BBC0CA"
+              returnKeyType="done"
+            />
+
+            {/* Address Type */}
+            <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Address Type</Text>
+            <TouchableOpacity
+              style={[
+                styles.dropdownTrigger,
+                showTypePicker && styles.dropdownTriggerOpen,
+              ]}
+              onPress={() => toggleDropdown(!showTypePicker)}
+              activeOpacity={0.85}
+            >
+              <Ionicons
+                name={selectedCfg.icon}
+                size={16}
+                color={selectedCfg.color}
+                style={{ marginRight: 8 }}
+              />
+              <Text style={styles.dropdownTriggerText}>{selectedCfg.label}</Text>
+              <Animated.View
+                style={{
+                  transform: [{
+                    rotate: dropdownAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ["0deg", "180deg"],
+                    }),
+                  }],
+                }}
+              >
+                <Ionicons name="chevron-down" size={18} color="#6B7280" />
+              </Animated.View>
+            </TouchableOpacity>
+
+            {showTypePicker && (
+              <View style={styles.dropdown}>
+                {TYPE_OPTIONS.map((opt, i) => {
+                  const blocked = isTypeBlocked(opt.value);
+                  const isActive = selectedType === opt.value;
+                  return (
+                    <TouchableOpacity
+                      key={opt.value}
+                      style={[
+                        styles.dropdownItem,
+                        i < TYPE_OPTIONS.length - 1 && styles.dropdownItemBorder,
+                        isActive && styles.dropdownItemActive,
+                        blocked && styles.dropdownItemBlocked,
+                      ]}
+                      onPress={() => {
+                        if (blocked) return;
+                        setSelectedType(opt.value);
+                        toggleDropdown(false);
+                      }}
+                      activeOpacity={blocked ? 1 : 0.7}
+                    >
+                      <Ionicons name={opt.icon} size={16} color={blocked ? "#C0C5CF" : opt.color} />
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          isActive && styles.dropdownItemTextActive,
+                          blocked && styles.dropdownItemTextBlocked,
+                        ]}
+                      >
+                        {opt.label}
+                        {blocked ? "  (already saved)" : ""}
+                      </Text>
+                      {isActive && !blocked && (
+                        <Ionicons name="checkmark-circle" size={18} color="#0b9e54" />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* ── SAVE BUTTON ── */}
+      <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+        <TouchableOpacity
+          style={[styles.saveBtn, saving && { opacity: 0.6 }]}
+          onPress={handleSave}
+          activeOpacity={0.88}
+          disabled={saving}
+        >
+          <Text style={styles.saveBtnText}>
+            {saving ? "Saving…" : isEditing ? "Update Address" : "Save"}
+          </Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
+
+const MAP_HEIGHT = 230;
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "#F4F6F9",
+  },
+
+  // Header
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "flex-start",
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#111827",
+    letterSpacing: -0.2,
+  },
+
+  // Map
+  mapContainer: {
+    height: MAP_HEIGHT,
+    backgroundColor: "#D1D5DB",
+  },
+  markerWrap: {
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: [{ translateX: -24 }, { translateY: -56 }],
+    alignItems: "center",
+  },
+  markerImg: { width: 48, height: 56 },
+  markerShadow: {
+    width: 12,
+    height: 5,
+    borderRadius: 6,
+    backgroundColor: "rgba(0,0,0,0.18)",
+    marginTop: -2,
+  },
+  hintBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(20,20,20,0.72)",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  hintText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+  recenterBtn: {
+    position: "absolute",
+    bottom: 12,
+    right: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+
+  // Form Card
+  formCard: {
+    margin: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    padding: 20,
+    elevation: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+
+  // Address row
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+  },
+  addressIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF1E8",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 2,
+  },
+  addressText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#111827",
+    lineHeight: 20,
+  },
+  addressLoadingText: {
+    fontSize: 13,
+    color: "#9CA3AF",
+    fontStyle: "italic",
+  },
+
+  formDivider: {
+    height: 1,
+    backgroundColor: "#F1F5F9",
+    marginVertical: 18,
+  },
+
+  // Fields
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#6B7280",
+    letterSpacing: 0.5,
+    marginBottom: 8,
+    textTransform: "uppercase",
+  },
+  textInput: {
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    fontSize: 15,
+    color: "#111827",
+    backgroundColor: "#FAFAFA",
+    fontWeight: "500",
+  },
+
+  // Dropdown
+  dropdownTrigger: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    backgroundColor: "#FAFAFA",
+  },
+  dropdownTriggerOpen: {
+    borderColor: "#22B36A",
+    backgroundColor: "#F0FDF6",
+  },
+  dropdownTriggerText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#111827",
+  },
+  dropdown: {
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 13,
+  },
+  dropdownItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  dropdownItemActive: {
+    backgroundColor: "#F0FDF6",
+  },
+  dropdownItemBlocked: {
+    opacity: 0.45,
+  },
+  dropdownItemText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  dropdownItemTextActive: {
+    fontWeight: "700",
+    color: "#0b9e54",
+  },
+  dropdownItemTextBlocked: {
+    color: "#9CA3AF",
+    fontStyle: "italic",
+  },
+
+  // Footer
+  footer: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    backgroundColor: "#FFFFFF",
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  saveBtn: {
+    backgroundColor: "#111827",
+    borderRadius: 34,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  saveBtnText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#FFFFFF",
+    letterSpacing: -0.2,
+  },
+});

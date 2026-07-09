@@ -1,6 +1,8 @@
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import {
+  Alert,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -8,135 +10,127 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-  useSafeAreaInsets,
-  SafeAreaView,
-} from "react-native-safe-area-context";
+  SavedPlace,
+  getPlaceConfig,
+  useSavedPlaces,
+} from "../../hooks/useSavedPlaces";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-type Address = {
-  id: string;
-  label: string;
-  isMain?: boolean;
-  contactName: string;
-  phone: string;
-  fullAddress: string;
-  pinpointed: boolean;
-};
+// ─── ADDRESS CARD ─────────────────────────────────────────────────────────────
+function AddressCard({
+  item,
+  onEdit,
+  onDelete,
+}: {
+  item: SavedPlace;
+  onEdit: (item: SavedPlace) => void;
+  onDelete: (id: string) => void;
+}) {
+  const cfg = getPlaceConfig(item.type);
+  const isSingleton = item.type === "home" || item.type === "office";
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-const addresses: Address[] = [
-  {
-    id: "1",
-    label: "Home",
-    isMain: true,
-    contactName: "Leans Bow",
-    phone: "+61 817 0270 2004",
-    fullAddress: "123 4th Nue, Jakarta, NY 20002, Indonesia",
-    pinpointed: true,
-  },
-  {
-    id: "2",
-    label: "My Apartment",
-    isMain: false,
-    contactName: "Leans Bow",
-    phone: "+61 817 0270 2004",
-    fullAddress: "321 4th Nue, Jakarta, NY 80009, Indonesia",
-    pinpointed: true,
-  },
-  {
-    id: "3",
-    label: "GF's Apartment",
-    isMain: false,
-    contactName: "Abriella Gatha",
-    phone: "+61 817 0280 2005",
-    fullAddress: "456 7th Nue, Jakarta, NY 20003, Indonesia",
-    pinpointed: true,
-  },
-  {
-    id: "4",
-    label: "GF's Apartment",
-    isMain: false,
-    contactName: "Abriella Gatha",
-    phone: "+61 817 0280 2005",
-    fullAddress: "456 7th Nue, Jakarta, NY 20003, Indonesia",
-    pinpointed: true,
-  },
-  {
-    id: "5",
-    label: "GF's Apartment",
-    isMain: false,
-    contactName: "Abriella Gatha",
-    phone: "+61 817 0280 2005",
-    fullAddress: "456 7th Nue, Jakarta, NY 20003, Indonesia",
-    pinpointed: true,
-  },
-];
-
-// ─── Address Card ─────────────────────────────────────────────────────────────
-function AddressCard({ item }: { item: Address }) {
   return (
     <View style={styles.card}>
-      {/* Card header row */}
+      {/* Header */}
       <View style={styles.cardHeader}>
         <View style={styles.cardHeaderLeft}>
-          <Text style={styles.cardLabel}>{item.label}</Text>
-          {item.isMain && (
-            <View style={styles.mainBadge}>
-              <Text style={styles.mainBadgeText}>Main Address</Text>
-            </View>
-          )}
+          <View style={[styles.cardIconBg, { backgroundColor: cfg.bg }]}>
+            <Ionicons name={cfg.icon as any} size={18} color={cfg.color} />
+          </View>
+          <View>
+            <Text style={styles.cardLabel}>{item.label}</Text>
+            {isSingleton && (
+              <View style={styles.mainBadge}>
+                <Text style={styles.mainBadgeText}>Main Address</Text>
+              </View>
+            )}
+          </View>
         </View>
-        <TouchableOpacity style={styles.editBtn} activeOpacity={0.7}>
-          <Text style={styles.editText}>Edit</Text>
-          <Feather name="edit-2" size={13} color="#22B36A" />
-        </TouchableOpacity>
+        <View style={styles.cardActions}>
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => onEdit(item)}
+            activeOpacity={0.7}
+          >
+            <Feather name="edit-2" size={14} color="#22B36A" />
+            <Text style={styles.editText}>Edit</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.deleteBtn]}
+            onPress={() => onDelete(item.id)}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="trash-outline" size={14} color="#EF4444" />
+            <Text style={styles.deleteText}>Delete</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Divider */}
       <View style={styles.divider} />
 
-      {/* Contact + phone */}
-      <View style={styles.contactRow}>
-        <Text style={styles.contactName}>{item.contactName}</Text>
-        <View style={styles.phoneRow}>
-          <MaterialCommunityIcons
-            name="phone-outline"
-            size={14}
-            color="#6B7280"
-          />
-          <Text style={styles.phoneText}>{item.phone}</Text>
-        </View>
+      {/* Address */}
+      <Text style={styles.addressText}>{item.address}</Text>
+
+      {/* Type badge */}
+      <View style={styles.typeBadgeRow}>
+        <Ionicons name="location-outline" size={12} color={cfg.color} />
+        <Text style={[styles.typeBadgeText, { color: cfg.color }]}>
+          {item.type === "home" ? "Home" : item.type === "office" ? "Office" : "Other Location"}
+        </Text>
       </View>
-
-      {/* Address line */}
-      <Text style={styles.addressText}>{item.fullAddress}</Text>
-
-      {/* Pinpoint row */}
-      {item.pinpointed && (
-        <View style={styles.pinRow}>
-          <Ionicons name="location-outline" size={13} color="#9CA3AF" />
-          <Text style={styles.pinText}>Pinpoint already</Text>
-        </View>
-      )}
     </View>
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// ─── MAIN SCREEN ─────────────────────────────────────────────────────────────
 export default function SaveAddressScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const { homePlace, officePlace, otherPlaces, loading, deletePlace } = useSavedPlaces();
+
+  const handleEdit = (item: SavedPlace) => {
+    router.push({
+      pathname: "/saveaddress/addplace",
+      params: {
+        editId: item.id,
+        editType: item.type,
+        editLabel: item.label,
+        editAddress: item.address,
+        editLat: item.latitude ? String(item.latitude) : undefined,
+        editLng: item.longitude ? String(item.longitude) : undefined,
+      },
+    } as any);
+  };
+
+  const handleDelete = (id: string) => {
+    Alert.alert(
+      "Delete Location",
+      "Are you sure you want to remove this saved location?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () => deletePlace(id),
+        },
+      ]
+    );
+  };
+
+  // Ordered: home first, then office, then others
+  const orderedPlaces: SavedPlace[] = [
+    ...(homePlace ? [homePlace] : []),
+    ...(officePlace ? [officePlace] : []),
+    ...otherPlaces,
+  ];
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar
-        barStyle="dark-content"
-        translucent
-        backgroundColor="transparent"
-      />
+      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <View style={[styles.header, { paddingTop: insets.top + 4 }]}>
         <TouchableOpacity
           style={styles.backBtn}
@@ -147,41 +141,57 @@ export default function SaveAddressScreen() {
           <Ionicons name="arrow-back" size={22} color="#111827" />
         </TouchableOpacity>
 
-        <Text style={styles.headerTitle}>Saved Address</Text>
+        <Text style={styles.headerTitle}>Saved Addresses</Text>
 
         <TouchableOpacity
           style={styles.addIconBtn}
           activeOpacity={0.7}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          onPress={() => router.push("/saveaddress/addplace")}
+          onPress={() => router.push("/saveaddress/addplace" as any)}
         >
           <Ionicons name="add" size={24} color="#111827" />
         </TouchableOpacity>
       </View>
 
-      {/* ── SCROLL CONTENT ── */}
+      {/* LIST */}
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 110 },
+          { paddingBottom: insets.bottom + 120 },
         ]}
         showsVerticalScrollIndicator={false}
       >
-        {addresses.map((item) => (
-          <AddressCard key={item.id} item={item} />
-        ))}
+        {loading ? (
+          <Text style={styles.emptyText}>Loading...</Text>
+        ) : orderedPlaces.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="location-outline" size={48} color="#D1D5DB" />
+            <Text style={styles.emptyText}>No saved locations yet</Text>
+            <Text style={styles.emptySubText}>
+              Tap "Add New Address" below to get started
+            </Text>
+          </View>
+        ) : (
+          orderedPlaces.map((item) => (
+            <AddressCard
+              key={item.id}
+              item={item}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+            />
+          ))
+        )}
       </ScrollView>
 
-      {/* ── ADD NEW ADDRESS BUTTON (floating above bottom) ── */}
-      <View
-        style={[styles.footerContainer, { paddingBottom: insets.bottom + 16 }]}
-      >
+      {/* FOOTER ADD BUTTON */}
+      <View style={[styles.footerContainer, { paddingBottom: insets.bottom + 16 }]}>
         <TouchableOpacity
           style={styles.addButton}
           activeOpacity={0.85}
-          onPress={() => router.push("/saveaddress/addplace")}
+          onPress={() => router.push("/saveaddress/addplace" as any)}
         >
+          <Ionicons name="add-circle-outline" size={20} color="#22B36A" />
           <Text style={styles.addButtonText}>Add New Address</Text>
         </TouchableOpacity>
       </View>
@@ -189,12 +199,9 @@ export default function SaveAddressScreen() {
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── STYLES ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: "#F4F6F9",
-  },
+  safeArea: { flex: 1, backgroundColor: "#F4F6F9" },
 
   // Header
   header: {
@@ -205,34 +212,13 @@ const styles = StyleSheet.create({
     paddingBottom: 14,
     backgroundColor: "#F4F6F9",
   },
-  backBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: "#111827",
-    letterSpacing: -0.2,
-  },
-  addIconBtn: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+  backBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
+  headerTitle: { fontSize: 17, fontWeight: "700", color: "#111827", letterSpacing: -0.2 },
+  addIconBtn: { width: 36, height: 36, alignItems: "center", justifyContent: "center" },
 
   // Scroll
-  scroll: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 16,
-    paddingTop: 6,
-    gap: 12,
-  },
+  scroll: { flex: 1 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 6, gap: 12 },
 
   // Card
   card: {
@@ -249,94 +235,49 @@ const styles = StyleSheet.create({
   },
   cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  cardHeaderLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flex: 1,
-  },
-  cardLabel: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-    letterSpacing: -0.2,
-  },
+  cardHeaderLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  cardIconBg: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
+  cardLabel: { fontSize: 16, fontWeight: "700", color: "#111827", letterSpacing: -0.2 },
   mainBadge: {
     borderWidth: 1.5,
     borderColor: "#22B36A",
     borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    marginTop: 4,
+    alignSelf: "flex-start",
   },
-  mainBadgeText: {
-    fontSize: 11,
-    color: "#22B36A",
-    fontWeight: "600",
-  },
-  editBtn: {
+  mainBadgeText: { fontSize: 10, color: "#22B36A", fontWeight: "600" },
+  cardActions: { flexDirection: "row", gap: 8, marginTop: 2 },
+  actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
+    backgroundColor: "#F0FDF6",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
-  editText: {
-    fontSize: 13,
-    color: "#22B36A",
-    fontWeight: "600",
-  },
+  editText: { fontSize: 12, color: "#22B36A", fontWeight: "600" },
+  deleteBtn: { backgroundColor: "#FEF2F2" },
+  deleteText: { fontSize: 12, color: "#EF4444", fontWeight: "600" },
 
   // Divider
-  divider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
-    marginBottom: 12,
-  },
-
-  // Contact row
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 6,
-  },
-  contactName: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#1F2937",
-  },
-  phoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  phoneText: {
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "400",
-  },
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginBottom: 12 },
 
   // Address
-  addressText: {
-    fontSize: 13,
-    color: "#6B7280",
-    lineHeight: 19,
-    marginBottom: 8,
-  },
+  addressText: { fontSize: 13, color: "#6B7280", lineHeight: 19, marginBottom: 8 },
+  typeBadgeRow: { flexDirection: "row", alignItems: "center", gap: 4 },
+  typeBadgeText: { fontSize: 11, fontWeight: "600" },
 
-  // Pinpoint
-  pinRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  pinText: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    fontWeight: "400",
-  },
+  // Empty state
+  emptyState: { alignItems: "center", paddingTop: 60, paddingBottom: 20 },
+  emptyText: { fontSize: 15, color: "#9CA3AF", fontWeight: "500", marginTop: 12 },
+  emptySubText: { fontSize: 13, color: "#D1D5DB", marginTop: 6, textAlign: "center" },
 
   // Footer button
   footerContainer: {
@@ -354,16 +295,13 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
     shadowColor: "#22B36A",
     shadowOpacity: 0.1,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 2 },
     elevation: 2,
   },
-  addButtonText: {
-    fontSize: 15,
-    fontWeight: "700",
-    color: "#22B36A",
-    letterSpacing: -0.1,
-  },
+  addButtonText: { fontSize: 15, fontWeight: "700", color: "#22B36A", letterSpacing: -0.1 },
 });
