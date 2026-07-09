@@ -75,7 +75,7 @@ export default function AddPlaceScreen() {
   // Location setup
   useEffect(() => {
     (async () => {
-      if (isEditing && params.editLat && params.editLng) {
+      if (params.editLat && params.editLng) {
         const r: Region = {
           latitude: parseFloat(params.editLat),
           longitude: parseFloat(params.editLng),
@@ -252,14 +252,29 @@ export default function AddPlaceScreen() {
               style={styles.recenterBtn}
               onPress={async () => {
                 try {
+                  const { status } = await Location.requestForegroundPermissionsAsync();
+                  if (status !== "granted") return;
                   const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-                  mapRef.current?.animateToRegion({
+                  const r = {
                     latitude: pos.coords.latitude,
                     longitude: pos.coords.longitude,
                     latitudeDelta: 0.008,
                     longitudeDelta: 0.008,
-                  }, 500);
-                } catch { /* ignore */ }
+                  };
+                  mapRef.current?.animateToRegion(r, 500);
+                } catch {
+                  try {
+                    const lastPos = await Location.getLastKnownPositionAsync();
+                    if (lastPos) {
+                      mapRef.current?.animateToRegion({
+                        latitude: lastPos.coords.latitude,
+                        longitude: lastPos.coords.longitude,
+                        latitudeDelta: 0.008,
+                        longitudeDelta: 0.008,
+                      }, 500);
+                    }
+                  } catch { /* ignore */ }
+                }
               }}
               activeOpacity={0.85}
             >

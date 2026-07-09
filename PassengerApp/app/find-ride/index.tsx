@@ -214,6 +214,8 @@ export default function FindRideScreen() {
             style={styles.recenterBtn}
             onPress={async () => {
               try {
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== 'granted') return;
                 const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
                 const r: Region = {
                   latitude: pos.coords.latitude,
@@ -222,7 +224,19 @@ export default function FindRideScreen() {
                   longitudeDelta: 0.008,
                 };
                 mapRef.current?.animateToRegion(r, 500);
-              } catch { /* ignore */ }
+              } catch {
+                try {
+                  const lastPos = await Location.getLastKnownPositionAsync();
+                  if (lastPos) {
+                    mapRef.current?.animateToRegion({
+                      latitude: lastPos.coords.latitude,
+                      longitude: lastPos.coords.longitude,
+                      latitudeDelta: 0.008,
+                      longitudeDelta: 0.008,
+                    }, 500);
+                  }
+                } catch { /* ignore */ }
+              }
             }}
             activeOpacity={0.8}
           >
@@ -267,7 +281,23 @@ export default function FindRideScreen() {
                     </Text>
                   )}
                 </View>
-                <Ionicons name="heart-outline" size={22} color="#0F2E23" />
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    if (!pickupAddress) return;
+                    router.push({
+                      pathname: "/saveaddress/addplace",
+                      params: {
+                        editAddress: pickupAddress,
+                        editLat: String(region.latitude),
+                        editLng: String(region.longitude),
+                      },
+                    });
+                  }}
+                  style={{ padding: 4 }}
+                >
+                  <Ionicons name="heart-outline" size={22} color="#0b9e54" />
+                </TouchableOpacity>
               </View>
 
               {/* Connecting Vertical Dotted Line */}
@@ -581,10 +611,11 @@ const styles = StyleSheet.create({
   savedStrip: {
     marginTop: 14,
     flexDirection: "row",
-    justifyContent: "space-between",
+    gap: 10,
   },
   savedCard: {
-    width: "23%",
+    flex: 1,
+    maxWidth: "23%",
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     paddingVertical: 10,

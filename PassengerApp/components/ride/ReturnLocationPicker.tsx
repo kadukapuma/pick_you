@@ -16,6 +16,20 @@ import {
   searchLocationSuggestions,
   LocationSuggestion,
 } from "../../services/location/multiProviderService";
+import { router } from "expo-router";
+import * as Location from "expo-location";
+import { useSavedPlaces } from "../../hooks/useSavedPlaces";
+
+const getPlaceConfig = (type: string) => {
+  switch (type) {
+    case "home":
+      return { icon: "home-outline" as const, color: "#22B36A" };
+    case "office":
+      return { icon: "briefcase-outline" as const, color: "#3BAAE8" };
+    default:
+      return { icon: "location-outline" as const, color: "#F59E0B" };
+  }
+};
 
 interface ReturnLocationPickerProps {
   onConfirm: (
@@ -70,6 +84,8 @@ export default function ReturnLocationPicker({
   );
   const [stop, setStop] = useState<LocationSuggestion | null>(null);
   const [dropoff, setDropoff] = useState<LocationSuggestion | null>(null);
+
+  const { places } = useSavedPlaces();
 
   const [pickupSearch, setPickupSearch] = useState(
     currentLocation?.address || "",
@@ -340,7 +356,20 @@ export default function ReturnLocationPicker({
               <Ionicons name="chevron-forward" size={20} color="#38765D" style={{ paddingHorizontal: 16 }} />
             </View>
 
-            <TouchableOpacity style={styles.savedItem}>
+            <TouchableOpacity
+              style={styles.savedItem}
+              onPress={() => {
+                router.push({
+                  pathname: "/ride-search/set-location-map" as any,
+                  params: {
+                    pickupAddress: pickup?.address || "Your Location",
+                    pickupLat: pickup?.latitude ? String(pickup.latitude) : "",
+                    pickupLng: pickup?.longitude ? String(pickup.longitude) : "",
+                  },
+                });
+              }}
+              activeOpacity={0.7}
+            >
               <Ionicons
                 name="map-outline"
                 size={26}
@@ -350,20 +379,56 @@ export default function ReturnLocationPicker({
               <Text style={styles.savedText}>Set Location on Map</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="home-outline" size={24} color="#000" />
-              <Text style={styles.savedText}>450 Main St, San Francisco</Text>
-            </TouchableOpacity>
+            <View style={styles.divider} />
 
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="briefcase-outline" size={24} color="#000" />
-              <Text style={styles.savedText}>Google SF, Spear Tower</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="location-outline" size={24} color="#000" />
-              <Text style={styles.savedText}>Favorite Cafe, Oakland</Text>
-            </TouchableOpacity>
+            {places.map((place) => {
+              const cfg = getPlaceConfig(place.type);
+              return (
+                <TouchableOpacity
+                  key={place.id}
+                  style={styles.savedItem}
+                  onPress={async () => {
+                    let lat = place.latitude;
+                    let lng = place.longitude;
+                    if (!lat || !lng) {
+                      try {
+                        const geocoded = await Location.geocodeAsync(place.address);
+                        if (geocoded && geocoded.length > 0) {
+                          lat = geocoded[0].latitude;
+                          lng = geocoded[0].longitude;
+                        }
+                      } catch {}
+                    }
+                    const suggestion: LocationSuggestion = {
+                      id: place.id,
+                      address: place.address,
+                      details: place.label,
+                      latitude: lat || 7.2906,
+                      longitude: lng || 80.6337,
+                      placeType: "address",
+                    };
+                    if (activeField === "pickup" || (!pickup && activeField === null)) {
+                      setPickup(suggestion);
+                      setPickupSearch(suggestion.address);
+                    } else if (activeField === "stop") {
+                      setStop(suggestion);
+                      setStopSearch(suggestion.address);
+                    } else {
+                      setDropoff(suggestion);
+                      setDropSearch(suggestion.address);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={cfg.icon} size={24} color={cfg.color} />
+                  <View style={styles.locationInfo}>
+                    <Text style={styles.savedText}>{place.label}</Text>
+                    <Text style={styles.locationDetail}>{place.address}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>

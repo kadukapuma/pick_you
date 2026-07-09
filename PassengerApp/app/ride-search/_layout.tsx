@@ -15,6 +15,7 @@ export default function RideSearchLayout() {
             <Stack.Screen name="select-ride-return" />
             <Stack.Screen name="return-trip-location" />
             <Stack.Screen name="saved-addresses" />
+            <Stack.Screen name="set-location-map" />
         </Stack>
     );
 }
