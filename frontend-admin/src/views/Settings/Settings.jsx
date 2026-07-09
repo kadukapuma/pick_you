@@ -1,76 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { updatePassword, fetchAppSettings, updateAppSetting } from '../../services/adminApi';
+import { updatePassword } from '../../services/adminApi';
 import Swal from 'sweetalert2';
 import './Settings.css';
 
 const Settings = () => {
     const { token, admin } = useAdmin();
     const [loading, setLoading] = useState(false);
-    const [loadingSettings, setLoadingSettings] = useState(false);
     const [passwords, setPasswords] = useState({
         current_password: '',
         password: '',
         password_confirmation: ''
     });
-    const [maintenanceMode, setMaintenanceMode] = useState(false);
-
-    // Check if user is super admin
-    const isSuperAdmin = admin?.role === 'super_admin';
-
-    // Load app settings (Super Admin only)
-    useEffect(() => {
-        const loadSettings = async () => {
-            if (!token || !isSuperAdmin) return;
-            try {
-                setLoadingSettings(true);
-                const result = await fetchAppSettings(token);
-                if (result.settings && typeof result.settings === 'object') {
-                    setMaintenanceMode(result.settings.maintenance_mode || false);
-                }
-            } catch (error) {
-                console.error('Failed to load settings:', error);
-            } finally {
-                setLoadingSettings(false);
-            }
-        };
-
-        loadSettings();
-    }, [token, isSuperAdmin]);
 
     const handleChange = (e) => {
         setPasswords({
             ...passwords,
             [e.target.name]: e.target.value
         });
-    };
-
-    const handleMaintenanceModeToggle = async (e) => {
-        const newValue = e.target.checked;
-        setMaintenanceMode(newValue);
-
-        try {
-            await updateAppSetting(token, 'maintenance_mode', newValue, 'boolean');
-            window.dispatchEvent(new CustomEvent('maintenance-mode-updated', {
-                detail: {
-                    key: 'maintenance_mode',
-                    value: newValue,
-                },
-            }));
-            Swal.fire({
-                icon: 'success',
-                title: 'Success',
-                text: `Maintenance mode has been ${newValue ? 'enabled' : 'disabled'}`
-            });
-        } catch (error) {
-            // Revert the toggle if the API call fails
-            setMaintenanceMode(!newValue);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: error.message || 'Failed to update maintenance mode'
-            });
-        }
     };
 
     const handleSubmit = async (e) => {
@@ -122,39 +69,6 @@ const Settings = () => {
                         <p className="profile-email">{admin?.email}</p>
                     </div>
                 </div>
-
-                {/* App Settings Section - Only visible to Super Admin */}
-                {isSuperAdmin ? (
-                    <div className="settings-section">
-                        <div className="section-header">
-                            <span className="material-icons">tune</span>
-                            <h2>App Settings</h2>
-                        </div>
-
-                        <div className="app-settings-form">
-                            <div className="settings-item">
-                                <div className="setting-info">
-                                    <h3>Maintenance Mode</h3>
-                                    <p>When enabled, all users will see a "Coming Soon" screen after login instead of the main app</p>
-                                </div>
-                                <div className="setting-control">
-                                    <label className="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            checked={maintenanceMode}
-                                            onChange={handleMaintenanceModeToggle}
-                                            disabled={loadingSettings}
-                                        />
-                                        <span className="toggle-slider"></span>
-                                    </label>
-                                    <span className="toggle-status">
-                                        {maintenanceMode ? 'ENABLED' : 'DISABLED'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ) : null}
 
                 {/* Change Password Section */}
                 <div className="settings-section">

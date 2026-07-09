@@ -57,9 +57,6 @@ Route::middleware('throttle:auth')->group(function () {
     Route::post('/login/verify-2fa', [AuthController::class, 'verifySuperAdmin2FA']);
 });
 
-// Public app settings (maintenance mode check for all users)
-Route::get('/app-settings/maintenance-mode', [AppSettingsController::class, 'getMaintenanceMode']);
-
 // Protected routes
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request, AuthPayload $payload) {

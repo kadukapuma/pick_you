@@ -11,7 +11,6 @@ const TopBar = ({
     unreadCount = 0,
     onMarkAllRead,
     onClearNotifications,
-    maintenanceMode = false,
 }) => {
     const location = useLocation()
     const [showNotifications, setShowNotifications] = useState(false)
@@ -77,16 +76,6 @@ const TopBar = ({
                 </button>
                 <h1 className="page-title-text">{getPageName()}</h1>
 
-                {maintenanceMode && (
-                    <div className="maintenance-banner" role="status" aria-live="polite">
-                        <span className="maintenance-banner__pulse" />
-                        <span className="material-icons maintenance-banner__icon">warning_amber</span>
-                        <div className="maintenance-banner__text">
-                            <strong>Maintenance mode enabled</strong>
-                            <span>Users will see the Coming Soon screen</span>
-                        </div>
-                    </div>
-                )}
             </div>
 
             <div className="top-bar-right">
