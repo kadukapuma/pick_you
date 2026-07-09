@@ -14,11 +14,13 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import { apiClient } from "../../services/api/apiClient";
-import { router } from "expo-router";
-import { Ionicons } from "@expo/vector-icons";
 import { useRideSearch } from "../../context/RideSearchContext";
+import {
+  getCachedDirections_withCache,
+  type DirectionsResult,
+} from "../../services/routing/googleRoutingService";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 interface RideBookingResponse {
   id?: number | string;
@@ -171,7 +173,7 @@ export default function ConfirmationScreen() {
       <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
 
       {/* ── MAP BACKGROUND ────────────────────────────────────────────────── */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         pickup={outboundTrip.pickup!}
         dropoff={outboundTrip.dropoff!}

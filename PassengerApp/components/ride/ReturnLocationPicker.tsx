@@ -23,7 +23,7 @@ interface ReturnLocationPickerProps {
     stop: LocationSuggestion | null,
     dropoff: LocationSuggestion,
   ) => void;
-  currentLocation: LocationSuggestion;
+  currentLocation?: LocationSuggestion;
 }
 
 const SAVED_LOCATIONS = [
@@ -66,7 +66,7 @@ export default function ReturnLocationPicker({
   currentLocation,
 }: ReturnLocationPickerProps) {
   const [pickup, setPickup] = useState<LocationSuggestion | null>(
-    currentLocation,
+    currentLocation ?? null,
   );
   const [stop, setStop] = useState<LocationSuggestion | null>(null);
   const [dropoff, setDropoff] = useState<LocationSuggestion | null>(null);

@@ -8,6 +8,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AuthService } from "../../services/auth/authService";
@@ -30,6 +31,7 @@ export default function VerifyNumberScreen() {
   const [timeLeft, setTimeLeft] = useState(58);
   const [canResend, setCanResend] = useState(false);
   const [otpError, setOtpError] = useState<string | null>(null);
+  const [showOtpPopup, setShowOtpPopup] = useState(true);
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const displayNumber = mobileNumber || "your phone number";

@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRideSearch } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
 import { subscribeToRideLocation } from "../../services/location/trackingService";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 const { width } = Dimensions.get("window");
 const GREEN = "#20B768";
@@ -204,7 +204,7 @@ export default function SearchingScreen() {
 
       {/* ── MAP BACKGROUND ────────────────────────────────────────────────── */}
       <View style={styles.mapWrap}>
-        <MapboxRideMap
+        <GoogleRideMap
           style={styles.map}
           pickup={pickupCoord}
           dropoff={pickupCoord} // Simple focus on pickup
