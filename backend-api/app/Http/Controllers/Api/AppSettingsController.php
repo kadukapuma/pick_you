@@ -103,24 +103,4 @@ class AppSettingsController extends Controller
         }
     }
 
-    /**
-     * Get maintenance mode status (public endpoint)
-     */
-    public function getMaintenanceMode()
-    {
-        try {
-            $isEnabled = Setting::getSetting('maintenance_mode', false);
-
-            return response()->json([
-                'success' => true,
-                'maintenance_mode' => $isEnabled
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve maintenance mode status',
-                'error' => $e->getMessage()
-            ], 500);
-        }
-    }
 }

@@ -86,7 +86,7 @@ If you're still having connection issues after updating the IP:
 
 1. **Clear browser cache** - The old URL might be cached
 2. **Check firewall** - Ensure port 8000 is open on your backend machine
-3. **Verify backend is running** - Test with: `curl http://YOUR_IP:8000/api/app-settings/maintenance-mode`
+3. **Verify backend is running** - Test with: `curl -I http://YOUR_IP:8000`
 4. **Restart everything** - Stop both backend and frontend, then start them again
 
 ## All Apps Configuration
