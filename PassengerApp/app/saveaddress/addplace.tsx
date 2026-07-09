@@ -21,8 +21,168 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
 import { useSavedPlaces, PlaceType } from "../../hooks/useSavedPlaces";
 
-export default function AddPlace() {
-  const router = useRouter();
+const DEFAULT_REGION: Region = {
+  latitude: 7.2906,
+  longitude: 80.6337,
+  latitudeDelta: 0.008,
+  longitudeDelta: 0.008,
+};
+
+const TYPE_OPTIONS: { value: PlaceType; label: string; icon: any; color: string }[] = [
+  { value: "home", label: "Home", icon: "home", color: "#22B36A" },
+  { value: "office", label: "Office", icon: "business", color: "#3BAAE8" },
+  { value: "other", label: "Other Location", icon: "location", color: "#F59E0B" },
+];
+
+export default function AddPlaceScreen() {
+  const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams<{
+    editId?: string;
+    editType?: PlaceType;
+    editLabel?: string;
+    editAddress?: string;
+    editLat?: string;
+    editLng?: string;
+  }>();
+
+  const isEditing = !!params.editId;
+  const mapRef = useRef<MapView | null>(null);
+  const geocodeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [region, setRegion] = useState<Region>(DEFAULT_REGION);
+  const [fetchedAddress, setFetchedAddress] = useState(params.editAddress ?? "");
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [isLoadingLocation, setIsLoadingLocation] = useState(!isEditing);
+
+  const [saveAs, setSaveAs] = useState(params.editLabel ?? "");
+  const [selectedType, setSelectedType] = useState<PlaceType>(params.editType ?? "home");
+  const [showTypePicker, setShowTypePicker] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dropdownAnim] = useState(new Animated.Value(0));
+
+  const { addPlace, updatePlace, places } = useSavedPlaces();
+
+  const toggleDropdown = (open: boolean) => {
+    setShowTypePicker(open);
+    Animated.spring(dropdownAnim, {
+      toValue: open ? 1 : 0,
+      useNativeDriver: true,
+      damping: 18,
+      stiffness: 200,
+    }).start();
+  };
+
+  // Location setup
+  useEffect(() => {
+    (async () => {
+      if (isEditing && params.editLat && params.editLng) {
+        const r: Region = {
+          latitude: parseFloat(params.editLat),
+          longitude: parseFloat(params.editLng),
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        };
+        setRegion(r);
+        // Wait minor delay for map mount so ref is available
+        setTimeout(() => mapRef.current?.animateToRegion(r, 100), 50);
+        setIsLoadingLocation(false);
+        return;
+      }
+
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") { setIsLoadingLocation(false); return; }
+        const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        const r: Region = {
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        };
+        setRegion(r);
+        mapRef.current?.animateToRegion(r, 600);
+        reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+      } catch {
+        reverseGeocode(DEFAULT_REGION.latitude, DEFAULT_REGION.longitude);
+      } finally {
+        setIsLoadingLocation(false);
+      }
+    })();
+  }, []);
+
+  const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    setIsGeocoding(true);
+    try {
+      const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      if (results?.length > 0) {
+        const r = results[0];
+        const parts = [r.name, r.street, r.district, r.city].filter(Boolean).join(", ");
+        setFetchedAddress(parts || `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      } else {
+        setFetchedAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+      }
+    } catch {
+      setFetchedAddress(`${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    } finally {
+      setIsGeocoding(false);
+    }
+  }, []);
+
+  const handleRegionChange = useCallback((r: Region) => {
+    setRegion(r);
+    if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
+    geocodeTimer.current = setTimeout(() => reverseGeocode(r.latitude, r.longitude), 650);
+  }, [reverseGeocode]);
+
+  const handleSave = async () => {
+    if (!fetchedAddress) {
+      Alert.alert("No location", "Please move the pin to your location on the map.");
+      return;
+    }
+    const label = saveAs.trim() ||
+      (selectedType === "home" ? "Home" : selectedType === "office" ? "Office" : "My Place");
+    setSaving(true);
+    try {
+      let ok: boolean;
+      if (isEditing && params.editId) {
+        ok = await updatePlace(params.editId, {
+          type: selectedType,
+          label,
+          address: fetchedAddress,
+          latitude: region.latitude,
+          longitude: region.longitude,
+        });
+      } else {
+        ok = await addPlace({
+          type: selectedType,
+          label,
+          address: fetchedAddress,
+          latitude: region.latitude,
+          longitude: region.longitude,
+        });
+      }
+      if (!ok) {
+        Alert.alert(
+          "Already exists",
+          `You already have a ${selectedType === "home" ? "Home" : "Office"} address. Only one is allowed.`
+        );
+        return;
+      }
+      router.back();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const existingTypes = places.map((p) => p.type);
+  const isTypeBlocked = (t: PlaceType) => {
+    if (t === "other") return false;
+    if (isEditing && params.editType === t) return false;
+    return existingTypes.includes(t);
+  };
+
+  const selectedCfg = TYPE_OPTIONS.find((o) => o.value === selectedType)!;
+  const statusBarH = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
 
   return (
     <View style={styles.root}>
