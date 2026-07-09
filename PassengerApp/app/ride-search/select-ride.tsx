@@ -12,16 +12,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../../services/routing/mapboxRoutingService";
+} from "../../services/routing/googleRoutingService";
 import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -39,6 +41,11 @@ interface DBVehicleType {
     cancellation_fee: string;
     is_active: boolean;
   } | null;
+}
+
+interface RideEstimateResponse {
+  route: DirectionsResult;
+  estimated_fare: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -119,6 +126,15 @@ const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
   tuk: "car",
   bike: "bicycle",
   suv: "bus",
+};
+
+const VEHICLE_IMAGE_MAP: Record<string, any> = {
+  car: require("../../assets/images/vehicles/car.png"),
+  tuk: require("../../assets/images/vehicles/threewheel.png"),
+  bike: require("../../assets/images/vehicles/bike.png"),
+  suv: require("../../assets/images/vehicles/minivan.png"),
+  van: require("../../assets/images/vehicles/van.png"),
+  minicar: require("../../assets/images/vehicles/minicar.png"),
 };
 const ETA_MAP: Record<string, string> = {
   bike: "1 min",
@@ -238,25 +254,19 @@ function RideCard({
           style={[
             styles.rideCard,
             { borderColor },
-            selected && styles.rideCardSelected,
+            selected && { backgroundColor: "#F3F4F6" },
           ]}
         >
           {/* Icon area */}
-          <View
-            style={[
-              styles.cardIconWrap,
-              selected && styles.cardIconWrapSelected,
-            ]}
-          >
-            <Ionicons
-              name={ride.icon as any}
-              size={26}
-              color={selected ? "#fff" : GREEN}
+          <View style={styles.cardIconWrap}>
+            <Image
+              source={VEHICLE_IMAGE_MAP[ride.id] || VEHICLE_IMAGE_MAP.car}
+              style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
 
           {/* Name + seats row */}
-          <Text style={[styles.cardName, selected && styles.cardTextWhite]}>
+          <Text style={styles.cardName}>
             {ride.name}
           </Text>
 
@@ -264,44 +274,29 @@ function RideCard({
             <Ionicons
               name="person-outline"
               size={11}
-              color={selected ? "rgba(255,255,255,0.75)" : "#9CA3AF"}
+              color="#9CA3AF"
             />
-            <Text
-              style={[
-                styles.cardEta,
-                selected && { color: "rgba(255,255,255,0.8)" },
-              ]}
-            >
+            <Text style={styles.cardEta}>
               {ride.eta}
             </Text>
           </View>
 
           {/* Price */}
-          <Text style={[styles.cardPrice, selected && styles.cardTextWhite]}>
+          <Text style={styles.cardPrice}>
             LKR {ride.price.toFixed(2)}
           </Text>
 
           {/* Stars earned */}
           <View style={styles.starsRow}>
             <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text
-              style={[
-                styles.starsText,
-                selected && { color: "rgba(255,255,255,0.85)" },
-              ]}
-            >
+            <Text style={styles.starsText}>
               Earn {stars}
             </Text>
           </View>
 
           {/* Route info */}
           {directions && (
-            <Text
-              style={[
-                styles.cardRoute,
-                selected && { color: "rgba(255,255,255,0.7)" },
-              ]}
-            >
+            <Text style={styles.cardRoute}>
               {directions.distanceText} · {directions.durationText}
             </Text>
           )}
@@ -324,6 +319,7 @@ export default function SelectRideScreen() {
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
+  const insets = useSafeAreaInsets();
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
 
@@ -377,10 +373,12 @@ export default function SelectRideScreen() {
     (async () => {
       setLoadingVehicles(true);
       try {
-        const res = await apiClient.get<DBVehicleType[]>("/vehicle-types");
+        const res = await apiClient.get<DBVehicleType[]>(
+          "/vehicle-types?active_only=1&available_only=1",
+        );
         const data =
-          res.success && res.data && res.data.length > 0
-            ? res.data.filter((v) => v.is_active)
+          res.success && Array.isArray(res.data)
+            ? res.data.filter((v) => v.is_active && v.fare_config?.is_active)
             : MOCK_VEHICLE_TYPES;
         if (!cancelled) {
           _setRawVehicles(data);
@@ -403,14 +401,50 @@ export default function SelectRideScreen() {
   // Compute pricing once both are ready
   useEffect(() => {
     if (!directions || _rawVehicles.length === 0) return;
-    const mapped = _rawVehicles.map((v) =>
-      mapDBVehicleToOption(v, directions.distance, directions.duration),
-    );
-    setRideOptions(mapped);
-    if (mapped.length > 0) setSelectedRide(mapped[0].id);
-    animateSheetIn();
-    setLoadingVehicles(false);
-  }, [directions, _rawVehicles]);
+
+    let cancelled = false;
+    const loadEstimates = async () => {
+      const mapped = await Promise.all(
+        _rawVehicles.map(async (vehicle) => {
+          const fallback = mapDBVehicleToOption(
+            vehicle,
+            directions.distance,
+            directions.duration,
+          );
+
+          const estimate = await apiClient.post<RideEstimateResponse>(
+            "/rides/estimate",
+            {
+              vehicle_type: vehicle.name,
+              pickup_lat: pickup.latitude,
+              pickup_lng: pickup.longitude,
+              drop_lat: destination.latitude,
+              drop_lng: destination.longitude,
+            },
+          );
+
+          if (!estimate.success || !estimate.data) return fallback;
+
+          return {
+            ...fallback,
+            price: Number(estimate.data.estimated_fare) || fallback.price,
+          };
+        }),
+      );
+
+      if (cancelled) return;
+      setRideOptions(mapped);
+      if (mapped.length > 0) setSelectedRide(mapped[0].id);
+      animateSheetIn();
+      setLoadingVehicles(false);
+    };
+
+    loadEstimates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [animateSheetIn, destination.latitude, destination.longitude, directions, pickup.latitude, pickup.longitude, _rawVehicles]);
 
   const handleBookNow = useCallback(() => {
     if (!selectedRide || rideOptions.length === 0) return;
@@ -437,7 +471,7 @@ export default function SelectRideScreen() {
       />
 
       {/* ── MAP ──────────────────────────────────────────────────────────── */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         pickup={pickup}
         dropoff={destination}
@@ -480,7 +514,11 @@ export default function SelectRideScreen() {
       <Animated.View
         style={[
           styles.sheet,
-          { opacity: sheetOpacity, transform: [{ translateY: sheetY }] },
+          {
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetY }],
+            paddingBottom: insets.bottom + 20,
+          },
         ]}
       >
         {/* Handle */}
@@ -726,32 +764,22 @@ const styles = StyleSheet.create({
   },
 
   rideCardSelected: {
-    backgroundColor: GREEN,
+    backgroundColor: "#F3F4F6",
     borderColor: GREEN,
   },
 
   cardIconWrap: {
-    width: 46,
+    width: "100%",
     height: 46,
-    borderRadius: 23,
-    backgroundColor: GREEN_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
-  },
-
-  cardIconWrapSelected: {
-    backgroundColor: GREEN_DARK,
   },
 
   cardName: {
     fontSize: 13,
     fontWeight: "700",
     color: "#111827",
-  },
-
-  cardTextWhite: {
-    color: "#fff",
   },
 
   cardMeta: {

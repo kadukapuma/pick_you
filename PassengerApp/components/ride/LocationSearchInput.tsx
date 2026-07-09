@@ -10,8 +10,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
+  createPlacesSessionToken,
   searchLocationSuggestions,
   LocationSuggestion,
+  resolveLocationSuggestion,
 } from "../../services/location/multiProviderService";
 
 interface LocationSearchProps {
@@ -32,6 +34,11 @@ export default function LocationSearch({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const debounceTimer = useRef<number | null>(null);
+  const sessionToken = useRef(createPlacesSessionToken());
+
+  const resetSessionToken = () => {
+    sessionToken.current = createPlacesSessionToken();
+  };
 
   const handleSearch = (text: string) => {
     setSearchQuery(text);
@@ -50,7 +57,9 @@ export default function LocationSearch({
     debounceTimer.current = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const results = await searchLocationSuggestions(text);
+        const results = await searchLocationSuggestions(text, {
+          sessionToken: sessionToken.current,
+        });
         setSuggestions(results);
         setShowSuggestions(true);
       } catch (error) {
@@ -61,8 +70,17 @@ export default function LocationSearch({
     }, 800);
   };
 
-  const handleSelectLocation = (location: LocationSuggestion) => {
-    onSelectLocation(location);
+  const handleSelectLocation = async (location: LocationSuggestion) => {
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionToken.current,
+    );
+    setIsLoading(false);
+    if (!resolvedLocation) return;
+
+    onSelectLocation(resolvedLocation);
+    resetSessionToken();
     setSearchQuery("");
     setShowSuggestions(false);
     setSuggestions([]);
@@ -72,6 +90,7 @@ export default function LocationSearch({
     setSearchQuery("");
     setSuggestions([]);
     setShowSuggestions(false);
+    resetSessionToken();
   };
 
   return (
@@ -156,6 +175,10 @@ export default function LocationSearch({
           ))}
         </ScrollView>
       )}
+      {showSuggestions &&
+        suggestions.some((suggestion) => suggestion.provider === "google") && (
+          <Text style={styles.googleAttribution}>Powered by Google</Text>
+        )}
 
       {/* Loading State */}
       {isLoading && showSuggestions && (
@@ -293,6 +316,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#6B7280",
     marginTop: 2,
+  },
+  googleAttribution: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginRight: 18,
+    marginTop: 4,
   },
 
   loadingContainer: {

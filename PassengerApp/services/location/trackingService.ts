@@ -14,6 +14,7 @@ export interface DriverLocationUpdate {
   recorded_at: string;
   sequence: number;
   is_stale?: boolean;
+  vehicle_type?: string;
 }
 
 export interface TrackingStatus {
@@ -58,7 +59,20 @@ export async function subscribeToRideLocation(
 
     lastSequence = Number(location.sequence || Date.now());
     lastUpdateAt = Date.parse(location.recorded_at) || Date.now();
-    onLocation(location);
+    onLocation({
+      ...location,
+      ride_id: Number(location.ride_id),
+      driver_id: Number(location.driver_id),
+      latitude: Number(location.latitude),
+      longitude: Number(location.longitude),
+      heading: Number(location.heading || 0),
+      speed: Number(location.speed || 0),
+      accuracy:
+        location.accuracy === null || location.accuracy === undefined
+          ? null
+          : Number(location.accuracy),
+      sequence: Number(location.sequence || Date.now()),
+    });
   };
 
   const fetchSnapshot = async () => {

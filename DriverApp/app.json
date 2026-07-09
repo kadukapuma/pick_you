@@ -17,7 +17,7 @@
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.ayeshalexan.DriverApp"
+      "bundleIdentifier": "com.picku.DriverApp"
     },
     "android": {
       "adaptiveIcon": {
@@ -27,7 +27,7 @@
       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.ayeshalexan.DriverApp",
+      "package": "com.picku.Driverapp",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",
@@ -42,7 +42,6 @@
     },
     "plugins": [
       "expo-router",
-      "@rnmapbox/maps",
       [
         "expo-splash-screen",
         {
@@ -74,7 +73,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e93dd9ac-fbd8-4467-b954-56a7760d2318"
+        "projectId": "95287dff-3db4-4e4d-b47b-6d2d89a2a84f"
       }
     }
   }

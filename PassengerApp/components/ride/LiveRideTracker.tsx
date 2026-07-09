@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import RideMap from "./RideMap";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const toNumber = (value: any): number => {
     const number = Number(value);
@@ -24,6 +25,13 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
         rideData.vehicle?.vehicle_number ||
         rideData.vehicle?.plate_number ||
         "Vehicle";
+    const vehicleType =
+        rideData.fare_config?.vehicle_type ||
+        rideData.fareConfig?.vehicle_type ||
+        rideData.vehicle_type ||
+        rideData.vehicle?.vehicle_type ||
+        rideData.vehicle?.vehicleType?.name ||
+        driverLocation?.vehicle_type;
     const rideStatus = String(rideData.status || "").toUpperCase();
     const paymentStatus = String(rideData.payment?.payment_status || "").toUpperCase();
     const estimatedFare = toNumber(rideData.estimated_fare);
@@ -70,6 +78,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                     rideStatus={rideStatus}
                     followVehicle={followVehicle && !!driverLocation}
                     onFollowStateChange={setFollowVehicle}
+                    vehicleImage={getVehicleMapIcon(vehicleType)}
                 />
             </View>
 

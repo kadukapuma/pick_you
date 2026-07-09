@@ -23,6 +23,9 @@ import {
   FaChevronRight,
 } from "react-icons/fa";
 import "./Home.css";
+import carguybanner1 from "../../../assets/carguybanner1.png";
+import homebanner2 from "../../../assets/homebanner2.png"
+import bannerimage3 from "../../../assets/banner3.png"
 
 /* ─────────────────────────────────────
    Animated Counter
@@ -717,21 +720,21 @@ const MapScene = ({ progress }) => {
 ───────────────────────────────────── */
 const heroSlides = [
   {
-    img: "https://images.unsplash.com/photo-1624607391672-2b7d1bcafe7c?w=1600&h=900&fit=crop&auto=format",
+    img: bannerimage3,
     headline: "Welcome to PickU",
     sub: "The smarter way to move — safe, affordable rides at your fingertips.",
     cta: "Book a Ride",
     ctaHref: "#benefits",
   },
   {
-    img: "https://images.unsplash.com/photo-1610886023290-6ba32b20e354?w=1600&h=900&fit=crop&auto=format",
+    img: homebanner2,
     headline: "Go Wherever, Whenever,",
     sub: "Available 24/7 in 100+ cities. Your ride is always just minutes away.",
     cta: "See Ride Types",
     ctaHref: "#ride-types",
   },
   {
-    img: "https://images.unsplash.com/photo-1773063449875-332dff62b6e3?w=1600&h=900&fit=crop&auto=format",
+    img: carguybanner1,
     headline: "Rides for Every Passenger",
     sub: "From budget Tuk to premium Car — pick the ride that fits your journey.",
     cta: "Explore Options",
@@ -1157,7 +1160,7 @@ const Home = () => {
         </div>
       </section> */}
 
-      {/* ══════════ STATS ══════════ */}
+      {/* ══════════ STATS ══════════
       <section className="home-stats-section">
         <div className="home-stats-inner">
           {[
@@ -1196,7 +1199,7 @@ const Home = () => {
             </Reveal>
           ))}
         </div>
-      </section>
+      </section> */}
     </div>
   );
 };

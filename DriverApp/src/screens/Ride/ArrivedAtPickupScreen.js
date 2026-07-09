@@ -8,11 +8,12 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
 import { getPickupCoordinate } from "../../utils/rideLocation";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
@@ -23,7 +24,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
   const origin = driverCoord ?? DEFAULT_COORD;
   const destination = pickupCoord ?? origin;
-  const { directions } = useMapboxRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination);
 
   const customerName = ride?.customerName || "John David";
   const pickup = ride?.pickup || "Pickup";
@@ -94,14 +95,14 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
       />
 
       {/* MAP VIEWPORT */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         origin={origin}
         destination={destination}
         routeCoordinates={routeCoordinates}
         routeColor="#00A859"
         destinationColor="#00A859"
-        vehicleImage={require("../../assets/car3d.png")}
+        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
         vehicleSize={100}
         edgePadding={mapPadding}
         followVehicle={followVehicle}

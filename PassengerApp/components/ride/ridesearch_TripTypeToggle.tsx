@@ -24,13 +24,8 @@ export default function TripTypeToggle({ tripType, onToggle, pillTranslateX }: P
         style={styles.toggleOption}
         onPress={() => onToggle("one-way")}
       >
-        <Ionicons
-          name="arrow-forward"
-          size={15}
-          color={tripType === "one-way" ? "#ffffff" : "#6B9E8E"}
-        />
         <Text style={[styles.toggleLabel, tripType === "one-way" && styles.toggleLabelActive]}>
-          One way
+          One Way
         </Text>
       </TouchableOpacity>
 
@@ -38,13 +33,8 @@ export default function TripTypeToggle({ tripType, onToggle, pillTranslateX }: P
         style={styles.toggleOption}
         onPress={() => onToggle("return-trip")}
       >
-        <Ionicons
-          name="swap-horizontal"
-          size={15}
-          color={tripType === "return-trip" ? "#ffffff" : "#6B9E8E"}
-        />
         <Text style={[styles.toggleLabel, tripType === "return-trip" && styles.toggleLabelActive]}>
-          Return trip
+          Return Trip
         </Text>
       </TouchableOpacity>
     </View>
@@ -56,26 +46,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     marginHorizontal: 16,
     marginVertical: 12,
-    backgroundColor: "#D6F2E7",
-    borderRadius: 14,
-    padding: 4,
-    height: 52,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "#38765D",
+    height: 48,
     position: "relative",
     overflow: "hidden",
   },
   togglePill: {
     position: "absolute",
-    top: 4,
-    left: 4,
-    width: (require("react-native").Dimensions.get("window").width - 32) / 2 - 8,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: "#1B9E6E",
-    shadowColor: "#1B9E6E",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 4,
+    top: -1,
+    left: -1,
+    width: (require("react-native").Dimensions.get("window").width - 32) / 2 + 1,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#38765D",
   },
   toggleOption: {
     flex: 1,
@@ -83,12 +69,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     zIndex: 1,
-    gap: 6,
   },
   toggleLabel: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#4A7A68",
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#38765D",
   },
   toggleLabelActive: {
     color: "#FFFFFF",

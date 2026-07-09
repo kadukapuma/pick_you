@@ -88,7 +88,7 @@ export class AuthService {
         errors: response.errors,
       };
     } catch (error: any) {
-      console.error("Registration error:", error);
+      if (__DEV__) console.warn("Registration error:", error);
       return {
         success: false,
         message: error.message || "Registration failed",
@@ -106,14 +106,16 @@ export class AuthService {
       console.log("✅ User logged out and auth cleared");
       return { success: true, message: "Logged out successfully" };
     } catch (error: any) {
-      console.error("Logout error:", error);
+      if (__DEV__) console.warn("Logout error:", error);
       await StorageService.clearAuth();
       return { success: true, message: "Logged out" };
     }
   }
 
   /**
-   * Restore authentication from stored data
+   * Restore authentication from stored data.
+   * Validates the stored token against the server so that a revoked/expired
+   * token is caught here rather than after the user lands on the home screen.
    */
   static async restoreAuth(): Promise<{
     success: boolean;
@@ -123,17 +125,35 @@ export class AuthService {
       const token = await StorageService.getToken();
       const user = await StorageService.getUser();
 
-      if (token && user) {
-        console.log(
-          "✅ Auth restored from storage - Token:",
-          token.substring(0, 20) + "...",
-        );
-        return { success: true, user };
+      if (!token || !user) {
+        console.log("⚠️ No token or user in storage");
+        return { success: false };
       }
-      console.log("⚠️ No token or user in storage");
-      return { success: false };
+
+      console.log(
+        "✅ Auth restored from storage - Token:",
+        token.substring(0, 20) + "...",
+      );
+
+      // Validate the token is still accepted by the server.
+      // skipAuthCheck=true prevents the global 401 handler from also firing
+      // while we are already handling the stale-token cleanup here.
+      const validation = await apiClient.get(
+        API_ENDPOINTS.PASSENGER.PROFILE,
+        { suppressErrorLog: true, skipAuthCheck: true },
+      );
+
+      if (!validation.success) {
+        // Token is revoked or expired — clean up and force re-login
+        console.log("⚠️ Stored token rejected by server (401) - clearing auth");
+        await StorageService.clearAuth();
+        return { success: false };
+      }
+
+      console.log("✅ Auth restored: User", user.id);
+      return { success: true, user };
     } catch (error) {
-      console.error("Restore auth error:", error);
+      if (__DEV__) console.warn("Restore auth error:", error);
       return { success: false };
     }
   }
@@ -206,7 +226,7 @@ export class AuthService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error("OTP verification error:", error);
+      if (__DEV__) console.warn("OTP verification error:", error);
       return {
         success: false,
         message: error.message || "Failed to verify OTP",

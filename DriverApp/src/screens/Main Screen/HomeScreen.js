@@ -18,7 +18,7 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import IncomingRideModal from "../../components/IncomingRideModel";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import api from "../../services/api";
 import {
@@ -33,8 +33,23 @@ import {
   syncPendingRideOnce,
 } from "../../services/rideRealtime";
 import { normalizeRidePayload } from "../../utils/rideLocation";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
+const IS_AVAILABILITY_TOGGLE_DISABLED = true;
+
+const getActiveVehicleType = (driver) => {
+  const activeVehicle =
+    driver?.vehicles?.find((vehicle) => vehicle?.is_active) ??
+    driver?.vehicles?.[0];
+
+  return (
+    activeVehicle?.vehicle_type ||
+    activeVehicle?.vehicleType?.name ||
+    driver?.vehicle_type ||
+    null
+  );
+};
 
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
@@ -56,6 +71,7 @@ const HomeScreen = () => {
   const [isRideHandled, setIsRideHandled] = useState(false);
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
+  const [driverVehicleType, setDriverVehicleType] = useState(null);
   const [screenError, setScreenError] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -222,16 +238,18 @@ const HomeScreen = () => {
     try {
       console.log("🔵 Fetching driver data...");
       const response = await api.get("/user");
-      console.log("✅ Driver data fetched:", response.data?.driver?.id);
+      const payload = response.data?.data ?? response.data ?? {};
+      const userObj = payload.user ?? payload;
+      const driverObj = payload.driver ?? userObj.driver;
+      console.log("✅ Driver data fetched:", driverObj?.id);
 
-      const driverObj = response.data?.driver;
       if (!driverObj) {
         throw new Error("No driver data returned from server");
       }
 
-      const driverAvailability = driverObj?.availability;
-      setIsOnline(driverAvailability === 1);
+      setIsOnline(false);
       setDriverId(driverObj?.id || null);
+      setDriverVehicleType(getActiveVehicleType(driverObj));
       setScreenError(null);
     } catch (error) {
       console.error("❌ Error fetching driver data:", error.message || error);
@@ -298,6 +316,8 @@ const HomeScreen = () => {
   };
 
   const handleToggleAvailability = async (newValue) => {
+    if (IS_AVAILABILITY_TOGGLE_DISABLED) return;
+
     setIsToggling(true);
     try {
       await api.put("/driver/availability", {
@@ -374,12 +394,14 @@ const HomeScreen = () => {
         <>
           {/* MAP VIEWPORT */}
           <View style={styles.map}>
-            <MapboxRideMap
+            <GoogleRideMap
               cameraRef={cameraRef}
               style={styles.map}
               origin={mapOrigin}
               routeCoordinates={[mapOrigin]}
-              vehicleImage={require("../../assets/car3d.png")}
+              vehicleImage={getVehicleMapIcon(
+                rideData?.vehicle_type || driverVehicleType,
+              )}
               vehicleHeading={mapOrigin.heading ?? 0}
               vehicleSize={70}
             />
@@ -426,7 +448,7 @@ const HomeScreen = () => {
             <TouchableOpacity style={styles.floatingBtn} onPress={handleCenterLocation}>
               <Ionicons name="locate" size={22} color="#00A859" />
             </TouchableOpacity>
-            
+
             <TouchableOpacity style={styles.floatingBtn}>
               <Feather name="refresh-cw" size={18} color="#0F172A" />
             </TouchableOpacity>
@@ -501,7 +523,7 @@ const HomeScreen = () => {
                   thumbColor={isOnline ? "#00A859" : "#FFF"}
                   onValueChange={handleToggleAvailability}
                   value={isOnline}
-                  disabled={isToggling}
+                  disabled={IS_AVAILABILITY_TOGGLE_DISABLED || isToggling}
                 />
               )}
             </View>
