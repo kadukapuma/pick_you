@@ -76,9 +76,11 @@ export default function AddPlaceScreen() {
   useEffect(() => {
     (async () => {
       if (params.editLat && params.editLng) {
+        const lat = parseFloat(params.editLat);
+        const lng = parseFloat(params.editLng);
         const r: Region = {
-          latitude: parseFloat(params.editLat),
-          longitude: parseFloat(params.editLng),
+          latitude: lat,
+          longitude: lng,
           latitudeDelta: 0.008,
           longitudeDelta: 0.008,
         };
@@ -86,6 +88,10 @@ export default function AddPlaceScreen() {
         // Wait minor delay for map mount so ref is available
         setTimeout(() => mapRef.current?.animateToRegion(r, 100), 50);
         setIsLoadingLocation(false);
+        // If we have editAddress already, show it; otherwise reverse-geocode the pin
+        if (!params.editAddress) {
+          reverseGeocode(lat, lng);
+        }
         return;
       }
 
@@ -133,6 +139,44 @@ export default function AddPlaceScreen() {
     if (geocodeTimer.current) clearTimeout(geocodeTimer.current);
     geocodeTimer.current = setTimeout(() => reverseGeocode(r.latitude, r.longitude), 650);
   }, [reverseGeocode]);
+
+  const handleRecenter = async () => {
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") return;
+
+      // 1. Snap immediately to last-known position (no GPS wait)
+      const lastPos = await Location.getLastKnownPositionAsync();
+      if (lastPos) {
+        const r = {
+          latitude: lastPos.coords.latitude,
+          longitude: lastPos.coords.longitude,
+          latitudeDelta: 0.008,
+          longitudeDelta: 0.008,
+        };
+        setRegion(r);
+        mapRef.current?.animateToRegion(r, 350);
+        reverseGeocode(lastPos.coords.latitude, lastPos.coords.longitude);
+      }
+
+      // 2. Silently refine with a fresh GPS fix in background
+      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        .then((pos) => {
+          const r = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            latitudeDelta: 0.008,
+            longitudeDelta: 0.008,
+          };
+          setRegion(r);
+          mapRef.current?.animateToRegion(r, 400);
+          reverseGeocode(pos.coords.latitude, pos.coords.longitude);
+        })
+        .catch(() => {/* fresh fix failed — keep last known */});
+    } catch {
+      /* permissions or getLastKnownPosition failed */
+    }
+  };
 
   const handleSave = async () => {
     if (!fetchedAddress) {
@@ -228,7 +272,7 @@ export default function AddPlaceScreen() {
               showsUserLocation={false}
               showsMyLocationButton={false}
               showsCompass={false}
-              onRegionChange={handleRegionChange}
+              onRegionChangeComplete={handleRegionChange}
             />
 
             {/* Fixed center pin */}
@@ -250,32 +294,7 @@ export default function AddPlaceScreen() {
             {/* Recenter */}
             <TouchableOpacity
               style={styles.recenterBtn}
-              onPress={async () => {
-                try {
-                  const { status } = await Location.requestForegroundPermissionsAsync();
-                  if (status !== "granted") return;
-                  const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-                  const r = {
-                    latitude: pos.coords.latitude,
-                    longitude: pos.coords.longitude,
-                    latitudeDelta: 0.008,
-                    longitudeDelta: 0.008,
-                  };
-                  mapRef.current?.animateToRegion(r, 500);
-                } catch {
-                  try {
-                    const lastPos = await Location.getLastKnownPositionAsync();
-                    if (lastPos) {
-                      mapRef.current?.animateToRegion({
-                        latitude: lastPos.coords.latitude,
-                        longitude: lastPos.coords.longitude,
-                        latitudeDelta: 0.008,
-                        longitudeDelta: 0.008,
-                      }, 500);
-                    }
-                  } catch { /* ignore */ }
-                }
-              }}
+              onPress={handleRecenter}
               activeOpacity={0.85}
             >
               <Ionicons name="locate" size={18} color="#0b9e54" />

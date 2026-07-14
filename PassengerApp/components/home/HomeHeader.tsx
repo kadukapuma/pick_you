@@ -72,6 +72,7 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
         }}
       >
         {/* NOTIFICATION BUTTON */}
+        {/* 
         <TouchableOpacity
           activeOpacity={0.8}
           onPress={() => router.push("/(drawer)/(tabs)/notification")}
@@ -100,7 +101,7 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           />
 
           {/* RED DOT */}
-          <View
+          {/* <View
             style={{
               position: "absolute",
               right: 12,
@@ -110,8 +111,9 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
               borderRadius: 4,
               backgroundColor: "#FF4D4F",
             }}
-          />
-        </TouchableOpacity>
+          /> */}
+        {/* </TouchableOpacity>
+          */}
 
         {/* PROFILE BUTTON */}
         <TouchableOpacity

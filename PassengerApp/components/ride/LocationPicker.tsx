@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -92,7 +92,22 @@ export default function LocationPicker({
   const [destination, setDestination] = useState<LocationSuggestion | null>(
     null,
   );
-  
+
+  // Keep a ref to the latest currentLocation so we can restore it any time
+  const currentLocationRef = useRef<LocationSuggestion | null>(currentLocation || null);
+  useEffect(() => {
+    if (currentLocation) {
+      currentLocationRef.current = currentLocation;
+      // If pickup hasn't been manually changed from the GPS default, keep it in sync
+      setPickup((prev) =>
+        prev?.id === "current" || prev === null ? currentLocation : prev
+      );
+      setPickupSearch((prev) =>
+        prev === "" || prev === "Your Location" ? currentLocation.address : prev
+      );
+    }
+  }, [currentLocation]);
+
   const { places } = useSavedPlaces();
 
   const [pickupSearch, setPickupSearch] = useState(
@@ -177,6 +192,16 @@ export default function LocationPicker({
     }, 100);
   };
 
+  // Auto-confirm as soon as both locations are filled — no button tap needed
+  useEffect(() => {
+    if (pickup && destination) {
+      const timer = setTimeout(() => {
+        onConfirm(pickup, destination);
+      }, 300); // brief pause so the selection visually lands before navigating
+      return () => clearTimeout(timer);
+    }
+  }, [pickup, destination]);
+
   const handleConfirm = () => {
     if (pickup && destination) {
       onConfirm(pickup, destination);
@@ -230,6 +255,8 @@ export default function LocationPicker({
                   if (field === "pickup") {
                     setPickupSearch("");
                     setPickup(null);
+                    // Keep field active so the "Use Current Location" option appears
+                    setActiveField("pickup");
                   }
                   if (field === "drop") {
                     setDropSearch("");
@@ -295,34 +322,60 @@ export default function LocationPicker({
           </View>
         </View>
 
-        {/* Suggestions */}
-        {activeField && suggestions.length > 0 && (
+        {/* Suggestions / empty-state for pickup field */}
+        {activeField && (suggestions.length > 0 || (activeField === "pickup" && pickupSearch.length === 0)) && (
           <View style={styles.suggestionsContainer}>
             {isLoading ? (
               <View style={styles.loadingContainer}>
                 <ActivityIndicator size="small" color="#1B9E6E" />
               </View>
             ) : (
-              suggestions.map((suggestion) => (
-                <TouchableOpacity
-                  key={suggestion.id}
-                  style={styles.suggestionItem}
-                  onPress={() => handleSelectLocation(suggestion)}
-                >
-                  <Ionicons name="location-outline" size={20} color="#1B9E6E" />
-                  <View style={styles.suggestionText}>
-                    <Text style={styles.suggestionTitle}>
-                      {suggestion.address}
-                    </Text>
-                    {suggestion.details && (
-                      <Text style={styles.suggestionDetails}>
-                        {suggestion.details}
+              <>
+                {/* Show "Use Current Location" when pickup is cleared/empty */}
+                {activeField === "pickup" && pickupSearch.length === 0 && currentLocationRef.current && (
+                  <TouchableOpacity
+                    style={[styles.suggestionItem, styles.currentLocationItem]}
+                    onPress={() => {
+                      const loc = currentLocationRef.current!;
+                      setPickup(loc);
+                      setPickupSearch(loc.address);
+                      setActiveField(null);
+                      setSuggestions([]);
+                    }}
+                  >
+                    <Ionicons name="locate" size={20} color="#1B9E6E" />
+                    <View style={styles.suggestionText}>
+                      <Text style={[styles.suggestionTitle, { color: "#1B9E6E" }]}>
+                        Use Current Location
                       </Text>
-                    )}
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-                </TouchableOpacity>
-              ))
+                      <Text style={styles.suggestionDetails}>
+                        {currentLocationRef.current.address}
+                      </Text>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+                  </TouchableOpacity>
+                )}
+                {suggestions.map((suggestion) => (
+                  <TouchableOpacity
+                    key={suggestion.id}
+                    style={styles.suggestionItem}
+                    onPress={() => handleSelectLocation(suggestion)}
+                  >
+                    <Ionicons name="location-outline" size={20} color="#1B9E6E" />
+                    <View style={styles.suggestionText}>
+                      <Text style={styles.suggestionTitle}>
+                        {suggestion.address}
+                      </Text>
+                      {suggestion.details && (
+                        <Text style={styles.suggestionDetails}>
+                          {suggestion.details}
+                        </Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+                  </TouchableOpacity>
+                ))}
+              </>
             )}
           </View>
         )}
@@ -527,6 +580,11 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
     marginBottom: 12,
+  },
+  currentLocationItem: {
+    backgroundColor: "#F0FAF5",
+    borderLeftWidth: 3,
+    borderLeftColor: "#1B9E6E",
   },
   loadingContainer: {
     paddingVertical: 20,

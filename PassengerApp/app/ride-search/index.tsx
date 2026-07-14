@@ -19,6 +19,7 @@ import BookForFriendToggle from "../../components/ride/ridesearch_BookForFriendT
 import TripTypeToggle from "../../components/ride/ridesearch_TripTypeToggle";
 import { useRideSearch } from "../../context/RideSearchContext";
 import { LocationSuggestion } from "../../services/location/locationSuggestionsService";
+import { reverseGeocodeLocation } from "../../services/location/multiProviderService";
 
 type TripType = "one-way" | "return-trip";
 
@@ -62,10 +63,27 @@ export default function RideSearchScreen() {
       const current = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+
+      // Use Google Maps reverse geocoding via backend for the real address
+      // but always display "Your Location" as the label shown in the UI
+      let addressDetails = "Current position";
+      try {
+        const googleResult = await reverseGeocodeLocation(
+          current.coords.latitude,
+          current.coords.longitude,
+        );
+        if (googleResult) {
+          // Use full formatted_address as details (stored internally / sent to backend)
+          addressDetails = googleResult.details || googleResult.address || "Current position";
+        }
+      } catch {
+        // silently fall back to "Current position"
+      }
+
       setCurrentLocation({
         id: "current",
-        address: "Your Location",
-        details: "Current position",
+        address: "Your Location",   // always shown in the UI field
+        details: addressDetails,    // real address used internally & by backend
         latitude: current.coords.latitude,
         longitude: current.coords.longitude,
         placeType: "address",
