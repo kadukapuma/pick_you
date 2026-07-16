@@ -17,6 +17,7 @@ type Props = {
   followVehicle?: boolean;
   onFollowStateChange?: (following: boolean) => void;
   vehicleImage?: ImageSourcePropType;
+  showDriverMarker?: boolean;
   style?: StyleProp<ViewStyle>;
   fitEdgePadding?: EdgePadding;
   routeColor?: string;
@@ -46,6 +47,7 @@ export default function RideMap({
   followVehicle = false,
   onFollowStateChange,
   vehicleImage,
+  showDriverMarker = true,
   style,
   fitEdgePadding,
   routeColor = "#20B768",
@@ -149,6 +151,7 @@ export default function RideMap({
       followVehicle={followVehicle}
       onFollowStateChange={onFollowStateChange}
       vehicleImage={vehicleImage}
+      showDriverMarker={showDriverMarker}
       style={style}
       fitEdgePadding={fitEdgePadding}
     />

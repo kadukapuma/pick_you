@@ -14,13 +14,18 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 import { apiClient } from "../../services/api/client";
-import { subscribeToRideLocation, type DriverLocationUpdate, type TrackingStatus } from "../../services/rides/rideRealtime";
+import {
+  subscribeToRideLocation,
+  type DriverLocationUpdate,
+  type TrackingStatus,
+} from "../../services/rides/rideRealtime";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import RideMap from "../../features/ride-booking/map/RideMap";
 import DriverOnTheWaySheet from "../../features/ride-tracking/DriverOnTheWaySheet";
 import LiveRideTracker from "../../features/ride-tracking/LiveRideTracker";
 import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
+import { getRidePickupCoordinate } from "../../features/ride-support/rideUtils";
 
 const GREEN = "#20B768";
 const DARK_GREEN = "#0b9e54";
@@ -83,7 +88,12 @@ const mergeRideData = (previous: any, next: any) => {
   }
 
   // Same for vehicle details: keep them if poll returns vehicle without fields.
-  if (previous?.vehicle && next?.vehicle && !next.vehicle.brand && previous.vehicle.brand) {
+  if (
+    previous?.vehicle &&
+    next?.vehicle &&
+    !next.vehicle.brand &&
+    previous.vehicle.brand
+  ) {
     merged.vehicle = {
       ...previous.vehicle,
       ...next.vehicle,
@@ -100,11 +110,7 @@ function getDriverName(rideData: any): string {
     const full = [user.first_name, user.last_name].filter(Boolean).join(" ");
     if (full.trim()) return full.trim();
   }
-  return (
-    rideData?.driver?.name ||
-    rideData?.driverName ||
-    "Your Driver"
-  );
+  return rideData?.driver?.name || rideData?.driverName || "Your Driver";
 }
 
 function getDriverRating(rideData: any): string {
@@ -137,7 +143,14 @@ function getVehicleDesc(rideData: any): string {
   const brand = vehicle?.brand || vehicle?.make || "";
   const model = vehicle?.model || vehicle?.vehicle_model || "";
   const color = vehicle?.color || vehicle?.vehicle_color || "";
-  const type = vehicle?.vehicle_type || vehicle?.vehicleType?.name || rideData?.driver?.vehicle?.vehicle_type || rideData?.driver?.vehicle?.vehicleType?.name || rideData?.vehicle_type || rideData?.fare_config?.vehicle_type || "";
+  const type =
+    vehicle?.vehicle_type ||
+    vehicle?.vehicleType?.name ||
+    rideData?.driver?.vehicle?.vehicle_type ||
+    rideData?.driver?.vehicle?.vehicleType?.name ||
+    rideData?.vehicle_type ||
+    rideData?.fare_config?.vehicle_type ||
+    "";
   const parts = [color, brand, model, type].filter(Boolean);
   return parts.length > 0 ? parts.join(" ") : "Standard Vehicle";
 }
@@ -151,7 +164,6 @@ function getEta(rideData: any): string {
   return mins ? `${Math.round(mins)} min to pickup` : "On the way";
 }
 
-
 const normalizeVehicleLabel = (value?: string | null) => {
   const normalized = String(value || "car")
     .trim()
@@ -159,8 +171,14 @@ const normalizeVehicleLabel = (value?: string | null) => {
     .replace(/_/g, "-")
     .replace(/\s+/g, "-");
 
-  if (["tuk", "tuk-tuk", "threewheel", "three-wheel", "three-wheeler"].includes(normalized)) return "Tuk Tuk";
-  if (["bike", "motorbike", "motorcycle"].includes(normalized)) return "Motorbike";
+  if (
+    ["tuk", "tuk-tuk", "threewheel", "three-wheel", "three-wheeler"].includes(
+      normalized,
+    )
+  )
+    return "Tuk Tuk";
+  if (["bike", "motorbike", "motorcycle"].includes(normalized))
+    return "Motorbike";
   if (["mini", "mini-car", "minicar"].includes(normalized)) return "Mini Car";
   if (["suv", "van", "minivan"].includes(normalized)) return "Van";
   return "Car";
@@ -168,8 +186,10 @@ const normalizeVehicleLabel = (value?: string | null) => {
 
 const getVehicleIconName = (value?: string | null) => {
   const normalized = String(value || "").toLowerCase();
-  if (normalized.includes("bike") || normalized.includes("motor")) return "bicycle" as const;
-  if (normalized.includes("van") || normalized.includes("suv")) return "bus" as const;
+  if (normalized.includes("bike") || normalized.includes("motor"))
+    return "bicycle" as const;
+  if (normalized.includes("van") || normalized.includes("suv"))
+    return "bus" as const;
   return "car-sport-outline" as const;
 };
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -177,12 +197,16 @@ export default function SearchingScreen() {
   const params = useLocalSearchParams();
   const initialRideData = useMemo(
     () => (params.rideData ? JSON.parse(params.rideData as string) : null),
-    [params.rideData]
+    [params.rideData],
   );
   const [rideData, setRideData] = useState<any>(initialRideData);
   const [searchStepIndex, setSearchStepIndex] = useState(0);
-  const [driverLocation, setDriverLocation] = useState<DriverLocationUpdate | null>(null);
-  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>({ connected: false, stale: true });
+  const [driverLocation, setDriverLocation] =
+    useState<DriverLocationUpdate | null>(null);
+  const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>({
+    connected: false,
+    stale: true,
+  });
   const alertShownRef = useRef(false);
   const startedRedirectRef = useRef(false);
   const rideId = Number(rideData?.id || initialRideData?.id || 0);
@@ -201,7 +225,11 @@ export default function SearchingScreen() {
   const isCancelled = ["CANCELLED", "CANCELED"].includes(rideStatus);
 
   const currentSearchStep = SEARCH_STEPS[searchStepIndex];
-  const requestedVehicleType = rideData?.vehicle_type || outboundTrip.selectedRide?.id || outboundTrip.selectedRide?.name || "car";
+  const requestedVehicleType =
+    rideData?.vehicle_type ||
+    outboundTrip.selectedRide?.id ||
+    outboundTrip.selectedRide?.name ||
+    "car";
   const requestedVehicleLabel = normalizeVehicleLabel(requestedVehicleType);
   const requestedVehicleIcon = getVehicleIconName(requestedVehicleType);
 
@@ -222,12 +250,11 @@ export default function SearchingScreen() {
           duration: 0,
           useNativeDriver: false,
         }),
-      ])
+      ]),
     );
     pulseAnimation.start();
     return () => pulseAnimation.stop();
   }, [pulseAnim]);
-
 
   useEffect(() => {
     if (isAccepted || isCancelled) return;
@@ -236,7 +263,13 @@ export default function SearchingScreen() {
       const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
       const nextIndex = Math.min(
         SEARCH_STEPS.length - 1,
-        elapsedSeconds < 6 ? 0 : elapsedSeconds < 14 ? 1 : elapsedSeconds < 26 ? 2 : 3,
+        elapsedSeconds < 6
+          ? 0
+          : elapsedSeconds < 14
+            ? 1
+            : elapsedSeconds < 26
+              ? 2
+              : 3,
       );
       setSearchStepIndex(nextIndex);
     }, 1000);
@@ -266,7 +299,11 @@ export default function SearchingScreen() {
         return merged;
       });
       setActiveRide(rideId, status);
-      if (["ACCEPTED", "ARRIVED", "STARTED", "CANCELLED", "CANCELED"].includes(status)) {
+      if (
+        ["ACCEPTED", "ARRIVED", "STARTED", "CANCELLED", "CANCELED"].includes(
+          status,
+        )
+      ) {
         setIsSearchingForDriver(false);
         if (!alertShownRef.current) {
           alertShownRef.current = true;
@@ -274,8 +311,15 @@ export default function SearchingScreen() {
       }
     };
 
-    subscribeToRideLocation(rideId, setDriverLocation, setTrackingStatus, acceptRideUpdate)
-      .then((cleanup) => { unsubscribe = cleanup; })
+    subscribeToRideLocation(
+      rideId,
+      setDriverLocation,
+      setTrackingStatus,
+      acceptRideUpdate,
+    )
+      .then((cleanup) => {
+        unsubscribe = cleanup;
+      })
       .catch((e) => console.log("Realtime setup failed:", e));
 
     const fetchRide = async () => {
@@ -295,7 +339,8 @@ export default function SearchingScreen() {
   }, [rideId, setActiveRide, setIsSearchingForDriver]);
 
   useEffect(() => {
-    if (rideStatus !== "STARTED" || startedRedirectRef.current || !rideData) return;
+    if (rideStatus !== "STARTED" || startedRedirectRef.current || !rideData)
+      return;
     startedRedirectRef.current = true;
     router.replace({
       pathname: "/ride-tracking",
@@ -355,12 +400,57 @@ export default function SearchingScreen() {
   );
 
   const pickupCoord = useMemo(
-    () => outboundTrip.pickup || { latitude: 6.9271, longitude: 79.8612 },
-    [outboundTrip.pickup],
+    () =>
+      getRidePickupCoordinate(rideData) ||
+      outboundTrip.pickup ||
+      { latitude: 6.9271, longitude: 79.8612 },
+    [outboundTrip.pickup, rideData],
   );
+  const acceptedVehicleLocation = useMemo(() => {
+    if (driverLocation) return driverLocation;
+
+    const latitude = Number(
+      rideData?.driver?.latitude ||
+        rideData?.driver?.current_location?.latitude ||
+        rideData?.driver_latitude,
+    );
+    const longitude = Number(
+      rideData?.driver?.longitude ||
+        rideData?.driver?.current_location?.longitude ||
+        rideData?.driver_longitude,
+    );
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      return {
+        latitude,
+        longitude,
+        heading: Number(rideData?.driver?.heading || rideData?.driver_heading || 0),
+      };
+    }
+
+    return null;
+  }, [driverLocation, rideData]);
   const searchingNearbyVehicles = useMemo(
-    () => createMockNearbyVehicles(pickupCoord, rideData?.vehicle_type || outboundTrip.selectedRide?.id),
+    () =>
+      createMockNearbyVehicles(
+        pickupCoord,
+        rideData?.vehicle_type || outboundTrip.selectedRide?.id,
+      ),
     [pickupCoord, rideData?.vehicle_type, outboundTrip.selectedRide?.id],
+  );
+  const acceptedDriverVehicle = useMemo(
+    () =>
+      acceptedVehicleLocation
+        ? [
+            {
+              id: `accepted-driver-${rideId || "active"}`,
+              coordinate: acceptedVehicleLocation,
+              vehicleType: requestedVehicleType,
+              heading: acceptedVehicleLocation.heading ?? 0,
+            },
+          ]
+        : [],
+    [acceptedVehicleLocation, requestedVehicleType, rideId],
   );
   const driverName = getDriverName(rideData);
   const driverRating = getDriverRating(rideData);
@@ -376,14 +466,14 @@ export default function SearchingScreen() {
     rideStatus === "ARRIVED"
       ? "Driver arrived"
       : rideStatus === "STARTED"
-      ? "Trip started"
-      : "Driver on the way";
+        ? "Trip started"
+        : "Driver on the way";
 
   if (rideStatus === "STARTED") {
     return (
       <LiveRideTracker
         rideData={rideData}
-        driverLocation={driverLocation}
+        driverLocation={acceptedVehicleLocation}
         trackingStatus={trackingStatus}
       />
     );
@@ -391,7 +481,11 @@ export default function SearchingScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
       {/* ── MAP BACKGROUND ────────────────────────────────────────────── */}
       <View style={styles.mapWrap}>
@@ -399,11 +493,21 @@ export default function SearchingScreen() {
           <RideMap
             style={styles.map}
             location={pickupCoord}
-            destination={rideStatus === "STARTED" ? outboundTrip.dropoff || null : null}
-            driverLocation={driverLocation}
+            destination={
+              rideStatus === "STARTED" ? outboundTrip.dropoff || null : null
+            }
+            driverLocation={acceptedVehicleLocation}
+            nearbyVehicles={acceptedDriverVehicle}
             rideStatus={rideStatus}
             followVehicle={!!driverLocation}
-            vehicleImage={getVehicleMapIcon(rideData?.vehicle?.vehicle_type || rideData?.vehicle?.vehicleType?.name || rideData?.driver?.vehicle?.vehicle_type || rideData?.driver?.vehicle?.vehicleType?.name || rideData?.vehicle_type)}
+            showDriverMarker={false}
+            vehicleImage={getVehicleMapIcon(
+              rideData?.vehicle?.vehicle_type ||
+                rideData?.vehicle?.vehicleType?.name ||
+                rideData?.driver?.vehicle?.vehicle_type ||
+                rideData?.driver?.vehicle?.vehicleType?.name ||
+                rideData?.vehicle_type,
+            )}
           />
         ) : (
           <GoogleRideMap
@@ -440,17 +544,25 @@ export default function SearchingScreen() {
 
       {/* ── TOP BAR ───────────────────────────────────────────────────── */}
       <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
-        <TouchableOpacity style={styles.iconBtn} onPress={() => {
-          if (isAccepted) {
-            router.replace("/(app)/(tabs)/home");
-            return;
-          }
-          router.back();
-        }}>
+        <TouchableOpacity
+          style={styles.iconBtn}
+          onPress={() => {
+            if (isAccepted) {
+              router.replace("/(app)/(tabs)/home");
+              return;
+            }
+            router.back();
+          }}
+        >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.pillBtn} onPress={isAccepted ? handleShowDriver : handleBookAnother}>
-          <Text style={styles.pillBtnText}>{isAccepted ? "View live map" : "Book Another Ride"}</Text>
+        <TouchableOpacity
+          style={styles.pillBtn}
+          onPress={isAccepted ? handleShowDriver : handleBookAnother}
+        >
+          <Text style={styles.pillBtnText}>
+            {isAccepted ? "View live map" : "Book Another Ride"}
+          </Text>
         </TouchableOpacity>
         {!isAccepted && !isCancelled && (
           <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
@@ -461,12 +573,18 @@ export default function SearchingScreen() {
 
       {/* ── SEARCHING BOTTOM SHEET (shown when !isAccepted) ──────────── */}
       {!isAccepted && !isCancelled && (
-        <View style={[styles.searchSheet, { paddingBottom: insets.bottom + 26 }]}>
+        <View
+          style={[styles.searchSheet, { paddingBottom: insets.bottom + 26 }]}
+        >
           <View style={styles.sheetTopRow}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusEyebrow}>Ride request #{rideId || "new"}</Text>
+              <Text style={styles.statusEyebrow}>
+                Ride request #{rideId || "new"}
+              </Text>
               <Text style={styles.statusTitle}>{currentSearchStep.title}</Text>
-              <Text style={styles.statusSubtitle}>{currentSearchStep.subtitle}</Text>
+              <Text style={styles.statusSubtitle}>
+                {currentSearchStep.subtitle}
+              </Text>
             </View>
             <View style={styles.roundIcon}>
               <Ionicons name={currentSearchStep.icon} size={24} color={GREEN} />
@@ -485,7 +603,9 @@ export default function SearchingScreen() {
             </View>
             <View style={styles.metaCard}>
               <Text style={styles.metaLabel}>Pickup</Text>
-              <Text style={styles.metaValue} numberOfLines={1}>{pickupAddress.split(",")[0]}</Text>
+              <Text style={styles.metaValue} numberOfLines={1}>
+                {pickupAddress.split(",")[0]}
+              </Text>
             </View>
           </View>
 
@@ -495,7 +615,9 @@ export default function SearchingScreen() {
             </View>
             <View style={styles.selectedVehicleTextWrap}>
               <Text style={styles.selectedVehicleLabel}>Selected ride</Text>
-              <Text style={styles.selectedVehicleName} numberOfLines={1}>{requestedVehicleLabel}</Text>
+              <Text style={styles.selectedVehicleName} numberOfLines={1}>
+                {requestedVehicleLabel}
+              </Text>
             </View>
             <View style={styles.matchingBadge}>
               <View style={styles.matchingDot} />
@@ -505,26 +627,37 @@ export default function SearchingScreen() {
 
           <View style={styles.footerRow}>
             <Text style={styles.footerSub}>{currentSearchStep.footer}</Text>
-            <Text style={styles.footerVehicleText}>{requestedVehicleLabel} drivers only</Text>
+            <Text style={styles.footerVehicleText}>
+              {requestedVehicleLabel} drivers only
+            </Text>
           </View>
         </View>
       )}
 
       {isCancelled && (
-        <View style={[styles.searchSheet, { paddingBottom: insets.bottom + 26 }]}>
+        <View
+          style={[styles.searchSheet, { paddingBottom: insets.bottom + 26 }]}
+        >
           <View style={styles.cancelledStateCard}>
             <View style={styles.cancelledIconWrap}>
               <Ionicons name="alert-circle-outline" size={30} color="#B45309" />
             </View>
             <Text style={styles.cancelledTitle}>No driver accepted</Text>
             <Text style={styles.cancelledMessage}>
-              Your {requestedVehicleLabel} request was closed before a driver accepted it. Try again with a nearby pickup or another vehicle type.
+              Your {requestedVehicleLabel} request was closed before a driver
+              accepted it. Try again with a nearby pickup or another vehicle
+              type.
             </Text>
-            <TouchableOpacity style={styles.cancelledPrimaryButton} activeOpacity={0.86} onPress={handleBookAnother}>
+            <TouchableOpacity
+              style={styles.cancelledPrimaryButton}
+              activeOpacity={0.86}
+              onPress={handleBookAnother}
+            >
               <Text style={styles.cancelledPrimaryText}>Book another ride</Text>
             </TouchableOpacity>
           </View>
-        </View>      )}
+        </View>
+      )}
 
       {/* Driver accepted / on the way sheet */}
       {isAccepted && (
@@ -540,9 +673,17 @@ export default function SearchingScreen() {
           dropoffAddress={dropoffAddress}
           paymentMethod={paymentMethod}
           promoCode={promoCode}
-          fareAmount={outboundTrip.selectedRide?.price || rideData?.estimated_fare || rideData?.fare_estimate}
-          distanceText={rideData?.distance_text || rideData?.distanceText || null}
-          durationText={rideData?.duration_text || rideData?.durationText || null}
+          fareAmount={
+            outboundTrip.selectedRide?.price ||
+            rideData?.estimated_fare ||
+            rideData?.fare_estimate
+          }
+          distanceText={
+            rideData?.distance_text || rideData?.distanceText || null
+          }
+          durationText={
+            rideData?.duration_text || rideData?.durationText || null
+          }
           bottomInset={insets.bottom}
           onViewMap={handleShowDriver}
           trackingConnected={trackingStatus.connected}
@@ -727,7 +868,8 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 14,
     fontWeight: "900",
-  },  selectedVehicleCard: {
+  },
+  selectedVehicleCard: {
     minHeight: 68,
     borderRadius: 18,
     backgroundColor: "#F8FAFC",
@@ -780,7 +922,8 @@ const styles = StyleSheet.create({
     color: "#0B3D2E",
     fontSize: 11,
     fontWeight: "900",
-  },  vehicleChipsRow: {
+  },
+  vehicleChipsRow: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
@@ -1245,30 +1388,3 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -30,6 +30,7 @@ type Props = {
   pickupColor?: string;
   dropoffColor?: string;
   vehicleImage?: ImageSourcePropType;
+  showDriverMarker?: boolean;
   showPickupMarker?: boolean;
   dropoffLabel?: string;
   fitEdgePadding?: EdgePadding;
@@ -146,6 +147,7 @@ export default function GoogleRideMap({
   pickupColor = "#20B768",
   dropoffColor = "#F97316",
   vehicleImage,
+  showDriverMarker = true,
   showPickupMarker = true,
   dropoffLabel = "Drop",
   fitEdgePadding = DEFAULT_FIT_EDGE_PADDING,
@@ -292,19 +294,18 @@ export default function GoogleRideMap({
         ) : null,
       )}
 
-      {renderedDriverLocation ? (
+      {showDriverMarker && renderedDriverLocation ? (
         <Marker
           coordinate={toLatLng(renderedDriverLocation)}
           anchor={{ x: 0.5, y: 0.5 }}
-          flat
-          tracksViewChanges={vehicleMarkersReady}
+          zIndex={100}
+          tracksViewChanges
         >
           <VehicleMarker
             source={driverMarkerImage}
             heading={renderedDriverLocation.heading ?? 0}
-            size={58}
+            size={48}
             active
-            onImageReady={handleVehicleImageReady}
           />
         </Marker>
       ) : null}

@@ -6,12 +6,12 @@ import { Ionicons } from "@expo/vector-icons";
 import RideMap from "../ride-booking/map/RideMap";
 import { getCachedDirections_withCache } from "../../services/maps/directionsApi";
 import {
-    getBackendRideDistanceText,
     getRideDropoffCoordinate,
     getRidePickupCoordinate,
 } from "../ride-support/rideUtils";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 import { getPassengerRideStatusUI } from "./passengerRideStatus";
+import { useRideSearch } from "../../state/booking/RideBookingContext";
 
 const toNumber = (value: any): number => {
     const number = Number(value);
@@ -24,14 +24,7 @@ const km = (value: any): string => toNumber(value).toFixed(2);
 
 export default function LiveRideTracker({ rideData, driverLocation, trackingStatus }: any) {
     const [followVehicle, setFollowVehicle] = React.useState(true);
-    const driverName = [
-        rideData.driver?.user?.first_name,
-        rideData.driver?.user?.last_name,
-    ].filter(Boolean).join(" ") || "Finding driver";
-    const vehicleNumber =
-        rideData.vehicle?.vehicle_number ||
-        rideData.vehicle?.plate_number ||
-        "Vehicle";
+    const { outboundTrip } = useRideSearch();
     const vehicleType =
         rideData.vehicle?.vehicle_type ||
         rideData.vehicle?.vehicleType?.name ||
@@ -56,42 +49,103 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
     const showPaymentDetails = rideStatus === "COMPLETED";
     const showDestinationRoute = ["STARTED", "COMPLETED", "PAID"].includes(rideStatus);
     const hasFareExtras = extraDistanceFare > 0 || waitingFare > 0;
-    const pickupCoordinate = getRidePickupCoordinate(rideData);
-    const dropoffCoordinate = getRideDropoffCoordinate(rideData);
-    const [routeDistanceText, setRouteDistanceText] = React.useState<string | null>(() =>
-        getBackendRideDistanceText(rideData),
+    const pickupCoordinate = getRidePickupCoordinate(rideData) || outboundTrip.pickup;
+    const dropoffCoordinate = getRideDropoffCoordinate(rideData) || outboundTrip.dropoff;
+    const dropoffAddress =
+        rideData.drop_address ||
+        rideData.dropoff_address ||
+        outboundTrip.dropoff?.address ||
+        "Your destination";
+    const resolvedDriverLocation = React.useMemo(() => {
+        if (driverLocation) return driverLocation;
+
+        const latitude = Number(
+            rideData.driver?.latitude ||
+            rideData.driver?.current_location?.latitude ||
+            rideData.driver_latitude,
+        );
+        const longitude = Number(
+            rideData.driver?.longitude ||
+            rideData.driver?.current_location?.longitude ||
+            rideData.driver_longitude,
+        );
+
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            return {
+                latitude,
+                longitude,
+                heading: Number(rideData.driver?.heading || rideData.driver_heading || 0),
+            };
+        }
+
+        if (rideStatus === "COMPLETED") return dropoffCoordinate;
+        return pickupCoordinate;
+    }, [driverLocation, dropoffCoordinate, pickupCoordinate, rideData, rideStatus]);
+    const activeDriverVehicle = React.useMemo(
+        () =>
+            resolvedDriverLocation
+                ? [{
+                    id: `live-driver-${rideData.id || "active"}`,
+                    coordinate: resolvedDriverLocation,
+                    vehicleType: vehicleType || "car",
+                    heading: resolvedDriverLocation.heading ?? 0,
+                }]
+                : [],
+        [resolvedDriverLocation, rideData.id, vehicleType],
     );
+    const [remainingRoute, setRemainingRoute] = React.useState({
+        distanceText: rideData.distance_text || rideData.distanceText || "Calculating",
+        durationText: rideData.duration_text || rideData.durationText || "Calculating",
+    });
+    const hasRouteEstimate =
+        remainingRoute.distanceText !== "Calculating" &&
+        remainingRoute.durationText !== "Calculating";
+    const remainingTimeHeading = hasRouteEstimate
+        ? `${remainingRoute.durationText} remaining`
+        : "Trip in progress";
+    const activeDriverLatitude = resolvedDriverLocation?.latitude == null
+        ? undefined
+        : Number(resolvedDriverLocation.latitude.toFixed(3));
+    const activeDriverLongitude = resolvedDriverLocation?.longitude == null
+        ? undefined
+        : Number(resolvedDriverLocation.longitude.toFixed(3));
+    const destinationLatitude = dropoffCoordinate?.latitude;
+    const destinationLongitude = dropoffCoordinate?.longitude;
 
     React.useEffect(() => {
+        if (
+            !isOnTrip ||
+            activeDriverLatitude == null ||
+            activeDriverLongitude == null ||
+            destinationLatitude == null ||
+            destinationLongitude == null
+        ) return;
         let cancelled = false;
-        const backendDistance = getBackendRideDistanceText(rideData);
-        if (backendDistance) {
-            setRouteDistanceText(backendDistance);
-            return;
-        }
-        if (!pickupCoordinate || !dropoffCoordinate) {
-            setRouteDistanceText(null);
-            return;
-        }
+
         getCachedDirections_withCache(
-            pickupCoordinate.latitude,
-            pickupCoordinate.longitude,
-            dropoffCoordinate.latitude,
-            dropoffCoordinate.longitude,
+            activeDriverLatitude,
+            activeDriverLongitude,
+            destinationLatitude,
+            destinationLongitude,
         ).then((directions) => {
-            if (!cancelled) setRouteDistanceText(directions?.distanceText || null);
+            if (!cancelled && directions) {
+                setRemainingRoute({
+                    distanceText: directions.distanceText,
+                    durationText: directions.durationText,
+                });
+            }
         });
+
         return () => {
             cancelled = true;
         };
     }, [
-        rideData,
-        pickupCoordinate?.latitude,
-        pickupCoordinate?.longitude,
-        dropoffCoordinate?.latitude,
-        dropoffCoordinate?.longitude,
+        isOnTrip,
+        activeDriverLatitude,
+        activeDriverLongitude,
+        destinationLatitude,
+        destinationLongitude,
     ]);
-
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: "#000" }}>
             {isOnTrip ? (
@@ -107,16 +161,16 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                 >
                     <View
                         style={{
-                            backgroundColor: "#20B768",
-                            borderRadius: 18,
-                            paddingHorizontal: 14,
-                            paddingVertical: 13,
+                            backgroundColor: "#FFFFFF",
+                            borderRadius: 22,
+                            paddingHorizontal: 12,
+                            paddingVertical: 11,
                             flexDirection: "row",
                             alignItems: "center",
                             shadowColor: "#000",
                             shadowOffset: { width: 0, height: 4 },
-                            shadowOpacity: 0.18,
-                            shadowRadius: 8,
+                            shadowOpacity: 0.14,
+                            shadowRadius: 12,
                             elevation: 8,
                         }}
                     >
@@ -126,20 +180,20 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                                 width: 42,
                                 height: 42,
                                 borderRadius: 21,
-                                backgroundColor: "rgba(255,255,255,0.18)",
+                                backgroundColor: "#EAF8F1",
                                 alignItems: "center",
                                 justifyContent: "center",
                                 marginRight: 12,
                             }}
                         >
-                            <Ionicons name="arrow-back" size={23} color="#FFFFFF" />
+                            <Ionicons name="arrow-back" size={23} color="#0B3D2E" />
                         </TouchableOpacity>
                         <View style={{ flex: 1 }}>
-                            <Text style={{ color: "#FFFFFF", fontSize: 21, fontWeight: "900" }}>
-                                On trip
+                            <Text style={{ color: "#0B3D2E", fontSize: 19, fontWeight: "900" }}>
+                                {remainingTimeHeading}
                             </Text>
-                            <Text style={{ color: "rgba(255,255,255,0.86)", fontSize: 13, fontWeight: "700", marginTop: 2 }} numberOfLines={1}>
-                                Heading to {rideData.drop_address || rideData.dropoff_address || "your destination"}
+                            <Text style={{ color: "#64748B", fontSize: 12, fontWeight: "700", marginTop: 2 }} numberOfLines={1}>
+                                Heading to {dropoffAddress}
                             </Text>
                         </View>
                         <TouchableOpacity
@@ -148,13 +202,13 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                                 width: 42,
                                 height: 42,
                                 borderRadius: 21,
-                                backgroundColor: "rgba(255,255,255,0.18)",
+                                backgroundColor: "#EAF8F1",
                                 alignItems: "center",
                                 justifyContent: "center",
                                 marginLeft: 10,
                             }}
                         >
-                            <Ionicons name="call" size={20} color="#FFFFFF" />
+                            <Ionicons name="call" size={20} color="#159A5B" />
                         </TouchableOpacity>
                     </View>
                     <View
@@ -165,7 +219,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                             flexDirection: "row",
                             alignItems: "center",
                             gap: 7,
-                            backgroundColor: "#0F172A",
+                            backgroundColor: "#0B3D2E",
                             paddingHorizontal: 12,
                             paddingVertical: 7,
                             borderRadius: 18,
@@ -173,7 +227,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                     >
                         <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: "#20B768" }} />
                         <Text style={{ color: "#FFFFFF", fontSize: 11, fontWeight: "900", letterSpacing: 0.5 }}>
-                            ON TRIP
+                            LIVE · {hasRouteEstimate ? remainingRoute.distanceText : "Updating route"}
                         </Text>
                     </View>
                 </View>
@@ -196,13 +250,15 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
             {/* Full screen map */}
             <View style={{ flex: 1 }}>
                 <RideMap
-                    location={pickupCoordinate || { latitude: 0, longitude: 0 }}
+                    location={pickupCoordinate || resolvedDriverLocation || { latitude: 7.2906, longitude: 80.6337 }}
                     destination={showDestinationRoute ? dropoffCoordinate : null}
-                    driverLocation={driverLocation}
+                    driverLocation={resolvedDriverLocation}
+                    nearbyVehicles={activeDriverVehicle}
                     rideStatus={rideStatus}
-                    followVehicle={followVehicle && !!driverLocation}
+                    followVehicle={followVehicle && !!resolvedDriverLocation}
                     onFollowStateChange={setFollowVehicle}
                     vehicleImage={getVehicleMapIcon(vehicleType)}
+                    showDriverMarker={false}
                     routeColor="#20B768"
                     showPickupMarker={!isOnTrip}
                     dropoffLabel={isOnTrip ? "Drop" : undefined}
@@ -210,7 +266,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                 />
             </View>
 
-            {!followVehicle && driverLocation ? (
+            {!followVehicle && resolvedDriverLocation ? (
                 <TouchableOpacity
                     onPress={() => setFollowVehicle(true)}
                     activeOpacity={0.8}
@@ -239,19 +295,45 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
             <View
                 style={{
                     position: "absolute",
-                    bottom: 20,
-                    left: 16,
-                    right: 16,
+                    bottom: 12,
+                    left: 12,
+                    right: 12,
                     backgroundColor: "white",
-                    borderRadius: 20,
-                    padding: 16,
+                    borderRadius: 24,
+                    padding: 14,
                     shadowColor: "#000",
                     shadowOffset: { width: 0, height: 2 },
-                    shadowOpacity: 0.25,
-                    shadowRadius: 8,
-                    elevation: 5,
+                    shadowOpacity: 0.16,
+                    shadowRadius: 12,
+                    elevation: 8,
                 }}
             >
+                {isOnTrip ? (
+                    <View>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 11 }}>
+                            <View style={{ width: 42, height: 42, borderRadius: 21, backgroundColor: "#EAF8F1", alignItems: "center", justifyContent: "center" }}>
+                                <Ionicons name="navigate" size={21} color="#159A5B" />
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={{ color: "#64748B", fontSize: 11, fontWeight: "800" }}>NEXT DESTINATION</Text>
+                                <Text style={{ color: "#0F172A", fontSize: 15, fontWeight: "900", marginTop: 2 }} numberOfLines={1}>
+                                    {dropoffAddress}
+                                </Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end" }}>
+                                <Text style={{ color: "#159A5B", fontSize: 17, fontWeight: "900" }}>{hasRouteEstimate ? remainingRoute.durationText : "Updating"}</Text>
+                                <Text style={{ color: "#64748B", fontSize: 12, fontWeight: "700", marginTop: 1 }}>{hasRouteEstimate ? remainingRoute.distanceText : "Live route"}</Text>
+                            </View>
+                        </View>
+                        <View style={{ height: 1, backgroundColor: "#EEF2F4", marginTop: 12 }} />
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 7, marginTop: 9 }}>
+                            <View style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: trackingStatus?.stale ? "#F59E0B" : "#20B768" }} />
+                            <Text style={{ color: "#64748B", fontSize: 11, fontWeight: "700" }}>
+                                {trackingStatus?.stale ? "Reconnecting to live vehicle location" : "Vehicle and passenger travelling together"}
+                            </Text>
+                        </View>
+                    </View>
+                ) : (
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
                     <View style={{ backgroundColor: "#20B768", padding: 10, borderRadius: 40 }}>
                         <Ionicons name={statusUi.icon} size={24} color="white" />
@@ -323,6 +405,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                         <Text style={{ fontWeight: "900", color: "#0B3D2E" }}>Contact</Text>
                     </TouchableOpacity>
                 </View>
+                )}
                 <View style={{ flexDirection: "row", gap: 8, marginTop: 12 }}>
                     <TouchableOpacity onPress={() => router.push("/ride-tracking/safety")} style={{ flex: 1, height: 42, borderRadius: 14, backgroundColor: "#FEF2F2", alignItems: "center", justifyContent: "center", flexDirection: "row", gap: 6 }}>
                         <Ionicons name="shield-checkmark-outline" size={16} color="#DC2626" />
