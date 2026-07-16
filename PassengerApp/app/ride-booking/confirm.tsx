@@ -19,7 +19,10 @@ import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
-import { getFriendlyErrorMessage, logExpectedError } from "../../services/errors/userMessages";
+import {
+  getFriendlyErrorMessage,
+  logExpectedError,
+} from "../../services/errors/userMessages";
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
@@ -54,28 +57,34 @@ export default function ConfirmationScreen() {
   const sheetOpacity = useRef(new Animated.Value(0)).current;
   const isSheetExpandedRef = useRef(false);
 
-  const snapSheet = useCallback((expanded: boolean) => {
-    isSheetExpandedRef.current = expanded;
-    setIsSheetExpanded(expanded);
-    Animated.spring(sheetY, {
-      toValue: expanded ? 0 : COLLAPSED_OFFSET,
-      damping: 22,
-      stiffness: 220,
-      mass: 0.9,
-      useNativeDriver: true,
-    }).start();
-  }, [sheetY]);
+  const snapSheet = useCallback(
+    (expanded: boolean) => {
+      isSheetExpandedRef.current = expanded;
+      setIsSheetExpanded(expanded);
+      Animated.spring(sheetY, {
+        toValue: expanded ? 0 : COLLAPSED_OFFSET,
+        damping: 22,
+        stiffness: 220,
+        mass: 0.9,
+        useNativeDriver: true,
+      }).start();
+    },
+    [sheetY],
+  );
 
   const sheetPanResponder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dy) > 8 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+          Math.abs(gesture.dy) > 8 &&
+          Math.abs(gesture.dy) > Math.abs(gesture.dx),
         onPanResponderGrant: () => {
           sheetY.stopAnimation();
         },
         onPanResponderMove: (_, gesture) => {
-          const startPosition = isSheetExpandedRef.current ? 0 : COLLAPSED_OFFSET;
+          const startPosition = isSheetExpandedRef.current
+            ? 0
+            : COLLAPSED_OFFSET;
           sheetY.setValue(
             Math.max(0, Math.min(COLLAPSED_OFFSET, startPosition + gesture.dy)),
           );
@@ -187,7 +196,10 @@ export default function ConfirmationScreen() {
         });
       }
 
-      const response = await apiClient.post<RideBookingResponse>("/rides", payload);
+      const response = await apiClient.post<RideBookingResponse>(
+        "/rides",
+        payload,
+      );
 
       if (response.success) {
         const rideId = response.data?.id ? Number(response.data.id) : null;
@@ -203,22 +215,37 @@ export default function ConfirmationScreen() {
               ...response.data,
               vehicle_type: payload.vehicle_type,
             }),
-          }
+          },
         });
       } else {
         const errorMsg =
           typeof response.message === "string"
             ? response.message
             : JSON.stringify(response.errors);
-        const friendlyMessage = getFriendlyErrorMessage(errorMsg, "Please check your trip details and try again.");
-        const title = /no online drivers available|no drivers available/i.test(errorMsg) ? "No drivers nearby" : "Could not book ride";
+        const friendlyMessage = getFriendlyErrorMessage(
+          errorMsg,
+          "Please check your trip details and try again.",
+        );
+        const title = /no online drivers available|no drivers available/i.test(
+          errorMsg,
+        )
+          ? "No drivers nearby"
+          : "Could not book ride";
         Alert.alert(title, friendlyMessage);
       }
     } catch (error) {
       logExpectedError("Ride booking request failed", error);
-      const rawMessage = error instanceof Error ? error.message : String(error || "");
-      const friendlyMessage = getFriendlyErrorMessage(error, "Connection problem. Please check your internet and try again.");
-      const title = /no online drivers available|no drivers available/i.test(rawMessage) ? "No drivers nearby" : "Could not book ride";
+      const rawMessage =
+        error instanceof Error ? error.message : String(error || "");
+      const friendlyMessage = getFriendlyErrorMessage(
+        error,
+        "Connection problem. Please check your internet and try again.",
+      );
+      const title = /no online drivers available|no drivers available/i.test(
+        rawMessage,
+      )
+        ? "No drivers nearby"
+        : "Could not book ride";
       Alert.alert(title, friendlyMessage);
     } finally {
       setIsBooking(false);
@@ -236,7 +263,11 @@ export default function ConfirmationScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" translucent backgroundColor="transparent" />
+      <StatusBar
+        barStyle="dark-content"
+        translucent
+        backgroundColor="transparent"
+      />
 
       {/* ── MAP BACKGROUND ────────────────────────────────────────────────── */}
       <GoogleRideMap
@@ -305,8 +336,6 @@ export default function ConfirmationScreen() {
             </View>
           </View>
 
-
-
           {/* Confirm Button */}
           <TouchableOpacity
             style={[styles.confirmBtn, isBooking && styles.confirmBtnDisabled]}
@@ -330,7 +359,9 @@ export default function ConfirmationScreen() {
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Vehicle</Text>
-              <Text style={styles.detailValue}>{outboundTrip.selectedRide.name}</Text>
+              <Text style={styles.detailValue}>
+                {outboundTrip.selectedRide.name}
+              </Text>
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Distance</Text>
@@ -368,7 +399,9 @@ export default function ConfirmationScreen() {
                 <Ionicons name="wallet-outline" size={19} color="#159A5B" />
                 <Text style={styles.detailLabel}>Payment method</Text>
               </View>
-              <Text style={styles.detailValue}>{paymentMethod.toUpperCase()}</Text>
+              <Text style={styles.detailValue}>
+                {paymentMethod.toUpperCase()}
+              </Text>
             </View>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total amount</Text>
@@ -385,87 +418,170 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
   map: { ...StyleSheet.absoluteFillObject },
   backBtn: {
-    position: "absolute", left: 16, width: 42, height: 42, borderRadius: 21,
-    backgroundColor: "#fff", alignItems: "center", justifyContent: "center",
-    elevation: 6, shadowColor: "#000", shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12, shadowRadius: 8,
+    position: "absolute",
+    left: 16,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#fff",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 6,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 8,
   },
   sheet: {
-    position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "#FAFBFB",
-    borderTopLeftRadius: 30, borderTopRightRadius: 30, paddingHorizontal: 20,
-    paddingTop: 10, height: EXPANDED_SHEET_HEIGHT, elevation: 20,
-    shadowColor: "#000", shadowOffset: { width: 0, height: -10 },
-    shadowOpacity: 0.14, shadowRadius: 24,
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "#FAFBFB",
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    height: EXPANDED_SHEET_HEIGHT,
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.14,
+    shadowRadius: 24,
   },
   handle: {
-    alignSelf: "center", width: 44, height: 5, borderRadius: 3,
-    backgroundColor: "#D1D5DB", marginBottom: 16,
+    alignSelf: "center",
+    width: 44,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: "#D1D5DB",
+    marginBottom: 16,
   },
   sheetContent: { width: "100%", paddingBottom: 12 },
   sheetHeader: {
-    flexDirection: "row", alignItems: "center", justifyContent: "space-between",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
   sheetTitle: { fontSize: 21, fontWeight: "800", color: "#111827" },
   swipeHint: {
-    flexDirection: "row", alignItems: "center", gap: 4, backgroundColor: "#ECF9F2",
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#ECF9F2",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
   },
   swipeHintText: { fontSize: 13, fontWeight: "700", color: "#159A5B" },
   addressRow: {
-    flexDirection: "row", alignItems: "center", backgroundColor: "#FFFFFF",
-    padding: 15, borderRadius: 20, marginBottom: 16, gap: 13,
-    borderWidth: 1, borderColor: "#EEF1F3", elevation: 3,
-    shadowColor: "#0F172A", shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.06, shadowRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+    padding: 15,
+    borderRadius: 20,
+    marginBottom: 16,
+    gap: 13,
+    borderWidth: 1,
+    borderColor: "#EEF1F3",
+    elevation: 3,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 10,
   },
   pickupDotWrap: {
-    width: 42, height: 42, borderRadius: 21, backgroundColor: "#EAF8F1",
-    alignItems: "center", justifyContent: "center",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#EAF8F1",
+    alignItems: "center",
+    justifyContent: "center",
   },
   addressTextWrap: { flex: 1 },
   addressMain: { fontSize: 17, fontWeight: "800", color: "#111827" },
   addressSub: { fontSize: 14, color: "#6B7280", marginTop: 3 },
   confirmBtn: {
-    backgroundColor: "#20B768", paddingVertical: 17, borderRadius: 18,
-    alignItems: "center", marginBottom: 14, elevation: 4,
-    shadowColor: "#159A5B", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2, shadowRadius: 8,
+    backgroundColor: "#20B768",
+    paddingVertical: 17,
+    borderRadius: 18,
+    alignItems: "center",
+    marginBottom: 14,
+    elevation: 4,
+    shadowColor: "#159A5B",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   confirmBtnDisabled: { opacity: 0.6 },
   confirmBtnText: { color: "#fff", fontSize: 17, fontWeight: "800" },
   detailsSection: {
-    backgroundColor: "#FFFFFF", borderRadius: 22, borderWidth: 1,
-    borderColor: "#EEF1F3", padding: 16, elevation: 3,
-    shadowColor: "#0F172A", shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.06, shadowRadius: 12,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: "#EEF1F3",
+    padding: 16,
+    elevation: 3,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
   },
-  detailsHeader: { flexDirection: "row", alignItems: "center", gap: 11, marginBottom: 16 },
+  detailsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    marginBottom: 16,
+  },
   detailsIconWrap: {
-    width: 40, height: 40, borderRadius: 20, backgroundColor: "#EAF8F1",
-    alignItems: "center", justifyContent: "center",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#EAF8F1",
+    alignItems: "center",
+    justifyContent: "center",
   },
   detailsTitle: { fontSize: 18, fontWeight: "800", color: "#111827" },
   detailRow: {
-    flexDirection: "row", justifyContent: "space-between", marginBottom: 11,
-    alignItems: "center", gap: 16,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 11,
+    alignItems: "center",
+    gap: 16,
   },
   detailLabel: { fontSize: 14, color: "#6B7280", fontWeight: "600" },
   detailValue: {
-    fontSize: 14, fontWeight: "700", color: "#111827", flexShrink: 1,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    flexShrink: 1,
     textAlign: "right",
   },
   detailsDivider: { height: 1, backgroundColor: "#EEF1F3", marginVertical: 11 },
   routeBlock: { flexDirection: "row", gap: 12 },
   routeTimeline: { width: 16, alignItems: "center", paddingVertical: 5 },
-  pickupPoint: { width: 11, height: 11, borderRadius: 6, backgroundColor: "#20B768" },
+  pickupPoint: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    backgroundColor: "#20B768",
+  },
   routeLine: {
-    width: 1, flex: 1, minHeight: 35, borderLeftWidth: 1,
-    borderStyle: "dashed", borderColor: "#9CA3AF",
+    width: 1,
+    flex: 1,
+    minHeight: 35,
+    borderLeftWidth: 1,
+    borderStyle: "dashed",
+    borderColor: "#9CA3AF",
   },
   dropoffPoint: {
-    width: 11, height: 11, borderRadius: 6, borderWidth: 2,
-    borderColor: "#9CA3AF", backgroundColor: "#FFFFFF",
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#9CA3AF",
+    backgroundColor: "#FFFFFF",
   },
   routeContent: { flex: 1, gap: 13 },
   routeLocation: { gap: 3 },
@@ -474,20 +590,34 @@ const styles = StyleSheet.create({
   locationDetailText: { fontSize: 14, color: "#1F2937", lineHeight: 19 },
   paymentLabelWrap: { flexDirection: "row", alignItems: "center", gap: 9 },
   totalRow: {
-    flexDirection: "row", justifyContent: "space-between", alignItems: "center",
-    backgroundColor: "#E8F8F0", borderRadius: 17, padding: 15, marginTop: 4,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#E8F8F0",
+    borderRadius: 17,
+    padding: 15,
+    marginTop: 4,
   },
   totalLabel: { fontSize: 15, color: "#0B3D2E", fontWeight: "800" },
   totalValue: { fontSize: 17, fontWeight: "800", color: "#20B768" },
   errorContainer: {
-    flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#fff",
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
-  errorText: { marginTop: 16, fontSize: 16, color: "#EF4444", fontWeight: "500" },
+  errorText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: "#EF4444",
+    fontWeight: "500",
+  },
   backButton: {
-    marginTop: 20, backgroundColor: "#0B7BDC", paddingHorizontal: 24,
-    paddingVertical: 12, borderRadius: 8,
+    marginTop: 20,
+    backgroundColor: "#0B7BDC",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
   },
   backButtonText: { color: "#fff", fontWeight: "600" },
 });
-
-
