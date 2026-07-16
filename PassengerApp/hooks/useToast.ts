@@ -1,4 +1,4 @@
-import { useToastContext } from "../context/ToastContext";
+import { useToastContext } from "../state/toast/ToastContext";
 
 /**
  * Convenience hook to trigger toasts from any screen or component.
