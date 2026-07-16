@@ -36,6 +36,7 @@ import Benefits from "../Benefits";
 import RideTypes from "../RideTypes";
 import Download from "../Download";
 import ForDrivers from "../ForDrivers";
+import Preloader from "./Preloader";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const LandingLayout = () => {
@@ -48,6 +49,23 @@ const LandingLayout = () => {
   const navigate = useNavigate();
   const isHomePage = location.pathname === "/";
   const [activeSection, setActiveSection] = useState("home");
+  const [showPreloader, setShowPreloader] = useState(true);
+  const [isPreloaderFading, setIsPreloaderFading] = useState(false);
+  // ───────────────────────────────────────────────────────────────────────────
+
+  // ─── Effect: Preloader Timeout ──────────────────────────────────────────────
+  useEffect(() => {
+    // Only show preloader on initial home page load
+    if (isHomePage) {
+      const timer = setTimeout(() => {
+        setIsPreloaderFading(true);
+        setTimeout(() => setShowPreloader(false), 500); // Wait for fade out animation
+      }, 2500); // Play animation for 2.5 seconds
+      return () => clearTimeout(timer);
+    } else {
+      setShowPreloader(false);
+    }
+  }, []);
   // ───────────────────────────────────────────────────────────────────────────
 
   // ─── Refs: Section Anchors for Smooth Scroll Navigation ───────────────────
@@ -157,6 +175,35 @@ const LandingLayout = () => {
       }, 500); // Wait for page content to settle
     }
   }, [location.hash, location.pathname]);
+
+  // ─── Global Scroll Reveal Animation Effect ────────────────────────────────
+  useEffect(() => {
+    const revealObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add("reveal-active");
+            // Optional: comment out the next line if you want the animation to repeat when scrolling up/down
+            revealObserver.unobserve(entry.target);
+          }
+        });
+      },
+      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
+    );
+
+    // Select major containers to animate
+    const revealTargets = document.querySelectorAll("section, .about-container, .features-grid, .map-text-column, .feature-card, .footer-section, .about-info-card, .benefits-container-inner > div");
+
+    revealTargets.forEach((el) => {
+      // Add base class if not already present
+      if (!el.classList.contains("scroll-reveal")) {
+        el.classList.add("scroll-reveal");
+      }
+      revealObserver.observe(el);
+    });
+
+    return () => revealObserver.disconnect();
+  }, [location.pathname]);
   // ───────────────────────────────────────────────────────────────────────────
 
   // ─── Helpers: Navigation & Scroll Utilities ────────────────────────────────
@@ -184,6 +231,9 @@ const LandingLayout = () => {
 
   return (
     <div className="landing-shell">
+      {/* ── Preloader ───────────────────────────────────────────────────────── */}
+      {showPreloader && <Preloader isFading={isPreloaderFading} />}
+
       {/* ── Scroll Progress Bar ─────────────────────────────────────────────── */}
       <div
         className="scroll-progress"
@@ -322,15 +372,15 @@ const LandingLayout = () => {
             <div className="contact-info">
               <div className="contact-item">
                 <FaMapMarkerAlt className="contact-icon" />
-                <span>123 Transportation Ave, New York, NY 10001</span>
+                <span>no 29, muneeswaran rd, jaffna</span>
               </div>
               <div className="contact-item">
                 <FaEnvelope className="contact-icon" />
-                <a href="mailto:support@pickyou.com">support@pickyou.com</a>
+                <a href="mailto:support@pickyou.lk">support@pickyou.lk</a>
               </div>
               <div className="contact-item">
                 <FaPhone className="contact-icon" />
-                <a href="tel:+15551234567">+1 (555) 123-4567</a>
+                <a href="tel:+15551234567"></a>
               </div>
               <div className="contact-item">
                 <FaCommentDots className="contact-icon" />
@@ -360,9 +410,15 @@ const LandingLayout = () => {
           </div>
         </div>
 
-        {/* Footer Bottom: Copyright & Payment Method Icons */}
         <div className="footer-bottom">
-          <p>&copy; {new Date().getFullYear()} PickYou. All rights reserved.</p>
+          <div className="footer-bottom-left">
+            <p>&copy; {new Date().getFullYear()} PickYou. All rights reserved.</p>
+            <div className="legal-links">
+              <Link to="/privacy-policy" onClick={() => window.scrollTo(0, 0)}>Privacy Policy</Link>
+              <span className="legal-separator">|</span>
+              <Link to="/terms-and-conditions" onClick={() => window.scrollTo(0, 0)}>Terms &amp; Conditions</Link>
+            </div>
+          </div>
           <div className="footer-actions">
             <div className="payment-methods">
               <FaCreditCard className="pay-icon" title="Credit Card" />

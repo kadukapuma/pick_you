@@ -8,11 +8,28 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import {
+  createPlacesSessionToken,
   LocationSuggestion,
+  resolveLocationSuggestion,
   searchLocationSuggestions,
 } from "../../services/location/multiProviderService";
+import { router } from "expo-router";
+import * as Location from "expo-location";
+import { useSavedPlaces } from "../../hooks/useSavedPlaces";
+
+const getPlaceConfig = (type: string) => {
+  switch (type) {
+    case "home":
+      return { icon: "home-outline" as const, color: "#22B36A" };
+    case "office":
+      return { icon: "briefcase-outline" as const, color: "#3BAAE8" };
+    default:
+      return { icon: "location-outline" as const, color: "#F59E0B" };
+  }
+};
 
 interface LocationPickerProps {
   onConfirm: (
@@ -75,6 +92,8 @@ export default function LocationPicker({
   const [destination, setDestination] = useState<LocationSuggestion | null>(
     null,
   );
+  
+  const { places } = useSavedPlaces();
 
   const [pickupSearch, setPickupSearch] = useState(
     currentLocation?.address || "",
@@ -89,6 +108,14 @@ export default function LocationPicker({
 
   const debounceTimer = useRef<number | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
+  const sessionTokens = useRef<Record<"pickup" | "drop", string>>({
+    pickup: createPlacesSessionToken(),
+    drop: createPlacesSessionToken(),
+  });
+
+  const resetSessionToken = (field: "pickup" | "drop") => {
+    sessionTokens.current[field] = createPlacesSessionToken();
+  };
 
   const handleSearch = (text: string, field: "pickup" | "drop") => {
     if (field === "pickup") setPickupSearch(text);
@@ -104,7 +131,9 @@ export default function LocationPicker({
     debounceTimer.current = setTimeout(async () => {
       setIsLoading(true);
       try {
-        const results = await searchLocationSuggestions(text);
+        const results = await searchLocationSuggestions(text, {
+          sessionToken: sessionTokens.current[field],
+        });
         setSuggestions(results);
       } catch (error) {
         console.log("Search error:", error);
@@ -114,18 +143,29 @@ export default function LocationPicker({
     }, 500);
   };
 
-  const handleSelectLocation = (location: LocationSuggestion) => {
+  const handleSelectLocation = async (location: LocationSuggestion) => {
+    if (!activeField) return;
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current[activeField],
+    );
+    setIsLoading(false);
+
+    if (!resolvedLocation) return;
+
     if (activeField === "pickup") {
-      setPickup(location);
-      setPickupSearch(location.address);
+      setPickup(resolvedLocation);
+      setPickupSearch(resolvedLocation.address);
       if (destination && destination.id === pickup?.id) {
         setDestination(null);
         setDropSearch("");
       }
     } else if (activeField === "drop") {
-      setDestination(location);
-      setDropSearch(location.address);
+      setDestination(resolvedLocation);
+      setDropSearch(resolvedLocation.address);
     }
+    resetSessionToken(activeField);
     setActiveField(null);
     setSuggestions([]);
   };
@@ -150,10 +190,17 @@ export default function LocationPicker({
     }
   };
 
+  const handleSwapLocations = () => {
+    const tempPickup = pickup;
+    const tempPickupSearch = pickupSearch;
+    setPickup(destination);
+    setPickupSearch(dropSearch);
+    setDestination(tempPickup);
+    setDropSearch(tempPickupSearch);
+  };
+
   const renderField = (
     label: string,
-    icon: string,
-    iconColor: string,
     value: string,
     field: "pickup" | "drop",
     placeholder: string,
@@ -164,72 +211,58 @@ export default function LocationPicker({
 
     return (
       <View style={styles.fieldWrapper}>
-        {/* Vertical dotted line for visual connection */}
-        {field === "drop" && (
-          <View style={styles.dottedLineContainer}>
-            <View style={styles.dottedLine} />
-          </View>
-        )}
+        <Text style={styles.label}>{label}</Text>
 
-        <View style={[styles.fieldCard, isActive && styles.fieldCardActive]}>
-          <View style={styles.fieldRow}>
-            <View style={styles.labelContainer}>
-              <Ionicons name={icon as any} size={18} color={iconColor} />
-              <Text style={styles.label}>{label}</Text>
-            </View>
-
-            {isActive ? (
-              <View style={styles.inputWrapper}>
-                <TextInput
-                  style={styles.input}
-                  placeholder={placeholder}
-                  placeholderTextColor="#B0C4C4"
-                  value={value}
-                  onChangeText={(text) => handleSearch(text, field)}
-                  autoFocus
-                  returnKeyType="search"
-                />
-                {value.length > 0 && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      if (field === "pickup") {
-                        setPickupSearch("");
-                        setPickup(null);
-                      }
-                      if (field === "drop") {
-                        setDropSearch("");
-                        setDestination(null);
-                      }
-                      setSuggestions([]);
-                    }}
-                  >
-                    <Ionicons name="close-circle" size={20} color="#B0C4C4" />
-                  </TouchableOpacity>
-                )}
-              </View>
-            ) : hasValue ? (
+        {isActive ? (
+          <View style={styles.inputWrapper}>
+            <TextInput
+              style={styles.input}
+              placeholder={placeholder}
+              placeholderTextColor="#B0C4C4"
+              value={value}
+              onChangeText={(text) => handleSearch(text, field)}
+              autoFocus
+              returnKeyType="search"
+            />
+            {value.length > 0 && (
               <TouchableOpacity
-                style={styles.valueWrapper}
-                onPress={() => handleFieldFocus(field)}
+                onPress={() => {
+                  if (field === "pickup") {
+                    setPickupSearch("");
+                    setPickup(null);
+                  }
+                  if (field === "drop") {
+                    setDropSearch("");
+                    setDestination(null);
+                  }
+                  setSuggestions([]);
+                }}
               >
-                <Text style={styles.valueText} numberOfLines={1}>
-                  {selectedLocation.address}
-                </Text>
-                <View style={styles.editIcon}>
-                  <Ionicons name="create-outline" size={18} color="#1B9E6E" />
-                </View>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity
-                style={styles.valueWrapper}
-                onPress={() => handleFieldFocus(field)}
-              >
-                <Text style={styles.placeholderText}>{placeholder}</Text>
-                <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+                <Ionicons name="close-circle" size={20} color="#B0C4C4" />
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        ) : hasValue ? (
+          <TouchableOpacity
+            style={styles.valueWrapper}
+            onPress={() => handleFieldFocus(field)}
+          >
+            <Text style={styles.valueText} numberOfLines={1}>
+              {selectedLocation.address}
+            </Text>
+            <View style={styles.editIcon}>
+              <Ionicons name="create-outline" size={18} color="#1B9E6E" />
+            </View>
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity
+            style={styles.valueWrapper}
+            onPress={() => handleFieldFocus(field)}
+          >
+            <Text style={styles.placeholderText}>{placeholder}</Text>
+            <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -242,38 +275,25 @@ export default function LocationPicker({
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* Pickup Field */}
-        {renderField(
-          "PICKUP",
-          "location-outline",
-          "#1B9E6E",
-          pickupSearch,
-          "pickup",
-          "Your Location",
-          pickup,
-        )}
+        <View style={styles.fieldsRow}>
+          <View style={styles.inputsColumn}>
+            {/* Pickup Field */}
+            {renderField("From", pickupSearch, "pickup", "Your Location", pickup)}
 
-        {/* Dropoff Field */}
-        {renderField(
-          "DROP",
-          "flag-outline",
-          "#FF6B6B",
-          dropSearch,
-          "drop",
-          "Where are you going?",
-          destination,
-        )}
+            {/* Dropoff Field */}
+            {renderField("To", dropSearch, "drop", "Where to?", destination)}
+          </View>
 
-        {/* Same as pickup option */}
-        {pickup && !destination && !activeField && (
-          <TouchableOpacity
-            style={styles.sameAsPickup}
-            onPress={handleSetSameAsPickup}
-          >
-            <Ionicons name="sync-outline" size={18} color="#1B9E6E" />
-            <Text style={styles.sameAsPickupText}>Same as pickup</Text>
-          </TouchableOpacity>
-        )}
+          <View style={styles.decorationColumn}>
+            <View style={styles.dotGrey} />
+            <View style={styles.dashedLine} />
+            <TouchableOpacity style={styles.swapButton} onPress={handleSwapLocations}>
+              <Ionicons name="swap-vertical" size={16} color="#FFFFFF" />
+            </TouchableOpacity>
+            <View style={styles.dashedLine} />
+            <View style={styles.dotHollow} />
+          </View>
+        </View>
 
         {/* Suggestions */}
         {activeField && suggestions.length > 0 && (
@@ -306,51 +326,89 @@ export default function LocationPicker({
             )}
           </View>
         )}
+        {activeField &&
+          suggestions.some((suggestion) => suggestion.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
 
         {/* Saved Addresses Section */}
         {!activeField && (
           <View style={styles.savedSection}>
-            <Text style={styles.savedTitle}>Saved Addresses</Text>
+            <View style={styles.savedHeader}>
+              <Text style={styles.savedTitle}>Saved Locations</Text>
+              <Ionicons name="chevron-forward" size={20} color="#38765D" style={{ paddingHorizontal: 16 }} />
+            </View>
 
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="map-outline" size={22} color="#1B9E6E" />
-              <Text style={styles.savedText}>Set location on map</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="home-outline" size={22} color="#FFA500" />
-              <Text style={styles.savedText}>Add Home</Text>
-              <Ionicons name="add-circle-outline" size={22} color="#1B9E6E" />
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.savedItem}>
-              <Ionicons name="briefcase-outline" size={22} color="#FF9500" />
-              <Text style={styles.savedText}>Add Work</Text>
-              <Ionicons name="add-circle-outline" size={22} color="#1B9E6E" />
+            <TouchableOpacity
+              style={styles.savedItem}
+              onPress={() => {
+                router.push({
+                  pathname: "/ride-search/set-location-map" as any,
+                  params: {
+                    pickupAddress: pickup?.address || "Your Location",
+                    pickupLat: pickup?.latitude ? String(pickup.latitude) : "",
+                    pickupLng: pickup?.longitude ? String(pickup.longitude) : "",
+                  },
+                });
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name="map-outline"
+                size={26}
+                color="#1B9E6E"
+                style={{ opacity: 0.8 }}
+              />
+              <Text style={styles.savedText}>Set Location on Map</Text>
             </TouchableOpacity>
 
             <View style={styles.divider} />
 
-            {QUICK_SAVED.map((location) => (
-              <TouchableOpacity
-                key={location.id}
-                style={styles.savedItem}
-                onPress={() => {
-                  if (!pickup) {
-                    handleSelectLocation(location);
-                  } else if (!destination) {
-                    handleSelectLocation(location);
-                  }
-                }}
-              >
-                <Ionicons name="location" size={22} color="#6B9E8E" />
-                <View style={styles.locationInfo}>
-                  <Text style={styles.savedText}>{location.address}</Text>
-                  <Text style={styles.locationDetail}>{location.details}</Text>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
-              </TouchableOpacity>
-            ))}
+            {places.map((place) => {
+              const cfg = getPlaceConfig(place.type);
+              return (
+                <TouchableOpacity
+                  key={place.id}
+                  style={styles.savedItem}
+                  onPress={async () => {
+                    let lat = place.latitude;
+                    let lng = place.longitude;
+                    if (!lat || !lng) {
+                      try {
+                        const geocoded = await Location.geocodeAsync(place.address);
+                        if (geocoded && geocoded.length > 0) {
+                          lat = geocoded[0].latitude;
+                          lng = geocoded[0].longitude;
+                        }
+                      } catch {}
+                    }
+                    const suggestion: LocationSuggestion = {
+                      id: place.id,
+                      address: place.address,
+                      details: place.label,
+                      latitude: lat || 7.2906,
+                      longitude: lng || 80.6337,
+                      placeType: "address",
+                    };
+                    if (activeField === "pickup" || (!pickup && activeField === null)) {
+                      setPickup(suggestion);
+                      setPickupSearch(suggestion.address);
+                    } else {
+                      setDestination(suggestion);
+                      setDropSearch(suggestion.address);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={cfg.icon} size={24} color={cfg.color} />
+                  <View style={styles.locationInfo}>
+                    <Text style={styles.savedText}>{place.label}</Text>
+                    <Text style={styles.locationDetail}>{place.address}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#D1D5DB" />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </ScrollView>
@@ -358,7 +416,7 @@ export default function LocationPicker({
       {/* Confirm Button */}
       {pickup && destination && !activeField && (
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
-          <Text style={styles.confirmText}>Confirm Location</Text>
+          <Text style={styles.confirmText}>SEARCH FOR RIDES</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -368,107 +426,101 @@ export default function LocationPicker({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F0FAF5",
+    backgroundColor: "#FFFFFF",
   },
   scrollView: {
     flex: 1,
     paddingHorizontal: 16,
-    paddingTop: 12,
+    paddingTop: 8,
+  },
+  fieldsRow: {
+    flexDirection: "row",
+    marginBottom: 20,
+    marginTop: 4,
+  },
+  inputsColumn: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  decorationColumn: {
+    width: 32,
+    alignItems: "center",
+    paddingTop: 28,
+  },
+  dotGrey: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#9CA3AF",
+  },
+  dotHollow: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: "#9CA3AF",
+    backgroundColor: "#FFFFFF",
+  },
+  dashedLine: {
+    width: 1,
+    height: 22,
+    borderLeftWidth: 1.5,
+    borderColor: "#9CA3AF",
+    borderStyle: "dashed",
+    marginVertical: 4,
+  },
+  swapButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "#38765D",
+    justifyContent: "center",
+    alignItems: "center",
   },
   fieldWrapper: {
-    marginBottom: 4,
-  },
-  dottedLineContainer: {
-    alignItems: "center",
-    marginLeft: 20,
-    marginBottom: 4,
-  },
-  dottedLine: {
-    width: 2,
-    height: 24,
-    backgroundColor: "transparent",
-    borderLeftWidth: 2,
-    borderLeftColor: "#D1D5DB",
-    borderStyle: "dotted",
-  },
-  fieldCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 8,
-    shadowColor: "#0D4F3C",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  fieldCardActive: {
-    borderWidth: 1,
-    borderColor: "#1B9E6E",
-  },
-  fieldRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  labelContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    width: 85,
+    marginBottom: 16,
   },
   label: {
-    fontSize: 11,
-    fontWeight: "700",
-    color: "#6B9E8E",
-    letterSpacing: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000000",
+    marginBottom: 8,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderBottomWidth: 1,
+    borderBottomColor: "#D1D5DB",
+    paddingBottom: 8,
   },
   inputWrapper: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
   },
   input: {
     flex: 1,
-    fontSize: 14,
-    color: "#0D4F3C",
-    paddingVertical: 4,
+    fontSize: 16,
+    color: "#374151",
+    paddingVertical: 2,
   },
   valueWrapper: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
   },
   valueText: {
-    fontSize: 14,
-    color: "#0D4F3C",
-    fontWeight: "500",
+    fontSize: 16,
+    color: "#374151",
+    flex: 1,
+  },
+  placeholderText: {
+    fontSize: 16,
+    color: "#9CA3AF",
     flex: 1,
   },
   editIcon: {
     padding: 4,
-  },
-  placeholderText: {
-    fontSize: 14,
-    color: "#B0C4C4",
-    flex: 1,
-  },
-  sameAsPickup: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 16,
-    marginTop: 8,
-    marginBottom: 12,
-  },
-  sameAsPickupText: {
-    fontSize: 14,
-    color: "#1B9E6E",
-    fontWeight: "600",
   },
   suggestionsContainer: {
     backgroundColor: "#FFFFFF",
@@ -502,19 +554,30 @@ const styles = StyleSheet.create({
     color: "#6B9E8E",
     marginTop: 2,
   },
+  googleAttribution: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginBottom: 12,
+    marginRight: 12,
+  },
   savedSection: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
     paddingVertical: 8,
     marginBottom: 100,
   },
+  savedHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
   savedTitle: {
-    fontSize: 14,
+    fontSize: 18,
     fontWeight: "600",
-    color: "#6B9E8E",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    letterSpacing: 0.5,
+    color: "#000000",
+    paddingHorizontal: 0,
   },
   savedItem: {
     flexDirection: "row",
@@ -525,8 +588,8 @@ const styles = StyleSheet.create({
   },
   savedText: {
     flex: 1,
-    fontSize: 15,
-    color: "#0D4F3C",
+    fontSize: 16,
+    color: "#000000",
     fontWeight: "500",
   },
   locationInfo: {
@@ -547,19 +610,15 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: "#1B9E6E",
+    backgroundColor: "#38765D",
     paddingVertical: 16,
-    borderRadius: 16,
+    borderRadius: 24,
     alignItems: "center",
-    shadowColor: "#1B9E6E",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 5,
   },
   confirmText: {
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
     color: "#FFFFFF",
+    letterSpacing: 0.5,
   },
 });

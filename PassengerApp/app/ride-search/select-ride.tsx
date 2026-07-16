@@ -12,16 +12,18 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   getCachedDirections_withCache,
   type DirectionsResult,
-} from "../../services/routing/mapboxRoutingService";
+} from "../../services/routing/googleRoutingService";
 import { useRideSearch, type RideOption } from "../../context/RideSearchContext";
 import { apiClient } from "../../services/api/apiClient";
-import MapboxRideMap from "../../components/map/MapboxRideMap";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -39,6 +41,11 @@ interface DBVehicleType {
     cancellation_fee: string;
     is_active: boolean;
   } | null;
+}
+
+interface RideEstimateResponse {
+  route: DirectionsResult;
+  estimated_fare: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -117,20 +124,70 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
 const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
   car: "car",
   tuk: "car",
+  tuktuk: "car",
+  threewheel: "car",
   bike: "bicycle",
+  motorbike: "bicycle",
+  motorcycle: "bicycle",
   suv: "bus",
+  van: "bus",
+  minivan: "bus",
+  minicar: "car",
+  mini: "car",
 };
+
+// Normalise any backend vehicle name to a consistent key
+function normaliseVehicleKey(raw: string): string {
+  return raw.toLowerCase().replace(/[\s_\-]+/g, "");
+}
+
+const VEHICLE_IMAGE_MAP: Record<string, any> = {
+  car: require("../../assets/images/vehicles/car.png"),
+  tuk: require("../../assets/images/vehicles/threewheel.png"),
+  tuktuk: require("../../assets/images/vehicles/threewheel.png"),
+  threewheel: require("../../assets/images/vehicles/threewheel.png"),
+  bike: require("../../assets/images/vehicles/bike.png"),
+  motorbike: require("../../assets/images/vehicles/bike.png"),
+  motorcycle: require("../../assets/images/vehicles/bike.png"),
+  suv: require("../../assets/images/vehicles/minivan.png"),
+  van: require("../../assets/images/vehicles/van.png"),
+  minivan: require("../../assets/images/vehicles/van.png"),
+  minicar: require("../../assets/images/vehicles/minicar.png"),
+  mini: require("../../assets/images/vehicles/minicar.png"),
+};
+
+function getVehicleImage(id: string) {
+  const key = normaliseVehicleKey(id);
+  return VEHICLE_IMAGE_MAP[key] ?? VEHICLE_IMAGE_MAP.car;
+}
+
 const ETA_MAP: Record<string, string> = {
   bike: "1 min",
+  motorbike: "1 min",
+  motorcycle: "1 min",
   tuk: "2 mins",
+  tuktuk: "2 mins",
+  threewheel: "2 mins",
+  minicar: "2 mins",
+  mini: "2 mins",
   car: "3 mins",
   suv: "5 mins",
+  van: "5 mins",
+  minivan: "5 mins",
 };
 const RATING_MAP: Record<string, number> = {
   bike: 4.5,
+  motorbike: 4.5,
+  motorcycle: 4.5,
   tuk: 4.7,
+  tuktuk: 4.7,
+  threewheel: 4.7,
   car: 4.8,
+  minicar: 4.8,
+  mini: 4.8,
   suv: 4.9,
+  van: 4.9,
+  minivan: 4.9,
 };
 // Approx stars earned per LKR spent
 const STARS_PER_LKR = 0.01;
@@ -150,13 +207,16 @@ function mapDBVehicleToOption(
   } else {
     price = 150 + (distanceMeters / 1000) * 60;
   }
+  
+  const safeName = normaliseVehicleKey(vt.name ?? "car");
+  
   return {
-    id: vt.name,
+    id: vt.name, // Keep original for backend queries
     name: vt.display_name,
-    icon: ICON_MAP[vt.name] ?? "car",
+    icon: ICON_MAP[safeName] ?? "car",
     price: parseFloat(price.toFixed(2)),
-    eta: ETA_MAP[vt.name] ?? "4 mins",
-    rating: RATING_MAP[vt.name] ?? 4.6,
+    eta: ETA_MAP[safeName] ?? "4 mins",
+    rating: RATING_MAP[safeName] ?? 4.6,
   };
 }
 
@@ -238,70 +298,51 @@ function RideCard({
           style={[
             styles.rideCard,
             { borderColor },
-            selected && styles.rideCardSelected,
+            selected && { backgroundColor: "#F3F4F6" },
           ]}
         >
           {/* Icon area */}
-          <View
-            style={[
-              styles.cardIconWrap,
-              selected && styles.cardIconWrapSelected,
-            ]}
-          >
-            <Ionicons
-              name={ride.icon as any}
-              size={26}
-              color={selected ? "#fff" : GREEN}
+          <View style={styles.cardIconWrap}>
+            <Image
+              source={getVehicleImage(ride.id ?? "car")}
+              style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
 
-          {/* Name + seats row */}
-          <Text style={[styles.cardName, selected && styles.cardTextWhite]}>
+          {/* Name */}
+          <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
             {ride.name}
           </Text>
 
+          {/* ETA */}
           <View style={styles.cardMeta}>
-            <Ionicons
-              name="person-outline"
-              size={11}
-              color={selected ? "rgba(255,255,255,0.75)" : "#9CA3AF"}
-            />
-            <Text
-              style={[
-                styles.cardEta,
-                selected && { color: "rgba(255,255,255,0.8)" },
-              ]}
-            >
+            <Ionicons name="person-outline" size={11} color="#9CA3AF" />
+            <Text style={styles.cardEta} numberOfLines={1}>
               {ride.eta}
             </Text>
           </View>
 
           {/* Price */}
-          <Text style={[styles.cardPrice, selected && styles.cardTextWhite]}>
+          <Text
+            style={styles.cardPrice}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.6}
+          >
             LKR {ride.price.toFixed(2)}
           </Text>
 
           {/* Stars earned */}
           <View style={styles.starsRow}>
             <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text
-              style={[
-                styles.starsText,
-                selected && { color: "rgba(255,255,255,0.85)" },
-              ]}
-            >
+            <Text style={styles.starsText} numberOfLines={1}>
               Earn {stars}
             </Text>
           </View>
 
           {/* Route info */}
           {directions && (
-            <Text
-              style={[
-                styles.cardRoute,
-                selected && { color: "rgba(255,255,255,0.7)" },
-              ]}
-            >
+            <Text style={styles.cardRoute} numberOfLines={1}>
               {directions.distanceText} · {directions.durationText}
             </Text>
           )}
@@ -324,6 +365,7 @@ export default function SelectRideScreen() {
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
 
+  const insets = useSafeAreaInsets();
   const pickup = JSON.parse(params.pickup as string);
   const destination = JSON.parse(params.destination as string);
 
@@ -377,10 +419,12 @@ export default function SelectRideScreen() {
     (async () => {
       setLoadingVehicles(true);
       try {
-        const res = await apiClient.get<DBVehicleType[]>("/vehicle-types");
+        const res = await apiClient.get<DBVehicleType[]>(
+          "/vehicle-types?active_only=1&available_only=1",
+        );
         const data =
-          res.success && res.data && res.data.length > 0
-            ? res.data.filter((v) => v.is_active)
+          res.success && Array.isArray(res.data)
+            ? res.data.filter((v) => v.is_active && v.fare_config?.is_active)
             : MOCK_VEHICLE_TYPES;
         if (!cancelled) {
           _setRawVehicles(data);
@@ -403,14 +447,55 @@ export default function SelectRideScreen() {
   // Compute pricing once both are ready
   useEffect(() => {
     if (!directions || _rawVehicles.length === 0) return;
-    const mapped = _rawVehicles.map((v) =>
-      mapDBVehicleToOption(v, directions.distance, directions.duration),
-    );
-    setRideOptions(mapped);
-    if (mapped.length > 0) setSelectedRide(mapped[0].id);
-    animateSheetIn();
-    setLoadingVehicles(false);
-  }, [directions, _rawVehicles]);
+
+    let cancelled = false;
+    const loadEstimates = async () => {
+      const mapped = await Promise.all(
+        _rawVehicles.map(async (vehicle) => {
+          const fallback = mapDBVehicleToOption(
+            vehicle,
+            directions.distance,
+            directions.duration,
+          );
+
+          const estimate = await apiClient.post<RideEstimateResponse>(
+            "/rides/estimate",
+            {
+              vehicle_type: vehicle.name,
+              pickup_lat: pickup.latitude,
+              pickup_lng: pickup.longitude,
+              drop_lat: destination.latitude,
+              drop_lng: destination.longitude,
+            },
+          );
+
+          if (!estimate.success || !estimate.data) return fallback;
+
+          const apifare = Number(estimate.data.estimated_fare);
+          // Sanity-check: if the API returns an obviously wrong value
+          // (e.g. zero, negative, or > 10× the local fallback) trust fallback
+          const sane =
+            apifare > 0 && apifare < fallback.price * 10;
+          return {
+            ...fallback,
+            price: sane ? parseFloat(apifare.toFixed(2)) : fallback.price,
+          };
+        }),
+      );
+
+      if (cancelled) return;
+      setRideOptions(mapped);
+      if (mapped.length > 0) setSelectedRide(mapped[0].id);
+      animateSheetIn();
+      setLoadingVehicles(false);
+    };
+
+    loadEstimates();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [animateSheetIn, destination.latitude, destination.longitude, directions, pickup.latitude, pickup.longitude, _rawVehicles]);
 
   const handleBookNow = useCallback(() => {
     if (!selectedRide || rideOptions.length === 0) return;
@@ -437,7 +522,7 @@ export default function SelectRideScreen() {
       />
 
       {/* ── MAP ──────────────────────────────────────────────────────────── */}
-      <MapboxRideMap
+      <GoogleRideMap
         style={styles.map}
         pickup={pickup}
         dropoff={destination}
@@ -480,7 +565,11 @@ export default function SelectRideScreen() {
       <Animated.View
         style={[
           styles.sheet,
-          { opacity: sheetOpacity, transform: [{ translateY: sheetY }] },
+          {
+            opacity: sheetOpacity,
+            transform: [{ translateY: sheetY }],
+            paddingBottom: insets.bottom + 20,
+          },
         ]}
       >
         {/* Handle */}
@@ -714,7 +803,8 @@ const styles = StyleSheet.create({
   },
 
   rideCard: {
-    width: 106,
+    width: 112,
+    height: 180,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: "#E5E7EB",
@@ -722,36 +812,27 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 10,
     alignItems: "center",
+    justifyContent: "center",
     gap: 3,
   },
 
   rideCardSelected: {
-    backgroundColor: GREEN,
+    backgroundColor: "#F3F4F6",
     borderColor: GREEN,
   },
 
   cardIconWrap: {
-    width: 46,
+    width: "100%",
     height: 46,
-    borderRadius: 23,
-    backgroundColor: GREEN_LIGHT,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
-  },
-
-  cardIconWrapSelected: {
-    backgroundColor: GREEN_DARK,
   },
 
   cardName: {
     fontSize: 13,
     fontWeight: "700",
     color: "#111827",
-  },
-
-  cardTextWhite: {
-    color: "#fff",
   },
 
   cardMeta: {

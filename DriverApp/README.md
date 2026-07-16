@@ -10,19 +10,20 @@ This is an [Expo](https://expo.dev) project created with [`create-expo-app`](htt
    npm install
    ```
 
-2. Configure Mapbox (same token as Passenger app)
+2. Configure Google Maps
 
    ```bash
    cp .env.example .env
    ```
 
-   Edit `DriverApp/.env` and set your public token:
+   Edit `DriverApp/.env` and set your restricted native SDK keys:
 
    ```env
-   EXPO_PUBLIC_MAPBOX_API_KEY=pk.your_mapbox_public_token_here
+   GOOGLE_MAPS_ANDROID_API_KEY_DRIVER=
+   GOOGLE_MAPS_IOS_API_KEY_DRIVER=
    ```
 
-3. Configure WebSockets (see [REALTIME_SETUP.md](./REALTIME_SETUP.md)) — ride requests use Reverb, not HTTP polling.
+3. Configure the backend API and WebSockets. Ride requests use Reverb, not HTTP polling.
 
 4. Start the app
 

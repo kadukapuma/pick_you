@@ -1,7 +1,8 @@
 .driver-download-theme {
-    background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-    padding: 2.5rem 0;
-    /* Further reduced from 4rem */
+    background-color: #f8fafc !important;
+    background-image: none !important;
+    padding: 4rem 1.5rem !important;
+    /* Restored padding to match passenger version and prevent edge clipping */
 }
 
 .driver-download-theme .download-title {
@@ -53,6 +54,49 @@
     /* PickYou Green for Drivers */
 }
 
+/* ── Specific Button Overrides for Light Theme ────────────────────────────── */
+.driver-download-theme .app-btn {
+    background: #0f172a !important;
+    /* Solid dark background */
+    border: 1px solid #1e293b !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.driver-download-theme .app-btn:hover {
+    background: #1e293b !important;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+    border-color: #08d612 !important;
+}
+
+.driver-download-theme .app-btn-icon {
+    color: #ffffff !important;
+}
+
+.driver-download-theme .store-subtitle,
+.driver-download-theme .app-btn small {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.driver-download-theme .store-text strong {
+    color: #ffffff !important;
+}
+
+/* Fix cross-app CTA visibility on light theme */
+.driver-download-theme .cross-app-cta.enhanced {
+    background: rgba(15, 23, 42, 0.03);
+    border-color: rgba(15, 23, 42, 0.08);
+    color: #0f172a;
+}
+
+.driver-download-theme .cta-heading {
+    color: #0f172a !important;
+}
+
+.driver-download-theme .cta-text {
+    color: #475569 !important;
+}
+
 /* ── Driver App Mockup Specifics ───────────────────────────────────────────── */
 .driver-app-mockup-img {
     width: 100%;
@@ -67,6 +111,10 @@
 .driver-download-theme .download-container-inner {
     gap: 2rem;
     /* Reduced gap for more compact layout */
+}
+
+.driver-download-theme .download-store-btns {
+    justify-content: flex-start !important;
 }
 
 .driver-app-mockup .phone-screen-content {

@@ -1,0 +1,244 @@
+/* === PickU Legal Document Styles === */
+/* Typography: a quiet serif for headings (document authority),
+   a neutral sans for body text and UI chrome. */
+
+.legal-page-container {
+    --ink: #1c1c1a;
+    --ink-soft: #57564f;
+    --ink-faint: #8a897f;
+    --rule: #e4e2d8;
+    --paper: #fbfaf6;
+    --accent: #0a7d22;
+    --accent-soft: #eaf3e9;
+
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 96px 24px 120px;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+}
+
+/* Header */
+.legal-page-header {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 36px;
+    margin-bottom: 40px;
+}
+
+.legal-eyebrow {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+}
+
+.legal-page-header h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 2.4rem;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+}
+
+.effective-date {
+    font-size: 0.92rem;
+    color: var(--ink-faint);
+    margin: 0 0 22px;
+}
+
+.legal-intro {
+    font-size: 1.05rem;
+    color: var(--ink-soft);
+    max-width: 56ch;
+    margin: 0;
+}
+
+/* Table of contents */
+.legal-toc {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 4px 28px;
+    margin-bottom: 56px;
+}
+
+.legal-toc-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--rule);
+    color: var(--ink-soft);
+    text-decoration: none;
+    font-size: 0.94rem;
+    transition: color 0.15s ease;
+}
+
+.legal-toc-item:hover {
+    color: var(--accent);
+}
+
+.legal-toc-number {
+    font-variant-numeric: tabular-nums;
+    font-size: 0.8rem;
+    color: var(--ink-faint);
+    width: 20px;
+    flex-shrink: 0;
+}
+
+/* Sections */
+.legal-content {
+    display: flex;
+    flex-direction: column;
+}
+
+.legal-section {
+    padding: 36px 0;
+    border-bottom: 1px solid var(--rule);
+}
+
+.legal-section:first-child {
+    padding-top: 0;
+}
+
+.legal-section-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 16px;
+}
+
+.legal-section-number {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 0.95rem;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+}
+
+.legal-section h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0;
+}
+
+.legal-section p {
+    color: var(--ink-soft);
+    font-size: 1rem;
+    margin: 0 0 14px;
+    max-width: 62ch;
+}
+
+.legal-section p:last-child {
+    margin-bottom: 0;
+}
+
+/* Lists */
+.legal-list {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0;
+}
+
+.legal-list li {
+    position: relative;
+    padding-left: 20px;
+    margin-bottom: 9px;
+    color: var(--ink-soft);
+    font-size: 1rem;
+    max-width: 60ch;
+}
+
+.legal-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.65em;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+}
+
+.legal-list li:last-child {
+    margin-bottom: 0;
+}
+
+/* Subsections (nested groupings within a section, e.g. Personal / Vehicle / Location) */
+.legal-subsection {
+    margin-top: 22px;
+    padding-left: 16px;
+    border-left: 2px solid var(--rule);
+}
+
+.legal-subsection:first-of-type {
+    margin-top: 18px;
+}
+
+.legal-subsection h3 {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 0 0 8px;
+}
+
+.legal-list-tight li {
+    font-size: 0.95rem;
+    margin-bottom: 6px;
+}
+
+/* Emphasis line (e.g. "We do not sell personal information.") */
+.legal-emphasis {
+    font-weight: 600;
+    color: var(--ink) !important;
+}
+
+/* Note / warning callout — text-led, not an icon badge */
+.legal-note {
+    font-size: 0.92rem;
+    color: #8a5a12;
+    background: #fbf3e3;
+    border-left: 2px solid #c98a1f;
+    padding: 12px 16px;
+    margin-top: 16px !important;
+    max-width: 60ch;
+}
+
+/* Contact */
+.legal-contact {
+    border-bottom: none;
+}
+
+.legal-contact-link {
+    display: inline-block;
+    margin-top: 4px;
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-soft);
+    padding-bottom: 2px;
+}
+
+.legal-contact-link:hover {
+    border-bottom-color: var(--accent);
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+    .legal-page-container {
+        padding: 72px 18px 80px;
+    }
+
+    .legal-page-header h1 {
+        font-size: 1.9rem;
+    }
+
+    .legal-toc {
+        grid-template-columns: 1fr;
+    }
+}   

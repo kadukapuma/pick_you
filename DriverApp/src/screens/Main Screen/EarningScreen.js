@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import UnderConstructionBanner from "../../components/UnderConstructionBanner";
 
 const { width } = Dimensions.get("window");
 
@@ -172,6 +173,8 @@ const EarningsScreen = () => {
         </LinearGradient>
 
         <View style={styles.content}>
+          <UnderConstructionBanner style={styles.constructionBanner} />
+
           <View style={styles.breakdownCard}>
             <View style={styles.breakdownHeader}>
               <Text style={styles.sectionTitle}>Earnings Breakdown</Text>
@@ -351,6 +354,9 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+  },
+  constructionBanner: {
+    marginBottom: 18,
   },
   sectionTitle: {
     fontSize: 18,

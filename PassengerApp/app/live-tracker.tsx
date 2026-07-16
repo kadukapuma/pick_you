@@ -18,6 +18,18 @@ import {
     TrackingStatus,
 } from "../services/location/trackingService";
 
+const mergeRideData = (previous: any, next: any) => ({
+    ...(previous || {}),
+    ...(next || {}),
+    vehicle_type:
+        next?.vehicle_type ||
+        next?.fare_config?.vehicle_type ||
+        next?.fareConfig?.vehicle_type ||
+        next?.vehicle?.vehicle_type ||
+        next?.vehicle?.vehicleType?.name ||
+        previous?.vehicle_type,
+});
+
 export default function LiveTrackerPage() {
     const params = useLocalSearchParams();
     const { resetTrip } = useRideSearch();
@@ -41,9 +53,10 @@ export default function LiveTrackerPage() {
         if (!rideId) return;
 
         let unsubscribe: (() => void) | undefined;
+        let cancelled = false;
 
         const handleRideUpdate = (ride: any) => {
-            setRideData(ride);
+            setRideData((previous: any) => mergeRideData(previous, ride));
 
             const status = String(ride?.status || "").toUpperCase();
             if (status && lastAlertedStatusRef.current !== status) {
@@ -63,6 +76,17 @@ export default function LiveTrackerPage() {
             }
         };
 
+        const fetchRideDetails = async () => {
+            const response = await apiClient.get<any>(`/rides/${rideId}`, {
+                suppressErrorLog: true,
+            });
+            if (!cancelled && response.success && response.data) {
+                handleRideUpdate(response.data);
+            }
+        };
+
+        fetchRideDetails();
+
         subscribeToRideLocation(
             rideId,
             setDriverLocation,
@@ -74,7 +98,10 @@ export default function LiveTrackerPage() {
             })
             .catch((error) => console.error("Live tracking setup failed:", error));
 
-        return () => unsubscribe?.();
+        return () => {
+            cancelled = true;
+            unsubscribe?.();
+        };
     }, [rideId, ratingSubmitted]);
 
     if (!rideData) return null;

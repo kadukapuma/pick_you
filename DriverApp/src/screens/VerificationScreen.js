@@ -416,7 +416,6 @@ const VerificationStatusScreen = ({
               setDriverStatus?.("approved");
               setIsNewUser?.(false);
               console.log("🟢 NAVIGATING TO MainTabs");
-              // navigation.replace("ComingSoon");
               navigation.replace("MainTabs");
             }
           } catch (error) {

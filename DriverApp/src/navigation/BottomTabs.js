@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import {
   StyleSheet,
@@ -18,7 +17,6 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback } from "react";
 
 import ActivityScreen from "../screens/Main Screen/ActivityScreen";
 import EarningsScreen from "../screens/Main Screen/EarningScreen";
@@ -138,19 +136,7 @@ const BottomTabs = ({
   setIsLoggedIn,
   setIsNewUser,
   setDriverStatus,
-  maintenanceMode,
-  driverStatus,
 }) => {
-  const navigation = useNavigation();
-
-  useFocusEffect(
-    useCallback(() => {
-      if (maintenanceMode && driverStatus?.toLowerCase() === "approved") {
-        navigation.replace("ComingSoon");
-      }
-    }, [maintenanceMode, driverStatus, navigation])
-  );
-
   return (
     <SafeAreaView
       edges={["bottom"]}

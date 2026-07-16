@@ -47,14 +47,14 @@ export default function SavedAddressesScreen() {
 
   const handleAddAddress = () => {
     router.push({
-      pathname: "/add-edit-address",
+      pathname: "/add-edit-address" as any,
       params: { mode: "add" },
     });
   };
 
   const handleEditAddress = (address: SavedAddress) => {
     router.push({
-      pathname: "/add-edit-address",
+      pathname: "/add-edit-address" as any,
       params: {
         mode: "edit",
         address: JSON.stringify(address),

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,29 +8,81 @@ import {
   SafeAreaView,
   StatusBar,
   Platform,
+  ActivityIndicator,
 } from "react-native";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
+import api from "../../services/api";
+
+const DEFAULT_DOCUMENTS = {
+  licenseFront: { status: "not_set", image: null },
+  licenseBack: { status: "not_set", image: null },
+  vehicleRegistration: { status: "not_set", image: null },
+  insuranceCertificate: { status: "not_set", image: null },
+  vehicleFront: { status: "not_set", image: null },
+  vehicleBack: { status: "not_set", image: null },
+  vehicleSide: { status: "not_set", image: null },
+};
+
+const normalizeDocument = (document) => {
+  if (typeof document === "string") {
+    return { status: document, image: null };
+  }
+
+  return {
+    status: document?.status || "not_set",
+    image: document?.image || null,
+    uploadedAt: document?.uploaded_at || document?.created_at || null,
+    updatedAt: document?.updated_at || null,
+  };
+};
 
 const DocumentsScreen = ({ navigation }) => {
-  const [docStatuses, setDocStatuses] = useState({
-    licenseFront: "verified",
-    licenseBack: "verified",
-    vehicleRegistration: "pending",
-    insuranceCertificate: "not_set",
+  const [documents, setDocuments] = useState(DEFAULT_DOCUMENTS);
+  const [loading, setLoading] = useState(true);
+  const [screenError, setScreenError] = useState(null);
 
-    vehicleFront: "verified",
-    vehicleBack: "pending",
-    vehicleSide: "not_set",
-  });
+  const fetchDocuments = useCallback(async () => {
+    try {
+      const response = await api.get("/driver/profile");
+      const profile = response.data?.data ?? {};
+      const nextDocuments = Object.keys(DEFAULT_DOCUMENTS).reduce((acc, key) => {
+        acc[key] = normalizeDocument(profile.documents?.[key]);
+        return acc;
+      }, {});
+
+      setDocuments(nextDocuments);
+      setScreenError(null);
+    } catch (error) {
+      console.log("Error fetching driver documents:", error.response?.data || error);
+      setScreenError("Failed to load document status.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchDocuments();
+    }, [fetchDocuments]),
+  );
+
+  const documentList = Object.values(documents);
+  const totalCount = documentList.length;
+  const verifiedCount = documentList.filter((doc) => doc.status === "verified").length;
+  const pendingCount = documentList.filter((doc) => doc.status === "pending").length;
 
   const DocumentRow = ({
     title,
     subtitle,
-    status,
+    document,
     icon,
     imageType,
   }) => {
+    const status = document?.status || "not_set";
+
     const renderBadge = () => {
       switch (status) {
         case "verified":
@@ -63,6 +115,21 @@ const DocumentsScreen = ({ navigation }) => {
             </View>
           );
 
+        case "rejected":
+          return (
+            <View style={[styles.badge, styles.badgeRejected]}>
+              <Feather
+                name="x"
+                size={12}
+                color="#DC2626"
+                style={{ marginRight: 4 }}
+              />
+              <Text style={styles.badgeTextRejected}>
+                Rejected
+              </Text>
+            </View>
+          );
+
         default:
           return (
             <View style={[styles.badge, styles.badgeNotSet]}>
@@ -84,6 +151,9 @@ const DocumentsScreen = ({ navigation }) => {
             subtitle,
             status,
             imageType,
+            image: document?.image || null,
+            uploadedAt: document?.uploadedAt || null,
+            updatedAt: document?.updatedAt || null,
           })
         }
       >
@@ -160,7 +230,7 @@ const DocumentsScreen = ({ navigation }) => {
                 Total
               </Text>
 
-              <Text style={styles.statValue}>7</Text>
+              <Text style={styles.statValue}>{totalCount}</Text>
             </View>
 
             <View style={styles.statBox}>
@@ -174,7 +244,7 @@ const DocumentsScreen = ({ navigation }) => {
                   { color: "#86EFAC" },
                 ]}
               >
-                3
+                {verifiedCount}
               </Text>
             </View>
 
@@ -189,7 +259,7 @@ const DocumentsScreen = ({ navigation }) => {
                   { color: "#FCD34D" },
                 ]}
               >
-                2
+                {pendingCount}
               </Text>
             </View>
           </View>
@@ -201,6 +271,21 @@ const DocumentsScreen = ({ navigation }) => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#00A859" />
+            <Text style={styles.loadingText}>Loading document status...</Text>
+          </View>
+        ) : screenError ? (
+          <View style={styles.errorBox}>
+            <Feather name="alert-circle" size={18} color="#EF4444" />
+            <Text style={styles.errorText}>{screenError}</Text>
+            <TouchableOpacity style={styles.retryBtn} onPress={fetchDocuments}>
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
         {/* OFFICIAL DOCUMENTS */}
         <Text style={styles.sectionHeading}>
           Official Documents
@@ -209,7 +294,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Driving License Front"
           subtitle="Front side clear image"
-          status={docStatuses.licenseFront}
+          document={documents.licenseFront}
           icon="card-account-details-outline"
           imageType="licenseFront"
         />
@@ -217,7 +302,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Driving License Back"
           subtitle="Back side clear image"
-          status={docStatuses.licenseBack}
+          document={documents.licenseBack}
           icon="card-account-details-outline"
           imageType="licenseBack"
         />
@@ -225,7 +310,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Vehicle Registration"
           subtitle="Vehicle ownership registration"
-          status={docStatuses.vehicleRegistration}
+          document={documents.vehicleRegistration}
           icon="file-document-outline"
           imageType="vehicleRegistration"
         />
@@ -233,7 +318,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Insurance Certificate"
           subtitle="Valid insurance certificate"
-          status={docStatuses.insuranceCertificate}
+          document={documents.insuranceCertificate}
           icon="shield-check-outline"
           imageType="insuranceCertificate"
         />
@@ -246,7 +331,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Front View"
           subtitle="Front side vehicle photo"
-          status={docStatuses.vehicleFront}
+          document={documents.vehicleFront}
           icon="car-outline"
           imageType="vehicleFront"
         />
@@ -254,7 +339,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Back View"
           subtitle="Rear side vehicle photo"
-          status={docStatuses.vehicleBack}
+          document={documents.vehicleBack}
           icon="car-back"
           imageType="vehicleBack"
         />
@@ -262,7 +347,7 @@ const DocumentsScreen = ({ navigation }) => {
         <DocumentRow
           title="Side View"
           subtitle="Side angle vehicle photo"
-          status={docStatuses.vehicleSide}
+          document={documents.vehicleSide}
           icon="car-side"
           imageType="vehicleSide"
         />
@@ -281,6 +366,8 @@ const DocumentsScreen = ({ navigation }) => {
             images are clear and readable.
           </Text>
         </View>
+          </>
+        )}
       </ScrollView>
 
       {/* BOTTOM SAFE AREA */}
@@ -402,6 +489,50 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
   },
 
+  loadingContainer: {
+    minHeight: 260,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  loadingText: {
+    marginTop: 12,
+    color: "#64748B",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  errorBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 14,
+    gap: 10,
+  },
+
+  errorText: {
+    flex: 1,
+    color: "#991B1B",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
+  retryBtn: {
+    backgroundColor: "#EF4444",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+
+  retryText: {
+    color: "#FFF",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+
   sectionHeading: {
     fontSize: 17,
     fontWeight: "900",
@@ -499,6 +630,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEF3C7",
   },
 
+  badgeRejected: {
+    backgroundColor: "#FEE2E2",
+  },
+
   badgeNotSet: {
     backgroundColor: "#FEF2F2",
   },
@@ -511,6 +646,12 @@ const styles = StyleSheet.create({
 
   badgeTextPending: {
     color: "#B45309",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+
+  badgeTextRejected: {
+    color: "#DC2626",
     fontSize: 12,
     fontWeight: "700",
   },

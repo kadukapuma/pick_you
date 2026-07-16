@@ -12,6 +12,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient"; // Added LinearGradient
+import UnderConstructionBanner from "../../components/UnderConstructionBanner";
 
 const dummyTrips = [
   {
@@ -151,11 +152,15 @@ const ActivityScreen = () => {
             data={dummyTrips}
             renderItem={renderTripItem}
             keyExtractor={(item) => item.id}
+            ListHeaderComponent={
+              <UnderConstructionBanner style={styles.constructionBanner} />
+            }
             contentContainerStyle={styles.listPadding}
             showsVerticalScrollIndicator={false}
           />
         ) : (
           <View style={styles.emptyState}>
+            <UnderConstructionBanner style={styles.emptyConstructionBanner} />
             <View style={styles.emptyIconCircle}>
               <Feather name="clock" size={40} color="#CBD5E1" />
             </View>
@@ -196,6 +201,7 @@ const styles = StyleSheet.create({
   activeFilterText: { color: "#00A859" },
   content: { flex: 1 },
   listPadding: { padding: 20, paddingBottom: 100 },
+  constructionBanner: { marginBottom: 14 },
   tripCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -225,6 +231,12 @@ const styles = StyleSheet.create({
   amountText: { fontSize: 16, fontWeight: "800", color: "#1E293B" },
   cancelledText: { color: "#EF4444", fontSize: 13, fontWeight: "600" },
   emptyState: { flex: 1, justifyContent: "center", alignItems: "center", paddingBottom: 100 },
+  emptyConstructionBanner: {
+    position: "absolute",
+    top: 20,
+    left: 20,
+    right: 20,
+  },
   emptyIconCircle: {
     width: 100,
     height: 100,

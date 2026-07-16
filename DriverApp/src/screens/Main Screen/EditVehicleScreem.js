@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
+import ThemedFeedbackModal from '../../components/ThemedFeedbackModal';
 
 const getVehicleIconName = (vehicleType) => {
   const typeName = (vehicleType || '').toLowerCase();
@@ -48,7 +49,24 @@ const VehicleDetailsScreen = ({ navigation }) => {
   const [color, setColor] = useState('');
   const [vehicleType, setVehicleType] = useState('');
   const [vehicleImages, setVehicleImages] = useState({ front: null, side: null, back: null });
+  const [vehicleId, setVehicleId] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+    onPrimary: null,
+  });
+
+  const showFeedback = ({ type = 'success', title, message, onPrimary }) => {
+    setFeedback({ visible: true, type, title, message, onPrimary });
+  };
+
+  const closeFeedback = () => {
+    setFeedback((prev) => ({ ...prev, visible: false, onPrimary: null }));
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -57,6 +75,7 @@ const VehicleDetailsScreen = ({ navigation }) => {
         if (response.data.status === 'success') {
           const vehicle = response.data.data.vehicle;
           if (vehicle) {
+            setVehicleId(vehicle.id || null);
             setVehicleModel(`${vehicle.brand || ''} ${vehicle.model || ''}`.trim());
             setPlateNumber(vehicle.plateNumber !== 'Not set' ? vehicle.plateNumber : '');
             setColor(vehicle.color || '');
@@ -66,12 +85,78 @@ const VehicleDetailsScreen = ({ navigation }) => {
         }
       } catch (error) {
         console.log('Error fetching vehicle for edit:', error);
+        showFeedback({
+          type: 'error',
+          title: 'Vehicle Unavailable',
+          message: 'Failed to load your vehicle details.',
+        });
       } finally {
         setLoading(false);
       }
     };
     fetchProfile();
   }, []);
+
+  const getModelParts = () => {
+    const normalizedModel = vehicleModel.trim().replace(/\s+/g, ' ');
+    const [brand, ...modelParts] = normalizedModel.split(' ');
+
+    return {
+      brand: brand || '',
+      model: modelParts.join(' '),
+    };
+  };
+
+  const handleUpdate = async () => {
+    if (!vehicleId) {
+      showFeedback({
+        type: 'warning',
+        title: 'Vehicle Missing',
+        message: 'No saved vehicle was found for this account.',
+      });
+      return;
+    }
+    if (!vehicleModel.trim() || !plateNumber.trim()) {
+      showFeedback({
+        type: 'warning',
+        title: 'Required Details',
+        message: 'Please enter vehicle model and license plate before updating.',
+      });
+      return;
+    }
+
+    const { brand, model } = getModelParts();
+
+    setSaving(true);
+    try {
+      const response = await api.put(`/vehicles/${vehicleId}`, {
+        brand,
+        model,
+        vehicle_number: plateNumber.trim(),
+        color: color.trim(),
+      });
+
+      if (response.data.status === 'success') {
+        showFeedback({
+          type: 'success',
+          title: 'Vehicle Updated',
+          message: 'Your vehicle details have been saved successfully.',
+          onPrimary: () => navigation.goBack(),
+        });
+      }
+    } catch (error) {
+      console.log('Error updating vehicle:', error.response?.data || error);
+      showFeedback({
+        type: 'error',
+        title: 'Update Failed',
+        message:
+          error.response?.data?.message ||
+          'Could not update vehicle details. Please try again.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const InputField = ({ label, value, onChangeText, icon, placeholder }) => (
     <View style={styles.inputWrapper}>
@@ -103,8 +188,17 @@ const VehicleDetailsScreen = ({ navigation }) => {
                 <Feather name="arrow-left" size={24} color="#FFF" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Vehicle Details</Text>
-              <TouchableOpacity style={styles.saveBtn} activeOpacity={0.8}>
-                <Text style={styles.saveBtnText}>Update</Text>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                activeOpacity={0.8}
+                onPress={handleUpdate}
+                disabled={saving || loading}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Update</Text>
+                )}
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -194,6 +288,19 @@ const VehicleDetailsScreen = ({ navigation }) => {
         </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      <ThemedFeedbackModal
+        visible={feedback.visible}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+        onClose={closeFeedback}
+        onPrimary={() => {
+          const action = feedback.onPrimary;
+          closeFeedback();
+          action?.();
+        }}
+      />
     </View>
   );
 };
@@ -226,6 +333,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
+    minWidth: 74,
+    alignItems: 'center',
   },
   saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
 

@@ -8,6 +8,20 @@ html {
   scroll-behavior: smooth;
 }
 
+/* ── Global Scroll Reveal Animation ───────────────────────────────────────── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+    transform 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.reveal-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 /* ── Base Shell: Full-height flex column, font & color defaults ──────────────── */
 .landing-shell {
   display: flex;
@@ -429,6 +443,34 @@ a.nav-link {
   display: flex;
   align-items: center;
   gap: 1.5rem;
+}
+
+.footer-bottom-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.legal-links {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.legal-links a {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.legal-links a:hover {
+  color: #08d612;
+}
+
+.legal-separator {
+  color: #475569;
+  font-size: 0.85rem;
 }
 
 .payment-methods {

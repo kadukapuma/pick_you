@@ -1,19 +1,5 @@
 import { router } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import {
-  Animated,
-  Easing,
-  Image,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  Platform,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { Image, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, useWindowDimensions, View } from "react-native";
 
 import FeatureRow from "../../../components/home/FeatureRow";
 import HomeHeader from "../../../components/home/HomeHeader";
@@ -21,70 +7,15 @@ import SavedPlaces from "../../../components/home/SavedPlaces";
 import SearchBar from "../../../components/home/SearchBar";
 import ServiceGridnew from "../../../components/home/serviceGridnew";
 
-// ─── Staggered entrance animation hook ─────────────────────────────────────
-function useEntrance(delay = 0, duration = 520) {
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(22)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.timing(translateY, {
-        toValue: 0,
-        duration,
-        delay,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return { opacity, transform: [{ translateY }] };
-}
-
-// ─── Map scale-in animation hook ────────────────────────────────────────────
-function useMapEntrance() {
-  const scale = useRef(new Animated.Value(1.08)).current;
-  const opacity = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(opacity, {
-        toValue: 1,
-        duration: 700,
-        delay: 80,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(scale, {
-        toValue: 1,
-        duration: 900,
-        delay: 80,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  return { opacity, transform: [{ scale }] };
-}
-
 export default function HomeScreen() {
   const { height, width } = useWindowDimensions();
 
-  // ── Responsive breakpoints ──────────────────────────────────────────────
   const isSmallDevice = width < 370;
   const isShortScreen = height < 760;
   const isVeryShortScreen = height < 690;
 
   const horizontalPadding = isSmallDevice ? 14 : 18;
-  const sectionGap = isVeryShortScreen ? 10 : isShortScreen ? 12 : 16;
+  const sectionGap = isVeryShortScreen ? 12 : isShortScreen ? 16 : 20;
 
   const headerTopPadding =
     Platform.OS === "ios"
@@ -93,76 +24,11 @@ export default function HomeScreen() {
         : 60
       : (StatusBar.currentHeight ?? 0) + 14;
 
-  const headerHeight = isShortScreen ? 60 : 68;
-  const heroMapHeight = isVeryShortScreen ? 300 : isShortScreen ? 350 : 410;
+  const headerHeight = 70;
 
-  // ── Scroll state ────────────────────────────────────────────────────────
-  const [headerActive, setHeaderActive] = useState(true);
-  const scrollY = useRef(new Animated.Value(0)).current;
-
-  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-    const offsetY = event.nativeEvent.contentOffset.y;
-    const isAtTop = offsetY <= 2;
-    setHeaderActive((cur) => (cur === isAtTop ? cur : isAtTop));
-    scrollY.setValue(offsetY);
-  };
-
-  // ── Scroll-driven map overlay ───────────────────────────────────────────
-  const mapOverlayOpacity = scrollY.interpolate({
-    inputRange: [0, 120],
-    outputRange: [0, 0.88],
-    extrapolate: "clamp",
-  });
-
-  // ── Parallax on map ─────────────────────────────────────────────────────
-  const mapParallax = scrollY.interpolate({
-    inputRange: [0, heroMapHeight],
-    outputRange: [0, -heroMapHeight * 0.25],
-    extrapolate: "clamp",
-  });
-
-  // ── Hero title scale on scroll ─────────────────────────────────────────
-  const heroScale = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [1, 0.92],
-    extrapolate: "clamp",
-  });
-
-  const heroOpacity = scrollY.interpolate({
-    inputRange: [0, 80],
-    outputRange: [1, 0],
-    extrapolate: "clamp",
-  });
-
-  // ── Entrance animations ─────────────────────────────────────────────────
-  const mapAnim = useMapEntrance();
-  const heroAnim = useEntrance(180, 600);
-  const servicesAnim = useEntrance(300, 540);
-  const searchAnim = useEntrance(400, 540);
-  const featuresAnim = useEntrance(480, 540);
-  const savedAnim = useEntrance(560, 540);
-
-  // ── Header entrance ─────────────────────────────────────────────────────
-  const headerOpacity = useRef(new Animated.Value(0)).current;
-  const headerY = useRef(new Animated.Value(-12)).current;
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 500,
-        delay: 60,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerY, {
-        toValue: 0,
-        duration: 500,
-        delay: 60,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
+  // Map size — responsive, prominent, but won't blow up the row layout
+  const mapWidth = width * 0.55;
+  const mapHeight = height * 0.28;
 
   return (
     <View style={styles.screen}>
@@ -172,123 +38,125 @@ export default function HomeScreen() {
         backgroundColor="transparent"
       />
 
-      {/* ── MAP BACKGROUND ─────────────────────────────────────────────── */}
-      <View style={[styles.mapContainer, { height: heroMapHeight }]}>
-        <Animated.View
-          style={[
-            StyleSheet.absoluteFill,
-            {
-              transform: [{ translateY: mapParallax }],
-              opacity: mapAnim.opacity,
-            },
-          ]}
-        >
-          <Animated.Image
-            source={require("../../../assets/images/map.png")}
-            style={[styles.mapImage, { transform: mapAnim.transform }]}
-          />
-        </Animated.View>
-
-        {/* Scroll-driven white overlay */}
-        <Animated.View
-          style={[styles.mapBlurOverlay, { opacity: mapOverlayOpacity }]}
-        />
-
-        {/* Bottom gradient fade */}
-        <View style={styles.mapBottomFade} />
-      </View>
-
-      {/* ── HEADER ─────────────────────────────────────────────────────── */}
-      <Animated.View
-        pointerEvents={headerActive ? "auto" : "none"}
+      {/* ── FIXED STICKY HEADER ───────────────────────────────────────────── */}
+      <View
         style={[
-          styles.header,
+          styles.headerContainer,
           {
             paddingTop: headerTopPadding,
-            paddingHorizontal: horizontalPadding,
-            zIndex: 20,
-            opacity: headerOpacity,
-            transform: [{ translateY: headerY }],
+            paddingLeft: 0,
+            paddingRight: horizontalPadding,
           },
         ]}
       >
         <HomeHeader compact={isShortScreen} />
-      </Animated.View>
+      </View>
 
       {/* ── SCROLLABLE CONTENT ─────────────────────────────────────────── */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{
-          paddingTop: headerTopPadding + headerHeight + heroMapHeight * 0.42,
+          paddingTop: headerTopPadding + headerHeight,
           paddingBottom: 130,
         }}
         showsVerticalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={handleScroll}
         bounces
       >
-        {/* HERO TEXT */}
-        <Animated.View
-          style={[
-            styles.heroSection,
-            { paddingHorizontal: horizontalPadding },
-            heroAnim,
-            {
-              opacity: Animated.multiply(heroAnim.opacity, heroOpacity),
-              transform: [...heroAnim.transform, { scale: heroScale }],
-            },
-          ]}
-        >
-          <Text style={[styles.heroEyebrow, isSmallDevice && { fontSize: 11 }]}>
-            🇱🇰 Jaffna & beyond
-          </Text>
-          <Text
-            style={[
-              styles.heroTitle,
-              isShortScreen && styles.compactHeroTitle,
-              isVeryShortScreen && styles.smallHeroTitle,
-            ]}
+        <View style={{ paddingHorizontal: horizontalPadding }}>
+
+          
+
+          {/* MAP GRAPHIC & PROMO TEXT */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              marginBottom: 20,
+              marginTop: 18,
+            }}
           >
-            Where do you{"\n"}want to go today?
-          </Text>
-        </Animated.View>
+            {/* Promo Text (Left Side) */}
+            <View style={{ flex: 1.2, paddingRight: 4 }}>
+              <Text style={{ fontSize: 42, fontWeight: "900", color: "#0B3D2E", lineHeight: 42 }}>
+                WHERE
+              </Text>
+              <Text style={{ fontSize: 42, fontWeight: "900", color: "#0B3D2E", lineHeight: 42 }}>
+                TO
+              </Text>
+              <Text style={{ fontSize: 42, fontWeight: "900", color: "#0b9e54", lineHeight: 42 }}>
+                PICK?
+              </Text>
+              <Text style={{ fontSize: 18, color: "#6B7280", lineHeight: 24, marginTop: 16 }}>
+                Book your next{"\n"}
+                <Text style={{ fontWeight: "700", color: "#0b9e54" }}>ride</Text> with us
+              </Text>
+            </View>
 
-        {/* CONTENT CARD */}
-        <View
-          style={[
-            styles.contentCard,
-            {
-              marginTop: sectionGap + 10,
-              paddingHorizontal: horizontalPadding,
-              paddingTop: 26,
-            },
-          ]}
-        >
-          {/* Pill handle */}
-          <View style={styles.cardHandle} />
+            {/* Map Decoration (Right Side - Responsive) */}
+            <View
+              style={{
+                width: mapWidth,
+                height: mapHeight,
+                alignItems: "flex-end",
+                justifyContent: "center",
+              }}
+            >
+              <Image
+                source={require("../../../assets/images/home/map.png")}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  resizeMode: "contain",
+                }}
+              />
+            </View>
+          </View>
 
-          {/* SERVICES */}
-          <Animated.View style={[servicesAnim]}>
-            <ServiceGridnew compact={isShortScreen} />
-          </Animated.View>
-
-          {/* SEARCH */}
-          <Animated.View style={[{ marginTop: sectionGap }, searchAnim]}>
+          {/* SEARCH BAR */}
+          <View style={{ marginBottom: sectionGap + 4 }}>
             <SearchBar
               compact={isShortScreen}
               onPress={() => router.push("/ride-search")}
             />
-          </Animated.View>
+          </View>
 
-          {/* FEATURES */}
-          <Animated.View style={[{ marginTop: sectionGap }, featuresAnim]}>
+          {/* SERVICES GRID */}
+          <View style={{ marginBottom: sectionGap }}>
+            <ServiceGridnew compact={isShortScreen} />
+          </View>
+
+          {/* VIEW MORE SERVICES BUTTON */}
+          <View style={{ alignItems: "center", marginBottom: sectionGap + 12 }}>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              style={{
+                backgroundColor: "#0b9e54",
+                borderRadius: 25,
+                paddingVertical: 12,
+                paddingHorizontal: 36,
+                elevation: 2,
+                shadowColor: "#000",
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
+                shadowOffset: { width: 0, height: 2 },
+              }}
+            >
+              <Text style={{ color: "#FFFFFF", fontWeight: "700", fontSize: 13, letterSpacing: 0.2 }}>
+                VIEW MORE SERVICES
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* FEATURES
+          <View style={{ marginBottom: sectionGap }}>
             <FeatureRow compact={isShortScreen} />
-          </Animated.View>
+          </View> */}
 
           {/* SAVED PLACES */}
-          <Animated.View style={[{ marginTop: sectionGap }, savedAnim]}>
+          <View style={{ marginBottom: sectionGap }}>
             <SavedPlaces compact={isShortScreen} />
-          </Animated.View>
+          </View>
         </View>
       </ScrollView>
     </View>
@@ -300,99 +168,16 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#F4FBFF",
   },
-
-  // ── Map ────────────────────────────────────────────────────────────────
-  mapContainer: {
+  headerContainer: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    overflow: "hidden",
+    zIndex: 999,
+    backgroundColor: "#F4FBFF",
+    paddingBottom: 12,
   },
-
-  mapImage: {
-    width: "100%",
-    height: "100%",
-    resizeMode: "cover",
-  },
-
-  mapBlurOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "#FFFFFF",
-  },
-
-  mapBottomFade: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 160,
-    // Gradient-like fade using rgba layering
-    backgroundColor: "rgba(244,251,255,0.94)",
-  },
-
-  // ── Header ─────────────────────────────────────────────────────────────
-  header: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-  },
-
-  // ── Scroll ─────────────────────────────────────────────────────────────
   scrollView: {
     flex: 1,
-  },
-
-  // ── Hero text ──────────────────────────────────────────────────────────
-  heroSection: {
-    zIndex: 5,
-  },
-
-  heroEyebrow: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#20B768",
-    letterSpacing: 0.4,
-    marginBottom: 6,
-    textTransform: "uppercase",
-  },
-
-  heroTitle: {
-    color: "#111827",
-    fontSize: 30,
-    fontWeight: "800",
-    lineHeight: 36,
-    letterSpacing: -0.5,
-    maxWidth: "92%",
-  },
-
-  compactHeroTitle: {
-    fontSize: 25,
-    lineHeight: 31,
-  },
-
-  smallHeroTitle: {
-    fontSize: 22,
-    lineHeight: 28,
-  },
-
-  // ── Content card ───────────────────────────────────────────────────────
-  contentCard: {
-    flex: 1,
-    backgroundColor: "#F4FBFF",
-    borderTopLeftRadius: 32,
-    borderTopRightRadius: 32,
-    minHeight: 500,
-  },
-
-  cardHandle: {
-    alignSelf: "center",
-    width: 38,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: "#D1E8F5",
-    marginBottom: 20,
-    marginTop: -4,
   },
 });

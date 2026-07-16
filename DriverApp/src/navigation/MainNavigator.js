@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
+import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { View, ActivityIndicator } from "react-native"; // Added View & ActivityIndicator for clean load gating
 
 // --- SCREENS IMPORT ---
 import EditVehicleScreen from "../screens//Main Screen/EditVehicleScreem";
@@ -14,7 +13,6 @@ import VerificationScreen from "../screens/VerificationScreen";
 import DocumentsScreen from "../screens/Main Screen/DocumentsScreen";
 import BankDetailsScreen from "../screens/Main Screen/BankDetailsScreen";
 import DocumentPreviewScreen from "../screens/Main Screen/DocumentPreviewScreen";
-import ComingSoonScreen from "../screens/ComingSoonScreen";
 import RideDetailsScreen from "../screens/Ride/RideDetailsScreen";
 import PickupNavigationScreen from "../screens/Ride/PickupNavigationScreen";
 import ArrivedAtPickupScreen from "../screens/Ride/ArrivedAtPickupScreen";
@@ -23,7 +21,6 @@ import TripCompletedScreen from "../screens/Ride/TripCompletedScreen";
 
 
 import BottomTabs from "./BottomTabs";
-import { fetchMaintenanceMode } from "../services/appSettings";
 
 const Stack = createNativeStackNavigator();
 
@@ -35,57 +32,6 @@ const MainNavigator = ({
   setDriverStatus,
   driver = null,
 }) => {
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
-  const [loadingMaintenanceMode, setLoadingMaintenanceMode] = useState(true); // Gating state
-  const navigationRef = useRef(null);
-  const pollIntervalRef = useRef(null);
-
-  // Function to check maintenance mode dynamically
-  const checkMaintenanceMode = async () => {
-    try {
-      const result = await fetchMaintenanceMode();
-      const newMaintenanceMode = result.maintenanceMode || false;
-      setMaintenanceMode(newMaintenanceMode);
-
-      // If maintenance mode was turned OFF and we're stuck on ComingSoon, move forward immediately
-      if (!newMaintenanceMode && driverStatus?.toLowerCase() === "approved") {
-        navigationRef.current?.navigate("MainTabs");
-      }
-    } catch (error) {
-      console.error('Error checking maintenance mode:', error);
-    }
-  };
-
-  // Check maintenance mode on initial mount before creating navigation hierarchy
-  useEffect(() => {
-    const initializeMaintenanceMode = async () => {
-      try {
-        const result = await fetchMaintenanceMode();
-        setMaintenanceMode(result.maintenanceMode || false);
-      } catch (error) {
-        console.error('Error checking maintenance mode:', error);
-        setMaintenanceMode(false);
-      } finally {
-        setLoadingMaintenanceMode(false); // Clear gate safely
-      }
-    };
-
-    initializeMaintenanceMode();
-  }, []);
-
-  // Poll maintenance mode changes every 5 seconds
-  useEffect(() => {
-    pollIntervalRef.current = setInterval(() => {
-      checkMaintenanceMode();
-    }, 5000);
-
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
-    };
-  }, [driverStatus]);
-
   const handleExitToGetStarted = () => {
     setIsLoggedIn(false);
     setIsNewUser?.(false);
@@ -95,11 +41,6 @@ const MainNavigator = ({
   // Evaluates data completeness to safely direct initial routing paths
   const getInitialRoute = () => {
     const status = driverStatus?.toLowerCase();
-
-    // If maintenance mode is active, lock down approved users to the coming soon screen
-    if (maintenanceMode && status === "approved") {
-      return "ComingSoon";
-    }
 
     if (driver) {
       const profileComplete = !!driver.license_number && !!driver.address;
@@ -117,7 +58,6 @@ const MainNavigator = ({
 
       if (status === "show_approved_screen") return "Verification";
 
-      // FIX HERE: If maintenance is off, return MainTabs directly instead of ComingSoon fallback!
       if (status === "approved") return "MainTabs";
       if (status === "pending" || status === "rejected") return "Verification";
     }
@@ -130,18 +70,8 @@ const MainNavigator = ({
     return "Verification";
   };
 
-  // Prevent routing calculations while we load system maintenance conditions
-  if (loadingMaintenanceMode) {
-    return (
-      <View style={{ flex: 1, backgroundColor: "#0B1220", justifyContent: "center", alignItems: "center" }}>
-        <ActivityIndicator size="large" color="#00A859" />
-      </View>
-    );
-  }
-
   return (
     <Stack.Navigator
-      ref={navigationRef}
       initialRouteName={getInitialRoute()}
       screenOptions={{
         headerShown: false,
@@ -195,18 +125,6 @@ const MainNavigator = ({
         )}
       </Stack.Screen>
 
-      {/* ==================== MAIN CORE APP ==================== */}
-      <Stack.Screen name="ComingSoon">
-        {(props) => (
-          <ComingSoonScreen
-            {...props}
-            setIsLoggedIn={setIsLoggedIn}
-            setIsNewUser={setIsNewUser}
-            setDriverStatus={setDriverStatus}
-          />
-        )}
-      </Stack.Screen>
-
       <Stack.Screen name="MainTabs">
         {(props) => (
           <BottomTabs
@@ -214,8 +132,6 @@ const MainNavigator = ({
             setIsLoggedIn={setIsLoggedIn}
             setIsNewUser={setIsNewUser}
             setDriverStatus={setDriverStatus}
-            maintenanceMode={maintenanceMode}
-            driverStatus={driverStatus}
           />
         )}
       </Stack.Screen>
