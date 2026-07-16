@@ -10,11 +10,11 @@ export default function AuthLayout() {
     >
       <Stack.Screen name="splash" />
       <Stack.Screen name="get-started" />
-      <Stack.Screen name="language" />
+      <Stack.Screen name="select-language" />
       <Stack.Screen name="welcome" />
-      <Stack.Screen name="signin" />
-      <Stack.Screen name="signup" />
-      <Stack.Screen name="verify-number" />
+      <Stack.Screen name="sign-in" />
+      <Stack.Screen name="complete-profile" />
+      <Stack.Screen name="verify-phone" />
     </Stack>
   );
 }

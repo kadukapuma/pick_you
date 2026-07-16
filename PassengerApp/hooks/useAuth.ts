@@ -1,4 +1,4 @@
-import { useAuth as useAuthContext } from "../context/AuthContext";
+import { useAuth as useAuthContext } from "../state/auth/AuthContext";
 
 /**
  * Custom hook to use authentication

@@ -20,8 +20,8 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/vehicles/icon.jpeg",
-        "backgroundImage": "./assets/images/vehicles/icon.jpeg",
+        "foregroundImage": "./assets/images/vehicles/icon.png",
+        "backgroundImage": "./assets/images/vehicles/icon.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,

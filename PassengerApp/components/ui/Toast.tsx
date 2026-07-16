@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import { Animated, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export type ToastType = "success" | "error" | "info";
 
@@ -14,27 +15,51 @@ interface ToastProps {
 
 const CONFIG: Record<
     ToastType,
-    { bg: string; icon: keyof typeof Ionicons.glyphMap; iconColor: string }
+    {
+        title: string;
+        border: string;
+        icon: keyof typeof Ionicons.glyphMap;
+        iconColor: string;
+        iconBg: string;
+    }
 > = {
-    success: { bg: "#1E7D34", icon: "checkmark-circle", iconColor: "#A5D6A7" },
-    error: { bg: "#C62828", icon: "alert-circle", iconColor: "#EF9A9A" },
-    info: { bg: "#1A1A2E", icon: "information-circle", iconColor: "#90CAF9" },
+    success: {
+        title: "Success",
+        border: "rgba(32,183,104,0.28)",
+        icon: "checkmark-circle",
+        iconColor: "#16A34A",
+        iconBg: "#DCFCE7",
+    },
+    error: {
+        title: "Action needed",
+        border: "rgba(245,158,11,0.32)",
+        icon: "alert-circle",
+        iconColor: "#B45309",
+        iconBg: "#FEF3C7",
+    },
+    info: {
+        title: "Notice",
+        border: "rgba(14,165,233,0.26)",
+        icon: "information-circle",
+        iconColor: "#0284C7",
+        iconBg: "#E0F2FE",
+    },
 };
 
 export default function Toast({
     visible,
     message,
     type = "info",
-    duration = 3000,
+    duration = 3600,
     onHide,
 }: ToastProps) {
     const translateY = useRef(new Animated.Value(100)).current;
     const opacity = useRef(new Animated.Value(0)).current;
-    const { bg, icon, iconColor } = CONFIG[type];
+    const insets = useSafeAreaInsets();
+    const config = CONFIG[type];
 
     useEffect(() => {
         if (visible) {
-            // Slide in
             Animated.parallel([
                 Animated.spring(translateY, { toValue: 0, useNativeDriver: true, friction: 8 }),
                 Animated.timing(opacity, { toValue: 1, duration: 220, useNativeDriver: true }),
@@ -60,39 +85,62 @@ export default function Toast({
                 transform: [{ translateY }],
                 opacity,
                 position: "absolute",
-                bottom: 36,
+                bottom: Math.max(insets.bottom + 18, 30),
                 left: 16,
                 right: 16,
                 zIndex: 9999,
-                backgroundColor: bg,
-                borderRadius: 14,
-                paddingHorizontal: 16,
-                paddingVertical: 14,
+                backgroundColor: "#FFFFFF",
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: config.border,
+                paddingHorizontal: 14,
+                paddingVertical: 12,
                 flexDirection: "row",
                 alignItems: "center",
-                shadowColor: "#000",
-                shadowOpacity: 0.25,
-                shadowRadius: 8,
+                shadowColor: "#0F172A",
+                shadowOpacity: 0.16,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 6 },
                 elevation: 8,
             }}
         >
-            <Ionicons name={icon} size={22} color={iconColor} />
-
-            <Text
+            <View
                 style={{
-                    flex: 1,
-                    color: "#FFFFFF",
-                    fontSize: 14,
-                    fontWeight: "500",
-                    marginLeft: 10,
-                    lineHeight: 20,
+                    width: 42,
+                    height: 42,
+                    borderRadius: 21,
+                    backgroundColor: config.iconBg,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginRight: 12,
                 }}
             >
-                {message}
-            </Text>
+                <Ionicons name={config.icon} size={22} color={config.iconColor} />
+            </View>
 
-            <TouchableOpacity onPress={hide} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <Ionicons name="close" size={18} color="rgba(255,255,255,0.7)" />
+            <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={{ color: "#0F172A", fontSize: 13, fontWeight: "900" }}>
+                    {config.title}
+                </Text>
+                <Text style={{ color: "#475569", fontSize: 13, fontWeight: "600", lineHeight: 18, marginTop: 2 }}>
+                    {message}
+                </Text>
+            </View>
+
+            <TouchableOpacity
+                onPress={hide}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={{
+                    width: 34,
+                    height: 34,
+                    borderRadius: 17,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "#F8FAFC",
+                    marginLeft: 10,
+                }}
+            >
+                <Ionicons name="close" size={17} color="#64748B" />
             </TouchableOpacity>
         </Animated.View>
     );
