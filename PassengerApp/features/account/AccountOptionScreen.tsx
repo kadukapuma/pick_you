@@ -55,11 +55,11 @@ export default function AccountOptionScreen({
         </View>
 
         {rows.length > 0 ? (
-          <View style={styles.statsRow}>
+          <View style={styles.summaryList}>
             {rows.slice(0, 3).map((row) => (
-              <View key={row.label} style={styles.statTile}>
-                <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>{row.value}</Text>
-                <Text style={styles.statLabel} numberOfLines={1}>{row.label}</Text>
+              <View key={row.label} style={styles.summaryRow}>
+                <Text style={styles.summaryLabel} numberOfLines={2}>{row.label}</Text>
+                <Text style={styles.summaryValue} numberOfLines={2}>{row.value}</Text>
               </View>
             ))}
           </View>
@@ -121,18 +121,18 @@ const styles = StyleSheet.create({
   heroCopy: { flex: 1, minWidth: 0 },
   title: { color: "#18231F", fontSize: 25, fontWeight: "900" },
   subtitle: { color: "#697872", fontSize: 13, fontWeight: "600", lineHeight: 19, marginTop: 5 },
-  statsRow: { flexDirection: "row", gap: 10, marginBottom: 26 },
-  statTile: { flex: 1, minHeight: 74, borderRadius: 18, backgroundColor: "transparent", borderWidth: 1.2, borderColor: "rgba(153,177,169,0.38)", alignItems: "center", justifyContent: "center", paddingHorizontal: 8 },
-  statValue: { color: "#18231F", fontSize: 17, fontWeight: "900" },
-  statLabel: { color: "#697872", fontSize: 12, fontWeight: "700", marginTop: 6 },
+  summaryList: { gap: 10, marginBottom: 24 },
+  summaryRow: { minHeight: 62, borderRadius: 18, backgroundColor: "rgba(255,255,255,0.42)", borderWidth: 1.2, borderColor: "rgba(153,177,169,0.38)", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, paddingVertical: 11, gap: 16 },
+  summaryLabel: { flex: 1, color: "#697872", fontSize: 13, lineHeight: 18, fontWeight: "700" },
+  summaryValue: { flex: 1, color: "#18231F", fontSize: 14, lineHeight: 19, fontWeight: "900", textAlign: "right" },
   section: { marginBottom: 22 },
   sectionTitle: { color: "#6A7772", fontSize: 13, fontWeight: "800", marginBottom: 10 },
   infoRow: { minHeight: 62, borderRadius: 18, backgroundColor: "transparent", borderWidth: 1.2, borderColor: "rgba(153,177,169,0.38)", flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 16, marginBottom: 10, gap: 12 },
   infoLabel: { color: "#697872", fontSize: 13, fontWeight: "800" },
   infoValue: { flex: 1, color: "#18231F", fontSize: 14, fontWeight: "900", textAlign: "right" },
-  noticeCard: { minHeight: 70, borderRadius: 18, backgroundColor: "transparent", borderWidth: 1.2, borderColor: "rgba(153,177,169,0.38)", flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, marginBottom: 10 },
-  noticeIcon: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
-  noticeTitle: { color: "#28342F", fontSize: 16, fontWeight: "800" },
+  noticeCard: { minHeight: 82, borderRadius: 18, backgroundColor: "transparent", borderWidth: 1.2, borderColor: "rgba(153,177,169,0.38)", flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 16, paddingVertical: 13, marginBottom: 10 },
+  noticeIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(11,158,84,0.08)", alignItems: "center", justifyContent: "center" },
+  noticeTitle: { color: "#28342F", fontSize: 15, lineHeight: 20, fontWeight: "800" },
   noticeText: { color: "#71817B", fontSize: 12, fontWeight: "600", lineHeight: 18, marginTop: 3 },
   actionButton: { marginTop: 8 },
 });

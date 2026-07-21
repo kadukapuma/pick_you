@@ -16,7 +16,7 @@ import {
 const GREEN = "#0B9E54";
 const DARK_GREEN = "#063D31";
 const SCREEN_H = Dimensions.get("window").height;
-const COLLAPSED_H = 330;
+const COLLAPSED_H = 300;
 const EXPANDED_H = SCREEN_H * 0.9;
 const TIP_AMOUNTS = [0, 50, 100, 150, 200];
 
@@ -39,7 +39,9 @@ type DriverOnTheWaySheetProps = {
   rideStatus?: string;
   trackingConnected?: boolean;
   trackingStale?: boolean;
-  onViewMap: () => void;
+  mapFocused?: boolean;
+  onViewMap?: () => void;
+  onShowDetails: () => void;
   onCancelTrip: () => void;
 };
 
@@ -73,13 +75,16 @@ export default function DriverOnTheWaySheet({
   rideStatus,
   trackingConnected = false,
   trackingStale = false,
+  mapFocused = false,
   onViewMap,
+  onShowDetails,
   onCancelTrip,
 }: DriverOnTheWaySheetProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [selectedTip, setSelectedTip] = useState(0);
   const sheetHeight = useRef(new Animated.Value(COLLAPSED_H)).current;
   const translateY = useRef(new Animated.Value(COLLAPSED_H + 40)).current;
+  const sheetGestureStart = useRef(COLLAPSED_H);
 
   const fareText = useMemo(() => formatFare(fareAmount), [fareAmount]);
   const paymentText = useMemo(() => formatPayment(paymentMethod), [paymentMethod]);
@@ -107,23 +112,36 @@ export default function DriverOnTheWaySheet({
   }, [sheetHeight]);
 
   const collapseSheet = useCallback(() => {
-    setIsExpanded(false);
     Animated.spring(sheetHeight, {
       toValue: COLLAPSED_H,
       damping: 22,
       stiffness: 160,
       useNativeDriver: false,
-    }).start();
+    }).start(() => setIsExpanded(false));
   }, [sheetHeight]);
 
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponder: () => false,
       onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dy) > 4,
+      onPanResponderGrant: () => {
+        sheetHeight.stopAnimation((value) => {
+          sheetGestureStart.current = value;
+        });
+      },
+      onPanResponderMove: (_, gesture) => {
+        const nextHeight = sheetGestureStart.current - gesture.dy;
+        sheetHeight.setValue(
+          Math.max(COLLAPSED_H, Math.min(EXPANDED_H, nextHeight)),
+        );
+      },
       onPanResponderRelease: (_, gesture) => {
         if (gesture.dy < -42) expandSheet();
-        if (gesture.dy > 42) collapseSheet();
+        else if (gesture.dy > 42) collapseSheet();
+        else if (sheetGestureStart.current > (COLLAPSED_H + EXPANDED_H) / 2) expandSheet();
+        else collapseSheet();
       },
+      onPanResponderTerminate: collapseSheet,
     }),
   ).current;
 
@@ -140,6 +158,31 @@ export default function DriverOnTheWaySheet({
       params: { rideData: JSON.stringify(rideData) },
     });
   };
+
+  useEffect(() => {
+    if (mapFocused) collapseSheet();
+  }, [collapseSheet, mapFocused]);
+
+  if (mapFocused) {
+    return (
+      <View style={[styles.mapFocusBar, { paddingBottom: bottomInset + 10 }]}>
+        <View style={styles.mapFocusHandle} />
+        <TouchableOpacity activeOpacity={0.88} onPress={onShowDetails} style={styles.mapFocusContent}>
+          <View style={styles.mapFocusIcon}>
+            <Ionicons name="car-sport" size={21} color={GREEN} />
+          </View>
+          <View style={styles.mapFocusTextWrap}>
+            <Text style={styles.mapFocusTitle}>{statusLabel}</Text>
+            <Text style={styles.mapFocusSubtitle}>{eta}</Text>
+          </View>
+          <View style={styles.mapFocusAction}>
+            <Ionicons name="chevron-up" size={18} color={GREEN} />
+            <Text style={styles.mapFocusActionText}>Trip details</Text>
+          </View>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   return (
     <Animated.View
@@ -168,14 +211,6 @@ export default function DriverOnTheWaySheet({
             <Ionicons name="chevron-up" size={14} color={GREEN} />
             <Text style={styles.swipeHintText}>Swipe up for trip details</Text>
           </View>
-          <View style={styles.statusPillsRow}>
-            <StatusPill active label="Accepted" />
-            <StatusPill active={isArrived || isOnTrip} label="Arrived" />
-            <StatusPill active={isOnTrip} label="Started" />
-          </View>
-          <Text style={[styles.liveSyncText, trackingStale && styles.liveSyncTextStale]} numberOfLines={1}>
-            {trackingStale ? "Driver location reconnecting" : trackingConnected ? "Live driver sync active" : "Using backup driver updates"}
-          </Text>
         </TouchableOpacity>
 
         <View {...panResponder.panHandlers} style={styles.driverCard}>
@@ -226,6 +261,17 @@ export default function DriverOnTheWaySheet({
             if (event.nativeEvent.contentOffset.y < -18) collapseSheet();
           }}
         >
+          <View style={styles.expandedStatusCard}>
+            <View style={styles.statusPillsRow}>
+              <StatusPill active label="Accepted" />
+              <StatusPill active={isArrived || isOnTrip} label="Arrived" />
+              <StatusPill active={isOnTrip} label="Started" />
+            </View>
+            <Text style={[styles.liveSyncText, trackingStale && styles.liveSyncTextStale]} numberOfLines={1}>
+              {trackingStale ? "Driver location reconnecting" : trackingConnected ? "Live driver sync active" : "Using backup driver updates"}
+            </Text>
+          </View>
+
           <View style={styles.sectionCard}>
             <View style={styles.locationRow}>
               <View style={styles.routeRail}>
@@ -308,10 +354,12 @@ export default function DriverOnTheWaySheet({
           </View>
 
           <View style={styles.bottomActions}>
-            <TouchableOpacity style={styles.mapButton} activeOpacity={0.88} onPress={onViewMap}>
-              <Ionicons name="map-outline" size={18} color="#FFFFFF" />
-              <Text style={styles.mapButtonText}>View on Map</Text>
-            </TouchableOpacity>
+            {onViewMap ? (
+              <TouchableOpacity style={styles.mapButton} activeOpacity={0.88} onPress={onViewMap}>
+                <Ionicons name="map-outline" size={18} color="#FFFFFF" />
+                <Text style={styles.mapButtonText}>View on Map</Text>
+              </TouchableOpacity>
+            ) : null}
             {!isOnTrip ? (
               <TouchableOpacity style={styles.cancelButton} activeOpacity={0.82} onPress={onCancelTrip}>
                 <Text style={styles.cancelButtonText}>Cancel Trip</Text>
@@ -369,6 +417,26 @@ function Divider() {
 }
 
 const styles = StyleSheet.create({
+  mapFocusBar: {
+    position: "absolute", bottom: 0, left: 0, right: 0,
+    backgroundColor: "#FBFEFD", borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingHorizontal: 16, paddingTop: 9, elevation: 24, shadowColor: "#000",
+    shadowOpacity: 0.14, shadowRadius: 18, shadowOffset: { width: 0, height: -6 },
+  },
+  mapFocusHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: "#D7E2DE",
+    alignSelf: "center", marginBottom: 8,
+  },
+  mapFocusContent: { minHeight: 58, flexDirection: "row", alignItems: "center", gap: 11 },
+  mapFocusIcon: {
+    width: 42, height: 42, borderRadius: 21, backgroundColor: "#EAF8F1",
+    alignItems: "center", justifyContent: "center",
+  },
+  mapFocusTextWrap: { flex: 1 },
+  mapFocusTitle: { color: DARK_GREEN, fontSize: 15, fontWeight: "900" },
+  mapFocusSubtitle: { color: "#64748B", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  mapFocusAction: { flexDirection: "row", alignItems: "center", gap: 4 },
+  mapFocusActionText: { color: GREEN, fontSize: 12, fontWeight: "900" },
   sheet: {
     position: "absolute",
     bottom: 0,
@@ -430,8 +498,8 @@ const styles = StyleSheet.create({
   },
   statusPillsRow: {
     flexDirection: "row",
+    justifyContent: "center",
     gap: 7,
-    marginTop: 8,
   },
   statusPill: {
     height: 24,
@@ -459,6 +527,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     marginTop: 7,
+    textAlign: "center",
   },
   liveSyncTextStale: {
     color: "#B45309",
@@ -559,6 +628,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingTop: 4,
     paddingBottom: 32,
+  },
+  expandedStatusCard: {
+    borderRadius: 18,
+    backgroundColor: "#F1FAF6",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
   },
   sectionCard: {
     borderRadius: 22,

@@ -1,6 +1,8 @@
 import "../global.css";
 import { useEffect, useState } from "react";
+import { View } from "react-native";
 import { Stack } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
 import DelayedLoader from "../components/ui/DelayedLoader";
 import { AuthProvider, useAuth } from "../state/auth/AuthContext";
 import { RideSearchProvider } from "../state/booking/RideBookingContext";
@@ -68,13 +70,17 @@ function RootLayoutContent() {
 
 export default function RootLayout() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <RideSearchProvider>
-          <RootLayoutContent />
-        </RideSearchProvider>
-      </AuthProvider>
-    </ToastProvider>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: "#000000" }}>
+      <View style={{ flex: 1 }}>
+        <ToastProvider>
+          <AuthProvider>
+            <RideSearchProvider>
+              <RootLayoutContent />
+            </RideSearchProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </View>
+    </SafeAreaView>
   );
 }
 

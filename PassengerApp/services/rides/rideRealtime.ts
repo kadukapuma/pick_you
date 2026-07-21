@@ -45,6 +45,7 @@ export async function subscribeToRideLocation(
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let staleTimer: ReturnType<typeof setInterval> | null = null;
   let closed = false;
+  let pusher: any = null;
 
   const emitStatus = (connected: boolean) => {
     onStatus?.({
@@ -55,22 +56,45 @@ export async function subscribeToRideLocation(
 
   const acceptLocation = (raw: DriverLocationUpdate | { data: DriverLocationUpdate }) => {
     const location = "data" in raw ? raw.data : raw;
-    if (!location || Number(location.sequence || 0) < lastSequence) return;
+    const nextSequence = Number(location?.sequence || 0);
+    if (!location || (lastSequence > 0 && nextSequence <= lastSequence)) return;
 
-    lastSequence = Number(location.sequence || Date.now());
-    lastUpdateAt = Date.parse(location.recorded_at) || Date.now();
+    const latitude = Number(location.latitude);
+    const longitude = Number(location.longitude);
+    const recordedAt = Date.parse(location.recorded_at);
+    const accuracy =
+      location.accuracy === null || location.accuracy === undefined
+        ? null
+        : Number(location.accuracy);
+    if (
+      !Number.isFinite(latitude) ||
+      !Number.isFinite(longitude) ||
+      Math.abs(latitude) > 90 ||
+      Math.abs(longitude) > 180
+    ) return;
+
+    lastSequence = nextSequence || Date.now();
+    lastUpdateAt = recordedAt || Date.now();
+
+    const tooOld =
+      Number.isFinite(recordedAt) && Date.now() - recordedAt > STALE_AFTER_MS;
+    const tooInaccurate =
+      accuracy !== null && Number.isFinite(accuracy) && accuracy > 200;
+
+    if (location.is_stale || tooOld || tooInaccurate) {
+      emitStatus(pusher?.connection?.state === "connected");
+      return;
+    }
+
     onLocation({
       ...location,
       ride_id: Number(location.ride_id),
       driver_id: Number(location.driver_id),
-      latitude: Number(location.latitude),
-      longitude: Number(location.longitude),
+      latitude,
+      longitude,
       heading: Number(location.heading || 0),
       speed: Number(location.speed || 0),
-      accuracy:
-        location.accuracy === null || location.accuracy === undefined
-          ? null
-          : Number(location.accuracy),
+      accuracy,
       sequence: Number(location.sequence || Date.now()),
     });
   };
@@ -81,7 +105,7 @@ export async function subscribeToRideLocation(
       { suppressErrorLog: true },
     );
     if (response.success && response.data) acceptLocation(response.data);
-    emitStatus(false);
+    emitStatus(pusher?.connection?.state === "connected");
   };
 
   const startPolling = () => {
@@ -103,7 +127,7 @@ export async function subscribeToRideLocation(
   const appKey = process.env.EXPO_PUBLIC_REVERB_APP_KEY || "app-key";
   const forceTLS = wsScheme === "https" || wsScheme === "wss";
 
-  const pusher = new PusherConstructor(appKey, {
+  pusher = new PusherConstructor(appKey, {
     wsHost,
     wsPort,
     wssPort: wsPort,
@@ -142,10 +166,13 @@ export async function subscribeToRideLocation(
     startPolling();
   });
 
-  staleTimer = setInterval(
-    () => emitStatus(pusher.connection.state === "connected"),
-    2000,
-  );
+  staleTimer = setInterval(() => {
+    const connected = pusher.connection.state === "connected";
+    const stale = !lastUpdateAt || Date.now() - lastUpdateAt > STALE_AFTER_MS;
+    emitStatus(connected);
+    if (stale) startPolling();
+    else if (connected) stopPolling();
+  }, 2000);
   if (pusher.connection.state !== "connected") startPolling();
 
   return () => {
