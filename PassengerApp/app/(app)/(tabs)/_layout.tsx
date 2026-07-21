@@ -1,5 +1,4 @@
 import { Tabs } from "expo-router";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useEffect, useRef } from "react";
 import {
   Animated,
@@ -40,8 +39,7 @@ export default function TabsLayout() {
   const { translateY, opacity } = useTabBarEntrance();
 
   return (
-    <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: "#000000" }}>
-      <View style={{ flex: 1, backgroundColor: "#F4FBFF" }}>
+    <View style={{ flex: 1, backgroundColor: "#F4FBFF" }}>
         {/* Separate Container layer to cleanly handle animation profiles without breaking system shadows */}
         <Animated.View style={[styles.animatedContainer, { opacity, transform: [{ translateY }] }]}>
           <Tabs
@@ -80,8 +78,7 @@ export default function TabsLayout() {
             <Tabs.Screen name="index" options={{ href: null }} />
           </Tabs>
         </Animated.View>
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 

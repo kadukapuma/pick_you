@@ -6,7 +6,6 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  TouchableOpacity,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -223,25 +222,6 @@ export default function HomeScreen() {
             <ServiceGrid compact={isShortScreen} />
           </View>
 
-          {/* View more services */}
-          <View
-            style={{
-              alignItems: "center",
-              marginBottom: sectionGap + 12,
-            }}
-          >
-            <TouchableOpacity activeOpacity={0.7} style={styles.viewMoreButton}>
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.85}
-                style={styles.viewMoreButtonText}
-              >
-                VIEW MORE SERVICES
-              </Text>
-            </TouchableOpacity>
-          </View>
-
           {/* Saved places */}
           <View style={{ marginBottom: sectionGap }}>
             <SavedPlaces compact={isShortScreen} />
@@ -324,31 +304,4 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
-  viewMoreButton: {
-    maxWidth: "100%",
-    minWidth: 190,
-    backgroundColor: "#0B9E54",
-    borderRadius: 25,
-    paddingVertical: 12,
-    paddingHorizontal: 28,
-    alignItems: "center",
-    justifyContent: "center",
-
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-  },
-
-  viewMoreButtonText: {
-    color: "#FFFFFF",
-    fontWeight: "700",
-    fontSize: 13,
-    letterSpacing: 0.2,
-    textAlign: "center",
-  },
 });

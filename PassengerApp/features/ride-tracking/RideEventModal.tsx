@@ -38,17 +38,6 @@ export default function RideEventModal({
           <Text style={styles.title}>{ui.title}</Text>
           <Text style={styles.message}>{ui.message}</Text>
 
-          <View style={styles.progressRow}>
-            {[1, 2, 3, 4, 5].map((step) => (
-              <View
-                key={step}
-                style={[
-                  styles.progressDot,
-                  step <= ui.progress && { backgroundColor: color, borderColor: color },
-                ]}
-              />
-            ))}
-          </View>
 
           <TouchableOpacity
             style={[styles.primaryButton, { backgroundColor: color }]}
@@ -104,21 +93,8 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
   },
-  progressRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 22,
-    marginBottom: 20,
-  },
-  progressDot: {
-    width: 28,
-    height: 6,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: "rgba(153,177,169,0.45)",
-    backgroundColor: "transparent",
-  },
   primaryButton: {
+    marginTop: 16,
     width: "100%",
     height: 52,
     borderRadius: 26,

@@ -11,6 +11,7 @@ type Props = {
   heading?: number;
   size?: number;
   active?: boolean;
+  fixedForward?: boolean;
   onImageReady?: () => void;
 };
 
@@ -19,9 +20,10 @@ export default function VehicleMarker({
   heading = 0,
   size = 42,
   active = false,
+  fixedForward = false,
   onImageReady,
 }: Props) {
-  const rotation = heading - 90;
+  const rotation = (fixedForward ? 0 : heading) - 90;
 
   return (
     <View

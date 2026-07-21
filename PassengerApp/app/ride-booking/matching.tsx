@@ -1,13 +1,16 @@
 import {
   Animated,
+  BackHandler,
+  Dimensions,
   Easing,
+  PanResponder,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,13 +25,27 @@ import {
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import RideMap from "../../features/ride-booking/map/RideMap";
 import DriverOnTheWaySheet from "../../features/ride-tracking/DriverOnTheWaySheet";
-import LiveRideTracker from "../../features/ride-tracking/LiveRideTracker";
+import ActiveRideHeader from "../../features/ride-tracking/ActiveRideHeader";
+import OnTripSheet from "../../features/ride-tracking/OnTripSheet";
+import RideEventModal from "../../features/ride-tracking/RideEventModal";
 import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
-import { getRidePickupCoordinate } from "../../features/ride-support/rideUtils";
+import {
+  getRideDropoffCoordinate,
+  getRidePickupCoordinate,
+} from "../../features/ride-support/rideUtils";
+import type { DirectionsResult } from "../../services/maps/directionsApi";
+import {
+  loadTripStartCoordinate,
+  saveTripStartCoordinate,
+  type RideSessionCoordinate,
+} from "../../services/rides/rideLocationSession";
 
 const GREEN = "#20B768";
 const DARK_GREEN = "#0b9e54";
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+const SEARCH_COLLAPSED_HEIGHT = 350;
+const SEARCH_EXPANDED_HEIGHT = Math.min(SCREEN_HEIGHT * 0.72, 700);
 
 const SEARCH_STEPS = [
   {
@@ -192,6 +209,22 @@ const getVehicleIconName = (value?: string | null) => {
     return "bus" as const;
   return "car-sport-outline" as const;
 };
+const isFreshDriverLocation = (
+  location?: DriverLocationUpdate | null,
+): location is DriverLocationUpdate => {
+  if (
+    !location ||
+    location.is_stale ||
+    !Number.isFinite(location.latitude) ||
+    !Number.isFinite(location.longitude)
+  ) return false;
+
+  const recordedAt = Date.parse(location.recorded_at || "");
+  const isRecent = !Number.isFinite(recordedAt) || Date.now() - recordedAt <= 45_000;
+  const accuracy = Number(location.accuracy);
+  const isAccurate = !Number.isFinite(accuracy) || accuracy <= 200;
+  return isRecent && isAccurate;
+};
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SearchingScreen() {
   const params = useLocalSearchParams();
@@ -201,6 +234,16 @@ export default function SearchingScreen() {
   );
   const [rideData, setRideData] = useState<any>(initialRideData);
   const [searchStepIndex, setSearchStepIndex] = useState(0);
+  const [isMapFocused, setIsMapFocused] = useState(false);
+  const [followAcceptedVehicle, setFollowAcceptedVehicle] = useState(false);
+  const [tripStartCoordinate, setTripStartCoordinate] =
+    useState<RideSessionCoordinate | null>(null);
+  const [activeRouteInfo, setActiveRouteInfo] =
+    useState<DirectionsResult | null>(null);
+  const [eventStatus, setEventStatus] = useState<string | null>(null);
+  const [isSearchSheetExpanded, setIsSearchSheetExpanded] = useState(false);
+  const searchSheetHeight = useRef(new Animated.Value(SEARCH_COLLAPSED_HEIGHT)).current;
+  const searchSheetGestureStart = useRef(SEARCH_COLLAPSED_HEIGHT);
   const [driverLocation, setDriverLocation] =
     useState<DriverLocationUpdate | null>(null);
   const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>({
@@ -208,7 +251,13 @@ export default function SearchingScreen() {
     stale: true,
   });
   const alertShownRef = useRef(false);
-  const startedRedirectRef = useRef(false);
+  const latestDriverLocationRef = useRef<DriverLocationUpdate | null>(null);
+  const capturedTripStartRef = useRef(false);
+  const lastEventStatusRef = useRef(
+    initialRideData?.status
+      ? String(initialRideData.status).toUpperCase()
+      : "REQUESTED",
+  );
   const rideId = Number(rideData?.id || initialRideData?.id || 0);
   const insets = useSafeAreaInsets();
   const {
@@ -223,6 +272,116 @@ export default function SearchingScreen() {
   const rideStatus = String(rideData?.status || "REQUESTED").toUpperCase();
   const isAccepted = ["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus);
   const isCancelled = ["CANCELLED", "CANCELED"].includes(rideStatus);
+  const captureTripStart = useCallback(
+    (location?: DriverLocationUpdate | null) => {
+      if (capturedTripStartRef.current || !isFreshDriverLocation(location)) return;
+      const startedAt = Date.parse(rideData?.started_at || rideData?.startedAt || "" );
+      const recordedAt = Date.parse(location.recorded_at || "" );
+      if (
+        Number.isFinite(startedAt) &&
+        Number.isFinite(recordedAt) &&
+        recordedAt + 5_000 < startedAt
+      ) return;
+      const coordinate = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+      };
+      capturedTripStartRef.current = true;
+      setTripStartCoordinate(coordinate);
+      void saveTripStartCoordinate(rideId, coordinate);
+    },
+    [rideData?.startedAt, rideData?.started_at, rideId],
+  );
+
+  useEffect(() => {
+    if (lastEventStatusRef.current === rideStatus) return;
+    lastEventStatusRef.current = rideStatus;
+    if (["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus)) {
+      setEventStatus(rideStatus);
+    }
+    if (rideStatus === "STARTED") {
+      setFollowAcceptedVehicle(true);
+      setIsMapFocused(false);
+      captureTripStart(latestDriverLocationRef.current);
+
+    }
+  }, [captureTripStart, rideId, rideStatus]);
+
+  useEffect(() => {
+    if (rideStatus === "STARTED") setFollowAcceptedVehicle(true);
+  }, [rideStatus]);
+
+  useEffect(() => {
+    let cancelled = false;
+    capturedTripStartRef.current = false;
+    if (!rideId) return;
+    loadTripStartCoordinate(rideId).then((coordinate) => {
+      if (!cancelled && coordinate && !capturedTripStartRef.current) {
+        setTripStartCoordinate(coordinate);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [rideId]);
+
+  useEffect(() => {
+    if (rideStatus !== "STARTED") return;
+    captureTripStart(driverLocation);
+  }, [captureTripStart, driverLocation, rideStatus]);
+
+  const setSearchSheetPosition = useCallback((expanded: boolean) => {
+    setIsSearchSheetExpanded(expanded);
+    Animated.spring(searchSheetHeight, {
+      toValue: expanded ? SEARCH_EXPANDED_HEIGHT : SEARCH_COLLAPSED_HEIGHT,
+      damping: 24,
+      stiffness: 210,
+      mass: 0.9,
+      useNativeDriver: false,
+    }).start();
+  }, [searchSheetHeight]);
+
+  const searchSheetPanResponder = useMemo(
+    () => PanResponder.create({
+      onMoveShouldSetPanResponder: (_, gesture) =>
+        Math.abs(gesture.dy) > 7 && Math.abs(gesture.dy) > Math.abs(gesture.dx),
+      onPanResponderGrant: () => {
+        searchSheetHeight.stopAnimation();
+        searchSheetGestureStart.current = isSearchSheetExpanded
+          ? SEARCH_EXPANDED_HEIGHT
+          : SEARCH_COLLAPSED_HEIGHT;
+      },
+      onPanResponderMove: (_, gesture) => {
+        const nextHeight = searchSheetGestureStart.current - gesture.dy;
+        searchSheetHeight.setValue(
+          Math.max(
+            SEARCH_COLLAPSED_HEIGHT,
+            Math.min(SEARCH_EXPANDED_HEIGHT, nextHeight),
+          ),
+        );
+      },
+      onPanResponderRelease: (_, gesture) => {
+        if (gesture.dy < -45 || gesture.vy < -0.35) setSearchSheetPosition(true);
+        else if (gesture.dy > 45 || gesture.vy > 0.35) setSearchSheetPosition(false);
+        else setSearchSheetPosition(isSearchSheetExpanded);
+      },
+      onPanResponderTerminate: () => setSearchSheetPosition(isSearchSheetExpanded),
+    }),
+    [isSearchSheetExpanded, searchSheetHeight, setSearchSheetPosition],
+  );
+
+  useEffect(() => {
+    if (!isAccepted && isMapFocused) setIsMapFocused(false);
+  }, [isAccepted, isMapFocused]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (!isMapFocused) return false;
+      setIsMapFocused(false);
+      return true;
+    });
+    return () => subscription.remove();
+  }, [isMapFocused]);
 
   const currentSearchStep = SEARCH_STEPS[searchStepIndex];
   const requestedVehicleType =
@@ -287,12 +446,11 @@ export default function SearchingScreen() {
       const status = String(ride.status || "").toUpperCase();
       setRideData((previous: any) => {
         const merged = mergeRideData(previous, ride);
-        if (status === "STARTED" && !startedRedirectRef.current) {
-          startedRedirectRef.current = true;
+        if (status === "COMPLETED") {
           setTimeout(() => {
             router.replace({
               pathname: "/ride-tracking",
-              params: { rideData: JSON.stringify(merged) },
+              params: { rideData: JSON.stringify(merged), eventStatus: status },
             });
           }, 0);
         }
@@ -313,7 +471,10 @@ export default function SearchingScreen() {
 
     subscribeToRideLocation(
       rideId,
-      setDriverLocation,
+      (location) => {
+        latestDriverLocationRef.current = location;
+        setDriverLocation(location);
+      },
       setTrackingStatus,
       acceptRideUpdate,
     )
@@ -338,27 +499,14 @@ export default function SearchingScreen() {
     };
   }, [rideId, setActiveRide, setIsSearchingForDriver]);
 
-  useEffect(() => {
-    if (rideStatus !== "STARTED" || startedRedirectRef.current || !rideData)
-      return;
-    startedRedirectRef.current = true;
-    router.replace({
-      pathname: "/ride-tracking",
-      params: { rideData: JSON.stringify(rideData) },
-    });
-  }, [rideData, rideStatus]);
-
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleShowDriver = () => {
-    if (!rideData) return;
-    router.replace({
-      pathname: "/ride-tracking",
-      params: { rideData: JSON.stringify(rideData) },
-    });
+    if (!rideData || !isAccepted) return;
+    setIsMapFocused(true);
   };
 
   const handleCancel = async () => {
-    if (!rideId || isAccepted) return;
+    if (!rideId || rideStatus === "STARTED") return;
     router.push({
       pathname: "/ride-booking/cancel-reason",
       params: { rideId: String(rideId) },
@@ -406,30 +554,18 @@ export default function SearchingScreen() {
       { latitude: 6.9271, longitude: 79.8612 },
     [outboundTrip.pickup, rideData],
   );
+  const dropoffCoord = useMemo(
+    () => getRideDropoffCoordinate(rideData) || outboundTrip.dropoff || null,
+    [outboundTrip.dropoff, rideData],
+  );
   const acceptedVehicleLocation = useMemo(() => {
-    if (driverLocation) return driverLocation;
-
-    const latitude = Number(
-      rideData?.driver?.latitude ||
-        rideData?.driver?.current_location?.latitude ||
-        rideData?.driver_latitude,
-    );
-    const longitude = Number(
-      rideData?.driver?.longitude ||
-        rideData?.driver?.current_location?.longitude ||
-        rideData?.driver_longitude,
-    );
-
-    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      return {
-        latitude,
-        longitude,
-        heading: Number(rideData?.driver?.heading || rideData?.driver_heading || 0),
-      };
-    }
-
+    if (
+      driverLocation &&
+      Number.isFinite(driverLocation.latitude) &&
+      Number.isFinite(driverLocation.longitude)
+    ) return driverLocation;
     return null;
-  }, [driverLocation, rideData]);
+  }, [driverLocation]);
   const searchingNearbyVehicles = useMemo(
     () =>
       createMockNearbyVehicles(
@@ -457,8 +593,21 @@ export default function SearchingScreen() {
   const plateNumber = getPlateNumber(rideData);
   const vehicleDesc = getVehicleDesc(rideData);
   const eta = getEta(rideData);
-  const pickupAddress = outboundTrip.pickup?.address || "Pickup Location";
-  const dropoffAddress = outboundTrip.dropoff?.address || "Destination";
+  const pickupAddress =
+    rideData?.pickup_address ||
+    rideData?.pickup?.address ||
+    outboundTrip.pickup?.address ||
+    "Pickup Location";
+  const dropoffAddress =
+    rideData?.drop_address ||
+    rideData?.dropoff_address ||
+    rideData?.dropoff?.address ||
+    outboundTrip.dropoff?.address ||
+    "Destination";
+  const handleRouteInfoChange = useCallback(
+    (route: DirectionsResult | null) => setActiveRouteInfo(route),
+    [],
+  );
 
   // ── Sheet translateY (slides up from bottom) ──────────────────────────────
   // ── Status header color ───────────────────────────────────────────────────
@@ -468,16 +617,6 @@ export default function SearchingScreen() {
       : rideStatus === "STARTED"
         ? "Trip started"
         : "Driver on the way";
-
-  if (rideStatus === "STARTED") {
-    return (
-      <LiveRideTracker
-        rideData={rideData}
-        driverLocation={acceptedVehicleLocation}
-        trackingStatus={trackingStatus}
-      />
-    );
-  }
 
   return (
     <View style={styles.container}>
@@ -493,13 +632,14 @@ export default function SearchingScreen() {
           <RideMap
             style={styles.map}
             location={pickupCoord}
-            destination={
-              rideStatus === "STARTED" ? outboundTrip.dropoff || null : null
-            }
+            destination={rideStatus === "STARTED" ? dropoffCoord : null}
             driverLocation={acceptedVehicleLocation}
             nearbyVehicles={acceptedDriverVehicle}
             rideStatus={rideStatus}
-            followVehicle={!!driverLocation}
+            followVehicle={followAcceptedVehicle && !!acceptedVehicleLocation}
+            onFollowStateChange={setFollowAcceptedVehicle}
+            showFocusControls
+            focusControlsTop={rideStatus === "STARTED" ? 166 : 150}
             showDriverMarker={false}
             vehicleImage={getVehicleMapIcon(
               rideData?.vehicle?.vehicle_type ||
@@ -508,6 +648,16 @@ export default function SearchingScreen() {
                 rideData?.driver?.vehicle?.vehicleType?.name ||
                 rideData?.vehicle_type,
             )}
+            tripStartCoordinate={tripStartCoordinate}
+            includePickupInFocus={rideStatus !== "STARTED"}
+            onRouteInfoChange={handleRouteInfoChange}
+            fitEdgePadding={
+              isMapFocused
+                ? { top: 110, right: 55, bottom: 130, left: 55 }
+                : rideStatus === "STARTED"
+                  ? { top: 170, right: 55, bottom: 225, left: 55 }
+                  : { top: 120, right: 65, bottom: 330, left: 65 }
+            }
           />
         ) : (
           <GoogleRideMap
@@ -543,10 +693,32 @@ export default function SearchingScreen() {
       </View>
 
       {/* ── TOP BAR ───────────────────────────────────────────────────── */}
+      {rideStatus === "STARTED" ? (
+        <ActiveRideHeader
+          title={
+            activeRouteInfo?.durationText
+              ? `${activeRouteInfo.durationText} remaining`
+              : "Trip in progress"
+          }
+          subtitle={`Heading to ${dropoffAddress}`}
+          distanceText={activeRouteInfo?.distanceText}
+          onBack={() => router.replace("/(app)/(tabs)/trips")}
+          onCall={() =>
+            router.push({
+              pathname: "/ride-tracking/contact-driver",
+              params: { rideData: JSON.stringify(rideData) },
+            })
+          }
+        />
+      ) : (
       <View style={[styles.topBar, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity
           style={styles.iconBtn}
           onPress={() => {
+            if (isMapFocused) {
+              setIsMapFocused(false);
+              return;
+            }
             if (isAccepted) {
               router.replace("/(app)/(tabs)/home");
               return;
@@ -556,33 +728,53 @@ export default function SearchingScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.pillBtn}
-          onPress={isAccepted ? handleShowDriver : handleBookAnother}
-        >
-          <Text style={styles.pillBtnText}>
-            {isAccepted ? "View live map" : "Book Another Ride"}
-          </Text>
-        </TouchableOpacity>
+        {!isAccepted && (
+          <TouchableOpacity style={styles.pillBtn} onPress={handleBookAnother}>
+            <Text style={styles.pillBtnText}>Book Another Ride</Text>
+          </TouchableOpacity>
+        )}
         {!isAccepted && !isCancelled && (
           <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
         )}
       </View>
+      )}
 
       {/* ── SEARCHING BOTTOM SHEET (shown when !isAccepted) ──────────── */}
       {!isAccepted && !isCancelled && (
-        <View
-          style={[styles.searchSheet, { paddingBottom: insets.bottom + 26 }]}
+        <Animated.View
+          style={[
+            styles.searchSheet,
+            {
+              height: searchSheetHeight,
+              paddingBottom: 16,
+            },
+          ]}
         >
+          <View {...searchSheetPanResponder.panHandlers} style={styles.searchSheetHandleArea}>
+            <View style={styles.searchSheetHandle} />
+            <View style={styles.searchSheetHintRow}>
+              <Ionicons
+                name={isSearchSheetExpanded ? "chevron-down" : "chevron-up"}
+                size={14}
+                color={GREEN}
+              />
+              <Text style={styles.searchSheetHintText}>
+                {isSearchSheetExpanded ? "Show less" : "More search details"}
+              </Text>
+            </View>
+          </View>
           <View style={styles.sheetTopRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.statusEyebrow}>
                 Ride request #{rideId || "new"}
               </Text>
               <Text style={styles.statusTitle}>{currentSearchStep.title}</Text>
-              <Text style={styles.statusSubtitle}>
+              <Text
+                style={styles.statusSubtitle}
+                numberOfLines={isSearchSheetExpanded ? undefined : 1}
+              >
                 {currentSearchStep.subtitle}
               </Text>
             </View>
@@ -596,18 +788,20 @@ export default function SearchingScreen() {
 
           <ProgressSegments />
 
-          <View style={styles.searchMetaRow}>
-            <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Search radius</Text>
-              <Text style={styles.metaValue}>{currentSearchStep.radius}</Text>
+          {isSearchSheetExpanded && (
+            <View style={styles.searchMetaRow}>
+              <View style={styles.metaCard}>
+                <Text style={styles.metaLabel}>Search radius</Text>
+                <Text style={styles.metaValue}>{currentSearchStep.radius}</Text>
+              </View>
+              <View style={styles.metaCard}>
+                <Text style={styles.metaLabel}>Pickup</Text>
+                <Text style={styles.metaValue} numberOfLines={1}>
+                  {pickupAddress.split(",")[0]}
+                </Text>
+              </View>
             </View>
-            <View style={styles.metaCard}>
-              <Text style={styles.metaLabel}>Pickup</Text>
-              <Text style={styles.metaValue} numberOfLines={1}>
-                {pickupAddress.split(",")[0]}
-              </Text>
-            </View>
-          </View>
+          )}
 
           <View style={styles.selectedVehicleCard}>
             <View style={styles.selectedVehicleIconWrap}>
@@ -625,18 +819,20 @@ export default function SearchingScreen() {
             </View>
           </View>
 
-          <View style={styles.footerRow}>
-            <Text style={styles.footerSub}>{currentSearchStep.footer}</Text>
-            <Text style={styles.footerVehicleText}>
-              {requestedVehicleLabel} drivers only
-            </Text>
-          </View>
-        </View>
+          {isSearchSheetExpanded && (
+            <View style={styles.footerRow}>
+              <Text style={styles.footerSub}>{currentSearchStep.footer}</Text>
+              <Text style={styles.footerVehicleText}>
+                {requestedVehicleLabel} drivers only
+              </Text>
+            </View>
+          )}
+        </Animated.View>
       )}
 
       {isCancelled && (
         <View
-          style={[styles.searchSheet, { paddingBottom: insets.bottom + 26 }]}
+          style={[styles.searchSheet, { paddingBottom: 26 }]}
         >
           <View style={styles.cancelledStateCard}>
             <View style={styles.cancelledIconWrap}>
@@ -660,7 +856,7 @@ export default function SearchingScreen() {
       )}
 
       {/* Driver accepted / on the way sheet */}
-      {isAccepted && (
+      {isAccepted && rideStatus !== "STARTED" && (
         <DriverOnTheWaySheet
           rideData={rideData}
           statusLabel={statusLabel}
@@ -684,14 +880,45 @@ export default function SearchingScreen() {
           durationText={
             rideData?.duration_text || rideData?.durationText || null
           }
-          bottomInset={insets.bottom}
-          onViewMap={handleShowDriver}
+          bottomInset={0}
           trackingConnected={trackingStatus.connected}
           trackingStale={trackingStatus.stale}
+          mapFocused={isMapFocused}
           rideStatus={rideStatus}
           onCancelTrip={handleCancel}
+          onShowDetails={() => setIsMapFocused(false)}
         />
       )}
+      {rideStatus === "STARTED" && (
+        <OnTripSheet
+          destination={dropoffAddress}
+          durationText={activeRouteInfo?.durationText}
+          distanceText={activeRouteInfo?.distanceText}
+          driverName={driverName}
+          plateNumber={plateNumber}
+          connected={trackingStatus.connected}
+          stale={trackingStatus.stale}
+          onSafety={() => router.push("/ride-tracking/safety")}
+          onDriver={() =>
+            router.push({
+              pathname: "/ride-tracking/driver-profile",
+              params: { rideData: JSON.stringify(rideData) },
+            })
+          }
+          onDetails={() =>
+            router.push({
+              pathname: "/ride-details/[rideId]",
+              params: { rideId: String(rideId) },
+            })
+          }
+        />
+      )}
+      <RideEventModal
+        visible={Boolean(eventStatus)}
+        status={eventStatus}
+        onClose={() => setEventStatus(null)}
+        onPrimary={() => setEventStatus(null)}
+      />
     </View>
   );
 }
@@ -780,12 +1007,33 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
-    paddingTop: 24,
+    paddingTop: 8,
     paddingHorizontal: 24,
     elevation: 20,
     shadowColor: "#000",
     shadowOpacity: 0.1,
     shadowRadius: 20,
+  },
+  searchSheetHandleArea: {
+    alignItems: "center",
+    paddingBottom: 7,
+  },
+  searchSheetHandle: {
+    width: 42,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D7E2DE",
+  },
+  searchSheetHintRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 5,
+  },
+  searchSheetHintText: {
+    color: "#64748B",
+    fontSize: 10,
+    fontWeight: "800",
   },
   sheetTopRow: {
     flexDirection: "row",

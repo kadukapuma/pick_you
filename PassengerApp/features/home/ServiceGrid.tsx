@@ -1,5 +1,6 @@
 import React from "react";
 import {
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,22 +22,27 @@ const services = [
     subtitle: "Fast items",
     image: require("../../assets/images/home/bike_opt.png"),
     accent: "#13A875",
+    comingSoonMessage: "Quick and reliable item delivery is on the way.",
   },
   {
     title: "Parcels",
     subtitle: "Send anywhere",
     image: require("../../assets/images/home/truck_opt.png"),
     accent: "#0A7F5A",
+    comingSoonMessage: "You’ll soon be able to send parcels safely anywhere.",
   },
   {
     title: "Find Food",
     subtitle: "Favorite food",
     image: require("../../assets/images/home/food_opt.png"),
     accent: "#16A34A",
+    comingSoonMessage: "Your favorite meals and restaurants are coming soon.",
   },
 ];
 
 export default function ServiceGrid({ compact = false }: { compact?: boolean }) {
+  const [comingSoonService, setComingSoonService] =
+    React.useState<(typeof services)[number] | null>(null);
   const { width } = useWindowDimensions();
   const isNarrow = width < 360;
   const isTablet = width >= 768;
@@ -59,7 +65,12 @@ export default function ServiceGrid({ compact = false }: { compact?: boolean }) 
             },
           ]}
           onPress={() => {
-            if (index === 0) router.push("/ride-booking/pickup-map" as any);
+            if (index === 0) {
+              router.push("/ride-booking/pickup-map" as any);
+              return;
+            }
+
+            setComingSoonService(item);
           }}
         >
           <View style={styles.topRow}>
@@ -104,6 +115,38 @@ export default function ServiceGrid({ compact = false }: { compact?: boolean }) 
           </View>
         </TouchableOpacity>
       ))}
+      <Modal
+        visible={Boolean(comingSoonService)}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setComingSoonService(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalCard}>
+            {comingSoonService ? (
+              <View style={styles.modalImageWrap}>
+                <Image
+                  source={comingSoonService.image}
+                  style={styles.modalImage}
+                  contentFit="contain"
+                />
+              </View>
+            ) : null}
+            <Text style={styles.modalEyebrow}>COMING SOON</Text>
+            <Text style={styles.modalTitle}>{comingSoonService?.title}</Text>
+            <Text style={styles.modalMessage}>
+              {comingSoonService?.comingSoonMessage}
+            </Text>
+            <TouchableOpacity
+              style={styles.modalButton}
+              activeOpacity={0.84}
+              onPress={() => setComingSoonService(null)}
+            >
+              <Text style={styles.modalButtonText}>Got it</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -120,7 +163,7 @@ const styles = StyleSheet.create({
     borderRadius: 13,
     borderWidth: 1,
     borderColor: "rgba(11,143,98,0.12)",
-    shadowColor: "#0B3D2E",
+    shadowColor: "#000000",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.07,
     shadowRadius: 7,
@@ -181,4 +224,59 @@ const styles = StyleSheet.create({
     color: "#68776F",
     fontWeight: "600",
   },
-});
+  modalOverlay: {
+    flex: 1,
+    padding: 24,
+    backgroundColor: "rgba(15, 23, 42, 0.48)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalCard: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 28,
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+    paddingTop: 22,
+    paddingBottom: 20,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(15, 23, 42, 0.08)",
+    elevation: 14,
+    shadowColor: "#000000",
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 10 },
+  },
+  modalImageWrap: { width: 110, height: 82, marginBottom: 8 },
+  modalImage: { width: "100%", height: "100%" },
+  modalEyebrow: {
+    color: "#0B9E54",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 1.2,
+  },
+  modalTitle: {
+    color: "#0F2E23",
+    fontSize: 24,
+    fontWeight: "900",
+    marginTop: 5,
+  },
+  modalMessage: {
+    color: "#64746D",
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 21,
+    textAlign: "center",
+    marginTop: 9,
+  },
+  modalButton: {
+    width: "100%",
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#0B9E54",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 20,
+  },
+  modalButtonText: { color: "#FFFFFF", fontSize: 15, fontWeight: "900" },});
