@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
   header: { minHeight: 76, paddingHorizontal: 16, paddingVertical: 10, flexDirection: "row", alignItems: "center", gap: 12, backgroundColor: rideTheme.bg },
   iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: "#FFFFFF", alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "rgba(15,23,42,0.08)" },
   titleWrap: { flex: 1, minWidth: 0 },
-  title: { flex: 1, color: rideTheme.ink, fontSize: 20, fontWeight: "900" },
+  title: { color: rideTheme.ink, fontSize: 20, lineHeight: 26, fontWeight: "900" },
   subtitle: { color: rideTheme.muted, fontSize: 13, marginTop: 3, lineHeight: 18 },
   headerSpacer: { width: 44, height: 44 },
   scrollContent: { paddingHorizontal: 16 },

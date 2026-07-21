@@ -18,6 +18,7 @@ import {
     subscribeToRideLocation,
     TrackingStatus,
 } from "../../services/rides/rideRealtime";
+import { clearTripStartCoordinate } from "../../services/rides/rideLocationSession";
 
 const mergeRideData = (previous: any, next: any) => ({
     ...(previous || {}),
@@ -37,8 +38,15 @@ export default function LiveTrackerPage() {
     const params = useLocalSearchParams();
     const { resetTrip, setActiveRide, setIsSearchingForDriver } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;
+    const initialEventStatus = Array.isArray(params.eventStatus)
+        ? params.eventStatus[0]
+        : params.eventStatus;
     const [rideData, setRideData] = useState(initialRideData);
     const rideId = Number(rideData?.id || 0);
+    const initialStatus = String(initialRideData?.status || "").toUpperCase();
+    const shouldUseActiveRideMap = ["ACCEPTED", "ARRIVED", "STARTED"].includes(
+        initialStatus,
+    );
 
     const [driverLocation, setDriverLocation] = useState<DriverLocationUpdate | null>(null);
     const [trackingStatus, setTrackingStatus] = useState<TrackingStatus>({
@@ -46,7 +54,9 @@ export default function LiveTrackerPage() {
         stale: true,
     });
     const [showRatingModal, setShowRatingModal] = useState(false);
-    const [eventStatus, setEventStatus] = useState<string | null>(null);
+    const [eventStatus, setEventStatus] = useState<string | null>(
+        initialEventStatus ? String(initialEventStatus).toUpperCase() : null,
+    );
     const [eventPaymentStatus, setEventPaymentStatus] = useState<string | null>(null);
     const [rating, setRating] = useState(5);
     const [review, setReview] = useState("");
@@ -60,7 +70,21 @@ export default function LiveTrackerPage() {
     );
 
     useEffect(() => {
-        if (!rideId) return;
+        if (!shouldUseActiveRideMap || !initialRideData) return;
+        router.replace({
+            pathname: "/ride-booking/matching",
+            params: { rideData: JSON.stringify(initialRideData) },
+        });
+    }, [initialRideData, shouldUseActiveRideMap]);
+
+    useEffect(() => {
+        if (initialStatus === "COMPLETED" && rideId) {
+            void clearTripStartCoordinate(rideId);
+        }
+    }, [initialStatus, rideId]);
+
+    useEffect(() => {
+        if (!rideId || shouldUseActiveRideMap) return;
 
         let unsubscribe: (() => void) | undefined;
         let cancelled = false;
@@ -120,7 +144,15 @@ export default function LiveTrackerPage() {
             cancelled = true;
             unsubscribe?.();
         };
-    }, [rideId, ratingSubmitted, setActiveRide, setIsSearchingForDriver]);
+    }, [rideId, ratingSubmitted, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap]);
+
+    if (shouldUseActiveRideMap) {
+        return (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#F2FBF8" }}>
+                <ActivityIndicator size="large" color="#20B768" />
+            </View>
+        );
+    }
 
     if (!rideData) return null;
 

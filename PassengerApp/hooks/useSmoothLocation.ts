@@ -45,7 +45,7 @@ const bearing = (a: RawLocation, b: RawLocation) => {
 
 type Accepted = RawLocation & SmoothCoordinate & { recordedAt: number; receivedAt: number };
 
-export function useSmoothLocation(raw?: RawLocation | null) {
+export function useSmoothLocation(raw?: RawLocation | null, resetKey?: string | number) {
   const rawLatitude = raw?.latitude;
   const rawLongitude = raw?.longitude;
   const rawHeading = raw?.heading;
@@ -64,6 +64,16 @@ export function useSmoothLocation(raw?: RawLocation | null) {
   useEffect(() => () => {
     if (frame.current != null) cancelAnimationFrame(frame.current);
   }, []);
+
+  useEffect(() => {
+    if (frame.current != null) cancelAnimationFrame(frame.current);
+    frame.current = null;
+    accepted.current = null;
+    displayed.current = null;
+    setLocation(null);
+    setTrackingState("waiting");
+    setLastRejected(null);
+  }, [resetKey]);
 
   useEffect(() => {
     if (rawLatitude == null || rawLongitude == null) return;
@@ -94,6 +104,18 @@ export function useSmoothLocation(raw?: RawLocation | null) {
       setLastRejected(reason);
       setTrackingState("rejected");
     };
+    const snapToSample = () => {
+      const first = {
+        latitude,
+        longitude,
+        heading: Number.isFinite(sample.heading) ? sample.heading : 0,
+      };
+      accepted.current = { ...sample, ...first };
+      displayed.current = first;
+      setLocation(first);
+      setLastRejected(null);
+      setTrackingState("snapped");
+    };
 
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return reject("invalid-coordinate");
     if (rawRecordedAt && now - sample.recordedAt > 30000) return reject("stale");
@@ -102,12 +124,16 @@ export function useSmoothLocation(raw?: RawLocation | null) {
     if (frame.current != null) cancelAnimationFrame(frame.current);
 
     if (!previous || !displayed.current) {
-      const first = { latitude, longitude, heading: Number.isFinite(sample.heading) ? sample.heading : 0 };
-      accepted.current = { ...sample, ...first };
-      displayed.current = first;
-      setLocation(first);
-      setLastRejected(null);
-      setTrackingState("snapped");
+      snapToSample();
+      return;
+    }
+
+    const previousHasSequence =
+      Number.isFinite(Number(previous.sequence)) && Number(previous.sequence) > 0;
+    const sampleHasSequence =
+      Number.isFinite(Number(sample.sequence)) && Number(sample.sequence) > 0;
+    if (!previousHasSequence && sampleHasSequence) {
+      snapToSample();
       return;
     }
 

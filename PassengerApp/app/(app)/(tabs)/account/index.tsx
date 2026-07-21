@@ -120,10 +120,12 @@ export default function AccountMenuScreen() {
                   <Ionicons name={item.icon} size={22} color="#063D31" />
                 </View>
                 <View style={styles.menuTextBlock}>
-                  <Text style={styles.menuTitle}>{item.title}</Text>
+                  <Text style={styles.menuTitle} numberOfLines={1}>{item.title}</Text>
                   <Text style={styles.menuSubtitle} numberOfLines={1}>{item.subtitle}</Text>
                 </View>
-                <Ionicons name="chevron-forward" size={19} color="#9AA9A4" />
+                <View style={styles.chevronWrap}>
+                  <Ionicons name="chevron-forward" size={19} color="#9AA9A4" />
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -191,7 +193,7 @@ const styles = StyleSheet.create({
   section: { marginBottom: 24 },
   sectionTitle: { color: "#6A7772", fontSize: 13, fontWeight: "800", marginBottom: 10 },
   menuItem: {
-    minHeight: 70,
+    height: 72,
     borderRadius: 18,
     backgroundColor: "transparent",
     borderWidth: 1.2,
@@ -199,12 +201,14 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
+    paddingVertical: 10,
     marginBottom: 10,
   },
-  iconWrap: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  menuTextBlock: { flex: 1, minWidth: 0 },
-  menuTitle: { color: "#28342F", fontSize: 16, fontWeight: "800" },
-  menuSubtitle: { color: "#71817B", fontSize: 12, fontWeight: "600", marginTop: 4 },
+  iconWrap: { width: 40, height: 40, borderRadius: 20, backgroundColor: "rgba(11,158,84,0.08)", alignItems: "center", justifyContent: "center", marginRight: 14 },
+  menuTextBlock: { flex: 1, minWidth: 0, justifyContent: "center" },
+  menuTitle: { color: "#28342F", fontSize: 15, lineHeight: 20, fontWeight: "800" },
+  menuSubtitle: { color: "#71817B", fontSize: 12, lineHeight: 16, fontWeight: "600", marginTop: 2 },
+  chevronWrap: { width: 28, height: 40, marginLeft: 8, alignItems: "flex-end", justifyContent: "center" },
 });
 
 

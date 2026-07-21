@@ -1,8 +1,11 @@
-import GoogleRideMap from "./GoogleRideMap";
+import DriverStyleRideMap from "./DriverStyleRideMap";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
 import type { EdgePadding } from "react-native-maps";
-import { getCachedDirections_withCache } from "../../../services/maps/directionsApi";
+import {
+  getCachedDirections_withCache,
+  type DirectionsResult,
+} from "../../../services/maps/directionsApi";
 import type { MapCoordinate, NearbyVehicle } from "./vehicleMapTypes";
 
 type Coordinate = MapCoordinate;
@@ -22,7 +25,13 @@ type Props = {
   fitEdgePadding?: EdgePadding;
   routeColor?: string;
   showPickupMarker?: boolean;
+  tripStartCoordinate?: Coordinate | null;
+  pickupLabel?: string;
   dropoffLabel?: string;
+  includePickupInFocus?: boolean;
+  showFocusControls?: boolean;
+  focusControlsTop?: number;
+  onRouteInfoChange?: (route: DirectionsResult | null) => void;
 };
 
 const roundCoordinate = (value?: number) =>
@@ -41,29 +50,41 @@ export default function RideMap({
   location,
   destination,
   driverLocation,
-  nearbyVehicles,
   rideStatus,
-  onMapPress,
   followVehicle = false,
   onFollowStateChange,
   vehicleImage,
-  showDriverMarker = true,
   style,
   fitEdgePadding,
   routeColor = "#20B768",
   showPickupMarker = true,
-  dropoffLabel,
+  tripStartCoordinate,
+  includePickupInFocus = true,
+  showFocusControls = true,
+  focusControlsTop,
+  onRouteInfoChange,
 }: Props) {
   const normalizedStatus = String(rideStatus || "").toUpperCase();
   const isOnTrip = normalizedStatus === "STARTED";
-  const isAtPickup = normalizedStatus === "ARRIVED";
   const activeTarget = isOnTrip && destination ? destination : location;
-  const displayDriverLocation = driverLocation ?? (isOnTrip || isAtPickup ? location : undefined);
-  const activeOrigin = displayDriverLocation ?? location;
+  const displayDriverLocation = driverLocation ?? undefined;
+  const activeOrigin = isOnTrip ? tripStartCoordinate || location : displayDriverLocation ?? location;
   const activeOriginLatitude = activeOrigin.latitude;
   const activeOriginLongitude = activeOrigin.longitude;
   const [routeOrigin, setRouteOrigin] = useState<Coordinate>(activeOrigin);
   const lastRouteAt = useRef(Date.now());
+  const routeSourceKey = displayDriverLocation
+    ? `${displayDriverLocation.ride_id || "ride"}:${displayDriverLocation.driver_id || "driver"}`
+    : "pickup-fallback";
+  const lastRouteSourceKey = useRef(routeSourceKey);
+
+  useEffect(() => {
+    if (lastRouteSourceKey.current === routeSourceKey) return;
+    lastRouteSourceKey.current = routeSourceKey;
+    lastRouteAt.current = Date.now();
+    setRouteOrigin(activeOrigin);
+  }, [activeOrigin, routeSourceKey]);
+
   useEffect(() => {
     const nextOrigin = { latitude: activeOriginLatitude, longitude: activeOriginLongitude };
     const moved = distanceMeters(routeOrigin, nextOrigin);
@@ -110,6 +131,7 @@ export default function RideMap({
         targetLng == null
       ) {
         setRouteCoordinates([]);
+        onRouteInfoChange?.(null);
         return;
       }
 
@@ -123,6 +145,7 @@ export default function RideMap({
       );
 
       if (!cancelled) {
+        onRouteInfoChange?.(directions);
         setRouteCoordinates(
           directions?.polyline?.length
             ? directions.polyline
@@ -136,22 +159,27 @@ export default function RideMap({
     return () => {
       cancelled = true;
     };
-  }, [originLat, originLng, targetLat, targetLng, fallbackRouteCoordinates]);
+  }, [originLat, originLng, targetLat, targetLng, fallbackRouteCoordinates, onRouteInfoChange]);
 
   return (
-    <GoogleRideMap
-      pickup={location}
-      dropoff={destination}
-      driverLocation={displayDriverLocation}
-      nearbyVehicles={nearbyVehicles}
+    <DriverStyleRideMap
+      vehicleLocation={displayDriverLocation}
+      target={activeTarget}
+      targetKind={isOnTrip ? "dropoff" : "pickup"}
+      tripStart={
+        isOnTrip && showPickupMarker
+          ? tripStartCoordinate || location
+          : null
+      }
+      includeTripStartInFocus={includePickupInFocus}
       routeCoordinates={routeCoordinates}
       routeColor={routeColor}
-      pickupColor="#20B768"
-      onMapPress={onMapPress}
-      followVehicle={followVehicle}
-      onFollowStateChange={onFollowStateChange}
       vehicleImage={vehicleImage}
-      showDriverMarker={showDriverMarker}
+      followVehicle={followVehicle}
+      followLookAheadMeters={isOnTrip ? 65 : 45}
+      onFollowStateChange={onFollowStateChange}
+      showFocusControls={showFocusControls}
+      focusControlsTop={focusControlsTop}
       style={style}
       fitEdgePadding={fitEdgePadding}
     />
