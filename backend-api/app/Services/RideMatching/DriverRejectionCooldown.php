@@ -7,50 +7,36 @@ use Illuminate\Support\Facades\Redis;
 class DriverRejectionCooldown
 {
     private const KEY_PREFIX = 'driver:rejection_cooldown:';
+    private const RIDE_KEY_PREFIX = 'driver:rejected_ride:';
 
-    public function record(int $driverId): void
+    public function record(int $driverId, ?int $rideId = null): void
     {
-        $ttl = (int) config('ride.rejection_cooldown_seconds', 300);
-
-        Redis::setex($this->key($driverId), $ttl, '1');
+        // Cooldown feature disabled
     }
 
-    public function isOnCooldown(int $driverId): bool
+    public function isOnCooldown(int $driverId, ?int $rideId = null): bool
     {
-        return (bool) Redis::exists($this->key($driverId));
+        // Cooldown feature disabled
+        return false;
     }
 
     /**
      * @param  array<int>  $driverIds
      * @return array<int>
      */
-    public function filterCooledDown(array $driverIds): array
+    public function filterCooledDown(array $driverIds, ?int $rideId = null): array
     {
-        if ($driverIds === []) {
-            return [];
-        }
-
-        $keys = array_map(fn (int $id) => $this->key($id), $driverIds);
-
-        $exists = Redis::pipeline(function ($pipe) use ($keys) {
-            foreach ($keys as $key) {
-                $pipe->exists($key);
-            }
-        });
-
-        $cooledDown = [];
-
-        foreach ($driverIds as $index => $driverId) {
-            if (! empty($exists[$index])) {
-                $cooledDown[] = $driverId;
-            }
-        }
-
-        return $cooledDown;
+        // Cooldown feature disabled
+        return [];
     }
 
     private function key(int $driverId): string
     {
         return self::KEY_PREFIX . $driverId;
+    }
+
+    private function rideKey(int $driverId, int $rideId): string
+    {
+        return self::RIDE_KEY_PREFIX . $driverId . ':' . $rideId;
     }
 }

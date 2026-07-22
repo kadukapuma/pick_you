@@ -62,14 +62,14 @@ const DEFAULT_FIT_EDGE_PADDING: EdgePadding = {
 };
 
 const isValidCoordinate = (
-  coordinate?: MapCoordinate | null,
+  coordinate?: any,
 ): coordinate is MapCoordinate =>
-  Number.isFinite(coordinate?.latitude) &&
-  Number.isFinite(coordinate?.longitude);
+  Number.isFinite(Number(coordinate?.latitude ?? coordinate?.lat)) &&
+  Number.isFinite(Number(coordinate?.longitude ?? coordinate?.lng));
 
-const toLatLng = (coordinate: MapCoordinate): LatLng => ({
-  latitude: coordinate.latitude,
-  longitude: coordinate.longitude,
+const toLatLng = (coordinate: any): LatLng => ({
+  latitude: Number(coordinate?.latitude ?? coordinate?.lat ?? 0),
+  longitude: Number(coordinate?.longitude ?? coordinate?.lng ?? 0),
 });
 
 const getBearing = (from: LatLng, to: LatLng) => {
@@ -488,8 +488,8 @@ export default function GoogleRideMap({
                 }
                 size={
                   showFocusControls && vehicle.id === displayedNearbyVehicle?.id
-                    ? 76
-                    : 42
+                    ? 46
+                    : 38
                 }
                 active={showFocusControls && vehicle.id === displayedNearbyVehicle?.id}
                 fixedForward={
@@ -511,7 +511,7 @@ export default function GoogleRideMap({
             <VehicleMarker
               source={driverMarkerImage}
               heading={renderedDriverLocation.heading ?? 0}
-              size={showFocusControls ? 76 : 48}
+              size={showFocusControls ? 46 : 40}
               active
               fixedForward={followVehicle}
             />

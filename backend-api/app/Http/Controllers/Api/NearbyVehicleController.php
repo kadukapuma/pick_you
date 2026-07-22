@@ -30,7 +30,7 @@ class NearbyVehicleController extends Controller
         $limit = min(50, max(1, (int) config('ride.match_max_drivers', 50)));
         $pickupPoint = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
         $vehicleTypeClause = $vehicleType ? 'AND LOWER(vt.name) = LOWER(?)' : '';
-        $bindings = [$longitude, $latitude, $longitude, $latitude, $radiusMeters, $staleAfterSeconds];
+        $bindings = [$longitude, $latitude, $longitude, $latitude, $radiusMeters, now()->subSeconds($staleAfterSeconds)];
         if ($vehicleType) {
             $bindings[] = $vehicleType;
         }
@@ -53,7 +53,7 @@ class NearbyVehicleController extends Controller
               AND dl.location_geog IS NOT NULL AND dl.latitude IS NOT NULL AND dl.longitude IS NOT NULL
               AND vt.is_active = true
               AND ST_DWithin(dl.location_geog, {$pickupPoint}, ?)
-              AND COALESCE(dl.recorded_at, dl.updated_at) >= NOW() - (? * INTERVAL '1 second')
+              AND COALESCE(dl.recorded_at, dl.updated_at) >= ?
               {$vehicleTypeClause}
             ORDER BY distance_meters ASC LIMIT ?
         ", $bindings);

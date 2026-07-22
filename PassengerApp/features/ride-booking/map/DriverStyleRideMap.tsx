@@ -53,14 +53,14 @@ const DEFAULT_PADDING: EdgePadding = {
 };
 
 const isValidCoordinate = (
-  coordinate?: MapCoordinate | null,
+  coordinate?: any,
 ): coordinate is MapCoordinate =>
-  Number.isFinite(coordinate?.latitude) &&
-  Number.isFinite(coordinate?.longitude);
+  Number.isFinite(Number(coordinate?.latitude ?? coordinate?.lat)) &&
+  Number.isFinite(Number(coordinate?.longitude ?? coordinate?.lng));
 
-const toLatLng = (coordinate: MapCoordinate): LatLng => ({
-  latitude: coordinate.latitude,
-  longitude: coordinate.longitude,
+const toLatLng = (coordinate: any): LatLng => ({
+  latitude: Number(coordinate?.latitude ?? coordinate?.lat ?? 0),
+  longitude: Number(coordinate?.longitude ?? coordinate?.lng ?? 0),
 });
 
 const getBearing = (from: LatLng, to: LatLng) => {
@@ -285,15 +285,12 @@ export default function DriverStyleRideMap({
   );
 
   useEffect(() => {
-    setTracksVehicleMarkerChanges(true);
+    setTracksVehicleMarkerChanges(Boolean(vehicleMarkerImage));
     if (markerTrackingTimeoutRef.current) {
       clearTimeout(markerTrackingTimeoutRef.current);
+      markerTrackingTimeoutRef.current = null;
     }
-    markerTrackingTimeoutRef.current = setTimeout(
-      () => setTracksVehicleMarkerChanges(false),
-      Platform.OS === "android" ? 700 : 150,
-    );
-  }, [followVehicle, vehicleMarkerImage]);
+  }, [vehicleMarkerImage]);
 
   useEffect(() => {
     return () => {
@@ -466,7 +463,7 @@ export default function DriverStyleRideMap({
             <VehicleMarker
               source={vehicleMarkerImage}
               heading={routeHeading}
-              size={76}
+              size={46}
               active
               fixedForward={followVehicle}
               onImageReady={handleVehicleImageReady}

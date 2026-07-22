@@ -188,7 +188,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         routeColor="#00A859"
         destinationColor="#00A859"
         vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
-        vehicleSize={76}
+        vehicleSize={46}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
         followZoom={16}

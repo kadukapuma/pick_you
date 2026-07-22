@@ -42,7 +42,7 @@ return [
     | for this duration.
     |
     */
-    'rejection_cooldown_seconds' => (int) env('RIDE_REJECTION_COOLDOWN_SECONDS', 300),
+    'rejection_cooldown_seconds' => (int) env('RIDE_REJECTION_COOLDOWN_SECONDS', 15),
 
     /*
     |--------------------------------------------------------------------------

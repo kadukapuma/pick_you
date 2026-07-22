@@ -86,7 +86,7 @@ function DotMarker({ color = "#00A859" }) {
 function VehicleMarker({
   source,
   heading = 0,
-  size = 76,
+  size = 46,
   fixedForward = false,
   onImageReady,
 }) {
@@ -102,7 +102,7 @@ function VehicleMarker({
             {
               width: size,
               height: size,
-              transform: [{ rotate: `${visualHeading - 90}deg` }],
+              transform: [{ rotate: `${visualHeading}deg` }],
             },
           ]}
           resizeMode="contain"
@@ -128,7 +128,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     destinationColor = "#00A859",
     vehicleImage,
     vehicleHeading = 0,
-    vehicleSize = 10,
+    vehicleSize = 46,
     edgePadding,
     style,
     cameraRef,

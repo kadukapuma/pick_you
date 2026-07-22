@@ -20,7 +20,7 @@ class RideMatchingService
      */
     public function startMatching(Ride $ride, float $pickupLat, float $pickupLng, string $vehicleType): bool
     {
-        $drivers = $this->driverMatchingQuery->findNearbyDrivers($pickupLat, $pickupLng, $vehicleType);
+        $drivers = $this->driverMatchingQuery->findNearbyDrivers($pickupLat, $pickupLng, $vehicleType, $ride->id);
 
         if ($drivers->isEmpty()) {
             Log::info("RideMatching: No eligible drivers for Ride {$ride->id} within radius.");
@@ -94,13 +94,14 @@ class RideMatchingService
     {
         $currentDriverId = $this->redis->getCurrentDriver($rideId);
 
-        if ($currentDriverId === null || $currentDriverId !== $driverId) {
+        if ($currentDriverId !== null && $currentDriverId !== $driverId) {
+            Log::warning("RideMatching: Driver {$driverId} rejected Ride {$rideId}, but current driver is {$currentDriverId}.");
             return;
         }
 
-        Log::info("RideMatching: Driver {$driverId} rejected Ride {$rideId}. Applying cooldown.");
+        Log::info("RideMatching: Driver {$driverId} rejected Ride {$rideId}. Applying cooldown and targeting next driver.");
 
-        $this->cooldown->record($driverId);
+        $this->cooldown->record($driverId, $rideId);
         $this->targetNextDriver($rideId);
     }
 
@@ -124,7 +125,7 @@ class RideMatchingService
                 return null;
             }
 
-            if (! $this->cooldown->isOnCooldown($driverId)) {
+            if (! $this->cooldown->isOnCooldown($driverId, $rideId)) {
                 return $driverId;
             }
 

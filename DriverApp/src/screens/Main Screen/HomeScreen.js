@@ -68,7 +68,6 @@ const HomeScreen = () => {
   const [realtimeStatus, setRealtimeStatus] = useState("disconnected");
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
-  const [isRideHandled, setIsRideHandled] = useState(false);
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
   const [driverVehicleType, setDriverVehicleType] = useState(null);
@@ -77,11 +76,7 @@ const HomeScreen = () => {
 
   const toastTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
-  const isRideHandledRef = useRef(false);
-
-  useEffect(() => {
-    isRideHandledRef.current = isRideHandled;
-  }, [isRideHandled]);
+  const handledRideIdRef = useRef(null);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
   const [toast, setToast] = useState({
@@ -111,8 +106,7 @@ const HomeScreen = () => {
 
         // Reset ride handling refs when screen comes into focus
         lastNotifiedRideIdRef.current = null;
-        setIsRideHandled(false);
-        isRideHandledRef.current = false;
+        handledRideIdRef.current = null;
 
         fetchDriverData();
       } catch (err) {
@@ -131,7 +125,7 @@ const HomeScreen = () => {
 
     const rideId = Number(ride.id);
     if (
-      isRideHandledRef.current ||
+      handledRideIdRef.current === rideId ||
       Number(lastNotifiedRideIdRef.current) === rideId
     ) {
       if (__DEV__) {
@@ -148,7 +142,6 @@ const HomeScreen = () => {
     setRideData(ride);
     setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = rideId;
-    setIsRideHandled(false);
 
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     toastTimerRef.current = setTimeout(() => {
@@ -247,7 +240,12 @@ const HomeScreen = () => {
         throw new Error("No driver data returned from server");
       }
 
-      setIsOnline(false);
+      const isAvailable = Boolean(
+        driverObj?.availability === 1 ||
+          driverObj?.availability === true ||
+          driverObj?.availability === "1"
+      );
+      setIsOnline(isAvailable);
       setDriverId(driverObj?.id || null);
       setDriverVehicleType(getActiveVehicleType(driverObj));
       setScreenError(null);
@@ -276,7 +274,7 @@ const HomeScreen = () => {
       setRideData(null);
       setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
-      setIsRideHandled(true);
+      handledRideIdRef.current = rideId;
       navigation.navigate("RideDetails", { ride: rideForNav });
 
       setActiveRideLocationSync(rideId).catch((syncErr) => {
@@ -305,7 +303,7 @@ const HomeScreen = () => {
     setRideData(null);
     setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = null;
-    setIsRideHandled(true); // mark as handled to stop looping
+    handledRideIdRef.current = rideId; // mark as handled to stop looping
 
     try {
       console.log("🔔 Driver rejecting ride request:", rideId);
@@ -403,7 +401,7 @@ const HomeScreen = () => {
                 rideData?.vehicle_type || driverVehicleType,
               )}
               vehicleHeading={mapOrigin.heading ?? 0}
-              vehicleSize={70}
+              vehicleSize={46}
             />
 
             {(isLocationLoading || locationError) && (

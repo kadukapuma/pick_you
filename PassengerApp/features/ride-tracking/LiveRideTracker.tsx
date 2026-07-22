@@ -65,7 +65,16 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
         outboundTrip.dropoff?.address ||
         "Your destination";
     const resolvedDriverLocation = React.useMemo(() => {
-        if (isValidCoordinate(driverLocation)) return driverLocation;
+        if (!driverLocation) return null;
+        const lat = Number(driverLocation.latitude ?? driverLocation.lat);
+        const lng = Number(driverLocation.longitude ?? driverLocation.lng);
+        if (Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+            return {
+                latitude: lat,
+                longitude: lng,
+                heading: Number(driverLocation.heading ?? 0),
+            };
+        }
         return null;
     }, [driverLocation]);
     const [tripStartCoordinate, setTripStartCoordinate] = React.useState<{
