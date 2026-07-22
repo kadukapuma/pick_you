@@ -110,9 +110,9 @@ const createEchoInstance = async () => {
   const wsCluster = process.env.EXPO_PUBLIC_PUSHER_CLUSTER || "mt1";
   const forceTLS = wsScheme === "https" || wsScheme === "wss";
 
-  if (__DEV__ && appKey === "app-key") {
+  if (__DEV__ && (!appKey || appKey.trim() === "")) {
     console.warn(
-      "Reverb app key is still the sample value. Set EXPO_PUBLIC_REVERB_APP_KEY to match the backend.",
+      "Reverb app key is not configured. Set EXPO_PUBLIC_REVERB_APP_KEY to match the backend.",
     );
   }
 

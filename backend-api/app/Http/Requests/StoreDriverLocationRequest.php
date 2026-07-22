@@ -25,7 +25,7 @@ class StoreDriverLocationRequest extends FormRequest
             'recorded_at' => [
                 'nullable',
                 'date',
-                'before_or_equal:now',
+                'before_or_equal:'.now()->addMinutes(5)->toIso8601String(),
                 'after_or_equal:'.now()->subHours(24)->toIso8601String(),
             ],
             'sequence' => ['nullable', 'integer', 'min:0'],
