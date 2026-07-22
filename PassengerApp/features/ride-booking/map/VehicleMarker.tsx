@@ -1,13 +1,13 @@
 import {
   Image,
   type ImageSourcePropType,
-  Platform,
   StyleSheet,
   View,
 } from "react-native";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 
 type Props = {
-  source: ImageSourcePropType;
+  source?: ImageSourcePropType;
   heading?: number;
   size?: number;
   active?: boolean;
@@ -18,60 +18,69 @@ type Props = {
 export default function VehicleMarker({
   source,
   heading = 0,
-  size = 42,
+  size = 46,
   active = false,
   fixedForward = false,
   onImageReady,
 }: Props) {
-  const rotation = (fixedForward ? 0 : heading) - 90;
+  const rotation = fixedForward ? 0 : heading;
+
+  if (source) {
+    return (
+      <View style={[styles.vehicleImageFrame, { width: size, height: size }]}>
+        <Image
+          source={source}
+          resizeMode="contain"
+          style={[
+            styles.vehicleImage,
+            {
+              width: size,
+              height: size,
+              transform: [{ rotate: `${rotation}deg` }],
+            },
+          ]}
+          onLoadEnd={onImageReady}
+        />
+      </View>
+    );
+  }
 
   return (
     <View
       style={[
-        styles.container,
-        active && styles.activeContainer,
-        { width: size + 10, height: size + 10, borderRadius: (size + 10) / 2 },
+        styles.navigationMarker,
+        { transform: [{ rotate: `${rotation}deg` }] },
       ]}
     >
-      <Image
-        source={source}
-        resizeMode="contain"
-        style={[
-          styles.vehicle,
-          {
-            width: size,
-            height: size,
-            transform: [{ rotate: `${rotation}deg` }],
-          },
-        ]}
-        onLoadEnd={onImageReady}
-      />
+      <MaterialCommunityIcons name="navigation" size={22} color="#FFFFFF" />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    alignItems: "center",
+  vehicleImageFrame: {
     justifyContent: "center",
-    backgroundColor: "transparent",
+    alignItems: "center",
   },
-  activeContainer: {
-    backgroundColor: "transparent",
-    borderWidth: 0,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#0B3D2E",
-        shadowOpacity: 0.18,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 3 },
-      },
-      android: { elevation: 4 },
-    }),
+  vehicleImage: {
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
   },
-  vehicle: {
-    tintColor: undefined,
+  navigationMarker: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#00A859",
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
   },
 });
-
-

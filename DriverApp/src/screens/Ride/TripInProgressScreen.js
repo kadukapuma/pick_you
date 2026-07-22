@@ -195,7 +195,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
         routeColor="#2F80ED"
         destinationColor="#EF4444"
         vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
-        vehicleSize={76}
+        vehicleSize={46}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
         followZoom={16}
