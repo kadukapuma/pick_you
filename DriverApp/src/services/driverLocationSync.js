@@ -26,7 +26,7 @@ const buildPayload = async (coords, rideId = activeRideId) => ({
   ride_id: rideId || undefined,
   latitude: coords.latitude,
   longitude: coords.longitude,
-  heading: coords.heading ?? 0,
+  heading: coords.heading >= 0 && coords.heading <= 360 ? coords.heading : 0,
   speed: Math.max(coords.speed ?? 0, 0),
   accuracy: coords.accuracy ?? null,
   recorded_at: new Date().toISOString(),
@@ -43,7 +43,21 @@ const readPendingQueue = async () => {
     await AsyncStorage.removeItem(LEGACY_PENDING_LOCATION_KEY);
   }
 
-  return Array.isArray(queue) ? queue : [];
+  if (!Array.isArray(queue)) return [];
+
+  // Filter out any stale items older than 24 hours (86400000 ms)
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  const validQueue = queue.filter((item) => {
+    if (!item?.recorded_at) return false;
+    const time = new Date(item.recorded_at).getTime();
+    return !isNaN(time) && time >= cutoff;
+  });
+
+  if (validQueue.length !== queue.length) {
+    await writePendingQueue(validQueue);
+  }
+
+  return validQueue;
 };
 
 const writePendingQueue = async (queue) => {
@@ -71,17 +85,48 @@ const publishPayload = async (payload) => {
 
   try {
     const pendingQueue = await readPendingQueue();
-    for (const pendingPayload of pendingQueue) {
-      const pendingResponse = await api.post("/driver-locations", pendingPayload);
-      await handleServerResponse(pendingResponse);
-    }
-    await writePendingQueue([]);
+    const successfulPayloads = [];
 
-    const response = await api.post("/driver-locations", payload);
-    await handleServerResponse(response);
+    for (const pendingPayload of pendingQueue) {
+      try {
+        const pendingResponse = await api.post("/driver-locations", pendingPayload);
+        await handleServerResponse(pendingResponse);
+        successfulPayloads.push(pendingPayload);
+      } catch (err) {
+        if (err.response?.status === 422) {
+          if (__DEV__) {
+            console.warn("Discarding invalid pending driver location:", err.response?.data);
+          }
+          successfulPayloads.push(pendingPayload); // Discard from queue
+        } else {
+          break; // Stop queue processing on connection/server errors
+        }
+      }
+    }
+
+    if (successfulPayloads.length > 0) {
+      const remainingQueue = pendingQueue.filter(p => !successfulPayloads.includes(p));
+      await writePendingQueue(remainingQueue);
+    }
+
+    try {
+      const response = await api.post("/driver-locations", payload);
+      await handleServerResponse(response);
+    } catch (err) {
+      if (err.response?.status === 422) {
+        if (__DEV__) {
+          console.warn("Current driver location payload failed validation:", err.response?.data);
+        }
+        const errors = err.response?.data?.errors;
+        if (errors?.ride_id) {
+          await clearActiveRideLocationSync();
+        }
+      } else {
+        await enqueuePayload(payload);
+      }
+    }
   } catch (error) {
-    await enqueuePayload(payload);
-    if (__DEV__) console.log("driverLocationSync:", error?.message || error);
+    if (__DEV__) console.log("driverLocationSync error:", error?.message || error);
   }
 };
 
