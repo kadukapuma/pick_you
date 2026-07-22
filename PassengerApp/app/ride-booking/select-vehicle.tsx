@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
@@ -23,7 +23,7 @@ import {
 import { useRideSearch, type RideOption } from "../../state/booking/RideBookingContext";
 import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
-import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
+import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { logExpectedError } from "../../services/errors/userMessages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -521,10 +521,7 @@ export default function SelectRideScreen() {
 
   const hasPendingFareSetup = Boolean(directions && _rawVehicles.length > 0 && rideOptions.length === 0);
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
-  const nearbyVehicles = useMemo(
-    () => createMockNearbyVehicles(pickup, selectedRide),
-    [pickup, selectedRide],
-  );
+  const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
 
   return (
     <View style={styles.container}>

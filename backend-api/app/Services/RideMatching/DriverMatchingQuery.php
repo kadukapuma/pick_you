@@ -20,11 +20,15 @@ class DriverMatchingQuery
     {
         $radiusMeters = (float) config('ride.match_radius_km', 10) * 1000;
         $maxDrivers = (int) config('ride.match_max_drivers', 50);
+        $freshWithinSeconds = max(
+            (int) config('location.stale_after_seconds', 20),
+            (int) config('location.snapshot_interval_seconds', 30) + 10,
+        );
 
         // Fetch extra candidates to absorb rejection-cooldown filtering without under-filling the queue.
         $queryLimit = min($maxDrivers * 2, 100);
 
-        $pickupPoint = "ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography";
+        $pickupPoint = 'ST_SetSRID(ST_MakePoint(?, ?), 4326)::geography';
 
         $drivers = DB::select("
             SELECT
@@ -37,12 +41,15 @@ class DriverMatchingQuery
               AND dl.ride_id IS NULL
               AND dl.location_geog IS NOT NULL
               AND ST_DWithin(dl.location_geog, {$pickupPoint}, ?)
+              AND COALESCE(dl.recorded_at, dl.updated_at) >= NOW() - (? * INTERVAL '1 second')
               AND EXISTS (
                   SELECT 1
                   FROM vehicles AS v
                   INNER JOIN vehicle_types AS vt ON v.vehicle_type_id = vt.id
                   WHERE v.driver_id = d.id
                     AND v.is_active = true
+                    AND v.status = 'approved'
+                    AND vt.is_active = true
                     AND vt.name = ?
               )
             ORDER BY distance_meters ASC
@@ -53,6 +60,7 @@ class DriverMatchingQuery
             $pickupLng,
             $pickupLat,
             $radiusMeters,
+            $freshWithinSeconds,
             $vehicleType,
             $queryLimit,
         ]);

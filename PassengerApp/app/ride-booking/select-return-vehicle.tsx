@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import {
   StyleSheet,
   View,
@@ -16,7 +16,7 @@ import {
 } from "../../services/maps/directionsApi";
 import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
-import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
+import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { logExpectedError } from "../../services/errors/userMessages";
 
 interface DBVehicleType {
@@ -166,10 +166,7 @@ export default function SelectRideReturnScreen() {
   const { returnTrip, setReturnRide } = useRideSearch();
   const pickup = returnTrip.pickup;
   const dropoff = returnTrip.dropoff;
-  const nearbyVehicles = useMemo(
-    () => createMockNearbyVehicles(pickup, selectedRide),
-    [pickup, selectedRide],
-  );
+  const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
 
   // Fetch real directions when component loads
   useEffect(() => {

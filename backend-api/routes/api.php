@@ -5,13 +5,14 @@ use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
-use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverAuthController;
+use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverDocumentController;
 use App\Http\Controllers\Api\DriverLocationController;
 use App\Http\Controllers\Api\DriverProfileController;
 use App\Http\Controllers\Api\FareConfigController;
 use App\Http\Controllers\Api\MapsController;
+use App\Http\Controllers\Api\NearbyVehicleController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
@@ -28,9 +29,9 @@ use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\WalletTransactionController;
+use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Services\Auth\AuthPayload;
 
 Route::prefix('driver/auth')->middleware('throttle:auth')->group(function () {
     Route::post('/register', [DriverAuthController::class, 'register']);
@@ -103,6 +104,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/routes', [MapsController::class, 'routes']);
     });
     Route::post('/rides/estimate', [RideController::class, 'estimate'])->middleware('role:passenger');
+    Route::get('/nearby-vehicles', [NearbyVehicleController::class, 'index'])
+        ->middleware(['role:passenger', 'throttle:60,1']);
     Route::post('/rides', [RideController::class, 'store'])->middleware(['role:passenger', 'idempotent']);
     Route::get('/rides/{id}', [RideController::class, 'show']);
     Route::delete('/rides/{id}', [RideController::class, 'destroy'])->middleware('idempotent');

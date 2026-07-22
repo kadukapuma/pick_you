@@ -28,7 +28,7 @@ import DriverOnTheWaySheet from "../../features/ride-tracking/DriverOnTheWayShee
 import ActiveRideHeader from "../../features/ride-tracking/ActiveRideHeader";
 import OnTripSheet from "../../features/ride-tracking/OnTripSheet";
 import RideEventModal from "../../features/ride-tracking/RideEventModal";
-import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
+import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 import {
   getRideDropoffCoordinate,
@@ -241,6 +241,7 @@ export default function SearchingScreen() {
   const [activeRouteInfo, setActiveRouteInfo] =
     useState<DirectionsResult | null>(null);
   const [eventStatus, setEventStatus] = useState<string | null>(null);
+  const terminalRedirectRef = useRef(false);
   const [isSearchSheetExpanded, setIsSearchSheetExpanded] = useState(false);
   const searchSheetHeight = useRef(new Animated.Value(SEARCH_COLLAPSED_HEIGHT)).current;
   const searchSheetGestureStart = useRef(SEARCH_COLLAPSED_HEIGHT);
@@ -270,8 +271,10 @@ export default function SearchingScreen() {
   } = useRideSearch();
 
   const rideStatus = String(rideData?.status || "REQUESTED").toUpperCase();
+  const paymentStatus = String(rideData?.payment?.payment_status || "").toUpperCase();
   const isAccepted = ["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus);
   const isCancelled = ["CANCELLED", "CANCELED"].includes(rideStatus);
+  const isTerminal = rideStatus === "COMPLETED" || paymentStatus === "COMPLETED";
   const captureTripStart = useCallback(
     (location?: DriverLocationUpdate | null) => {
       if (capturedTripStartRef.current || !isFreshDriverLocation(location)) return;
@@ -296,9 +299,6 @@ export default function SearchingScreen() {
   useEffect(() => {
     if (lastEventStatusRef.current === rideStatus) return;
     lastEventStatusRef.current = rideStatus;
-    if (["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus)) {
-      setEventStatus(rideStatus);
-    }
     if (rideStatus === "STARTED") {
       setFollowAcceptedVehicle(true);
       setIsMapFocused(false);
@@ -416,7 +416,7 @@ export default function SearchingScreen() {
   }, [pulseAnim]);
 
   useEffect(() => {
-    if (isAccepted || isCancelled) return;
+    if (isAccepted || isCancelled || isTerminal) return;
     const startedAt = Date.now();
     const timer = setInterval(() => {
       const elapsedSeconds = Math.floor((Date.now() - startedAt) / 1000);
@@ -434,7 +434,7 @@ export default function SearchingScreen() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isAccepted, isCancelled]);
+  }, [isAccepted, isCancelled, isTerminal]);
   // ── Ride polling ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!rideId) return;
@@ -446,11 +446,14 @@ export default function SearchingScreen() {
       const status = String(ride.status || "").toUpperCase();
       setRideData((previous: any) => {
         const merged = mergeRideData(previous, ride);
-        if (status === "COMPLETED") {
+        if (status === "COMPLETED" && !terminalRedirectRef.current) {
+          terminalRedirectRef.current = true;
+          const nextPaymentStatus = String(merged?.payment?.payment_status || "").toUpperCase();
+          const nextEventStatus = nextPaymentStatus === "COMPLETED" ? "PAID" : status;
           setTimeout(() => {
             router.replace({
               pathname: "/ride-tracking",
-              params: { rideData: JSON.stringify(merged), eventStatus: status },
+              params: { rideData: JSON.stringify(merged), eventStatus: nextEventStatus },
             });
           }, 0);
         }
@@ -458,7 +461,7 @@ export default function SearchingScreen() {
       });
       setActiveRide(rideId, status);
       if (
-        ["ACCEPTED", "ARRIVED", "STARTED", "CANCELLED", "CANCELED"].includes(
+        ["ACCEPTED", "ARRIVED", "STARTED", "COMPLETED", "CANCELLED", "CANCELED"].includes(
           status,
         )
       ) {
@@ -566,13 +569,9 @@ export default function SearchingScreen() {
     ) return driverLocation;
     return null;
   }, [driverLocation]);
-  const searchingNearbyVehicles = useMemo(
-    () =>
-      createMockNearbyVehicles(
-        pickupCoord,
-        rideData?.vehicle_type || outboundTrip.selectedRide?.id,
-      ),
-    [pickupCoord, rideData?.vehicle_type, outboundTrip.selectedRide?.id],
+  const searchingNearbyVehicles = useNearbyVehicles(
+    pickupCoord,
+    rideData?.vehicle_type || outboundTrip.selectedRide?.id,
   );
   const acceptedDriverVehicle = useMemo(
     () =>
@@ -668,7 +667,7 @@ export default function SearchingScreen() {
             fitEdgePadding={{ top: 120, right: 80, bottom: 360, left: 80 }}
           />
         )}
-        {!isAccepted && !isCancelled && (
+        {!isAccepted && !isCancelled && !isTerminal && (
           <>
             <Animated.View
               style={[
@@ -728,12 +727,12 @@ export default function SearchingScreen() {
         >
           <Ionicons name="arrow-back" size={24} color="#000" />
         </TouchableOpacity>
-        {!isAccepted && (
+        {!isAccepted && !isTerminal && (
           <TouchableOpacity style={styles.pillBtn} onPress={handleBookAnother}>
             <Text style={styles.pillBtnText}>Book Another Ride</Text>
           </TouchableOpacity>
         )}
-        {!isAccepted && !isCancelled && (
+        {!isAccepted && !isCancelled && !isTerminal && (
           <TouchableOpacity style={styles.cancelBtn} onPress={handleCancel}>
             <Text style={styles.cancelText}>Cancel</Text>
           </TouchableOpacity>
@@ -742,7 +741,7 @@ export default function SearchingScreen() {
       )}
 
       {/* ── SEARCHING BOTTOM SHEET (shown when !isAccepted) ──────────── */}
-      {!isAccepted && !isCancelled && (
+      {!isAccepted && !isCancelled && !isTerminal && (
         <Animated.View
           style={[
             styles.searchSheet,
@@ -1636,3 +1635,4 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
 });
+
