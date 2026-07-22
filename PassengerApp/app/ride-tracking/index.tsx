@@ -44,6 +44,8 @@ export default function LiveTrackerPage() {
     const [rideData, setRideData] = useState(initialRideData);
     const rideId = Number(rideData?.id || 0);
     const initialStatus = String(initialRideData?.status || "").toUpperCase();
+    const initialPaymentStatus = String(initialRideData?.payment?.payment_status || "").toUpperCase();
+    const isInitiallyPaid = initialStatus === "COMPLETED" && initialPaymentStatus === "COMPLETED";
     const shouldUseActiveRideMap = ["ACCEPTED", "ARRIVED", "STARTED"].includes(
         initialStatus,
     );
@@ -53,9 +55,11 @@ export default function LiveTrackerPage() {
         connected: false,
         stale: true,
     });
-    const [showRatingModal, setShowRatingModal] = useState(false);
+    const [showRatingModal, setShowRatingModal] = useState(isInitiallyPaid);
     const [eventStatus, setEventStatus] = useState<string | null>(
-        initialEventStatus ? String(initialEventStatus).toUpperCase() : null,
+        initialEventStatus && !isInitiallyPaid && !["ACCEPTED", "ARRIVED", "STARTED", "PAID"].includes(String(initialEventStatus).toUpperCase())
+            ? String(initialEventStatus).toUpperCase()
+            : null,
     );
     const [eventPaymentStatus, setEventPaymentStatus] = useState<string | null>(null);
     const [rating, setRating] = useState(5);
@@ -102,7 +106,7 @@ export default function LiveTrackerPage() {
             }
             if (status && lastAlertedStatusRef.current !== status) {
                 lastAlertedStatusRef.current = status;
-                if (["ACCEPTED", "ARRIVED", "STARTED", "COMPLETED", "CANCELLED", "CANCELED"].includes(status)) {
+                if (["COMPLETED", "CANCELLED", "CANCELED"].includes(status)) {
                     setEventStatus(status);
                     setEventPaymentStatus(paymentStatus);
                 }
@@ -289,5 +293,8 @@ export default function LiveTrackerPage() {
         </>
     );
 }
+
+
+
 
 

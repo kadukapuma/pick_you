@@ -91,6 +91,7 @@ export default function DriverOnTheWaySheet({
   const normalizedStatus = String(rideStatus || "ACCEPTED").toUpperCase();
   const isOnTrip = normalizedStatus === "STARTED";
   const isArrived = normalizedStatus === "ARRIVED";
+  const secondaryStatusText = isArrived ? "" : eta;
 
   useEffect(() => {
     Animated.timing(translateY, {
@@ -173,7 +174,9 @@ export default function DriverOnTheWaySheet({
           </View>
           <View style={styles.mapFocusTextWrap}>
             <Text style={styles.mapFocusTitle}>{statusLabel}</Text>
-            <Text style={styles.mapFocusSubtitle}>{eta}</Text>
+            {secondaryStatusText ? (
+              <Text style={styles.mapFocusSubtitle}>{secondaryStatusText}</Text>
+            ) : null}
           </View>
           <View style={styles.mapFocusAction}>
             <Ionicons name="chevron-up" size={18} color={GREEN} />
@@ -204,9 +207,11 @@ export default function DriverOnTheWaySheet({
           <Text style={styles.statusLabel} numberOfLines={1}>
             {statusLabel}
           </Text>
-          <Text style={styles.etaText} numberOfLines={1}>
-            {eta}
-          </Text>
+          {secondaryStatusText ? (
+            <Text style={styles.etaText} numberOfLines={1}>
+              {secondaryStatusText}
+            </Text>
+          ) : null}
           <View style={styles.swipeHint}>
             <Ionicons name="chevron-up" size={14} color={GREEN} />
             <Text style={styles.swipeHintText}>Swipe up for trip details</Text>

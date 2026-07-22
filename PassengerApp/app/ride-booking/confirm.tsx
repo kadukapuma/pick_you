@@ -17,7 +17,7 @@ import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
-import { createMockNearbyVehicles } from "../../features/ride-booking/map/mockNearbyVehicles";
+import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 import {
   getFriendlyErrorMessage,
@@ -51,6 +51,10 @@ export default function ConfirmationScreen() {
     setActiveRide,
     paymentMethod,
   } = useRideSearch();
+  const nearbySelectedVehicles = useNearbyVehicles(
+    outboundTrip.pickup,
+    outboundTrip.selectedRide?.id,
+  );
 
   // Bottom sheet animation
   const sheetY = useRef(new Animated.Value(COLLAPSED_OFFSET)).current;
@@ -256,10 +260,7 @@ export default function ConfirmationScreen() {
     outboundTrip.selectedRide.price + (returnTrip.selectedRide?.price || 0);
 
   const totalDistanceText = directions?.distanceText || "Calculating route";
-  const selectedVehicleMarkers = createMockNearbyVehicles(
-    outboundTrip.pickup,
-    outboundTrip.selectedRide?.id,
-  ).slice(0, 1);
+  const selectedVehicleMarkers = nearbySelectedVehicles;
 
   return (
     <View style={styles.container}>
