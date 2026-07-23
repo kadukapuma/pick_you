@@ -864,6 +864,7 @@ export default function SearchingScreen() {
           driverRating={driverRating}
           plateNumber={plateNumber}
           vehicleDesc={vehicleDesc}
+          vehicleType={requestedVehicleType}
           pickupAddress={pickupAddress}
           dropoffAddress={dropoffAddress}
           paymentMethod={paymentMethod}
