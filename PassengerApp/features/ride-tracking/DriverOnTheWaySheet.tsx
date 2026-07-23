@@ -6,12 +6,14 @@ import {
   Dimensions,
   Easing,
   PanResponder,
+  Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const GREEN = "#0B9E54";
 const DARK_GREEN = "#063D31";
@@ -28,6 +30,7 @@ type DriverOnTheWaySheetProps = {
   driverRating: string;
   plateNumber: string;
   vehicleDesc: string;
+  vehicleType?: string | null;
   pickupAddress: string;
   dropoffAddress: string;
   paymentMethod?: string;
@@ -64,6 +67,7 @@ export default function DriverOnTheWaySheet({
   driverRating,
   plateNumber,
   vehicleDesc,
+  vehicleType,
   pickupAddress,
   dropoffAddress,
   paymentMethod = "cash",
@@ -92,6 +96,7 @@ export default function DriverOnTheWaySheet({
   const isOnTrip = normalizedStatus === "STARTED";
   const isArrived = normalizedStatus === "ARRIVED";
   const secondaryStatusText = isArrived ? "" : eta;
+  const vehiclePreviewIcon = useMemo(() => getVehicleMapIcon(vehicleType || vehicleDesc), [vehicleDesc, vehicleType]);
 
   useEffect(() => {
     Animated.timing(translateY, {
@@ -230,7 +235,7 @@ export default function DriverOnTheWaySheet({
           </TouchableOpacity>
 
           <View style={styles.vehiclePreview}>
-            <Ionicons name="car-sport" size={44} color={DARK_GREEN} />
+            <Image source={vehiclePreviewIcon} style={styles.vehiclePreviewImage} resizeMode="contain" />
           </View>
 
           <View style={styles.vehicleInfo}>
@@ -583,13 +588,18 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   vehiclePreview: {
-    width: 62,
-    height: 58,
+    width: 72,
+    height: 62,
     borderRadius: 18,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F0FAF6",
     marginLeft: 4,
+    overflow: "hidden",
+  },
+  vehiclePreviewImage: {
+    width: 58,
+    height: 44,
   },
   vehicleInfo: {
     flex: 1,

@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
 use App\Http\Controllers\Api\PassengerController;
 use App\Http\Controllers\Api\PassengerProfileController;
+use App\Http\Controllers\Api\PassengerRideHistoryController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RatingController;
@@ -107,6 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/nearby-vehicles', [NearbyVehicleController::class, 'index'])
         ->middleware(['role:passenger', 'throttle:60,1']);
     Route::post('/rides', [RideController::class, 'store'])->middleware(['role:passenger', 'idempotent']);
+    Route::get('/rides', [PassengerRideHistoryController::class, 'index'])->middleware('role:passenger');
     Route::get('/rides/{id}', [RideController::class, 'show']);
     Route::delete('/rides/{id}', [RideController::class, 'destroy'])->middleware('idempotent');
     Route::middleware('role:driver')->group(function () {
