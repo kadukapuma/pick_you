@@ -8,5 +8,21 @@ export type PastRide = {
   vehicle?: { brand?: string; model?: string; vehicle_number?: string; vehicle_type?: string };
   payment?: { payment_method?: string };
 };
-type Page = { data: PastRide[]; total: number };
-export const getRideHistory = (status: PastRideStatus) => apiClient.get<Page>(`/rides?status=${status}`);
+
+export type RideHistoryPage = {
+  data: PastRide[];
+  current_page: number;
+  last_page: number;
+  per_page: number;
+  total: number;
+  next_page_url?: string | null;
+};
+
+export const getRideHistory = (
+  status: PastRideStatus,
+  page = 1,
+  perPage = 15,
+) =>
+  apiClient.get<RideHistoryPage>(
+    `/rides?status=${status}&page=${page}&per_page=${perPage}`,
+  );

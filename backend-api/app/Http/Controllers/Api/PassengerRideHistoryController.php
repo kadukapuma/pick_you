@@ -17,14 +17,17 @@ class PassengerRideHistoryController extends Controller
     {
         $data = $request->validate([
             'status' => ['nullable', 'in:COMPLETED,CANCELLED'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ]);
+        $perPage = (int) ($data['per_page'] ?? 15);
 
         $rides = Ride::with(['driver.user', 'vehicle.vehicleType', 'payment'])
             ->where('passenger_id', $request->user()->passenger->id)
             ->when($data['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
             ->whereIn('status', [RideStateMachine::COMPLETED, RideStateMachine::CANCELLED])
             ->latest('updated_at')
-            ->paginate(30);
+            ->paginate($perPage);
 
         return $this->success($rides, 'Ride history retrieved successfully');
     }

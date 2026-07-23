@@ -6,8 +6,10 @@ type RideEventModalProps = {
   visible: boolean;
   status: string | null;
   paymentStatus?: string | null;
+  cancelledBy?: string | null;
   onClose: () => void;
   onPrimary?: () => void;
+  primaryLabel?: string;
 };
 
 const toneColors = {
@@ -22,11 +24,26 @@ export default function RideEventModal({
   visible,
   status,
   paymentStatus,
+  cancelledBy,
   onClose,
   onPrimary,
+  primaryLabel,
 }: RideEventModalProps) {
   const ui = getPassengerRideStatusUI(status, paymentStatus);
   const color = toneColors[ui.tone];
+
+  let title = ui.title;
+  let message = ui.message;
+
+  if (status?.toUpperCase() === "CANCELLED" || status?.toUpperCase() === "CANCELED") {
+    if (cancelledBy === "driver") {
+      title = "Driver Cancelled";
+      message = "Unfortunately, the driver has cancelled the ride.";
+    } else if (cancelledBy === "passenger") {
+      title = "Ride Cancelled";
+      message = "You have cancelled this ride.";
+    }
+  }
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -35,8 +52,8 @@ export default function RideEventModal({
           <View style={[styles.iconWrap, { backgroundColor: `${color}18` }]}>
             <Ionicons name={ui.icon} size={34} color={color} />
           </View>
-          <Text style={styles.title}>{ui.title}</Text>
-          <Text style={styles.message}>{ui.message}</Text>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.message}>{message}</Text>
 
 
           <TouchableOpacity
@@ -45,7 +62,7 @@ export default function RideEventModal({
             onPress={onPrimary || onClose}
           >
             <Text style={styles.primaryText}>
-              {status?.toUpperCase() === "COMPLETED" ? "View fare" : "Continue"}
+              {primaryLabel || (status?.toUpperCase() === "COMPLETED" ? "View fare" : "Continue")}
             </Text>
           </TouchableOpacity>
         </View>

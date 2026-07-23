@@ -1,7 +1,6 @@
-import { Ionicons } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useState } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import DelayedLoader from "../../components/ui/DelayedLoader";
 import RideScreenShell, { RideCard, SecondaryRideButton } from "../../features/ride-support/RideScreenShell";
 import { getDriverName, getFareTotal, getRideStatus, getVehicleDescription, getVehicleNumber, rideTheme, statusTitle } from "../../features/ride-support/rideUtils";
@@ -91,10 +90,6 @@ export default function RideDetailsScreen() {
         <Text style={styles.value}>{getDriverName(ride)}</Text>
         <Text style={styles.muted}>{getVehicleDescription(ride)} - {getVehicleNumber(ride)}</Text>
         {ride.issue ? <Text style={styles.issueText}>{ride.issue}</Text> : null}
-        <TouchableOpacity style={styles.linkRow} onPress={() => router.push({ pathname: "/ride-tracking/driver-profile", params: { rideData: JSON.stringify(ride) } })}>
-          <Ionicons name="person-circle-outline" size={20} color={rideTheme.green} />
-          <Text style={styles.linkText}>View driver profile</Text>
-        </TouchableOpacity>
       </RideCard>
 
       <SecondaryRideButton label="View receipt" icon="receipt-outline" onPress={() => router.push({ pathname: "/ride-details/receipt", params: { rideData: JSON.stringify(ride) } })} />
@@ -122,8 +117,6 @@ const styles = StyleSheet.create({
   value: { color: rideTheme.ink, fontSize: 15, fontWeight: "800", marginTop: 3 },
   muted: { color: rideTheme.muted, fontSize: 13, lineHeight: 19 },
   section: { color: rideTheme.ink, fontWeight: "900", fontSize: 16, marginBottom: 8 },
-  linkRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 14 },
-  linkText: { color: rideTheme.green, fontWeight: "900" },
   metaGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10, marginTop: 16 },
   metaBox: { flexGrow: 1, minWidth: "30%", borderRadius: 14, backgroundColor: "#F3FAF7", borderWidth: 1, borderColor: rideTheme.line, padding: 10 },
   metaLabel: { color: rideTheme.muted, fontSize: 10, fontWeight: "900", textTransform: "uppercase" },

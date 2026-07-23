@@ -1,18 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  BackHandler,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  Dimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import api from "../../services/api";
-
-const { width } = Dimensions.get("window");
 
 const TripCompletedScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -43,6 +41,15 @@ const TripCompletedScreen = ({ navigation, route }) => {
         ? `Rs. ${numericFare.toFixed(2)}`
         : fareAmount;
 
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => true,
+    );
+
+    return () => subscription.remove();
+  }, []);
+
   const handleCashCollected = async () => {
     if (!ride?.id || isProcessingCash) return;
 
@@ -51,9 +58,10 @@ const TripCompletedScreen = ({ navigation, route }) => {
       await api.post(`/payments/${ride.id}`, { payment_method: "cash" });
 
       setTimeout(() => {
-        if (navigation.canGoBack()) {
-          navigation.popToTop();
-        }
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MainTabs" }],
+        });
       }, 2500);
     } catch (error) {
       console.log("Error confirming cash:", error.response?.data || error);

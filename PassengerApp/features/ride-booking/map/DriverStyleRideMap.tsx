@@ -42,8 +42,9 @@ type Props = {
   style?: StyleProp<ViewStyle>;
 };
 
-const CAMERA_UPDATE_INTERVAL_MS = 250;
-const FOLLOW_CAMERA_ANIMATION_MS = 350;
+const CAMERA_UPDATE_INTERVAL_MS = 1000;
+const FOLLOW_CAMERA_ANIMATION_MS = 700;
+const CAMERA_MIN_MOVE_METERS = 6;
 const DEFAULT_DELTA = 0.04;
 const DEFAULT_PADDING: EdgePadding = {
   top: 140,
@@ -62,6 +63,21 @@ const toLatLng = (coordinate: any): LatLng => ({
   latitude: Number(coordinate?.latitude ?? coordinate?.lat ?? 0),
   longitude: Number(coordinate?.longitude ?? coordinate?.lng ?? 0),
 });
+
+const coordinateDistanceMeters = (from?: any, to?: any) => {
+  if (!isValidCoordinate(from) || !isValidCoordinate(to)) return Infinity;
+
+  const start = toLatLng(from);
+  const end = toLatLng(to);
+  const latScale = 111320;
+  const lngScale =
+    latScale * Math.cos(((start.latitude + end.latitude) / 2) * Math.PI / 180);
+
+  return Math.hypot(
+    (end.latitude - start.latitude) * latScale,
+    (end.longitude - start.longitude) * lngScale,
+  );
+};
 
 const getBearing = (from: LatLng, to: LatLng) => {
   const fromLat = (from.latitude * Math.PI) / 180;
@@ -102,34 +118,6 @@ const getLocalRouteHeading = (
   return getBearing(route[fromIndex], route[toIndex]);
 };
 
-const moveCoordinate = (
-  coordinate: MapCoordinate,
-  heading: number,
-  distanceMeters: number,
-): LatLng => {
-  if (distanceMeters <= 0) return toLatLng(coordinate);
-  const earthRadius = 6371000;
-  const angularDistance = distanceMeters / earthRadius;
-  const bearing = (heading * Math.PI) / 180;
-  const latitude = (coordinate.latitude * Math.PI) / 180;
-  const longitude = (coordinate.longitude * Math.PI) / 180;
-  const nextLatitude = Math.asin(
-    Math.sin(latitude) * Math.cos(angularDistance) +
-      Math.cos(latitude) * Math.sin(angularDistance) * Math.cos(bearing),
-  );
-  const nextLongitude =
-    longitude +
-    Math.atan2(
-      Math.sin(bearing) * Math.sin(angularDistance) * Math.cos(latitude),
-      Math.cos(angularDistance) - Math.sin(latitude) * Math.sin(nextLatitude),
-    );
-
-  return {
-    latitude: (nextLatitude * 180) / Math.PI,
-    longitude: (nextLongitude * 180) / Math.PI,
-  };
-};
-
 const useFollowCameraLocation = (
   location: MapCoordinate | null | undefined,
   enabled: boolean,
@@ -138,6 +126,22 @@ const useFollowCameraLocation = (
   const lastUpdateRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestLocationRef = useRef(location);
+  const cameraLocationRef = useRef(location);
+
+  const updateCameraLocation = useCallback((nextLocation: typeof location) => {
+    const previous = cameraLocationRef.current;
+    if (
+      previous === nextLocation ||
+      (previous &&
+        nextLocation &&
+        coordinateDistanceMeters(previous, nextLocation) < CAMERA_MIN_MOVE_METERS)
+    ) {
+      return;
+    }
+
+    cameraLocationRef.current = nextLocation;
+    setCameraLocation(nextLocation);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -150,7 +154,7 @@ const useFollowCameraLocation = (
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       latestLocationRef.current = location;
-      setCameraLocation(location);
+      updateCameraLocation(location);
       return;
     }
 
@@ -159,7 +163,7 @@ const useFollowCameraLocation = (
     const publish = () => {
       lastUpdateRef.current = Date.now();
       timeoutRef.current = null;
-      setCameraLocation(latestLocationRef.current);
+      updateCameraLocation(latestLocationRef.current);
     };
 
     if (elapsed >= CAMERA_UPDATE_INTERVAL_MS) {
@@ -174,7 +178,7 @@ const useFollowCameraLocation = (
         CAMERA_UPDATE_INTERVAL_MS - elapsed,
       );
     }
-  }, [enabled, location]);
+  }, [enabled, location, updateCameraLocation]);
 
   return cameraLocation;
 };
@@ -211,8 +215,6 @@ export default function DriverStyleRideMap({
   vehicleImage,
   followVehicle = true,
   followZoom = 16,
-  followPitch = 45,
-  followLookAheadMeters = 55,
   onFollowStateChange,
   fitEdgePadding = DEFAULT_PADDING,
   focusControlsTop = 170,
@@ -221,6 +223,7 @@ export default function DriverStyleRideMap({
 }: Props) {
   const mapRef = useRef<MapView | null>(null);
   const hasFitInitialBounds = useRef(false);
+  const lastAnimatedCameraRef = useRef<LatLng | null>(null);
   const markerTrackingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [tracksVehicleMarkerChanges, setTracksVehicleMarkerChanges] = useState(true);
   const [isMapReady, setIsMapReady] = useState(false);
@@ -232,7 +235,10 @@ export default function DriverStyleRideMap({
     vehicleLocation,
     locationSourceKey,
   );
-  const renderedVehicleLocation = smoothVehicleLocation ?? vehicleLocation;
+  const renderedVehicleLocation = useMemo(
+    () => smoothVehicleLocation ?? vehicleLocation,
+    [smoothVehicleLocation, vehicleLocation],
+  );
   const cameraVehicleLocation = useFollowCameraLocation(
     renderedVehicleLocation,
     followVehicle,
@@ -263,14 +269,6 @@ export default function DriverStyleRideMap({
     if (localRouteHeading != null) return localRouteHeading;
     return Number.isFinite(liveHeading) ? liveHeading : 0;
   }, [renderedVehicleLocation, routeLine, vehicleLocation?.speed]);
-  const overviewHeading = useMemo(
-    () =>
-      routeLine.length > 1
-        ? getBearing(routeLine[0], routeLine[routeLine.length - 1])
-        : routeHeading,
-    [routeHeading, routeLine],
-  );
-
   const visibleCoordinates = useMemo(
     () =>
       [
@@ -316,24 +314,17 @@ export default function DriverStyleRideMap({
     onFollowStateChange?.(true);
     mapRef.current?.animateCamera(
       {
-        center: moveCoordinate(
-          renderedVehicleLocation,
-          routeHeading,
-          followLookAheadMeters,
-        ),
-        heading: routeHeading,
-        pitch: followPitch,
+        center: toLatLng(renderedVehicleLocation),
+        heading: 0,
+        pitch: 0,
         zoom: followZoom,
       },
       { duration: 600 },
     );
   }, [
-    followPitch,
-    followLookAheadMeters,
     followZoom,
     onFollowStateChange,
     renderedVehicleLocation,
-    routeHeading,
   ]);
 
   const focusFullRoute = useCallback(() => {
@@ -346,11 +337,11 @@ export default function DriverStyleRideMap({
     });
     setTimeout(() => {
       mapRef.current?.animateCamera(
-        { heading: overviewHeading, pitch: 34 },
+        { heading: 0, pitch: 0 },
         { duration: 380 },
       );
     }, 430);
-  }, [fitEdgePadding, onFollowStateChange, overviewHeading, visibleCoordinates]);
+  }, [fitEdgePadding, onFollowStateChange, visibleCoordinates]);
 
   useEffect(() => {
     if (
@@ -369,7 +360,7 @@ export default function DriverStyleRideMap({
       });
       pitchTimeout = setTimeout(() => {
         mapRef.current?.animateCamera(
-          { heading: overviewHeading, pitch: 32 },
+          { heading: 0, pitch: 0 },
           { duration: 340 },
         );
       }, 430);
@@ -379,28 +370,35 @@ export default function DriverStyleRideMap({
       clearTimeout(timeout);
       if (pitchTimeout) clearTimeout(pitchTimeout);
     };
-  }, [fitEdgePadding, followVehicle, hasUserMovedMap, isMapReady, overviewHeading, visibleCoordinates]);
+  }, [fitEdgePadding, followVehicle, hasUserMovedMap, isMapReady, visibleCoordinates]);
 
   useEffect(() => {
     const next = cameraVehicleLocation ?? renderedVehicleLocation;
     if (!followVehicle || !next) return;
+    const center = toLatLng(next);
+    if (
+      lastAnimatedCameraRef.current &&
+      coordinateDistanceMeters(lastAnimatedCameraRef.current, center) <
+        CAMERA_MIN_MOVE_METERS
+    ) {
+      return;
+    }
+    lastAnimatedCameraRef.current = center;
+
     mapRef.current?.animateCamera(
       {
-        center: moveCoordinate(next, routeHeading, followLookAheadMeters),
-        heading: routeHeading,
-        pitch: followPitch,
+        center,
+        heading: 0,
+        pitch: 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
   }, [
     cameraVehicleLocation,
-    followPitch,
-    followLookAheadMeters,
     followVehicle,
     followZoom,
     renderedVehicleLocation,
-    routeHeading,
   ]);
 
   const controlsVisible =
@@ -423,8 +421,8 @@ export default function DriverStyleRideMap({
         showsCompass={false}
         showsMyLocationButton={false}
         showsBuildings
-        pitchEnabled
-        rotateEnabled
+        pitchEnabled={false}
+        rotateEnabled={false}
         userInterfaceStyle="light"
         customMapStyle={PASSENGER_LIGHT_MAP_STYLE}
         onMapReady={() => setIsMapReady(true)}
@@ -473,7 +471,7 @@ export default function DriverStyleRideMap({
       </MapView>
 
       {controlsVisible ? (
-        <View style={[styles.controlsPosition, { top: focusControlsTop }]}> 
+        <View style={[styles.controlsPosition, { top: focusControlsTop }]}>
           <View style={styles.controls}>
             <TouchableOpacity
               accessibilityRole="button"

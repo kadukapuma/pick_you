@@ -39,7 +39,7 @@ class RideController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $ride = Ride::with(['statuses', 'driver', 'vehicle', 'fareConfig', 'payment'])->find($id);
+        $ride = Ride::with(['statuses', 'passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment'])->find($id);
 
         if (! $ride) {
             return $this->error('Ride not found', 404);
@@ -118,6 +118,7 @@ class RideController extends Controller
                     'status' => $ride->status,
                     'vehicle_type' => $ride->fareConfig?->vehicle_type,
                     'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? '')),
+                    'passenger_profile_picture' => $passengerUser?->profile_picture,
                     'pickup_address' => $ride->pickup_address,
                     'pickup_lat' => $ride->pickup_latitude,
                     'pickup_lng' => $ride->pickup_longitude,
@@ -352,6 +353,7 @@ class RideController extends Controller
         }
 
         $this->rideMatching->cleanup($ride->id);
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride accepted successfully');
@@ -392,6 +394,7 @@ class RideController extends Controller
             return $this->error('Ride cannot be started', 409);
         }
 
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride started successfully');
@@ -436,6 +439,7 @@ class RideController extends Controller
             return $this->error('Ride cannot be marked as arrived', 409);
         }
 
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Driver arrived at pickup');
@@ -488,9 +492,57 @@ class RideController extends Controller
             return $this->error('Ride cannot be completed', 409);
         }
 
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride completed successfully');
+    }
+
+    /**
+     * Cancel/Destroy the ride.
+     */
+    /**
+     * Driver or Passenger requests to cancel a ride.
+     */
+    public function cancel(Request $request, $id)
+    {
+        $ride = Ride::find($id);
+
+        if (! $ride || in_array($ride->status, ['COMPLETED', 'CANCELLED'])) {
+            return $this->error('Ride cannot be cancelled', 400);
+        }
+
+        if ($request->user()->cannot('cancel', $ride)) {
+            return $this->error('You are not authorized to cancel this ride', 403);
+        }
+
+        $user = $request->user();
+        $cancelledBy = 'passenger';
+        if ($user->canActAs(\App\Models\User::ROLE_DRIVER) && $user->driver && $ride->driver_id !== null && (int)$user->driver->id === (int)$ride->driver_id) {
+            $cancelledBy = 'driver';
+        }
+
+        $cancelReason = $request->input('cancel_reason') ?? $request->input('cancelReason');
+
+        try {
+            $ride = $this->rideTransition->transition(
+                $ride->id,
+                RideStateMachine::CANCELLED,
+                "Ride was cancelled by {$cancelledBy}.",
+                [
+                    'cancel_reason' => $cancelReason,
+                    'cancelled_by' => $cancelledBy,
+                ]
+            );
+        } catch (DomainException) {
+            return $this->error('Ride cannot be cancelled', 409);
+        }
+
+        $this->rideMatching->cleanup($ride->id);
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
+        event(new RideStatusUpdated($ride));
+
+        return $this->success($ride, 'Ride cancelled successfully');
     }
 
     /**
@@ -508,17 +560,24 @@ class RideController extends Controller
             return $this->error('You are not authorized to cancel this ride', 403);
         }
 
+        $cancelReason = $request->input('cancel_reason') ?? $request->input('cancelReason');
+
         try {
             $ride = $this->rideTransition->transition(
                 $ride->id,
                 RideStateMachine::CANCELLED,
-                'Ride was cancelled.',
+                'Ride was cancelled by passenger.',
+                [
+                    'cancel_reason' => $cancelReason,
+                    'cancelled_by' => 'passenger',
+                ]
             );
         } catch (DomainException) {
             return $this->error('Ride cannot be cancelled', 409);
         }
 
         $this->rideMatching->cleanup($ride->id);
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride cancelled successfully');

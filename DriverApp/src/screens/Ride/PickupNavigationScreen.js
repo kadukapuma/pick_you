@@ -1,8 +1,10 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  BackHandler,
+  Image,
   Modal,
   ScrollView,
   StatusBar,
@@ -12,11 +14,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
+import PassengerCancellationNotice from "../../components/PassengerCancellationNotice";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
+import { clearActiveRideLocationSync } from "../../services/driverLocationSync";
 import { getPickupCoordinate } from "../../utils/rideLocation";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
@@ -27,8 +32,14 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
 
-  const origin = driverCoord ?? DEFAULT_COORD;
-  const destination = pickupCoord ?? origin;
+  const origin = useMemo(
+    () => driverCoord ?? DEFAULT_COORD,
+    [driverCoord],
+  );
+  const destination = useMemo(
+    () => pickupCoord ?? origin,
+    [pickupCoord, origin],
+  );
   const { directions } = useGoogleRoute(origin, destination);
   const [isMarkingArrived, setIsMarkingArrived] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
@@ -50,14 +61,34 @@ const PickupNavigationScreen = ({ navigation, route }) => {
   ];
 
   const customerName = ride?.customerName || "John David";
+  const customerProfilePicture = ride?.customerProfilePicture;
   const pickup = ride?.pickup || "Pickup";
 
-  const routeCoordinates =
-    directions?.polyline?.length > 0
-      ? directions.polyline
-      : pickupCoord
-        ? [origin, pickupCoord]
-        : [origin];
+  const minimizeToHome = useCallback(() => {
+    navigation.navigate("MainTabs");
+    return true;
+  }, [navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        minimizeToHome,
+      );
+
+      return () => subscription.remove();
+    }, [minimizeToHome]),
+  );
+
+  const routeCoordinates = useMemo(
+    () =>
+      directions?.polyline?.length > 0
+        ? directions.polyline
+        : pickupCoord
+          ? [origin, pickupCoord]
+          : [origin],
+    [directions?.polyline, pickupCoord, origin],
+  );
   const mapPadding = useMemo(
     () => ({ top: 140, right: 70, bottom: 360, left: 70 }),
     [],
@@ -83,7 +114,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         console.log("Error marking arrived:", error.response?.data || error);
         alert(
           error.response?.data?.message ||
-            "Failed to update arrival. Please try again.",
+          "Failed to update arrival. Please try again.",
         );
       } finally {
         setIsMarkingArrived(false);
@@ -131,6 +162,8 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         });
       }
 
+      await clearActiveRideLocationSync();
+
       // Close modal
       setShowCancelModal(false);
 
@@ -149,7 +182,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           setOtherReason("");
           setShowOtherInput(false);
           // Navigate to home
-          navigation.navigate("HomeScreen");
+          navigation.navigate("MainTabs");
         }, 3000);
       }, 2500);
     } catch (error) {
@@ -157,7 +190,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       Alert.alert(
         "Error",
         error.response?.data?.message ||
-          "Failed to cancel trip. Please try again.",
+        "Failed to cancel trip. Please try again.",
       );
     } finally {
       setIsCancelling(false);
@@ -232,17 +265,6 @@ const PickupNavigationScreen = ({ navigation, route }) => {
         </View>
       </View>
 
-      {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
-      <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity
-          style={styles.circleBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Feather name="arrow-left" size={22} color="#0F172A" />
-        </TouchableOpacity>
-      </SafeAreaView>
-
       {/* INTERACTIVE ACTIONS ZONE BOTTOM SHEET */}
       <View style={styles.bottomSheetWrapper}>
         <View style={styles.bottomSheetContent}>
@@ -250,7 +272,11 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
           <View style={styles.customerRow}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={26} color="#FFF" />
+              {customerProfilePicture ? (
+                <Image source={{ uri: customerProfilePicture }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={26} color="#FFF" />
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
@@ -434,6 +460,12 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           </View>
         </View>
       </Modal>
+
+      <PassengerCancellationNotice
+        rideId={ride?.id}
+        navigation={navigation}
+        customerName={customerName}
+      />
     </View>
   );
 };
@@ -590,6 +622,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   customerName: {
     fontSize: 20,

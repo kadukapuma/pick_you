@@ -37,6 +37,8 @@ class RideRequestedTargeted implements ShouldBroadcastNow
 
     public string $passenger_name;
 
+    public ?string $passenger_profile_picture;
+
     public string $requested_at;
 
     public int $driver_id;
@@ -57,6 +59,7 @@ class RideRequestedTargeted implements ShouldBroadcastNow
 
         $passengerUser = optional($ride->passenger)->user;
         $this->passenger_name = trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? ''));
+        $this->passenger_profile_picture = $passengerUser?->profile_picture;
 
         $this->requested_at = optional($ride->requested_at)?->toISOString() ?? now()->toISOString();
         $this->driver_id = $driverId;

@@ -25,6 +25,7 @@ import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { logExpectedError } from "../../services/errors/userMessages";
+import { loadRebookDraft } from "../../services/rides/rebookDraft";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -53,6 +54,17 @@ interface RideEstimateResponse {
 const GREEN = "#20B768";
 const GREEN_LIGHT = "#E8F8F0";
 const GREEN_DARK = "#178A50";
+
+const parseLocationParam = (value: unknown) => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== "string") return null;
+
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
 
 const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
   {
@@ -357,7 +369,7 @@ function RideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { tripType, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
+  const { tripType, outboundTrip, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
     useRideSearch();
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
@@ -365,9 +377,33 @@ export default function SelectRideScreen() {
   const [loadingRoute, setLoadingRoute] = useState(true);
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [savedRoute, setSavedRoute] = useState<{
+    pickup: any;
+    destination: any;
+  } | null>(null);
 
-  const pickup = JSON.parse(params.pickup as string);
-  const destination = JSON.parse(params.destination as string);
+  const pickupParam = Array.isArray(params.pickup) ? params.pickup[0] : params.pickup;
+  const destinationParam = Array.isArray(params.destination) ? params.destination[0] : params.destination;
+  const pickupFromParams = React.useMemo(
+    () => parseLocationParam(pickupParam),
+    [pickupParam],
+  );
+  const destinationFromParams = React.useMemo(
+    () => parseLocationParam(destinationParam),
+    [destinationParam],
+  );
+  const pickup = React.useMemo(
+    () => pickupFromParams || outboundTrip.pickup || savedRoute?.pickup || null,
+    [outboundTrip.pickup, pickupFromParams, savedRoute?.pickup],
+  );
+  const destination = React.useMemo(
+    () => destinationFromParams || outboundTrip.dropoff || savedRoute?.destination || null,
+    [destinationFromParams, outboundTrip.dropoff, savedRoute?.destination],
+  );
+  const pickupLatitude = pickup?.latitude;
+  const pickupLongitude = pickup?.longitude;
+  const destinationLatitude = destination?.latitude;
+  const destinationLongitude = destination?.longitude;
 
   // Bottom sheet slide-up entrance
   const sheetY = useRef(new Animated.Value(80)).current;
@@ -393,17 +429,42 @@ export default function SelectRideScreen() {
     animateSheetIn();
   }, [animateSheetIn]);
 
+  useEffect(() => {
+    if (pickup && destination) return;
+    let cancelled = false;
+
+    loadRebookDraft().then((draft) => {
+      if (cancelled || !draft) return;
+      setSavedRoute({ pickup: draft.pickup, destination: draft.destination });
+      setOutboundPickup(draft.pickup);
+      setOutboundDropoff(draft.destination);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [destination, pickup, setOutboundDropoff, setOutboundPickup]);
+
   // Fetch directions
   useEffect(() => {
+    if (
+      !Number.isFinite(Number(pickupLatitude)) ||
+      !Number.isFinite(Number(pickupLongitude)) ||
+      !Number.isFinite(Number(destinationLatitude)) ||
+      !Number.isFinite(Number(destinationLongitude))
+    ) {
+      setLoadingRoute(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       setLoadingRoute(true);
       try {
         const result = await getCachedDirections_withCache(
-          pickup.latitude,
-          pickup.longitude,
-          destination.latitude,
-          destination.longitude,
+          Number(pickupLatitude),
+          Number(pickupLongitude),
+          Number(destinationLatitude),
+          Number(destinationLongitude),
         );
         if (!cancelled) setDirections(result);
       } catch (e) {
@@ -415,7 +476,7 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [destinationLatitude, destinationLongitude, pickupLatitude, pickupLongitude]);
 
   // Fetch vehicles
   useEffect(() => {
@@ -450,7 +511,14 @@ export default function SelectRideScreen() {
 
   // Compute local fares first, then refine with backend estimates in the background.
   useEffect(() => {
-    if (!directions || _rawVehicles.length === 0) return;
+    if (
+      !directions ||
+      _rawVehicles.length === 0 ||
+      !Number.isFinite(Number(pickupLatitude)) ||
+      !Number.isFinite(Number(pickupLongitude)) ||
+      !Number.isFinite(Number(destinationLatitude)) ||
+      !Number.isFinite(Number(destinationLongitude))
+    ) return;
 
     let cancelled = false;
     const fallbackOptions = _rawVehicles.map((vehicle) =>
@@ -472,10 +540,10 @@ export default function SelectRideScreen() {
               "/rides/estimate",
               {
                 vehicle_type: vehicle.name,
-                pickup_lat: pickup.latitude,
-                pickup_lng: pickup.longitude,
-                drop_lat: destination.latitude,
-                drop_lng: destination.longitude,
+                pickup_lat: Number(pickupLatitude),
+                pickup_lng: Number(pickupLongitude),
+                drop_lat: Number(destinationLatitude),
+                drop_lng: Number(destinationLongitude),
               },
             );
 
@@ -504,9 +572,9 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, [destination.latitude, destination.longitude, directions, pickup.latitude, pickup.longitude, _rawVehicles]);
+  }, [destinationLatitude, destinationLongitude, directions, pickupLatitude, pickupLongitude, _rawVehicles]);
   const handleBookNow = useCallback(() => {
-    if (!selectedRide || rideOptions.length === 0) return;
+    if (!pickup || !destination || !selectedRide || rideOptions.length === 0) return;
     const opt = rideOptions.find((r) => r.id === selectedRide);
     if (!opt) return;
     setOutboundPickup(pickup);
@@ -517,11 +585,20 @@ export default function SelectRideScreen() {
         ? "/ride-booking/return-location"
         : "/ride-booking/confirm",
     );
-  }, [selectedRide, rideOptions]);
+  }, [destination, pickup, rideOptions, router, selectedRide, setOutboundDropoff, setOutboundPickup, setOutboundRide, tripType]);
 
   const hasPendingFareSetup = Boolean(directions && _rawVehicles.length > 0 && rideOptions.length === 0);
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
   const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
+
+  if (!pickup || !destination) {
+    return (
+      <View style={[styles.container, styles.loadingState]}>
+        <ActivityIndicator size="large" color={GREEN} />
+        <Text style={styles.loadingStateText}>Loading your trip route...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -679,6 +756,16 @@ export default function SelectRideScreen() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F4FBFF" },
+  loadingState: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  loadingStateText: {
+    color: "#64748B",
+    fontSize: 14,
+    fontWeight: "800",
+  },
 
   map: { flex: 1 },
 

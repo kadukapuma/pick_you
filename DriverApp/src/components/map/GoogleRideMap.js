@@ -16,6 +16,19 @@ const isSameLatLng = (first, second) =>
   Math.abs(first.latitude - second.latitude) < 0.000001 &&
   Math.abs(first.longitude - second.longitude) < 0.000001;
 
+const distanceMeters = (first, second) => {
+  if (!isValidCoordinate(first) || !isValidCoordinate(second)) return Infinity;
+
+  const latScale = 111320;
+  const lngScale =
+    latScale * Math.cos(((first.latitude + second.latitude) / 2) * Math.PI / 180);
+
+  return Math.hypot(
+    (second.latitude - first.latitude) * latScale,
+    (second.longitude - first.longitude) * lngScale,
+  );
+};
+
 const toUniqueLatLngs = (coordinates) =>
   coordinates.reduce((uniqueCoordinates, coordinate) => {
     if (!uniqueCoordinates.some((item) => isSameLatLng(item, coordinate))) {
@@ -24,8 +37,9 @@ const toUniqueLatLngs = (coordinates) =>
     return uniqueCoordinates;
   }, []);
 
-const CAMERA_UPDATE_INTERVAL_MS = 250;
-const FOLLOW_CAMERA_ANIMATION_MS = 350;
+const CAMERA_UPDATE_INTERVAL_MS = 1000;
+const FOLLOW_CAMERA_ANIMATION_MS = 700;
+const CAMERA_MIN_MOVE_METERS = 6;
 const DEFAULT_DELTA = 0.04;
 
 const useFollowCameraLocation = (location, enabled) => {
@@ -33,6 +47,19 @@ const useFollowCameraLocation = (location, enabled) => {
   const lastUpdateRef = useRef(0);
   const timeoutRef = useRef(null);
   const latestLocationRef = useRef(location);
+  const cameraLocationRef = useRef(location);
+
+  const updateCamera = useCallback((loc) => {
+    const prev = cameraLocationRef.current;
+    if (
+      prev === loc ||
+      (prev && loc && distanceMeters(prev, loc) < CAMERA_MIN_MOVE_METERS)
+    ) {
+      return;
+    }
+    cameraLocationRef.current = loc;
+    setCameraLocation(loc);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -45,7 +72,7 @@ const useFollowCameraLocation = (location, enabled) => {
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       latestLocationRef.current = location;
-      setCameraLocation(location);
+      updateCamera(location);
       return;
     }
 
@@ -55,7 +82,7 @@ const useFollowCameraLocation = (location, enabled) => {
     const publish = () => {
       lastUpdateRef.current = Date.now();
       timeoutRef.current = null;
-      setCameraLocation(latestLocationRef.current);
+      updateCamera(latestLocationRef.current);
     };
 
     if (elapsed >= CAMERA_UPDATE_INTERVAL_MS) {
@@ -70,7 +97,7 @@ const useFollowCameraLocation = (location, enabled) => {
         CAMERA_UPDATE_INTERVAL_MS - elapsed,
       );
     }
-  }, [enabled, location]);
+  }, [enabled, location, updateCamera]);
 
   return cameraLocation;
 };
@@ -134,19 +161,30 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     cameraRef,
     followVehicle = false,
     followZoom = 16,
-    followPitch = 45,
     onFollowStateChange,
   },
   forwardedRef,
 ) {
   const mapRef = useRef(null);
   const hasFitInitialBounds = useRef(false);
+  const lastAnimatedCameraRef = useRef(null);
   const markerTrackingTimeoutRef = useRef(null);
   const [tracksVehicleMarkerChanges, setTracksVehicleMarkerChanges] = useState(true);
   const { location: smoothOrigin } = useSmoothLocation(origin);
-  const renderedOrigin = smoothOrigin ?? origin;
+  const renderedOrigin = useMemo(
+    () => smoothOrigin ?? origin,
+    [smoothOrigin, origin],
+  );
   const cameraOrigin = useFollowCameraLocation(renderedOrigin, followVehicle);
   const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
+
+  // Use primitive values for stable dependency tracking
+  const renderedLat = renderedOrigin?.latitude;
+  const renderedLng = renderedOrigin?.longitude;
+  const destLat = destination?.latitude;
+  const destLng = destination?.longitude;
+  const routeCoordsLen = routeCoordinates.length;
+
   const visibleCoordinates = useMemo(
     () =>
       toUniqueLatLngs(
@@ -154,7 +192,8 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
           .filter(isValidCoordinate)
           .map(toLatLng),
       ),
-    [destination, renderedOrigin, routeCoordinates],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [renderedLat, renderedLng, destLat, destLng, routeCoordsLen],
   );
   const routeLine = useMemo(() => {
     const lineCoordinates =
@@ -165,7 +204,8 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
           : [];
 
     return lineCoordinates.filter(isValidCoordinate).map(toLatLng);
-  }, [destination, renderedOrigin, routeCoordinates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [renderedLat, renderedLng, destLat, destLng, routeCoordsLen]);
 
   const cameraHandle = useMemo(
     () => ({
@@ -224,17 +264,18 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 
   useEffect(() => {
     if (followVehicle || cameraIsFree || visibleCoordinates.length < 1) return;
+    if (hasFitInitialBounds.current) return;
 
     const timeout = setTimeout(() => {
       if (visibleCoordinates.length === 1) {
         mapRef.current?.animateCamera(
           {
             center: visibleCoordinates[0],
-            heading: vehicleHeading ?? 0,
+            heading: 0,
             pitch: 0,
             zoom: followZoom,
           },
-          { duration: hasFitInitialBounds.current ? 350 : 600 },
+          { duration: 600 },
         );
         hasFitInitialBounds.current = true;
         return;
@@ -250,25 +291,35 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
         animated: true,
       });
       hasFitInitialBounds.current = true;
-    }, hasFitInitialBounds.current ? 0 : 500);
+    }, 500);
 
     return () => clearTimeout(timeout);
-  }, [cameraIsFree, edgePadding, followVehicle, followZoom, vehicleHeading, visibleCoordinates]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraIsFree, followVehicle, followZoom, destLat, destLng, routeCoordsLen]);
+
+  const cameraLat = cameraOrigin?.latitude;
+  const cameraLng = cameraOrigin?.longitude;
 
   useEffect(() => {
     const next = cameraOrigin ?? renderedOrigin;
     if (!followVehicle || !next) return;
 
+    const center = toLatLng(next);
+    const last = lastAnimatedCameraRef.current;
+    if (last && distanceMeters(last, center) < CAMERA_MIN_MOVE_METERS) return;
+    lastAnimatedCameraRef.current = center;
+
     mapRef.current?.animateCamera(
       {
-        center: toLatLng(next),
-        heading: next.heading ?? vehicleHeading ?? 0,
-        pitch: followPitch,
+        center,
+        heading: 0,
+        pitch: 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
-  }, [cameraOrigin, followPitch, followVehicle, followZoom, renderedOrigin, vehicleHeading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cameraLat, cameraLng, followVehicle, followZoom]);
 
   return (
     <MapView

@@ -1,8 +1,10 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Animated,
+    BackHandler,
     Dimensions,
+    Image,
     PanResponder,
     StatusBar,
     StyleSheet,
@@ -12,6 +14,7 @@ import {
 } from "react-native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useFocusEffect } from "@react-navigation/native";
 import {
     SafeAreaView,
     useSafeAreaInsets,
@@ -26,6 +29,7 @@ import {
 } from "../../utils/rideLocation";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
+import PassengerCancellationNotice from "../../components/PassengerCancellationNotice";
 
 const { width, height } = Dimensions.get("window");
 
@@ -40,6 +44,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
   const ride = route?.params?.ride || {};
   const customerName = ride?.customerName || "John David";
+  const customerProfilePicture = ride?.customerProfilePicture;
   const destinationLabel = ride?.drop || "Destination";
   const summaryDistanceKm = Number(
     ride?.actual_distance_km || ride?.estimated_distance_km || ride?.distance_km || 0,
@@ -49,16 +54,41 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
 
-  const origin = driverCoord ?? pickupCoord ?? DEFAULT_COORD;
-  const destination = dropCoord ?? origin;
+  const minimizeToHome = useCallback(() => {
+    navigation.navigate("MainTabs");
+    return true;
+  }, [navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        minimizeToHome,
+      );
+
+      return () => subscription.remove();
+    }, [minimizeToHome]),
+  );
+
+  const origin = useMemo(
+    () => driverCoord ?? pickupCoord ?? DEFAULT_COORD,
+    [driverCoord, pickupCoord],
+  );
+  const destination = useMemo(
+    () => dropCoord ?? origin,
+    [dropCoord, origin],
+  );
   const { directions } = useGoogleRoute(origin, destination);
 
-  const routeCoordinates =
-    directions?.polyline?.length > 0
-      ? directions.polyline
-      : dropCoord
-        ? [origin, dropCoord]
-        : [origin];
+  const routeCoordinates = useMemo(
+    () =>
+      directions?.polyline?.length > 0
+        ? directions.polyline
+        : dropCoord
+          ? [origin, dropCoord]
+          : [origin],
+    [directions?.polyline, dropCoord, origin],
+  );
   const mapPadding = useMemo(
     () => ({ top: 160, right: 50, bottom: 220, left: 50 }),
     [],
@@ -228,7 +258,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
         {/* Customer Basic Details Meta Deck */}
         <View style={styles.customerTopHeaderRow}>
           <View style={styles.customerAvatarMiniFrame}>
-            <Ionicons name="person" size={14} color="#475569" />
+            {customerProfilePicture ? (
+              <Image source={{ uri: customerProfilePicture }} style={styles.customerAvatarMiniImage} />
+            ) : (
+              <Ionicons name="person" size={14} color="#475569" />
+            )}
           </View>
           <Text style={styles.customerHeaderNameText} numberOfLines={1}>
             {customerName}
@@ -252,13 +286,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
             </Text>
           </View>
 
-          <TouchableOpacity
-            style={styles.closeMapBtn}
-            onPress={() => navigation.goBack()}
-            activeOpacity={0.7}
-          >
-            <Feather name="x" size={20} color="#64748B" />
-          </TouchableOpacity>
+          <View style={styles.closeMapBtnPlaceholder} />
         </View>
 
         <View style={styles.sheetDivider} />
@@ -297,6 +325,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
           styles.safeAreaBottomFillBlack,
           { height: insets.bottom || 16 },
         ]}
+      />
+      <PassengerCancellationNotice
+        rideId={ride?.id}
+        navigation={navigation}
+        customerName={customerName}
       />
     </View>
   );
@@ -485,6 +518,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 6,
+    overflow: "hidden",
+  },
+  customerAvatarMiniImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   customerHeaderNameText: {
     fontSize: 12,
@@ -527,13 +566,9 @@ const styles = StyleSheet.create({
     color: "#64748B",
     marginTop: 1,
   },
-  closeMapBtn: {
+  closeMapBtnPlaceholder: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
-    justifyContent: "center",
-    alignItems: "center",
   },
   sheetDivider: {
     height: 1,
