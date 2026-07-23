@@ -32,6 +32,8 @@ const TopBar = ({
         if (path === '/admin-portal/fare-configs') return 'Fare Configurations'
         if (path === '/admin-portal/operators') return 'Operators'
         if (path === '/admin-portal/permissions') return 'Role Permissions'
+        if (path === '/admin-portal/reports') return 'Reports & Analytics'
+        if (path.startsWith('/admin-portal/reports/')) return 'Report Details'
         if (path === '/admin-portal/admins') return 'Admin Management'
         if (path === '/admin-portal/settings') return 'Account Settings'
         return 'Panel'

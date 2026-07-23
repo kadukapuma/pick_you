@@ -69,6 +69,10 @@ const Sidebar = ({ admin, isCollapsed }) => {
                         <span>Permissions</span>
                     </NavLink>
                 )}
+                <NavLink to="/admin-portal/reports">
+                    <span className="material-icons">analytics</span>
+                    <span>Reports</span>
+                </NavLink>
                 {admin?.role === 'super_admin' && (
                     <NavLink to="/admin-portal/admins">
                         <span className="material-icons">manage_accounts</span>

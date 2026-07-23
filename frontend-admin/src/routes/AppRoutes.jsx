@@ -3,7 +3,6 @@ import { useAdmin } from '../context/AdminContext'
 
 // Landing Views
 import LandingLayout from '../views/Landing/LandingLayout'
-import Home from '../views/Landing/Home'
 import AboutUs from '../views/Landing/AboutUs'
 import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
@@ -16,7 +15,6 @@ import Dashboard from '../views/Dashboard'
 import DriverDetail from '../views/DriverDetail'
 import Drivers from '../views/Drivers'
 import Login from '../views/Login'
-import NotFound from '../views/NotFound'
 import VehicleDetail from '../views/VehicleDetail'
 import Vehicles from '../views/Vehicles'
 import Passengers from '../views/Passengers'
@@ -29,6 +27,8 @@ import LandingPage from '../views/Landing/LandingPage/LandingPage'
 
 import SuperDashboard from '../views/SuperDashboard'
 import Admins from '../views/Admins'
+import Reports from '../views/Reports'
+import ReportDetail from '../views/Reports/ReportDetail'
 
 const RequireAuth = () => {
     const { isAuthenticated } = useAdmin()
@@ -83,6 +83,8 @@ const AppRoutes = () => {
                     <Route path="vehicles/:vehicleId" element={<VehicleDetail />} />
                     <Route path="customers" element={<Passengers />} />
                     <Route path="fare-configs" element={<FareConfigs />} />
+                    <Route path="reports" element={<Reports />} />
+                    <Route path="reports/:reportType" element={<ReportDetail />} />
                     <Route
                         path="vehicle-types"
                         element={canManageVehicleTypes ? <VehicleTypes /> : <Navigate to="/admin-portal" replace />}
