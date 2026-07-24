@@ -17,7 +17,8 @@ class RidePolicy
     public function cancel(User $user, Ride $ride): bool
     {
         return $this->isAdministrator($user)
-            || $this->isOwningPassenger($user, $ride);
+            || $this->isOwningPassenger($user, $ride)
+            || $this->isAssignedDriver($user, $ride);
     }
 
     public function processPayment(User $user, Ride $ride): bool

@@ -1,14 +1,18 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  BackHandler,
+  StatusBar,
+  StyleSheet,
+  Image,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
+import PassengerCancellationNotice from "../../components/PassengerCancellationNotice";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
@@ -22,19 +26,45 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
 
-  const origin = driverCoord ?? DEFAULT_COORD;
-  const destination = pickupCoord ?? origin;
+  const origin = useMemo(
+    () => driverCoord ?? DEFAULT_COORD,
+    [driverCoord],
+  );
+  const destination = useMemo(
+    () => pickupCoord ?? origin,
+    [pickupCoord, origin],
+  );
   const { directions } = useGoogleRoute(origin, destination);
 
   const customerName = ride?.customerName || "John David";
+  const customerProfilePicture = ride?.customerProfilePicture;
   const pickup = ride?.pickup || "Pickup";
 
-  const routeCoordinates =
-    directions?.polyline?.length > 0
-      ? directions.polyline
-      : pickupCoord
-        ? [origin, pickupCoord]
-        : [origin];
+  const minimizeToHome = useCallback(() => {
+    navigation.navigate("MainTabs");
+    return true;
+  }, [navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        minimizeToHome,
+      );
+
+      return () => subscription.remove();
+    }, [minimizeToHome]),
+  );
+
+  const routeCoordinates = useMemo(
+    () =>
+      directions?.polyline?.length > 0
+        ? directions.polyline
+        : pickupCoord
+          ? [origin, pickupCoord]
+          : [origin],
+    [directions?.polyline, pickupCoord, origin],
+  );
   const mapPadding = useMemo(
     () => ({ top: 180, right: 70, bottom: 300, left: 70 }),
     [],
@@ -79,7 +109,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
       console.log("Error starting ride:", error);
       alert(
         error.response?.data?.message ||
-          "Failed to start the ride. Please try again.",
+        "Failed to start the ride. Please try again.",
       );
     } finally {
       setIsStartingRide(false);
@@ -141,14 +171,6 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
       {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity
-          style={styles.circleBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Feather name="arrow-left" size={22} color="#0F172A" />
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.circleBtn} activeOpacity={0.7}>
           <Feather name="phone" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -162,7 +184,11 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
           {/* CUSTOMER META INFO LINE ROW PANEL */}
           <View style={styles.customerRow}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={26} color="#FFF" />
+              {customerProfilePicture ? (
+                <Image source={{ uri: customerProfilePicture }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={26} color="#FFF" />
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
@@ -195,6 +221,11 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
         </View>
         <SafeAreaView edges={["bottom"]} style={styles.blackBottomSafeArea} />
       </View>
+      <PassengerCancellationNotice
+        rideId={ride?.id}
+        navigation={navigation}
+        customerName={customerName}
+      />
     </View>
   );
 };
@@ -375,6 +406,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   customerName: {
     fontSize: 19,

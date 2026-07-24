@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverDocumentController;
 use App\Http\Controllers\Api\DriverLocationController;
 use App\Http\Controllers\Api\DriverProfileController;
+use App\Http\Controllers\Api\DriverRideHistoryController;
 use App\Http\Controllers\Api\FareConfigController;
 use App\Http\Controllers\Api\MapsController;
 use App\Http\Controllers\Api\NearbyVehicleController;
@@ -111,8 +112,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/rides', [PassengerRideHistoryController::class, 'index'])->middleware('role:passenger');
     Route::get('/rides/{id}', [RideController::class, 'show']);
     Route::delete('/rides/{id}', [RideController::class, 'destroy'])->middleware('idempotent');
+    Route::post('/rides/{id}/cancel', [RideController::class, 'cancel'])->middleware('idempotent');
     Route::middleware('role:driver')->group(function () {
         Route::get('/driver/ride-requests', [RideController::class, 'driverRideRequests']);
+        Route::get('/driver/rides', [DriverRideHistoryController::class, 'index']);
         Route::post('/rides/{id}/accept', [RideController::class, 'acceptRide'])->middleware('idempotent');
         Route::post('/rides/{id}/reject', [RideController::class, 'rejectRide'])->middleware('idempotent');
         Route::post('/rides/{id}/arrive', [RideController::class, 'arriveRide'])->middleware('idempotent');

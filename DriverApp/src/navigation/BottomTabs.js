@@ -104,10 +104,10 @@ const CustomTabBar = ({ state, navigation }) => {
             route.name === "Home"
               ? "home"
               : route.name === "Earnings"
-              ? "dollar-sign"
-              : route.name === "Activity"
-              ? "clock"
-              : "user";
+                ? "dollar-sign"
+                : route.name === "Activity"
+                  ? "clock"
+                  : "user";
 
           return (
             <TouchableOpacity
@@ -252,16 +252,16 @@ const styles = StyleSheet.create({
   },
 
   iconWrapper: {
-  minWidth: 90,
-  height: 48,
+    minWidth: 90,
+    height: 48,
 
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
 
-  borderRadius: 18,
-  position: "relative",
-},
+    borderRadius: 18,
+    position: "relative",
+  },
 
   activeBackground: {
     position: "absolute",

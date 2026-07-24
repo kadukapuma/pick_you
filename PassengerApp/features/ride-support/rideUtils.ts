@@ -31,11 +31,25 @@ export function getRideStatus(ride: any): string {
 export function getDriverName(ride: any): string {
   const user = ride?.driver?.user;
   const full = [user?.first_name, user?.last_name].filter(Boolean).join(" ");
-  return full || ride?.driver?.name || ride?.driverName || "Your driver";
+  return full || user?.name || ride?.driver?.name || ride?.driverName || "Your driver";
 }
 
 export function getDriverPhone(ride: any): string | null {
   return ride?.driver?.user?.phone || ride?.driver?.phone || ride?.driver_phone || null;
+}
+
+export function getDriverProfilePicture(ride: any): string | null {
+  const user = ride?.driver?.user;
+  return (
+    user?.profile_picture ||
+    user?.profile_picture_url ||
+    user?.profile_picture_path ||
+    ride?.driver?.profile_picture ||
+    ride?.driver?.profile_picture_url ||
+    ride?.driver_profile_picture ||
+    ride?.driverProfilePicture ||
+    null
+  );
 }
 
 export function getVehicleNumber(ride: any): string {

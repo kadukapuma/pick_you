@@ -52,8 +52,9 @@ type Props = {
   focusControlsTop?: number;
 };
 
-const CAMERA_UPDATE_INTERVAL_MS = 250;
-const FOLLOW_CAMERA_ANIMATION_MS = 350;
+const CAMERA_UPDATE_INTERVAL_MS = 1000;
+const FOLLOW_CAMERA_ANIMATION_MS = 700;
+const CAMERA_MIN_MOVE_METERS = 6;
 const DEFAULT_FIT_EDGE_PADDING: EdgePadding = {
   top: 120,
   right: 80,
@@ -72,15 +73,19 @@ const toLatLng = (coordinate: any): LatLng => ({
   longitude: Number(coordinate?.longitude ?? coordinate?.lng ?? 0),
 });
 
-const getBearing = (from: LatLng, to: LatLng) => {
-  const fromLat = (from.latitude * Math.PI) / 180;
-  const toLat = (to.latitude * Math.PI) / 180;
-  const deltaLng = ((to.longitude - from.longitude) * Math.PI) / 180;
-  const y = Math.sin(deltaLng) * Math.cos(toLat);
-  const x =
-    Math.cos(fromLat) * Math.sin(toLat) -
-    Math.sin(fromLat) * Math.cos(toLat) * Math.cos(deltaLng);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+const distanceMeters = (from?: any, to?: any) => {
+  if (!isValidCoordinate(from) || !isValidCoordinate(to)) return Infinity;
+
+  const start = toLatLng(from);
+  const end = toLatLng(to);
+  const latScale = 111320;
+  const lngScale =
+    latScale * Math.cos(((start.latitude + end.latitude) / 2) * Math.PI / 180);
+
+  return Math.hypot(
+    (end.latitude - start.latitude) * latScale,
+    (end.longitude - start.longitude) * lngScale,
+  );
 };
 
 const useFollowCameraLocation = (
@@ -91,6 +96,22 @@ const useFollowCameraLocation = (
   const lastUpdateRef = useRef(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestLocationRef = useRef(location);
+  const cameraLocationRef = useRef(location);
+
+  const updateCameraLocation = useCallback((nextLocation: typeof location) => {
+    const previous = cameraLocationRef.current;
+    if (
+      previous === nextLocation ||
+      (previous &&
+        nextLocation &&
+        distanceMeters(previous, nextLocation) < CAMERA_MIN_MOVE_METERS)
+    ) {
+      return;
+    }
+
+    cameraLocationRef.current = nextLocation;
+    setCameraLocation(nextLocation);
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -103,7 +124,7 @@ const useFollowCameraLocation = (
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
       latestLocationRef.current = location;
-      setCameraLocation(location);
+      updateCameraLocation(location);
       return;
     }
 
@@ -113,7 +134,7 @@ const useFollowCameraLocation = (
     const publish = () => {
       lastUpdateRef.current = Date.now();
       timeoutRef.current = null;
-      setCameraLocation(latestLocationRef.current);
+      updateCameraLocation(latestLocationRef.current);
     };
 
     if (elapsed >= CAMERA_UPDATE_INTERVAL_MS) {
@@ -128,7 +149,7 @@ const useFollowCameraLocation = (
         CAMERA_UPDATE_INTERVAL_MS - elapsed,
       );
     }
-  }, [enabled, location]);
+  }, [enabled, location, updateCameraLocation]);
 
   return cameraLocation;
 };
@@ -175,20 +196,22 @@ export default function GoogleRideMap({
   onMapPress,
   followVehicle = false,
   followZoom = 16,
-  followPitch = 45,
-  initialPitch = 32,
   onFollowStateChange,
   showFocusControls = false,
   focusControlsTop = 170,
 }: Props) {
   const mapRef = useRef<MapView | null>(null);
   const hasFitInitialBounds = useRef(false);
+  const lastAnimatedCameraRef = useRef<LatLng | null>(null);
   const markerTrackingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [vehicleMarkersReady, setVehicleMarkersReady] = useState(true);
   const [hasUserMovedMap, setHasUserMovedMap] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
   const { location: smoothDriverLocation } = useSmoothLocation(driverLocation);
-  const renderedDriverLocation = smoothDriverLocation ?? driverLocation;
+  const renderedDriverLocation = useMemo(
+    () => smoothDriverLocation ?? driverLocation,
+    [smoothDriverLocation, driverLocation],
+  );
   const displayedNearbyVehicle = useMemo(
     () =>
       nearbyVehicles.find((vehicle) =>
@@ -217,7 +240,14 @@ export default function GoogleRideMap({
     vehicleLocationForCamera,
     followVehicle,
   );
-  const cameraIsFree = Boolean(onFollowStateChange) && !followVehicle;
+  const pickupLat = pickup?.latitude;
+  const pickupLng = pickup?.longitude;
+  const dropoffLat = dropoff?.latitude;
+  const dropoffLng = dropoff?.longitude;
+  const vehicleLat = vehicleLocationForCamera?.latitude;
+  const vehicleLng = vehicleLocationForCamera?.longitude;
+  const routeCoordinatesLength = routeCoordinates?.length ?? 0;
+  const nearbyVehiclesLength = nearbyVehicles.length;
   const visibleCoordinates = useMemo(
     () =>
       [
@@ -230,13 +260,16 @@ export default function GoogleRideMap({
         .filter(isValidCoordinate)
         .map(toLatLng),
     [
-      pickup,
-      dropoff,
+      pickupLat,
+      pickupLng,
+      dropoffLat,
+      dropoffLng,
       includePickupInFocus,
-      nearbyVehicles,
-      vehicleLocationForCamera,
-      routeCoordinates,
+      nearbyVehiclesLength,
+      routeCoordinatesLength,
       showPickupMarker,
+      vehicleLat,
+      vehicleLng,
     ],
   );
   const routeLine = useMemo(() => {
@@ -246,17 +279,6 @@ export default function GoogleRideMap({
     if (dropoff) return [pickup, dropoff].filter(isValidCoordinate).map(toLatLng);
     return [];
   }, [dropoff, pickup, routeCoordinates]);
-  const routeHeading = useMemo(() => {
-    if (routeLine.length > 1) {
-      return getBearing(routeLine[0], routeLine[routeLine.length - 1]);
-    }
-    return (
-      renderedDriverLocation?.heading ??
-      nearbyVehicles[0]?.heading ??
-      nearbyVehicles[0]?.coordinate.heading ??
-      0
-    );
-  }, [nearbyVehicles, renderedDriverLocation?.heading, routeLine]);
   const focusVehicleCoordinate = useMemo(
     () =>
       isValidCoordinate(vehicleLocationForCamera)
@@ -264,11 +286,6 @@ export default function GoogleRideMap({
         : undefined,
     [vehicleLocationForCamera],
   );
-  const focusVehicleHeading =
-    focusVehicleCoordinate?.heading ??
-    nearbyVehicles[0]?.heading ??
-    nearbyVehicles[0]?.coordinate.heading ??
-    routeHeading;
   const routeFocusCoordinates = useMemo(
     () =>
       [
@@ -295,7 +312,7 @@ export default function GoogleRideMap({
       clearTimeout(markerTrackingTimeoutRef.current);
       markerTrackingTimeoutRef.current = null;
     }
-  }, [driverMarkerImage, nearbyVehicles, renderedDriverLocation]);
+  }, [driverMarkerImage]);
 
   useEffect(() => {
     return () => {
@@ -318,16 +335,14 @@ export default function GoogleRideMap({
     mapRef.current?.animateCamera(
       {
         center: toLatLng(focusVehicleCoordinate),
-        heading: focusVehicleHeading,
-        pitch: followPitch,
+        heading: 0,
+        pitch: 0,
         zoom: followZoom,
       },
       { duration: 600 },
     );
   }, [
     focusVehicleCoordinate,
-    focusVehicleHeading,
-    followPitch,
     followZoom,
     onFollowStateChange,
   ]);
@@ -343,18 +358,16 @@ export default function GoogleRideMap({
     setTimeout(() => {
       mapRef.current?.animateCamera(
         {
-          heading: routeHeading,
-          pitch: Math.max(initialPitch, 36),
+          heading: 0,
+          pitch: 0,
         },
         { duration: 380 },
       );
     }, 430);
   }, [
     fitEdgePadding,
-    initialPitch,
     onFollowStateChange,
     routeFocusCoordinates,
-    routeHeading,
   ]);
 
   useEffect(() => {
@@ -363,7 +376,7 @@ export default function GoogleRideMap({
       hasUserMovedMap ||
       !isMapReady ||
       visibleCoordinates.length < 2 ||
-      (cameraIsFree && hasFitInitialBounds.current)
+      hasFitInitialBounds.current
     ) return;
     let pitchTimeout: ReturnType<typeof setTimeout> | null = null;
     const timeout = setTimeout(() => {
@@ -373,33 +386,42 @@ export default function GoogleRideMap({
       });
       pitchTimeout = setTimeout(() => {
         mapRef.current?.animateCamera(
-          { pitch: initialPitch, heading: routeHeading },
+          { pitch: 0, heading: 0 },
           { duration: 320 },
         );
       }, 220);
       hasFitInitialBounds.current = true;
-    }, hasFitInitialBounds.current ? 0 : 120);
+    }, 120);
 
     return () => {
       clearTimeout(timeout);
       if (pitchTimeout) clearTimeout(pitchTimeout);
     };
-  }, [cameraIsFree, fitEdgePadding, followVehicle, hasUserMovedMap, initialPitch, isMapReady, routeHeading, visibleCoordinates]);
+  }, [fitEdgePadding, followVehicle, hasUserMovedMap, isMapReady, visibleCoordinates]);
 
   useEffect(() => {
     const next = cameraDriverLocation ?? vehicleLocationForCamera;
     if (!followVehicle || !next) return;
 
+    const center = toLatLng(next);
+    if (
+      lastAnimatedCameraRef.current &&
+      distanceMeters(lastAnimatedCameraRef.current, center) < CAMERA_MIN_MOVE_METERS
+    ) {
+      return;
+    }
+    lastAnimatedCameraRef.current = center;
+
     mapRef.current?.animateCamera(
       {
-        center: toLatLng(next),
-        heading: next.heading ?? 0,
-        pitch: followPitch,
+        center,
+        heading: 0,
+        pitch: 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
-  }, [cameraDriverLocation, followPitch, followVehicle, followZoom, vehicleLocationForCamera]);
+  }, [cameraDriverLocation, followVehicle, followZoom, vehicleLocationForCamera]);
 
   const canShowFocusControls =
     showFocusControls &&
@@ -414,16 +436,16 @@ export default function GoogleRideMap({
         style={styles.map}
         initialCamera={{
           center: toLatLng(focusVehicleCoordinate || pickup),
-          pitch: initialPitch,
-          heading: routeHeading,
+          pitch: 0,
+          heading: 0,
           altitude: 1200,
           zoom: 14.5,
         }}
         showsCompass={false}
         showsMyLocationButton={false}
         showsBuildings
-        pitchEnabled
-        rotateEnabled
+        pitchEnabled={false}
+        rotateEnabled={false}
         userInterfaceStyle="light"
         customMapStyle={PASSENGER_LIGHT_MAP_STYLE}
         onMapReady={() => setIsMapReady(true)}
@@ -481,9 +503,9 @@ export default function GoogleRideMap({
                 heading={
                   vehicle.id === displayedNearbyVehicle?.id
                     ? vehicleLocationForCamera?.heading ??
-                      vehicle.heading ??
-                      vehicle.coordinate.heading ??
-                      0
+                    vehicle.heading ??
+                    vehicle.coordinate.heading ??
+                    0
                     : vehicle.heading ?? vehicle.coordinate.heading ?? 0
                 }
                 size={

@@ -17,7 +17,8 @@ class Ride extends Model
         'waiting_fare', 'fare_breakdown', 'estimated_fare', 'final_fare', 'status',
         'fare_calculation_version', 'last_processed_location_sequence',
         'last_processed_location_recorded_at',
-        'requested_at', 'accepted_at', 'arrived_at', 'started_at', 'completed_at', 'cancelled_at'
+        'requested_at', 'accepted_at', 'arrived_at', 'started_at', 'completed_at', 'cancelled_at',
+        'cancel_reason', 'cancelled_by'
     ];
 
     protected $casts = [

@@ -14,6 +14,7 @@ import {
   View,
 } from "react-native";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
+import { getDriverProfilePicture } from "../ride-support/rideUtils";
 
 const GREEN = "#0B9E54";
 const DARK_GREEN = "#063D31";
@@ -97,6 +98,7 @@ export default function DriverOnTheWaySheet({
   const isArrived = normalizedStatus === "ARRIVED";
   const secondaryStatusText = isArrived ? "" : eta;
   const vehiclePreviewIcon = useMemo(() => getVehicleMapIcon(vehicleType || vehicleDesc), [vehicleDesc, vehicleType]);
+  const driverProfilePicture = useMemo(() => getDriverProfilePicture(rideData), [rideData]);
 
   useEffect(() => {
     Animated.timing(translateY, {
@@ -226,7 +228,11 @@ export default function DriverOnTheWaySheet({
         <View {...panResponder.panHandlers} style={styles.driverCard}>
           <TouchableOpacity activeOpacity={0.86} onPress={openDriverProfile} style={styles.driverVisualBlock}>
             <View style={styles.avatarCircle}>
-              <Ionicons name="person" size={42} color="#A3ADB8" />
+              {driverProfilePicture ? (
+                <Image source={{ uri: driverProfilePicture }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={42} color="#A3ADB8" />
+              )}
             </View>
             <View style={styles.ratingPill}>
               <Text style={styles.ratingText}>{driverRating}</Text>
@@ -568,6 +574,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#ECF7F2",
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   ratingPill: {
     minWidth: 58,

@@ -9,6 +9,21 @@ const parseCoord = (value) => {
 };
 
 export function normalizeRidePayload(source = {}) {
+  const passengerUser = source.passenger?.user ?? {};
+  const passengerName = [
+    passengerUser.first_name,
+    passengerUser.last_name,
+  ].filter(Boolean).join(" ");
+  const passengerProfilePicture =
+    source.customerProfilePicture ??
+    source.passenger_profile_picture ??
+    source.passengerProfilePicture ??
+    source.passenger?.profile_picture ??
+    source.passenger?.profile_picture_url ??
+    passengerUser.profile_picture ??
+    passengerUser.profile_picture_url ??
+    passengerUser.profile_picture_path ??
+    null;
   const pickupLat = parseCoord(
     source.pickup_lat ??
       source.pickupLat ??
@@ -41,20 +56,35 @@ export function normalizeRidePayload(source = {}) {
     pickupLng,
     dropLat,
     dropLng,
-    price: source.price ?? Number(source.estimated_fare || 0).toFixed(2),
+    price:
+      source.price ??
+      Number(source.final_fare || source.estimated_fare || 0).toFixed(2),
+    final_fare: source.final_fare,
+    estimated_fare: source.estimated_fare,
     distance:
       source.distance ??
       (source.distance_km != null
         ? `${Number(source.distance_km).toFixed(1)} km`
         : ""),
     customerName:
-      source.customerName ?? source.passenger_name ?? "Passenger",
+      source.customerName || source.passenger_name || passengerName || "Passenger",
+    customerProfilePicture: passengerProfilePicture,
     rating: source.rating,
     vehicle_type: vehicleType,
     requested_at: source.requested_at,
+    accepted_at: source.accepted_at,
+    arrived_at: source.arrived_at,
+    started_at: source.started_at,
+    completed_at: source.completed_at,
+    cancelled_at: source.cancelled_at,
     status: source.status,
-    paymentMode: source.paymentMode,
+    paymentMode:
+      source.paymentMode ??
+      source.payment_method ??
+      source.payment?.payment_method,
     time: source.time,
+    cancel_reason: source.cancel_reason ?? source.cancelReason,
+    cancelled_by: source.cancelled_by ?? source.cancelledBy,
   };
 }
 

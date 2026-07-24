@@ -28,11 +28,11 @@ const AuthNavigator = ({
   const initialRouteName = verificationUser ? "OTP" : "GetStarted";
   const otpInitialParams = verificationUser
     ? {
-        isRegistration: true,
-        email: verificationUser.email,
-        phone: verificationUser.phone,
-        shouldAutoSendOtp: true,
-      }
+      isRegistration: true,
+      email: verificationUser.email,
+      phone: verificationUser.phone,
+      shouldAutoSendOtp: true,
+    }
     : undefined;
 
   return (

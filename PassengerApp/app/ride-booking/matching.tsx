@@ -42,6 +42,7 @@ import {
   saveTripStartCoordinate,
   type RideSessionCoordinate,
 } from "../../services/rides/rideLocationSession";
+import { getRebookLocationsFromRide, saveRebookDraft } from "../../services/rides/rebookDraft";
 
 const GREEN = "#20B768";
 const DARK_GREEN = "#0b9e54";
@@ -260,6 +261,8 @@ export default function SearchingScreen() {
     setIsSearchingForDriver,
     resetTrip,
     outboundTrip,
+    setOutboundPickup,
+    setOutboundDropoff,
     paymentMethod,
     promoCode,
   } = useRideSearch();
@@ -450,6 +453,14 @@ export default function SearchingScreen() {
             });
           }, 0);
         }
+        if (
+          ["CANCELLED", "CANCELED"].includes(status) &&
+          merged?.cancelled_by === "driver" &&
+          !terminalRedirectRef.current &&
+          !alertShownRef.current
+        ) {
+          setEventStatus(status);
+        }
         return merged;
       });
       setActiveRide(rideId, status);
@@ -509,9 +520,33 @@ export default function SearchingScreen() {
     });
   };
 
-  const handleBookAnother = () => {
+  const handleBookAnother = async () => {
+    if (!isCancelled) {
+      resetTrip();
+      router.replace("/(app)/(tabs)/home");
+      return;
+    }
+
+    const { pickup, destination } = getRebookLocationsFromRide(rideData);
+    if (pickup && destination) {
+      await saveRebookDraft(pickup, destination);
+      setOutboundPickup(pickup);
+      setOutboundDropoff(destination);
+      setActiveRide(null, null);
+      setIsSearchingForDriver(false);
+      router.replace({
+        pathname: "/ride-booking/select-vehicle",
+        params: {
+          pickup: JSON.stringify(pickup),
+          destination: JSON.stringify(destination),
+          rebook: "1",
+        },
+      });
+      return;
+    }
+
     resetTrip();
-    router.replace("/(app)/(tabs)/home");
+    router.replace("/ride-booking");
   };
 
   // ── Progress segments ─────────────────────────────────────────────────────
@@ -835,11 +870,13 @@ export default function SearchingScreen() {
             <View style={styles.cancelledIconWrap}>
               <Ionicons name="alert-circle-outline" size={30} color="#B45309" />
             </View>
-            <Text style={styles.cancelledTitle}>No driver accepted</Text>
+            <Text style={styles.cancelledTitle}>
+              {rideData?.cancelled_by === "driver" ? "Driver Cancelled" : "No driver accepted"}
+            </Text>
             <Text style={styles.cancelledMessage}>
-              Your {requestedVehicleLabel} request was closed before a driver
-              accepted it. Try again with a nearby pickup or another vehicle
-              type.
+              {rideData?.cancelled_by === "driver"
+                ? "Unfortunately, the driver has cancelled the ride."
+                : `Your ${requestedVehicleLabel} request was closed before a driver accepted it. Try again with a nearby pickup or another vehicle type.`}
             </Text>
             <TouchableOpacity
               style={styles.cancelledPrimaryButton}
@@ -914,8 +951,16 @@ export default function SearchingScreen() {
       <RideEventModal
         visible={Boolean(eventStatus)}
         status={eventStatus}
+        cancelledBy={rideData?.cancelled_by}
         onClose={() => setEventStatus(null)}
-        onPrimary={() => setEventStatus(null)}
+        primaryLabel={rideData?.cancelled_by === "driver" ? "Book again" : undefined}
+        onPrimary={() => {
+          if (rideData?.cancelled_by === "driver") {
+            void handleBookAnother();
+            return;
+          }
+          setEventStatus(null);
+        }}
       />
     </View>
   );

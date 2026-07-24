@@ -85,6 +85,7 @@ export function useSmoothLocation(rawLocation) {
   const displayedRef = useRef(null);
   const acceptedRef = useRef(null);
   const animationRef = useRef(null);
+  const locationRef = useRef(null);
 
   useEffect(() => {
     return () => {
@@ -106,8 +107,8 @@ export function useSmoothLocation(rawLocation) {
     });
     const previous = acceptedRef.current;
     const reject = (reason) => {
-      setLastRejected(reason);
-      setTrackingState("rejected");
+      setLastRejected((prev) => (prev === reason ? prev : reason));
+      setTrackingState((prev) => (prev === "rejected" ? prev : "rejected"));
     };
 
     if (!sample) {
@@ -142,9 +143,10 @@ export function useSmoothLocation(rawLocation) {
       };
       acceptedRef.current = { ...sample, ...first };
       displayedRef.current = first;
+      locationRef.current = first;
       setLocation(first);
-      setLastRejected(null);
-      setTrackingState("snapped");
+      setLastRejected((prev) => (prev === null ? prev : null));
+      setTrackingState((prev) => (prev === "snapped" ? prev : "snapped"));
       return;
     }
 
@@ -158,9 +160,10 @@ export function useSmoothLocation(rawLocation) {
       };
       acceptedRef.current = { ...sample, ...firstGpsFix };
       displayedRef.current = firstGpsFix;
+      locationRef.current = firstGpsFix;
       setLocation(firstGpsFix);
-      setLastRejected(null);
-      setTrackingState("snapped");
+      setLastRejected((prev) => (prev === null ? prev : null));
+      setTrackingState((prev) => (prev === "snapped" ? prev : "snapped"));
       return;
     }
 
@@ -191,8 +194,8 @@ export function useSmoothLocation(rawLocation) {
         longitude: previous.longitude,
         heading: previous.heading,
       };
-      setLastRejected(null);
-      setTrackingState("steady");
+      setLastRejected((prev) => (prev === null ? prev : null));
+      setTrackingState((prev) => (prev === "steady" ? prev : "steady"));
       return;
     }
 
@@ -217,9 +220,10 @@ export function useSmoothLocation(rawLocation) {
 
     if (receiveGapMs >= SNAP_AFTER_MS) {
       displayedRef.current = target;
+      locationRef.current = target;
       setLocation(target);
-      setLastRejected(null);
-      setTrackingState("snapped");
+      setLastRejected((prev) => (prev === null ? prev : null));
+      setTrackingState((prev) => (prev === "snapped" ? prev : "snapped"));
       return;
     }
 
@@ -228,8 +232,8 @@ export function useSmoothLocation(rawLocation) {
     const duration = clamp(sampleDeltaMs * 0.9, 800, 4500);
     const startedAt = Date.now();
     let lastPaintAt = 0;
-    setLastRejected(null);
-    setTrackingState("animating");
+    setLastRejected((prev) => (prev === null ? prev : null));
+    setTrackingState((prev) => (prev === "animating" ? prev : "animating"));
 
     const animate = () => {
       const now = Date.now();
@@ -243,13 +247,14 @@ export function useSmoothLocation(rawLocation) {
         };
         lastPaintAt = now;
         displayedRef.current = next;
+        locationRef.current = next;
         setLocation(next);
       }
       if (progress < 1) {
         animationRef.current = requestAnimationFrame(animate);
       } else {
         animationRef.current = null;
-        setTrackingState("steady");
+        setTrackingState((prev) => (prev === "steady" ? prev : "steady"));
       }
     };
     animationRef.current = requestAnimationFrame(animate);

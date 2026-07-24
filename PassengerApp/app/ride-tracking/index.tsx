@@ -19,6 +19,7 @@ import {
     TrackingStatus,
 } from "../../services/rides/rideRealtime";
 import { clearTripStartCoordinate } from "../../services/rides/rideLocationSession";
+import { getRebookLocationsFromRide, saveRebookDraft } from "../../services/rides/rebookDraft";
 
 const mergeRideData = (previous: any, next: any) => ({
     ...(previous || {}),
@@ -36,7 +37,7 @@ const mergeRideData = (previous: any, next: any) => ({
 
 export default function LiveTrackerPage() {
     const params = useLocalSearchParams();
-    const { resetTrip, setActiveRide, setIsSearchingForDriver } = useRideSearch();
+    const { resetTrip, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;
     const initialEventStatus = Array.isArray(params.eventStatus)
         ? params.eventStatus[0]
@@ -160,6 +161,29 @@ export default function LiveTrackerPage() {
 
     if (!rideData) return null;
 
+    const handleBookAgain = async () => {
+        const { pickup, destination } = getRebookLocationsFromRide(rideData);
+        if (pickup && destination) {
+            await saveRebookDraft(pickup, destination);
+            setOutboundPickup(pickup);
+            setOutboundDropoff(destination);
+            setActiveRide(null, null);
+            setIsSearchingForDriver(false);
+            router.replace({
+                pathname: "/ride-booking/select-vehicle",
+                params: {
+                    pickup: JSON.stringify(pickup),
+                    destination: JSON.stringify(destination),
+                    rebook: "1",
+                },
+            });
+            return;
+        }
+
+        resetTrip();
+        router.replace("/ride-booking");
+    };
+
     const submitRating = async () => {
         if (!rideId || isSubmittingRating) return;
 
@@ -195,8 +219,14 @@ export default function LiveTrackerPage() {
                 visible={!!eventStatus && !showRatingModal}
                 status={eventStatus}
                 paymentStatus={eventPaymentStatus}
+                cancelledBy={rideData?.cancelled_by}
                 onClose={() => setEventStatus(null)}
+                primaryLabel={rideData?.cancelled_by === "driver" ? "Book again" : undefined}
                 onPrimary={() => {
+                    if (eventStatus && ["CANCELLED", "CANCELED"].includes(String(eventStatus).toUpperCase()) && rideData?.cancelled_by === "driver") {
+                        void handleBookAgain();
+                        return;
+                    }
                     if (eventStatus === "COMPLETED") {
                         setEventStatus(null);
                         router.push({ pathname: "/ride-details/[rideId]", params: { rideId: String(rideId) } });

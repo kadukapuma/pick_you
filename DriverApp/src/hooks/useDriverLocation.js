@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import * as Location from "expo-location";
 
 /**
  * Driver's current GPS position for map routing.
+ * Stabilised: only triggers a state update when lat/lng change meaningfully.
  */
 export function useDriverLocation() {
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const locationRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,14 +35,28 @@ export function useDriverLocation() {
         const updateLocation = (position) => {
           if (cancelled) return;
 
-          setLocation({
+          const next = {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             heading: position.coords.heading ?? 0,
             speed: position.coords.speed ?? 0,
             accuracy: position.coords.accuracy ?? null,
             timestamp: position.timestamp,
-          });
+          };
+
+          // Skip setState if lat/lng haven't changed meaningfully (< ~1m)
+          const prev = locationRef.current;
+          if (
+            prev &&
+            Math.abs(prev.latitude - next.latitude) < 0.00001 &&
+            Math.abs(prev.longitude - next.longitude) < 0.00001 &&
+            Math.abs((prev.heading ?? 0) - (next.heading ?? 0)) < 1
+          ) {
+            return;
+          }
+
+          locationRef.current = next;
+          setLocation(next);
           setError(null);
         };
 
