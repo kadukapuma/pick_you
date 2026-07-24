@@ -25,6 +25,7 @@ import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { logExpectedError } from "../../services/errors/userMessages";
+import { getVehicleRideImage } from "../../utils/vehicleRideImages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -140,26 +141,6 @@ const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
 // Normalise any backend vehicle name to a consistent key
 function normaliseVehicleKey(raw: string): string {
   return raw.toLowerCase().replace(/[\s_\-]+/g, "");
-}
-
-const VEHICLE_IMAGE_MAP: Record<string, any> = {
-  car: require("../../assets/images/vehicles/car.png"),
-  tuk: require("../../assets/images/vehicles/threewheel.png"),
-  tuktuk: require("../../assets/images/vehicles/threewheel.png"),
-  threewheel: require("../../assets/images/vehicles/threewheel.png"),
-  bike: require("../../assets/images/vehicles/bike.png"),
-  motorbike: require("../../assets/images/vehicles/bike.png"),
-  motorcycle: require("../../assets/images/vehicles/bike.png"),
-  suv: require("../../assets/images/vehicles/minivan.png"),
-  van: require("../../assets/images/vehicles/van.png"),
-  minivan: require("../../assets/images/vehicles/van.png"),
-  minicar: require("../../assets/images/vehicles/minicar.png"),
-  mini: require("../../assets/images/vehicles/minicar.png"),
-};
-
-function getVehicleImage(id: string) {
-  const key = normaliseVehicleKey(id);
-  return VEHICLE_IMAGE_MAP[key] ?? VEHICLE_IMAGE_MAP.car;
 }
 
 const ETA_MAP: Record<string, string> = {
@@ -305,7 +286,7 @@ function RideCard({
           {/* Icon area */}
           <View style={styles.cardIconWrap}>
             <Image
-              source={getVehicleImage(ride.id ?? "car")}
+              source={getVehicleRideImage(ride.id)}
               style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
