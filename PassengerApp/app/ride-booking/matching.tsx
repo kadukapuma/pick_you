@@ -449,7 +449,14 @@ export default function SearchingScreen() {
           setTimeout(() => {
             router.replace({
               pathname: "/ride-tracking",
-              params: { rideData: JSON.stringify(merged), eventStatus: nextEventStatus },
+              params: {
+                rideData: JSON.stringify({
+                  ...merged,
+                  selected_payment_method:
+                    merged?.selected_payment_method || paymentMethod,
+                }),
+                eventStatus: nextEventStatus,
+              },
             });
           }, 0);
         }
@@ -504,7 +511,7 @@ export default function SearchingScreen() {
       clearInterval(pollTimer);
       unsubscribe?.();
     };
-  }, [rideId, setActiveRide, setIsSearchingForDriver]);
+  }, [paymentMethod, rideId, setActiveRide, setIsSearchingForDriver]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleShowDriver = () => {

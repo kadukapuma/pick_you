@@ -218,6 +218,7 @@ export default function ConfirmationScreen() {
             rideData: JSON.stringify({
               ...response.data,
               vehicle_type: payload.vehicle_type,
+              selected_payment_method: paymentMethod,
             }),
           },
         });
@@ -395,15 +396,26 @@ export default function ConfirmationScreen() {
             </View>
 
             <View style={styles.detailsDivider} />
-            <View style={styles.detailRow}>
+            <TouchableOpacity
+              style={styles.detailRow}
+              onPress={() => router.push("/ride-booking/payment-method")}
+              activeOpacity={0.82}
+              accessibilityRole="button"
+              accessibilityLabel={`Change payment method. Currently ${paymentMethod}`}
+            >
               <View style={styles.paymentLabelWrap}>
-                <Ionicons name="wallet-outline" size={19} color="#159A5B" />
+                <Ionicons
+                  name={paymentMethod === "card" ? "card-outline" : paymentMethod === "wallet" ? "wallet-outline" : "cash-outline"}
+                  size={19}
+                  color="#159A5B"
+                />
                 <Text style={styles.detailLabel}>Payment method</Text>
               </View>
-              <Text style={styles.detailValue}>
-                {paymentMethod.toUpperCase()}
-              </Text>
-            </View>
+              <View style={styles.paymentValueWrap}>
+                <Text style={styles.detailValue}>{paymentMethod.toUpperCase()}</Text>
+                <Ionicons name="chevron-forward" size={17} color="#64748B" />
+              </View>
+            </TouchableOpacity>
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total amount</Text>
               <Text style={styles.totalValue}>LKR {totalPrice.toFixed(2)}</Text>
@@ -590,6 +602,7 @@ const styles = StyleSheet.create({
   routeLabelDropoff: { fontSize: 14, fontWeight: "700", color: "#6B7280" },
   locationDetailText: { fontSize: 14, color: "#1F2937", lineHeight: 19 },
   paymentLabelWrap: { flexDirection: "row", alignItems: "center", gap: 9 },
+  paymentValueWrap: { flexDirection: "row", alignItems: "center", gap: 6 },
   totalRow: {
     flexDirection: "row",
     justifyContent: "space-between",

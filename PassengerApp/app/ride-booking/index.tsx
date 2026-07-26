@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,6 +26,7 @@ import { logExpectedError } from "../../services/errors/userMessages";
 type TripType = "one-way" | "return-trip";
 
 export default function RideSearchScreen() {
+  const { width: windowWidth } = useWindowDimensions();
   const {
     setOutboundPickup,
     setOutboundDropoff,
@@ -106,10 +109,7 @@ export default function RideSearchScreen() {
 
   const pillTranslateX = slideAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [
-      0,
-      (require("react-native").Dimensions.get("window").width - 32) / 2,
-    ],
+    outputRange: [0, (windowWidth - 32) / 2],
   });
 
   const handleSavedAddressSelect = (location: LocationSuggestion) => {
@@ -120,11 +120,11 @@ export default function RideSearchScreen() {
     return (
       <View style={styles.loadingContainer}>
         <View style={styles.loadingIconWrap}>
-          <Ionicons name="locate" size={28} color="#1B9E6E" />
+          <Ionicons name="locate" size={28} color="#20B768" />
         </View>
         <ActivityIndicator
           size="large"
-          color="#1B9E6E"
+          color="#20B768"
           style={{ marginTop: 20 }}
         />
         <Text style={styles.loadingText}>Getting your location…</Text>
@@ -133,19 +133,25 @@ export default function RideSearchScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => router.back()}
-          style={styles.backButton}
-        >
-          <Ionicons name="close" size={26} color="#000000" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Find Your Ride</Text>
-        <View style={styles.headerSpacer} />
-      </View>
+    <SafeAreaView
+      style={styles.container}
+      edges={["top", "bottom", "left", "right"]}
+    >
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
+            <Ionicons name="close" size={26} color="#000000" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Find Your Ride</Text>
+          <View style={styles.headerSpacer} />
+        </View>
 
-      <ScrollView showsVerticalScrollIndicator={false}>
         <BookForFriendToggle
           value={bookForFriend}
           onToggle={setBookForFriend}
@@ -181,7 +187,7 @@ export default function RideSearchScreen() {
             />
           )}
         </Animated.View>
-      </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 
@@ -224,6 +230,7 @@ export default function RideSearchScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
+  keyboardView: { flex: 1 },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
@@ -260,7 +267,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 20, fontWeight: "700", color: "#000000" },
   headerSpacer: { width: 40 },
-  pickerWrap: { marginHorizontal: 16 },
+  pickerWrap: { flex: 1, minHeight: 0, marginHorizontal: 16 },
   locationErrorBanner: {
     flexDirection: "row",
     alignItems: "center",
