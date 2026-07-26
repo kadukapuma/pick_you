@@ -1,6 +1,5 @@
 import { Feather } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import { useNavigation, useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import {
   StyleSheet,
@@ -18,7 +17,6 @@ import Animated, {
 } from "react-native-reanimated";
 
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useCallback } from "react";
 
 import ActivityScreen from "../screens/Main Screen/ActivityScreen";
 import EarningsScreen from "../screens/Main Screen/EarningScreen";
@@ -106,10 +104,10 @@ const CustomTabBar = ({ state, navigation }) => {
             route.name === "Home"
               ? "home"
               : route.name === "Earnings"
-              ? "dollar-sign"
-              : route.name === "Activity"
-              ? "clock"
-              : "user";
+                ? "dollar-sign"
+                : route.name === "Activity"
+                  ? "clock"
+                  : "user";
 
           return (
             <TouchableOpacity
@@ -138,19 +136,7 @@ const BottomTabs = ({
   setIsLoggedIn,
   setIsNewUser,
   setDriverStatus,
-  maintenanceMode,
-  driverStatus,
 }) => {
-  const navigation = useNavigation();
-
-  useFocusEffect(
-    useCallback(() => {
-      if (maintenanceMode && driverStatus?.toLowerCase() === "approved") {
-        navigation.replace("ComingSoon");
-      }
-    }, [maintenanceMode, driverStatus, navigation])
-  );
-
   return (
     <SafeAreaView
       edges={["bottom"]}
@@ -266,16 +252,16 @@ const styles = StyleSheet.create({
   },
 
   iconWrapper: {
-  minWidth: 90,
-  height: 48,
+    minWidth: 90,
+    height: 48,
 
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "center",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
 
-  borderRadius: 18,
-  position: "relative",
-},
+    borderRadius: 18,
+    position: "relative",
+  },
 
   activeBackground: {
     position: "absolute",

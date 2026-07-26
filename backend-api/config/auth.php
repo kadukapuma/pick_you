@@ -114,4 +114,9 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    // Disable after the mobile-app adoption window to reject legacy wildcard tokens.
+    'allow_legacy_role_tokens' => env('AUTH_ALLOW_LEGACY_ROLE_TOKENS', true),
+
+    'auth_rate_limit_per_minute' => (int) env('AUTH_RATE_LIMIT_PER_MINUTE', 10),
+
 ];

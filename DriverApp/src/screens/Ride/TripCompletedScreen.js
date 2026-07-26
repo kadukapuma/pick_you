@@ -1,17 +1,16 @@
-import React, { useState, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
+  BackHandler,
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  Dimensions,
 } from "react-native";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons, Feather } from "@expo/vector-icons";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
-
-const { width } = Dimensions.get("window");
+import api from "../../services/api";
 
 const TripCompletedScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -24,18 +23,54 @@ const TripCompletedScreen = ({ navigation, route }) => {
   const customerName = ride?.customerName || "John David";
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropLocation = ride?.drop || "Peradeniya Junction";
-  const fareAmount = ride?.fare || "Rs. 850";
+  const fareAmount =
+    ride?.final_fare || ride?.estimated_fare || ride?.fare || "Rs. 850";
+  const numericFare = Number(ride?.final_fare || ride?.estimated_fare || 0);
+  const distanceKm = Number(
+    ride?.actual_distance_km || ride?.estimated_distance_km || ride?.distance_km || 0,
+  );
+  const durationMinutes = Number(
+    ride?.actual_duration_minutes || ride?.estimated_duration_minutes || 0,
+  );
+  const extraDistanceKm = Number(ride?.extra_distance_km || 0);
+  const waitingFare = Number(ride?.waiting_fare || 0);
+  const formattedFare =
+    typeof fareAmount === "number"
+      ? `Rs. ${fareAmount.toFixed(2)}`
+      : numericFare > 0
+        ? `Rs. ${numericFare.toFixed(2)}`
+        : fareAmount;
 
-  const handleCashCollected = () => {
-    // 1. Set state to activate transition UI
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      () => true,
+    );
+
+    return () => subscription.remove();
+  }, []);
+
+  const handleCashCollected = async () => {
+    if (!ride?.id || isProcessingCash) return;
+
     setIsProcessingCash(true);
+    try {
+      await api.post(`/payments/${ride.id}`, { payment_method: "cash" });
 
-    // 2. Clear holding delay for 2.5 seconds before returning to home base dashboard
-    setTimeout(() => {
-      if (navigation.canGoBack()) {
-        navigation.popToTop();
-      }
-    }, 2500);
+      setTimeout(() => {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: "MainTabs" }],
+        });
+      }, 2500);
+    } catch (error) {
+      console.log("Error confirming cash:", error.response?.data || error);
+      alert(
+        error.response?.data?.message ||
+          "Failed to confirm cash payment. Please try again.",
+      );
+      setIsProcessingCash(false);
+    }
   };
 
   return (
@@ -72,7 +107,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
           {!isProcessingCash ? "Trip Completed" : "Earnings Added!"}
         </Text>
         <Text style={styles.subTitleText}>
-          {!isProcessingCash ? "Great job!" : `Added ${fareAmount} to your profile wallet`}
+          {!isProcessingCash ? "Great job!" : `Added ${formattedFare} to your profile wallet`}
         </Text>
       </View>
 
@@ -88,7 +123,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
           <View style={styles.dataRowMetric}>
             <Text style={styles.rowLabelField}>Total Fare</Text>
-            <Text style={styles.rowValueHighlight}>{fareAmount}</Text>
+            <Text style={styles.rowValueHighlight}>{formattedFare}</Text>
           </View>
 
           <View style={styles.dataRowMetric}>
@@ -98,13 +133,31 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
           <View style={styles.dataRowMetric}>
             <Text style={styles.rowLabelField}>Distance</Text>
-            <Text style={styles.rowValueNormal}>6.2 km</Text>
+            <Text style={styles.rowValueNormal}>
+              {distanceKm > 0 ? `${distanceKm.toFixed(1)} km` : "Pending"}
+            </Text>
           </View>
 
           <View style={styles.dataRowMetric}>
             <Text style={styles.rowLabelField}>Duration</Text>
-            <Text style={styles.rowValueNormal}>18 min</Text>
+            <Text style={styles.rowValueNormal}>
+              {durationMinutes > 0 ? `${durationMinutes.toFixed(0)} min` : "Pending"}
+            </Text>
           </View>
+
+          {extraDistanceKm > 0 ? (
+            <View style={styles.dataRowMetric}>
+              <Text style={styles.rowLabelField}>Extra Distance</Text>
+              <Text style={styles.rowValueNormal}>{extraDistanceKm.toFixed(2)} km</Text>
+            </View>
+          ) : null}
+
+          {waitingFare > 0 ? (
+            <View style={styles.dataRowMetric}>
+              <Text style={styles.rowLabelField}>Waiting Charge</Text>
+              <Text style={styles.rowValueNormal}>Rs. {waitingFare.toFixed(2)}</Text>
+            </View>
+          ) : null}
 
           {/* Timeline Route Segment */}
           <View style={styles.routeTimelineSegment}>

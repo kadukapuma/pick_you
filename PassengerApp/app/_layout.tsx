@@ -1,19 +1,17 @@
 import "../global.css";
-import { useEffect, useRef, useState } from "react";
-import { Stack, router } from "expo-router";
-import { AppState, AppStateStatus, ActivityIndicator, View } from "react-native";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import { RideSearchProvider } from "./context/RideSearchContext";
-import MaintenanceScreen from "./components/MaintenanceScreen";
-import { fetchMaintenanceMode } from "./services/maintenanceService";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
+import { Stack } from "expo-router";
+import { SafeAreaView } from "react-native-safe-area-context";
+import DelayedLoader from "../components/ui/DelayedLoader";
+import { AuthProvider, useAuth } from "../state/auth/AuthContext";
+import { RideSearchProvider } from "../state/booking/RideBookingContext";
+import { ToastProvider } from "../state/toast/ToastContext";
+import RideStatusBanner from "../features/ride-tracking/RideStatusBanner";
 
 function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
-  const [isMaintenanceLoading, setIsMaintenanceLoading] = useState(true);
-  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
-  const refreshTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Set navigation ready after a small delay
   useEffect(() => {
@@ -34,98 +32,12 @@ function RootLayoutContent() {
     console.log(`🔄 Auth state changed: isAuthenticated=${isAuthenticated}`);
   }, [isAuthenticated, isLoading, isNavigationReady]);
 
-  // Load maintenance mode
-  useEffect(() => {
-    let isActive = true;
-
-    const loadMaintenanceMode = async () => {
-      try {
-        const enabled = await fetchMaintenanceMode();
-
-        if (isActive) {
-          setIsMaintenanceMode(enabled);
-        }
-      } catch (error) {
-        console.error("Failed to load maintenance mode:", error);
-
-        if (isActive) {
-          setIsMaintenanceMode(false);
-        }
-      } finally {
-        if (isActive) {
-          setIsMaintenanceLoading(false);
-        }
-      }
-    };
-
-    loadMaintenanceMode();
-
-    const syncMaintenanceMode = () => {
-      loadMaintenanceMode();
-    };
-
-    const appStateSubscription = AppState.addEventListener("change", (nextState) => {
-      const wasBackgrounded = appStateRef.current.match(/inactive|background/);
-      appStateRef.current = nextState;
-
-      if (wasBackgrounded && nextState === "active") {
-        console.log("🔄 App resumed - syncing maintenance mode");
-        syncMaintenanceMode();
-      }
-    });
-
-    return () => {
-      isActive = false;
-      appStateSubscription.remove();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (refreshTimerRef.current) {
-      clearInterval(refreshTimerRef.current);
-      refreshTimerRef.current = null;
-    }
-
-    if (!isNavigationReady || isLoading) {
-      return;
-    }
-
-    const refreshMaintenanceMode = async () => {
-      try {
-        const enabled = await fetchMaintenanceMode();
-        setIsMaintenanceMode(enabled);
-      } catch (error) {
-        console.error("Failed to refresh maintenance mode:", error);
-      }
-    };
-
-    refreshMaintenanceMode();
-
-    if (isAuthenticated) {
-      refreshTimerRef.current = setInterval(refreshMaintenanceMode, 5000);
-    }
-
-    return () => {
-      if (refreshTimerRef.current) {
-        clearInterval(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-    };
-  }, [isAuthenticated, isNavigationReady, isLoading]);
-
-  if (isLoading || !isNavigationReady || isMaintenanceLoading) {
-    return (
-      <View className="flex-1 justify-center items-center bg-white">
-        <ActivityIndicator size="large" color="#59C36A" />
-      </View>
-    );
-  }
-
-  if (isMaintenanceMode && isAuthenticated) {
-    return <MaintenanceScreen />;
+  if (isLoading || !isNavigationReady) {
+    return <DelayedLoader label="Starting PickU" variant="screen" backgroundColor="#F2FBF8" />;
   }
 
   return (
+    <>
     <Stack
       screenOptions={{
         headerShown: false,
@@ -133,13 +45,17 @@ function RootLayoutContent() {
     >
       {/* ✅ ALWAYS render (auth) - splash and onboarding screens */}
       <Stack.Screen name="(auth)" options={{ animation: "none" }} />
-      
-      {/* ✅ ALWAYS render (drawer) - app screens for authenticated users */}
-      <Stack.Screen name="(drawer)" options={{ animation: "none" }} />
-      
+
+      {/* ✅ ALWAYS render (app) - app screens for authenticated users */}
+      <Stack.Screen name="(app)" options={{ animation: "none" }} />
+
+      <Stack.Screen name="ride-tracking" options={{ animation: "fade", gestureEnabled: true }} />
+      <Stack.Screen name="ride-details" options={{ animation: "slide_from_right", gestureEnabled: true }} />
+      <Stack.Screen name="ride-help" options={{ animation: "slide_from_right", gestureEnabled: true }} />
+
       {/* Ride search overlay */}
       <Stack.Screen
-        name="ride-search"
+        name="ride-booking"
         options={{
           animation: "fade",
           gestureEnabled: true,
@@ -147,15 +63,25 @@ function RootLayoutContent() {
         }}
       />
     </Stack>
+    <RideStatusBanner />
+    </>
   );
 }
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
-      <RideSearchProvider>
-        <RootLayoutContent />
-      </RideSearchProvider>
-    </AuthProvider>
+    <SafeAreaView edges={["bottom"]} style={{ flex: 1, backgroundColor: "#000000" }}>
+      <View style={{ flex: 1 }}>
+        <ToastProvider>
+          <AuthProvider>
+            <RideSearchProvider>
+              <RootLayoutContent />
+            </RideSearchProvider>
+          </AuthProvider>
+        </ToastProvider>
+      </View>
+    </SafeAreaView>
   );
 }
+
+

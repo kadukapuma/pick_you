@@ -24,7 +24,7 @@ export default function WelcomeScreen() {
 
       {/* Create Account */}
       <TouchableOpacity
-        onPress={() => router.push("/(auth)/signup")}
+        onPress={() => router.push("/(auth)/complete-profile")}
         className="w-full bg-white border border-gray-200 rounded-xl py-4 items-center mb-5"
       >
         <Text className="font-semibold text-[#333] text-base">
@@ -37,7 +37,7 @@ export default function WelcomeScreen() {
 
       {/* Sign In */}
       <TouchableOpacity
-        onPress={() => router.push("/(auth)/signin")}
+        onPress={() => router.push("/(auth)/sign-in")}
         className="w-full bg-[#59C36A] rounded-xl py-4 items-center mb-10"
       >
         <Text className="font-bold text-white text-base">Sign In</Text>

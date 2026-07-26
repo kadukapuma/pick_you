@@ -8,21 +8,35 @@ use App\Http\Controllers\Controller;
 use App\Models\AdminNotificationLog;
 use App\Models\SuperAdminNotificationLog;
 use App\Models\User;
+use App\Models\DriverCredential;
+use App\Services\Auth\AuthPayload;
+use App\Services\Auth\NotifySmsSender;
+use App\Services\Auth\OtpCodeService;
+use App\Services\Media\ImageStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 
 class AuthController extends Controller
 {
     use ApiResponse;
 
+    public function __construct(
+        private readonly AuthPayload $authPayload,
+        private readonly NotifySmsSender $sms,
+        private readonly OtpCodeService $otpCodes,
+    ) {}
+
     private function resolveOtpUser(Request $request): ?User
     {
         if ($request->filled('email')) {
-            return User::where('email', $request->email)->first();
+            $credential = DriverCredential::with('driver.user')
+                ->where('login_email', mb_strtolower(trim($request->email)))
+                ->first();
+
+            return $credential?->driver?->user ?? User::where('email', $request->email)->first();
         }
 
         if ($request->filled('phone')) {
@@ -46,6 +60,10 @@ class AuthController extends Controller
 
     public function register(Request $request)
     {
+        if ($request->input('role') === User::ROLE_DRIVER) {
+            return app(DriverAuthController::class)->register($request);
+        }
+
         $validator = Validator::make($request->all(), [
             'first_name' => 'required|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -67,7 +85,9 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'is_active' => true,
+            'is_verified' => false,
         ])->load('rolePermissions');
+        $user->ensureRole($request->role);
 
 
         $displayName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
@@ -123,12 +143,13 @@ class AuthController extends Controller
             );
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $token = $user->createToken('auth_token', ['role:'.$request->role])->plainTextToken;
 
-        return $this->success([
-            'user' => $user,
-            'token' => $token,
-        ], 'User registered successfully', 201);
+        return $this->success(
+            $this->authPayload->for($user, $request->role, $token),
+            'User registered successfully',
+            201,
+        );
     }
 
     public function login(Request $request)
@@ -140,6 +161,12 @@ class AuthController extends Controller
 
         if ($validator->fails()) {
             return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        $driverCredential = DriverCredential::where('login_email', mb_strtolower(trim($request->email)))->first();
+        if ($request->input('role') === User::ROLE_DRIVER
+            || ($driverCredential && Hash::check($request->password, $driverCredential->password))) {
+            return app(DriverAuthController::class)->login($request);
         }
 
         $user = User::where('email', $request->email)->first();
@@ -160,13 +187,11 @@ class AuthController extends Controller
             ], 'Super Admin authentication required');
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $user->ensureRole($user->role);
+        $token = $user->createToken('auth_token', ['role:'.$user->role])->plainTextToken;
         $user->load(['driver.vehicles', 'rolePermissions']);
 
-        return $this->success([
-            'user' => $user,
-            'token' => $token,
-        ], 'User logged in successfully');
+        return $this->success($this->authPayload->for($user, $user->role, $token), 'User logged in successfully');
     }
 
     public function verifySuperAdmin2FA(Request $request)
@@ -193,13 +218,11 @@ class AuthController extends Controller
             return $this->error('Account is suspended. Please contact System Administrator.', 403);
         }
 
-        $token = $user->createToken('auth_token')->plainTextToken;
+        $user->ensureRole(User::ROLE_SUPER_ADMIN);
+        $token = $user->createToken('auth_token', ['role:super_admin'])->plainTextToken;
         $user->load(['driver', 'rolePermissions']);
 
-        return $this->success([
-            'user' => $user,
-            'token' => $token,
-        ], 'Super Admin logged in successfully');
+        return $this->success($this->authPayload->for($user, User::ROLE_SUPER_ADMIN, $token), 'Super Admin logged in successfully');
     }
 
     public function logout(Request $request)
@@ -245,35 +268,24 @@ class AuthController extends Controller
             ]);
         }
 
-        // Generate a 4 digit OTP
-        $otpCode = rand(1000, 9999);
+        $otpCode = $this->otpCodes->generate();
 
         // Store OTP
         $user->otpVerifications()->create([
-            'otp_code' => $otpCode,
+            'otp_code' => $this->otpCodes->storeValue($otpCode),
             'purpose' => $request->purpose,
             'is_verified' => false,
             'expires_at' => now()->addMinutes(5)
         ]);
 
         // Send SMS using Notify.lk
-        $response = Http::get('https://app.notify.lk/api/v1/send', [
-            'user_id' => env('NOTIFYLK_USER_ID'),
-            'api_key' => env('NOTIFYLK_API_KEY'),
-            'sender_id' => env('NOTIFYLK_SENDER_ID'),
-            'to' => $notifyPhone,
-            // 'message' => "Your OTP is: $otpCode"
-            'message' => "Your OTP: $otpCode Please use the above PickYou OTP to complete your action. Do not share this OTP with anyone."
-        ]);
-
-        if (!$response->successful()) {
-            return $this->error('Failed to send OTP SMS', 502, [
-                'provider_response' => $response->body(),
-            ]);
+        if (! $this->sms->send(
+            $notifyPhone,
+            "Your OTP: $otpCode Please use the above PickYou OTP to complete your action. Do not share this OTP with anyone.",
+        )) {
+            return $this->error('Failed to send OTP SMS', 502);
         }
-        // Integrate Email Gateway here (e.g., Mail, SendGrid, etc.)
-        // For now, we will just return it in the response for testing
-        return $this->success(['otp' => $otpCode], 'OTP sent successfully');
+        return $this->success($this->otpCodes->debugPayload($otpCode), 'OTP sent successfully');
     }
 
     public function verifyOtp(Request $request)
@@ -299,18 +311,22 @@ class AuthController extends Controller
         }
 
         $otp = $user->otpVerifications()
-            ->where('otp_code', $request->otp_code)
             ->where('purpose', $request->purpose)
             ->where('is_verified', false)
             ->where('expires_at', '>', now())
             ->latest()
-            ->first();
+            ->get()
+            ->first(fn ($otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
 
         if (!$otp) {
             return $this->error('Invalid or expired OTP', 400);
         }
 
         $otp->update(['is_verified' => true]);
+
+        if ($request->purpose === 'verification') {
+            $user->update(['is_verified' => true]);
+        }
 
         return $this->success(null, 'OTP verified successfully');
     }
@@ -348,9 +364,15 @@ class AuthController extends Controller
             return $this->error('OTP verification required', 403);
         }
 
-        $user->update([
-            'password' => Hash::make($request->password),
-        ]);
+        $credential = $request->filled('email')
+            ? DriverCredential::where('login_email', mb_strtolower(trim($request->email)))->first()
+            : $user->driver?->credential;
+
+        if ($credential) {
+            $credential->update(['password' => $request->password]);
+        } else {
+            $user->update(['password' => Hash::make($request->password)]);
+        }
 
         $user->otpVerifications()
             ->where('purpose', 'forgot_password')
@@ -359,45 +381,28 @@ class AuthController extends Controller
         return $this->success(null, 'Password reset successfully');
     }
 
-    public function updateProfilePicture(Request $request)
+    public function updateProfilePicture(Request $request, ImageStorageService $images)
     {
         $request->validate([
             'profile_picture' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
         ]);
 
         $user = $request->user();
-        $userId = $user->id;
         $file = $request->file('profile_picture');
+        $previousPath = $user->profile_picture_path;
 
-        // Delete old local picture if present (don't attempt to delete Cloudinary URLs)
-        if ($user->profile_picture_path && !filter_var($user->profile_picture_path, FILTER_VALIDATE_URL)) {
-            $oldLocal = public_path($user->profile_picture_path);
-            if (file_exists($oldLocal)) {
-                @unlink($oldLocal);
-            }
-        }
+        $storedPath = $images->store(
+            $file,
+            "users/{$user->id}/profiles",
+            'profile',
+        );
+        $user->update(['profile_picture_path' => $storedPath]);
+        $images->deleteLocal($previousPath);
 
-        $uploadedUrl = $this->uploadImageToCloudinary($file, "users/{$userId}", 'profile_' . time());
-        if ($uploadedUrl) {
-            $user->update(['profile_picture_path' => $uploadedUrl]);
-        }
+        $responseUser = $user->fresh();
+        $responseUser->setAttribute('profile_picture_path', $images->url($storedPath));
 
-        return $this->success($user, 'Profile picture updated successfully');
-    }
-
-    private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
-    {
-        $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
-            'folder' => $folder,
-            'public_id' => $publicId,
-            'overwrite' => true,
-            'invalidate' => true,
-            'resource_type' => 'image',
-        ]);
-
-        return data_get($uploadResult, 'secure_url')
-            ?? data_get($uploadResult, 'url')
-            ?? null;
+        return $this->success($responseUser, 'Profile picture updated successfully');
     }
 
     public function updatePassword(Request $request)

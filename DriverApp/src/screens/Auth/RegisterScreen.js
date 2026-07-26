@@ -16,7 +16,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiView, MotiText } from "moti";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Customs imported from your friend's architecture
 import KeyboardAwareWrapper from "../../components/KeyboardAwareWrapper";
@@ -184,7 +183,7 @@ const RegisterScreen = ({ navigation }) => {
     try {
       setIsLoading(true);
 
-      const response = await api.post("/register", {
+      const response = await api.post("/driver/auth/register", {
         first_name: firstName,
         last_name: lastName || firstName,
         email,
@@ -194,47 +193,47 @@ const RegisterScreen = ({ navigation }) => {
         role: "driver"
       });
 
-      if (response.data?.data?.token) {
-        await AsyncStorage.setItem("userToken", response.data.data.token);
+      if (response.data?.data?.enrollment_token) {
         navigation?.navigate("OTP", {
           isRegistration: true,
           email,
           phone,
+          enrollmentToken: response.data.data.enrollment_token,
         });
       }
     } catch (error) {
-      console.log("Registration error:", error.response?.data || error.message);
-      const resp = error.response?.data;
-      const msg = resp?.message || "An error occurred during registration.";
+  console.log("FULL ERROR:", error.response || error.message);
 
-      const isEmailTaken = resp?.errors?.email || /email|already/i.test(msg);
-      if (isEmailTaken) {
-        showPopup(
-          "Email Already Registered",
-          "This email is already registered. Please log in to continue.",
-          "warning",
-          () => navigation.navigate("Login", { email }),
-          "Login"
-        );
-        return;
-      }
+  console.log("Registration error:", error.response?.data || error.message);
+  const resp = error.response?.data;
+  const msg = resp?.message || "An error occurred during registration.";
 
-      const isPhoneTaken = resp?.errors?.phone || /phone|already/i.test(msg);
-      if (isPhoneTaken) {
-        showPopup(
-          "Number Already Registered",
-          "Your mobile number is already registered. Please log in to continue.",
-          "warning",
-          () => navigation.navigate("Login", { phone }),
-          "Login"
-        );
-        return;
-      }
+  const isEmailTaken = resp?.errors?.email || /email|already/i.test(msg);
+  if (isEmailTaken) {
+    showPopup(
+      "Email Already Registered",
+      "This email is already registered. Please log in to continue.",
+      "warning",
+      () => navigation.navigate("Login", { email }),
+      "Login"
+    );
+    return;
+  }
 
-      showPopup("Registration Failed", msg, "error");
-    } finally {
-      setIsLoading(false);
-    }
+  const isPhoneTaken = resp?.errors?.phone || /phone|already/i.test(msg);
+  if (isPhoneTaken) {
+    showPopup(
+      "Number Already Registered",
+      "Your mobile number is already registered. Please log in to continue.",
+      "warning",
+      () => navigation.navigate("Login", { phone }),
+      "Login"
+    );
+    return;
+  }
+
+  showPopup("Registration Failed", msg, "error");
+}
   };
 
   return (
@@ -424,7 +423,7 @@ const RegisterScreen = ({ navigation }) => {
 
                 {/* SECURE PASSWORD CREATION FIELD */}
                 <MotiView
-                  from={{ opacity: 0, y: 20 }}
+                  from={{ opacity: 0, y: 20 }} 
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 900 }}
                 >
@@ -516,8 +515,19 @@ const RegisterScreen = ({ navigation }) => {
 
                   <Text style={styles.termsText}>
                     I agree to the{" "}
-                    <Text style={styles.linkText}>Terms of Service</Text> and{" "}
-                    <Text style={styles.linkText}>Privacy Policy</Text>
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => navigation?.navigate("TermsConditions")}
+                    >
+                      Terms & Conditions
+                    </Text>{" "}
+                    and{" "}
+                    <Text
+                      style={styles.linkText}
+                      onPress={() => navigation?.navigate("PrivacyPolicy")}
+                    >
+                      Privacy Policy
+                    </Text>
                   </Text>
                 </MotiView>
 

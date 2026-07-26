@@ -37,6 +37,7 @@ const LoginScreen = ({
   setIsNewUser,
   setDriverStatus,
   setDriver,
+  setVerificationUser,
 }) => {
   // Back-end expects email and password states (with route param fallback)
   const [email, setEmail] = useState(route?.params?.email || "");
@@ -55,16 +56,35 @@ const LoginScreen = ({
 
     setIsLoading(true);
     try {
-      const response = await api.post("/login", {
+      const response = await api.post("/driver/auth/login", {
         email,
         password,
+        role: "driver",
       });
 
       if (response.data?.data?.token) {
         await AsyncStorage.setItem("userToken", response.data.data.token);
 
         const userResponse = await api.get("/user");
-        const driverData = userResponse.data?.driver;
+        const user = userResponse.data;
+
+        // Check if user is verified before entering main screens
+        if (user && user.is_verified === false) {
+          setIsLoading(false);
+          setVerificationUser?.({
+            email: user.email,
+            phone: user.phone,
+          });
+          navigation.navigate("OTP", {
+            isRegistration: true,
+            email: user.email,
+            phone: user.phone,
+            shouldAutoSendOtp: true,
+          });
+          return;
+        }
+
+        const driverData = user?.driver;
         let status = (driverData?.status || "pending").toLowerCase();
 
         if (status === "approved" && driverData) {
@@ -375,7 +395,7 @@ const LoginScreen = ({
                   style={styles.carImageWrapper}
                 >
                   <Image
-                    source={require("../../assets/car.png")}
+                    source={require("../../assets/car-1.png")}
                     style={styles.carImage}
                     resizeMode="contain"
                   />

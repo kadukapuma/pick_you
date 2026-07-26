@@ -11,8 +11,26 @@ class Ride extends Model
     protected $fillable = [
         'ride_code', 'passenger_id', 'driver_id', 'vehicle_id', 'fare_id',
         'pickup_address', 'pickup_point', 'pickup_geog', 'drop_address', 'drop_point', 'drop_geog',
-        'distance_km', 'estimated_fare', 'final_fare', 'status',
-        'requested_at', 'accepted_at', 'started_at', 'completed_at', 'cancelled_at'
+        'distance_km', 'estimated_distance_km', 'estimated_duration_minutes',
+        'actual_distance_km', 'actual_duration_minutes', 'waiting_minutes',
+        'chargeable_waiting_minutes', 'extra_distance_km', 'extra_distance_fare',
+        'waiting_fare', 'fare_breakdown', 'estimated_fare', 'final_fare', 'status',
+        'fare_calculation_version', 'last_processed_location_sequence',
+        'last_processed_location_recorded_at',
+        'requested_at', 'accepted_at', 'arrived_at', 'started_at', 'completed_at', 'cancelled_at',
+        'cancel_reason', 'cancelled_by'
+    ];
+
+    protected $casts = [
+        'fare_breakdown' => 'array',
+        'requested_at' => 'datetime',
+        'accepted_at' => 'datetime',
+        'arrived_at' => 'datetime',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'cancelled_at' => 'datetime',
+        'last_processed_location_sequence' => 'integer',
+        'last_processed_location_recorded_at' => 'datetime',
     ];
 
     // Append virtual attributes to JSON responses
@@ -29,6 +47,7 @@ class Ride extends Model
     public function statuses() { return $this->hasMany(RideStatus::class); }
     public function payment() { return $this->hasOne(Payment::class); }
     public function rating() { return $this->hasOne(Rating::class); }
+    public function locationPoints() { return $this->hasMany(RideLocationPoint::class); }
 
     /**
      * Parse PostgreSQL point "(lng,lat)" into components.

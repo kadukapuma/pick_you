@@ -1,0 +1,697 @@
+/* ═══════════════════════════════════════════
+   LANDING LAYOUT CSS  —  PickYou Enhanced
+═══════════════════════════════════════════ */
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600&display=swap");
+
+/* ── Global: Smooth Scroll Behavior ─────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Global Scroll Reveal Animation ───────────────────────────────────────── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28),
+    transform 0.8s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal.reveal-active {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── Base Shell: Full-height flex column, font & color defaults ──────────────── */
+.landing-shell {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  color: #1a1f2b;
+}
+
+a {
+  text-decoration: none;
+}
+
+/* ── Scroll Progress Bar: Fixed top strip that fills as user scrolls ─────────── */
+.scroll-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #08d612, #667eea);
+  z-index: 9999;
+  transition: width 0.1s linear;
+  border-radius: 0 2px 2px 0;
+}
+
+/* ══════════════════════════════
+   HEADER
+══════════════════════════════ */
+
+/* ── Header: Sticky frosted-glass bar with slide-up hide on scroll-down ─────── */
+.landing-header {
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* ── Header Hidden State: Slides completely off-screen upward ────────────────── */
+.landing-header.header-hidden {
+  transform: translateY(-100%);
+}
+
+/* ── Header Inner: 3-zone grid — logo (left) | nav (center) | actions (right) ──
+   This is the key fix — nav sits in the true center
+   of the header regardless of how wide the side
+   zones are, matching the reference design.          ────────────────────────── */
+.header-inner {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0.9rem 5%;
+  gap: 1rem;
+}
+
+/* ── Logo: Left-aligned brand image ─────────────────────────────────────────── */
+.landing-logo {
+  display: flex;
+  align-items: center;
+  justify-self: start;
+}
+
+.logo-image {
+  height: 46px;
+  width: auto;
+  object-fit: contain;
+}
+
+/* ── Nav: Centered navigation links ─────────────────────────────────────────── */
+.landing-nav {
+  display: flex;
+  gap: 1.4rem;
+  align-items: center;
+  justify-self: center;
+}
+
+/* ── Nav Link: Pill hover effect on each nav button ─────────────────────────── */
+.nav-link,
+button.nav-link,
+a.nav-link {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  font-family: inherit;
+  text-decoration: none;
+  color: #475569;
+  font-weight: 400;
+  font-size: 1.05rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  white-space: nowrap;
+  width: 100%;
+  box-sizing: border-box;
+  transition:
+    color 0.2s,
+    background 0.2s;
+}
+
+.nav-link:hover {
+  color: #08d612;
+  background: rgba(8, 214, 18, 0.06);
+}
+
+.nav-link-active {
+  color: #08d612 !important;
+  font-weight: 600;
+}
+
+.nav-link-active::after {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 2px;
+  background: #08d612;
+  margin-top: 4px;
+  border-radius: 999px;
+}
+
+/* ── Nav Divider: Optional 1px vertical separator between nav items ──────────── */
+.nav-divider {
+  width: 1px;
+  height: 24px;
+  background: #d1d5db;
+  margin: 0 1rem;
+}
+
+/* ── Mobile Menu Backdrop: Dark overlay behind the sidebar ──────────────────── */
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 1999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Mobile Menu CTA inside sidebar (hidden on desktop) ────────────────────── */
+.mobile-menu-footer {
+  margin-top: auto;
+  padding-top: 1.5rem;
+  width: 100%;
+  display: none;
+}
+
+/* ── Mobile Menu Toggle Button (hidden on desktop) ──────────────────────────── */
+.menu-toggle {
+  display: none;
+  background: none;
+  border: none;
+  font-size: 1.8rem;
+  color: #0e5c6b;
+  cursor: pointer;
+  z-index: 2001;
+  padding: 0.4rem;
+  transition: color 0.2s;
+}
+
+.menu-toggle:hover {
+  color: #08d612;
+}
+
+/* ── Header Actions: Right-aligned Staff Login link + Get the App CTA ────────── */
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.6rem;
+  justify-self: end;
+}
+
+/* ── Staff, Login: Text-only link, no background ──────────────────────────────── */
+.staff-login-link {
+  padding: 0.3rem 0.6rem;
+  color: #475569 !important;
+  font-size: 500;
+  font-weight: 400;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: 6px;
+  background: none;
+  transition: color 0.2s;
+}
+
+.staff-login-link:hover {
+  background: none;
+  color: #08d612 !important;
+}
+
+/* ── Get App Button: Pill-shaped teal CTA in the header ─────────────────────── */
+.get-app-btn {
+  padding: 0.7rem 1.7rem;
+  background: #0f6e6e;
+  color: #ffffff;
+  border: none;
+  border-radius: 50px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: none;
+  transition:
+    background 0.2s,
+    transform 0.2s;
+}
+
+.get-app-btn:hover {
+  background: #0c5c5c;
+  transform: translateY(-1px);
+}
+
+/* ══════════════════════════════
+   MAIN CONTENT AREA
+══════════════════════════════ */
+
+/* ── Main: Grows to fill remaining viewport height between header & footer ───── */
+.landing-main {
+  flex: 1;
+}
+
+/* ── Section Container: Offset anchor so sticky header doesn't overlap target ── */
+.section-container {
+  scroll-margin-top: 70px;
+}
+
+/* ══════════════════════════════
+   FOOTER
+══════════════════════════════ */
+
+/* ── Footer Shell: Dark gradient background ──────────────────────────────────── */
+.landing-footer {
+  background: linear-gradient(160deg, #1a1f2b 0%, #0f1118 100%);
+  color: #ffffff;
+  margin-top: 4rem;
+}
+
+/* ── Footer Content: 3-column grid for Brand | Contact Form | Contact Info ───── */
+.footer-content {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 3rem;
+  padding: 4.5rem 5% 3rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* ── Footer Section Headings: Green label with underline accent bar ───────────── */
+.footer-section h3 {
+  font-size: 1.1rem;
+  margin-bottom: 1.5rem;
+  color: #08d612;
+  position: relative;
+  display: inline-block;
+}
+
+.footer-section h3::after {
+  content: "";
+  position: absolute;
+  bottom: -8px;
+  left: 0;
+  width: 36px;
+  height: 3px;
+  background: #08d612;
+  border-radius: 2px;
+}
+
+/* ── Hours Title: Extra top margin to visually separate from contact info ─────── */
+.footer-section .hours-title {
+  margin-top: 1.8rem;
+}
+
+/* ── Footer Logo: Inverted white version of the brand logo ───────────────────── */
+.footer-logo {
+  height: 38px;
+  width: auto;
+  margin-bottom: 1rem;
+  filter: brightness(0) invert(1);
+}
+
+/* ── Footer Description: Muted tagline text under the logo ───────────────────── */
+.footer-description {
+  line-height: 1.65;
+  color: #94a3b8;
+  margin-bottom: 1.5rem;
+  font-size: 0.9rem;
+}
+
+/* ── Social Icons: Circular icon buttons with green hover lift effect ─────────── */
+.social-icons {
+  display: flex;
+  gap: 0.7rem;
+}
+
+.social-icon {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 50%;
+  font-size: 0.95rem;
+  color: #94a3b8;
+  text-decoration: none;
+  transition:
+    background 0.25s,
+    color 0.25s,
+    transform 0.25s;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.social-icon:hover {
+  background: #08d612;
+  color: white;
+  transform: translateY(-3px);
+  border-color: transparent;
+}
+
+/* ── Contact Info List: Icon + text rows for address, email, phone, support ───── */
+.contact-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.contact-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  color: #94a3b8;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+/* ── Contact Icon: Green accent icon aligned with first line of text ──────────── */
+.contact-icon {
+  font-size: 0.95rem;
+  color: #08d612;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.contact-item a {
+  color: #94a3b8;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.contact-item a:hover {
+  color: #08d612;
+}
+
+/* ── Business Hours: Two-column label/value rows ─────────────────────────────── */
+.hours-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1.2rem;
+}
+
+.hours-item {
+  display: flex;
+  justify-content: space-between;
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+
+/* ── Support Badge: Highlighted 24/7 emergency support pill ──────────────────── */
+.support-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1rem;
+  background: rgba(8, 214, 18, 0.1);
+  border-radius: 10px;
+  color: #08d612;
+  font-weight: 600;
+  font-size: 0.88rem;
+  border: 1px solid rgba(8, 214, 18, 0.2);
+}
+
+/* ── Footer Bottom: Copyright text + payment method icons row ────────────────── */
+.footer-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 5%;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.footer-bottom p {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.footer-bottom-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.legal-links {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.legal-links a {
+  color: #94a3b8;
+  font-size: 0.85rem;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.legal-links a:hover {
+  color: #08d612;
+}
+
+.legal-separator {
+  color: #475569;
+  font-size: 0.85rem;
+}
+
+.payment-methods {
+  display: flex;
+  gap: 1.1rem;
+  align-items: center;
+}
+
+.pay-icon {
+  font-size: 1.35rem;
+  color: #475569;
+  transition: all 0.3s ease;
+}
+
+.pay-icon:hover {
+  color: #22c55e;
+}
+
+.footer-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.footer-staff-icon {
+  font-size: 1.6rem;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+}
+
+.footer-staff-icon:hover {
+  color: #22c55e;
+  transform: translateY(-2px) scale(1.1);
+}
+
+/* ══════════════════════════════
+   RESPONSIVE BREAKPOINTS
+══════════════════════════════ */
+
+/* ── ≤1024px: Footer collapses from 3 columns to 2 ──────────────────────────── */
+@media (max-width: 1024px) {
+  .footer-content {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 2rem;
+  }
+}
+
+/* ── ≤900px: Premium side-drawer slides in from the right with backdrop ────────
+   Nav becomes a fixed sidebar (250px balanced width) animated via transform.
+   Logo subtly scales down when menu is open. Active link gets a neat 40px
+   green underline.                                                               ── */
+@media (max-width: 900px) {
+  .landing-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 2100;
+  }
+
+  body {
+    padding-top: 70px;
+  }
+
+  .header-inner {
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+    padding: 0.8rem 5%;
+    position: relative;
+    z-index: 2001;
+  }
+
+  .menu-toggle {
+    display: block;
+    font-size: 1.5rem;
+    padding: 0.5rem;
+    color: #22c55e;
+  }
+
+  .header-actions {
+    display: none;
+  }
+
+  .landing-nav {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 240px;
+    /* Slimmer sidebar */
+    height: 100vh;
+    background: #ffffff;
+    padding: 7rem 0 2rem;
+    /* Vertical padding only */
+    gap: 0;
+    /* Gaps handled by link padding */
+    z-index: 2000;
+    box-shadow: -10px 0 30px rgba(0, 0, 0, 0.05);
+    transform: translateX(100%);
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .landing-nav.menu-open {
+    transform: translateX(0);
+  }
+
+  .landing-nav .nav-link {
+    font-size: 1.1rem;
+    padding: 1.2rem 2rem;
+    border-radius: 0;
+    width: 100%;
+    text-align: left;
+    color: #475569;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.04);
+    line-height: 1.2;
+    height: auto;
+  }
+
+  .landing-nav .nav-link-active {
+    background: rgba(34, 197, 94, 0.04);
+    color: #22c55e !important;
+    position: relative;
+  }
+
+  /* Professional vertical side-indicator */
+  .landing-nav .nav-link-active::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 4px;
+    height: 60%;
+    background: #22c55e;
+    margin: 0;
+  }
+
+  .landing-logo {
+    transition: all 0.3s ease;
+  }
+
+  .header-inner:has(.menu-open) .landing-logo {
+    transform: scale(0.9);
+  }
+
+  .landing-nav .mobile-menu-footer {
+    display: block;
+    padding: 1rem 2rem 0;
+  }
+
+  .landing-nav .mobile-menu-footer .get-app-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .landing-nav .nav-divider {
+    width: 100%;
+    height: 1px;
+    margin: 0.5rem 0;
+  }
+}
+
+/* ── ≤768px: Tablet — footer goes 1-col, staff link hidden, smaller logo & CTA ── */
+@media (max-width: 768px) {
+  .footer-content {
+    grid-template-columns: 1fr;
+    padding: 3rem 5%;
+  }
+
+  .header-inner {
+    padding: 0.8rem 5%;
+  }
+
+  .staff-login-link {
+    display: none;
+  }
+
+  .get-app-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.82rem;
+  }
+
+  .logo-image {
+    height: 34px;
+  }
+
+  .footer-bottom {
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .section-container {
+    scroll-margin-top: 60px;
+  }
+}
+
+/* ── ≤560px: Mobile — side-drawer remains the mechanism, header is 2-col ──────
+   The 560px breakpoint now respects the hamburger menu setup. Logo stays on
+   the left, hamburger toggle on the right. No stacking needed since the nav
+   is now a side-drawer.                                                         ── */
+@media (max-width: 560px) {
+  .header-inner {
+    grid-template-columns: auto auto;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .landing-logo {
+    justify-self: start;
+  }
+
+  .get-app-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.82rem;
+  }
+
+  .logo-image {
+    height: 34px;
+  }
+}

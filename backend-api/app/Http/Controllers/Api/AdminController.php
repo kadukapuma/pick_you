@@ -54,6 +54,7 @@ class AdminController extends Controller
             'phone' => $request->phone,
             'password' => Hash::make($request->password),
             'role' => User::ROLE_ADMIN,
+            'is_verified' => true,
         ])->load('rolePermissions');
 
         $adminName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));

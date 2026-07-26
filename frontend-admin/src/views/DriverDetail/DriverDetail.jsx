@@ -359,7 +359,7 @@ const DriverDetail = () => {
                                             aria-label="View vehicle"
                                             onClick={() => {
                                                 setShowVehiclesModal(false)
-                                                navigate(`/vehicles/${vehicle.id}`)
+                                                navigate(`/admin-portal/vehicles/${vehicle.id}`)
                                             }}
                                         >
                                             <span className="material-icons">visibility</span>

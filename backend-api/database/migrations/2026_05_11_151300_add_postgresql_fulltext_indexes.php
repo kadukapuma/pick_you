@@ -12,6 +12,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         // Add full-text search index for Users
         DB::statement("CREATE INDEX users_name_search_index ON users USING gin(to_tsvector('english', first_name || ' ' || last_name))");
         
@@ -24,6 +28,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        if (DB::getDriverName() !== 'pgsql') {
+            return;
+        }
+
         DB::statement("DROP INDEX IF EXISTS users_name_search_index");
     }
 };

@@ -1,0 +1,267 @@
+.driver-download-theme {
+    background-color: #f8fafc !important;
+    background-image: none !important;
+    padding: 4rem 1.5rem !important;
+    /* Restored padding to match passenger version and prevent edge clipping */
+}
+
+.driver-download-theme .download-title {
+    color: #0f172a;
+}
+
+.driver-download-theme .download-subtitle {
+    color: #475569;
+}
+
+.driver-download-theme .download-step-item {
+    align-items: flex-start;
+}
+
+.driver-download-theme .step-title {
+    color: #0f172a;
+}
+
+.driver-download-theme .step-desc {
+    color: #64748b;
+}
+
+.driver-download-theme .store-btn {
+    background: rgba(15, 23, 42, 0.06);
+    border-color: rgba(15, 23, 42, 0.12);
+    color: #0f172a;
+}
+
+.driver-download-theme .store-btn:hover {
+    background: rgba(15, 23, 42, 0.1);
+}
+
+.driver-download-theme .store-sub {
+    color: #64748b;
+}
+
+.driver-download-theme .store-main {
+    color: #0f172a;
+}
+
+.driver-download-theme .download-badge {
+    background: rgba(8, 214, 18, 0.1);
+    color: #06b20f;
+    border-color: rgba(8, 214, 18, 0.18);
+}
+
+.driver-download-theme .text-highlight {
+    color: #08d612;
+    /* PickYou Green for Drivers */
+}
+
+/* ── Specific Button Overrides for Light Theme ────────────────────────────── */
+.driver-download-theme .app-btn {
+    background: #0f172a !important;
+    /* Solid dark background */
+    border: 1px solid #1e293b !important;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+}
+
+.driver-download-theme .app-btn:hover {
+    background: #1e293b !important;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+    border-color: #08d612 !important;
+}
+
+.driver-download-theme .app-btn-icon {
+    color: #ffffff !important;
+}
+
+.driver-download-theme .store-subtitle,
+.driver-download-theme .app-btn small {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+.driver-download-theme .store-text strong {
+    color: #ffffff !important;
+}
+
+/* Fix cross-app CTA visibility on light theme */
+.driver-download-theme .cross-app-cta.enhanced {
+    background: rgba(15, 23, 42, 0.03);
+    border-color: rgba(15, 23, 42, 0.08);
+    color: #0f172a;
+}
+
+.driver-download-theme .cta-heading {
+    color: #0f172a !important;
+}
+
+.driver-download-theme .cta-text {
+    color: #475569 !important;
+}
+
+/* ── Driver App Mockup Specifics ───────────────────────────────────────────── */
+.driver-app-mockup-img {
+    width: 100%;
+    max-width: 280px;
+    /* Reduced to match user's 'small' request */
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 15px 35px rgba(0, 0, 0, 0.15));
+    transition: transform 0.3s ease;
+}
+
+.driver-download-theme .download-container-inner {
+    gap: 2rem;
+    /* Reduced gap for more compact layout */
+}
+
+.driver-download-theme .download-store-btns {
+    justify-content: flex-start !important;
+}
+
+.driver-app-mockup .phone-screen-content {
+    background: #f1f5f9;
+    display: flex;
+    flex-direction: column;
+}
+
+.driver-mockup-header {
+    padding: 1.2rem;
+    background: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.online-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.status-dot.green {
+    width: 8px;
+    height: 8px;
+    background: #08d612;
+    border-radius: 50%;
+    box-shadow: 0 0 0 3px rgba(8, 214, 18, 0.2);
+    animation: pulse-green 2s infinite;
+}
+
+@keyframes pulse-green {
+    0% {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    50% {
+        transform: scale(1.2);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.today-earning {
+    text-align: right;
+}
+
+.earning-label {
+    font-size: 0.65rem;
+    color: #64748b;
+    margin-bottom: 0.1rem;
+}
+
+.earning-value {
+    font-size: 1.1rem;
+    font-weight: 800;
+    color: #0f6e6e;
+}
+
+/* Map Zone */
+.demand-zone-pulse {
+    position: absolute;
+    top: 45%;
+    left: 55%;
+    transform: translate(-50%, -50%);
+}
+
+.zone-glow {
+    width: 60px;
+    height: 60px;
+    background: rgba(8, 214, 18, 0.15);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: zone-pulse 3s infinite ease-out;
+}
+
+@keyframes zone-pulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.5);
+        opacity: 0;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(2.5);
+        opacity: 0;
+    }
+}
+
+.zone-icon {
+    font-size: 1.4rem;
+    color: #08d612;
+    position: relative;
+    z-index: 2;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.request-card {
+    background: #ffffff !important;
+    color: #1e293b !important;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12) !important;
+    border-left: 4px solid #08d612 !important;
+}
+
+.driver-trip-card {
+    margin-top: auto !important;
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+}
+
+.trip-type-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    background: #e0f2fe;
+    color: #0369a1;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+}
+
+.check-icon {
+    color: #0ea5e9;
+    font-size: 0.9rem;
+}
+
+.accept-btn {
+    background: #08d612 !important;
+    box-shadow: 0 4px 12px rgba(8, 214, 18, 0.3) !important;
+}
+
+.accept-btn:hover {
+    background: #06b20f !important;
+    transform: scale(1.02);
+}

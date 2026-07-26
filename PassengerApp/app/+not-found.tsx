@@ -14,7 +14,7 @@ export default function NotFoundScreen() {
           <Text style={{ color: "#fff", fontSize: 24, marginBottom: 20, alignItems: "center", textAlign: "center"       }}>
             The page you are looking for does not exist.
           </Text>
-          <Link href="/(drawer)/(tabs)/home" style={styles.button}>
+          <Link href="/(app)/(tabs)/home" style={styles.button}>
             Go back to Home screen!
           </Link>
         </View>

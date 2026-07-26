@@ -1,29 +1,33 @@
-import React, { useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  StatusBar,
-  ScrollView,
-  Dimensions,
-  ActivityIndicator,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context"; // Optimized for proper notch & gesture bar management
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import api from "../../services/api";
+import { useEffect } from "react";
+import {
+  Dimensions,
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context"; // Optimized for proper notch & gesture bar management
+import PassengerCancellationNotice from "../../components/PassengerCancellationNotice";
+import { setActiveRideLocationSync } from "../../services/driverLocationSync";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const RideDetailsScreen = ({ navigation, route }) => {
   // Safe extraction of params passed down from home dashboard context
   const ride = route?.params?.ride || {};
-  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (ride?.id) setActiveRideLocationSync(ride.id);
+  }, [ride?.id]);
 
   // Clean data properties or clean local user fallbacks
   const customerName = ride?.customerName || "John David";
-  const customerRating = ride?.rating || "4.9";
+  const customerProfilePicture = ride?.customerProfilePicture;
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropoffLocation = ride?.drop || "Peradeniya Junction";
   const totalDistance = ride?.distance || "5.4 km";
@@ -34,24 +38,15 @@ const RideDetailsScreen = ({ navigation, route }) => {
   // Split-fare distribution logic matching the itemized receipt layout
   const parsedFare = parseFloat(totalFare) || 850;
   const baseFare = Math.round(parsedFare * 0.76); // ~Rs. 650 equivalent
-  const distanceFare = parsedFare - baseFare;    // ~Rs. 200 balance split
+  const distanceFare = parsedFare - baseFare; // ~Rs. 200 balance split
 
- const handleStartTrip = async () => {
-  if (!ride?.id) return;
+  const handleGoToPickup = () => {
+    if (!ride?.id) return;
 
-  setIsLoading(true);
-  try {
-    await api.post(`/rides/${ride.id}/start`);
     navigation.navigate("PickupNavigation", {
       ride,
     });
-  } catch (error) {
-    console.log("Error starting ride:", error);
-    alert(error.response?.data?.message || "Failed to start ride. Please try again.");
-  } finally {
-    setIsLoading(false);
-  }
-};
+  };
 
   return (
     <View style={styles.container}>
@@ -59,7 +54,7 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
       {/* --- APPLICATION NAVIGATION HEADER --- */}
       <View style={styles.appHeader}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.backCircleBtn}
           onPress={() => navigation.goBack()}
           activeOpacity={0.7}
@@ -69,7 +64,7 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
         <Text style={styles.appHeaderTitle}>Trip Details</Text>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.phoneCircleBtn}
           onPress={() => console.log("Dialing:", customerName)}
           activeOpacity={0.7}
@@ -78,13 +73,13 @@ const RideDetailsScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
+      <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
         {/* --- PREMIUM GRADIENT USER BLOCK --- */}
         <LinearGradient
-          colors={["#0A2E2B", "#0F1E21"]} 
+          colors={["#0A2E2B", "#0F1E21"]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradientUserCard}
@@ -92,21 +87,24 @@ const RideDetailsScreen = ({ navigation, route }) => {
           <View style={styles.profileMainRow}>
             {/* Emerald User Avatar */}
             <View style={styles.avatarGreenCircle}>
-              <Ionicons name="person" size={32} color="#FFFFFF" />
+              {customerProfilePicture ? (
+                <Image source={{ uri: customerProfilePicture }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={32} color="#FFFFFF" />
+              )}
             </View>
 
             {/* Profile Context metadata */}
             <View style={styles.profileIdentityBlock}>
               <Text style={styles.customerNameText}>{customerName}</Text>
-              
-              <View style={styles.ratingInlineBadge}>
-                <Ionicons name="star" size={14} color="#F59E0B" style={{ marginRight: 4 }} />
-                <Text style={styles.ratingLabelText}>{customerRating} Customer Rating</Text>
-              </View>
 
               {/* Verified Visual Tag */}
               <View style={styles.verifiedTagRow}>
-                <MaterialCommunityIcons name="shield-check" size={13} color="#00A859" />
+                <MaterialCommunityIcons
+                  name="shield-check"
+                  size={13}
+                  color="#00A859"
+                />
                 <Text style={styles.verifiedTagText}>Verified Customer</Text>
               </View>
             </View>
@@ -118,17 +116,26 @@ const RideDetailsScreen = ({ navigation, route }) => {
           {/* Pickup Block */}
           <View style={styles.locationTimelineRow}>
             <View style={styles.timelineVisualColumn}>
-              <View style={[styles.nodeCircle, { backgroundColor: "#00A859" }]} />
+              <View
+                style={[styles.nodeCircle, { backgroundColor: "#00A859" }]}
+              />
               <View style={styles.dashedLinkLine} />
             </View>
 
             <View style={styles.addressLabelBlock}>
-              <Text style={[styles.addressStatusTag, { color: "#00A859" }]}>PICKUP</Text>
-              <Text style={styles.addressMainText} numberOfLines={1}>{pickupLocation}</Text>
+              <Text style={[styles.addressStatusTag, { color: "#00A859" }]}>
+                PICKUP
+              </Text>
+              <Text style={styles.addressMainText} numberOfLines={1}>
+                {pickupLocation}
+              </Text>
               <Text style={styles.addressSubText}>Kandy, Sri Lanka</Text>
             </View>
 
-            <TouchableOpacity style={styles.actionNavCircle} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.actionNavCircle}
+              activeOpacity={0.7}
+            >
               <Feather name="navigation" size={16} color="#00A859" />
             </TouchableOpacity>
           </View>
@@ -136,16 +143,28 @@ const RideDetailsScreen = ({ navigation, route }) => {
           {/* Dropoff Block */}
           <View style={[styles.locationTimelineRow, { marginBottom: 0 }]}>
             <View style={styles.timelineVisualColumn}>
-              <View style={[styles.nodeCircle, { backgroundColor: "#EF4444", borderRadius: 2 }]} />
+              <View
+                style={[
+                  styles.nodeCircle,
+                  { backgroundColor: "#EF4444", borderRadius: 2 },
+                ]}
+              />
             </View>
 
             <View style={styles.addressLabelBlock}>
-              <Text style={[styles.addressStatusTag, { color: "#EF4444" }]}>DROPOFF</Text>
-              <Text style={styles.addressMainText} numberOfLines={1}>{dropoffLocation}</Text>
+              <Text style={[styles.addressStatusTag, { color: "#EF4444" }]}>
+                DROPOFF
+              </Text>
+              <Text style={styles.addressMainText} numberOfLines={1}>
+                {dropoffLocation}
+              </Text>
               <Text style={styles.addressSubText}>Peradeniya, Sri Lanka</Text>
             </View>
 
-            <TouchableOpacity style={styles.actionNavCircle} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={styles.actionNavCircle}
+              activeOpacity={0.7}
+            >
               <Feather name="navigation" size={16} color="#00A859" />
             </TouchableOpacity>
           </View>
@@ -155,7 +174,11 @@ const RideDetailsScreen = ({ navigation, route }) => {
         <View style={styles.metricsGridRow}>
           <View style={styles.smallMetricCard}>
             <View style={styles.iconCircleBg}>
-              <MaterialCommunityIcons name="map-marker-distance" size={18} color="#00A859" />
+              <MaterialCommunityIcons
+                name="map-marker-distance"
+                size={18}
+                color="#00A859"
+              />
             </View>
             <Text style={styles.metricLabel}>Distance</Text>
             <Text style={styles.metricValueText}>{totalDistance}</Text>
@@ -181,7 +204,12 @@ const RideDetailsScreen = ({ navigation, route }) => {
         {/* --- RIDE FARE SUMMARY BILLING CARD --- */}
         <View style={styles.modularWhiteCard}>
           <View style={styles.summaryHeaderTitleRow}>
-            <MaterialCommunityIcons name="file-document-edit-outline" size={18} color="#00A859" style={{ marginRight: 8 }} />
+            <MaterialCommunityIcons
+              name="file-document-edit-outline"
+              size={18}
+              color="#00A859"
+              style={{ marginRight: 8 }}
+            />
             <Text style={styles.summaryHeadingText}>Ride Summary</Text>
           </View>
 
@@ -197,7 +225,9 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
           <View style={styles.receiptDottedDivider} />
 
-          <View style={[styles.receiptLineItem, { marginBottom: 0, marginTop: 4 }]}>
+          <View
+            style={[styles.receiptLineItem, { marginBottom: 0, marginTop: 4 }]}
+          >
             <Text style={styles.totalFareLabelText}>Total Fare</Text>
             <Text style={styles.totalFarePriceText}>Rs. {totalFare}</Text>
           </View>
@@ -207,32 +237,38 @@ const RideDetailsScreen = ({ navigation, route }) => {
       {/* --- FOOTER FIXED PRIMARY ACTION CONTAINER --- */}
       <View style={styles.stickyFooterContainer}>
         <TouchableOpacity
-  style={styles.primaryActionBtn}
-  onPress={handleStartTrip}
-  activeOpacity={0.9}
-  disabled={isLoading}
->
-  {isLoading ? (
-    <ActivityIndicator size="small" color="#00A859" />
-  ) : (
-    <View style={styles.innerBtnArrowCircle}>
-      <Feather name="arrow-right" size={20} color="#00A859" />
-    </View>
-  )}
+          style={styles.primaryActionBtn}
+          onPress={handleGoToPickup}
+          activeOpacity={0.9}
+        >
+          <View style={styles.innerBtnArrowCircle}>
+            <Feather name="arrow-right" size={20} color="#00A859" />
+          </View>
 
-  <Text style={styles.primaryActionBtnText}>
-    {isLoading ? "Starting..." : "Start Trip"}
-  </Text>
+          <Text style={styles.primaryActionBtnText}>Go to Pickup</Text>
 
-  <View style={{ width: 36 }} />
-</TouchableOpacity>
+          <View style={{ width: 36 }} />
+        </TouchableOpacity>
 
         {/* Safe Distance Disclaimer text overlay */}
         <View style={styles.disclaimerWrapper}>
-          <MaterialCommunityIcons name="shield-check-outline" size={12} color="#94A3B8" style={{ marginRight: 4 }} />
-          <Text style={styles.disclaimerText}>Make sure you ve arrived at the pickup location</Text>
+          <MaterialCommunityIcons
+            name="shield-check-outline"
+            size={12}
+            color="#94A3B8"
+            style={{ marginRight: 4 }}
+          />
+          <Text style={styles.disclaimerText}>
+            Make sure you ve arrived at the pickup location
+          </Text>
         </View>
       </View>
+
+      <PassengerCancellationNotice
+        rideId={ride?.id}
+        navigation={navigation}
+        customerName={customerName}
+      />
 
       {/* --- PURE BLACK SAFE AREA FOOTER EXCLUSIVITY --- */}
       <SafeAreaView edges={["bottom"]} style={styles.blackBottomSafeArea} />
@@ -247,7 +283,7 @@ export default RideDetailsScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC", 
+    backgroundColor: "#F8FAFC",
   },
   appHeader: {
     flexDirection: "row",
@@ -313,6 +349,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   profileIdentityBlock: {
     flex: 1,

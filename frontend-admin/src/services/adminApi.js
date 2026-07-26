@@ -1,7 +1,6 @@
 const API_BASE =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ||
   'http://192.168.1.7:8000/api'
-  // 'http://localhost:8000/api'
 const TOKEN_KEY = 'admin_token'
 
 const statusOptions = ['pending', 'approved', 'suspended', 'updated', 'rejected']
@@ -32,10 +31,24 @@ const apiFetch = async (path, { method = 'GET', body, token } = {}) => {
 
 const resolveAssetUrl = (url) => {
   if (!url) return null
-  if (url.startsWith('http')) return url
 
   const origin = API_BASE.replace(/\/api$/, '')
-  const normalized = url.startsWith('/') ? url : `/${url}`
+  const value = String(url).trim()
+
+  if (value.startsWith('http')) {
+    try {
+      const parsed = new URL(value)
+      if (parsed.pathname.startsWith('/storage/') || parsed.pathname.startsWith('/uploads/')) {
+        return `${origin}${parsed.pathname}${parsed.search}`
+      }
+    } catch {
+      return value
+    }
+
+    return value
+  }
+
+  const normalized = value.startsWith('/') ? value : `/${value}`
 
   if (normalized.startsWith('/uploads/') || normalized.startsWith('/storage/')) {
     return `${origin}${normalized}`
@@ -393,11 +406,6 @@ const fetchAppSettings = async (token) => {
   return { settings: payload.settings || {} }
 }
 
-const fetchMaintenanceMode = async () => {
-  const payload = await apiFetch('/app-settings/maintenance-mode')
-  return { maintenanceMode: Boolean(payload.maintenance_mode) }
-}
-
 const updateAppSetting = async (token, key, value, type = 'string') => {
   const payload = await apiFetch(`/app-settings/${key}`, {
     method: 'PUT',
@@ -456,6 +464,5 @@ export {
   fetchRolePermissions,
   updateRolePermissions,
   fetchAppSettings,
-  fetchMaintenanceMode,
   updateAppSetting,
 }

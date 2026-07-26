@@ -6,21 +6,36 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use App\Models\OtpVerification;
 use App\Traits\ApiResponse;
+use App\Services\Auth\AuthPayload;
+use App\Services\Auth\PhoneNumberNormalizer;
+use App\Services\Auth\NotifySmsSender;
+use App\Services\Auth\OtpCodeService;
+use App\Services\Auth\PhoneIdentityConflict;
+use App\Services\Auth\PhoneIdentityResolver;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
 
 class PassengerAuthController extends Controller
 {
     use ApiResponse;
 
+    public function __construct(
+        private readonly PhoneNumberNormalizer $phones,
+        private readonly PhoneIdentityResolver $phoneIdentities,
+        private readonly AuthPayload $authPayload,
+        private readonly NotifySmsSender $sms,
+        private readonly OtpCodeService $otpCodes,
+    ) {}
+
     private function normalizePhoneNumber($phone)
     {
-        $normalized = preg_replace('/\D+/', '', $phone);
-        if (str_starts_with($normalized, '0') && strlen($normalized) === 10) {
-            $normalized = '94' . substr($normalized, 1);
+        try {
+            return $this->phones->normalize($phone);
+        } catch (InvalidArgumentException) {
+            return preg_replace('/\D+/', '', $phone);
         }
-        return $normalized;
     }
 
     public function sendOtp(Request $request)
@@ -42,31 +57,24 @@ class PassengerAuthController extends Controller
             ]);
         }
 
-        $otpCode = rand(1000, 9999);
+        $otpCode = $this->otpCodes->generate();
 
         OtpVerification::create([
             'contact' => $notifyPhone,
             'purpose' => 'passenger_login',
-            'otp_code' => $otpCode,
+            'otp_code' => $this->otpCodes->storeValue($otpCode),
             'is_verified' => false,
             'expires_at' => now()->addMinutes(5)
         ]);
 
-        $response = Http::get('https://app.notify.lk/api/v1/send', [
-            'user_id' => env('NOTIFYLK_USER_ID'),
-            'api_key' => env('NOTIFYLK_API_KEY'),
-            'sender_id' => env('NOTIFYLK_SENDER_ID'),
-            'to' => $notifyPhone,
-            'message' => "Your OTP: $otpCode Please use the above PickYou OTP to complete your login. Do not share this OTP with anyone."
-        ]);
-
-        if (!$response->successful()) {
-            return $this->error('Failed to send OTP SMS', 502, [
-                'provider_response' => $response->body()
-            ]);
+        if (! $this->sms->send(
+            $notifyPhone,
+            "Your OTP: $otpCode Please use the above PickYou OTP to complete your login. Do not share this OTP with anyone.",
+        )) {
+            return $this->error('Failed to send OTP SMS', 502);
         }
 
-        return $this->success(['otp' => $otpCode], 'OTP sent successfully');
+        return $this->success($this->otpCodes->debugPayload($otpCode), 'OTP sent successfully');
     }
 
     public function verifyOtp(Request $request)
@@ -83,12 +91,12 @@ class PassengerAuthController extends Controller
         $notifyPhone = $this->normalizePhoneNumber($request->phone);
 
         $otp = OtpVerification::where('contact', $notifyPhone)
-            ->where('otp_code', $request->otp_code)
             ->where('purpose', 'passenger_login')
             ->where('is_verified', false)
             ->where('expires_at', '>', now())
             ->latest()
-            ->first();
+            ->get()
+            ->first(fn (OtpVerification $otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
 
         if (!$otp) {
             return $this->error('Invalid or expired OTP', 400);
@@ -96,19 +104,34 @@ class PassengerAuthController extends Controller
 
         $otp->update(['is_verified' => true]);
 
-        $user = User::where('phone', $notifyPhone)
-            ->orWhere('phone', $request->phone)
-            ->orWhere('phone', '0' . substr($notifyPhone, 2))
-            ->first();
+        try {
+            $user = $this->phoneIdentities->resolve($request->phone);
+        } catch (PhoneIdentityConflict $exception) {
+            return $this->error($exception->getMessage(), 409);
+        }
 
         if ($user) {
-            $token = $user->createToken('passenger_app_token')->plainTextToken;
-            $user->load(['passenger', 'rolePermissions']);
+            if (! $user->is_active) {
+                return $this->error('Account is suspended. Please contact support.', 403);
+            }
+            $role = $user->roles()->where('role', User::ROLE_PASSENGER)->first();
+            if ($role && ! $role->is_active) {
+                return $this->error('Passenger access is suspended. Please contact support.', 403);
+            }
+
+            DB::transaction(function () use ($user, $notifyPhone) {
+                $locked = User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+                $locked->update(['is_verified' => true, 'phone_normalized' => $notifyPhone]);
+                $locked->ensureRole(User::ROLE_PASSENGER);
+                $locked->passenger()->firstOrCreate([], ['wallet_balance' => 0]);
+            });
+
+            $user->refresh();
+            $token = $user->createToken('passenger_app_token', ['role:passenger'])->plainTextToken;
 
             return $this->success([
                 'registered' => true,
-                'user' => $user,
-                'token' => $token,
+                ...$this->authPayload->for($user, User::ROLE_PASSENGER, $token),
             ], 'Login successful');
         }
 
@@ -145,26 +168,41 @@ class PassengerAuthController extends Controller
             return $this->error('Please verify OTP before registering', 403);
         }
 
-        $user = User::create([
-            'first_name' => $request->first_name,
-            'last_name' => $request->last_name,
-            'email' => $request->email,
-            'phone' => $request->phone,
-            'password' => null,
-            'role' => 'passenger',
-            'is_active' => true
-        ]);
+        try {
+            $existingUser = $this->phoneIdentities->resolve($request->phone);
+        } catch (PhoneIdentityConflict $exception) {
+            return $this->error($exception->getMessage(), 409);
+        }
+        if ($existingUser && (! $existingUser->is_active
+            || $existingUser->roles()->where('role', User::ROLE_PASSENGER)->where('is_active', false)->exists())) {
+            return $this->error('Passenger access is suspended. Please contact support.', 403);
+        }
 
-        $user->passenger()->create([
-            'wallet_balance' => 0.00
-        ]);
+        $user = DB::transaction(function () use ($request, $notifyPhone) {
+            $user = $this->phoneIdentities->resolve($request->phone, true);
+            if (! $user) {
+                $user = User::create([
+                    'first_name' => $request->first_name,
+                    'last_name' => $request->last_name,
+                    'email' => $request->email,
+                    'phone' => $notifyPhone,
+                    'phone_normalized' => $notifyPhone,
+                    'password' => null,
+                    'role' => User::ROLE_PASSENGER,
+                    'is_active' => true,
+                    'is_verified' => true,
+                ]);
+            }
+            $user->ensureRole(User::ROLE_PASSENGER);
+            $user->passenger()->firstOrCreate([], ['wallet_balance' => 0]);
 
-        $token = $user->createToken('passenger_app_token')->plainTextToken;
-        $user->load(['passenger', 'rolePermissions']);
+            return $user;
+        });
+
+        $token = $user->createToken('passenger_app_token', ['role:passenger'])->plainTextToken;
 
         return $this->success([
-            'user' => $user,
-            'token' => $token,
+            ...$this->authPayload->for($user, User::ROLE_PASSENGER, $token),
         ], 'Registration completed successfully');
     }
 

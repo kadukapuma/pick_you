@@ -1,66 +1,79 @@
-import React, { useEffect, useState, useRef } from "react";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
+  BackHandler,
   StatusBar,
-  Dimensions,
+  StyleSheet,
   Image,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import MapView, { Marker, Polyline } from "react-native-maps";
-import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useMapboxRoute } from "../../hooks/useMapboxRoute";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
+import PassengerCancellationNotice from "../../components/PassengerCancellationNotice";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
+import { useGoogleRoute } from "../../hooks/useGoogleRoute";
+import api from "../../services/api";
 import { getPickupCoordinate } from "../../utils/rideLocation";
-
-const { width, height } = Dimensions.get("window");
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 const ArrivedAtPickupScreen = ({ navigation, route }) => {
-  const mapRef = useRef(null);
   const ride = route?.params?.ride || {};
   const pickupCoord = getPickupCoordinate(ride);
   const { location: driverCoord } = useDriverLocation();
 
-  const origin = driverCoord ?? DEFAULT_COORD;
-  const destination = pickupCoord ?? origin;
-  const { directions } = useMapboxRoute(origin, destination);
+  const origin = useMemo(
+    () => driverCoord ?? DEFAULT_COORD,
+    [driverCoord],
+  );
+  const destination = useMemo(
+    () => pickupCoord ?? origin,
+    [pickupCoord, origin],
+  );
+  const { directions } = useGoogleRoute(origin, destination);
 
   const customerName = ride?.customerName || "John David";
+  const customerProfilePicture = ride?.customerProfilePicture;
   const pickup = ride?.pickup || "Pickup";
-  const rating = ride?.rating || "4.9";
 
-  const routeCoordinates =
-    directions?.polyline?.length > 0
-      ? directions.polyline
-      : pickupCoord
-        ? [origin, pickupCoord]
-        : [origin];
+  const minimizeToHome = useCallback(() => {
+    navigation.navigate("MainTabs");
+    return true;
+  }, [navigation]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const subscription = BackHandler.addEventListener(
+        "hardwareBackPress",
+        minimizeToHome,
+      );
+
+      return () => subscription.remove();
+    }, [minimizeToHome]),
+  );
+
+  const routeCoordinates = useMemo(
+    () =>
+      directions?.polyline?.length > 0
+        ? directions.polyline
+        : pickupCoord
+          ? [origin, pickupCoord]
+          : [origin],
+    [directions?.polyline, pickupCoord, origin],
+  );
+  const mapPadding = useMemo(
+    () => ({ top: 180, right: 70, bottom: 300, left: 70 }),
+    [],
+  );
 
   // 1. Setup active state for tracking elapsed seconds
   const [secondsElapsed, setSecondsElapsed] = useState(0);
-
-  // Map Fitting Side-Effect
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    const timer = setTimeout(() => {
-      mapRef.current?.fitToCoordinates(routeCoordinates, {
-        edgePadding: {
-          top: 180,
-          right: 70,
-          bottom: 300,
-          left: 70,
-        },
-        animated: true,
-      });
-    }, 600);
-
-    return () => clearTimeout(timer);
-  }, [directions]);
+  const [isStartingRide, setIsStartingRide] = useState(false);
+  const [followVehicle, setFollowVehicle] = useState(true);
 
   // 2. Active Interval Timer Hook (Increments every 1000ms)
   useEffect(() => {
@@ -81,61 +94,62 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
     return `${paddedMins}:${paddedSecs}`;
   };
 
-const handlePassengerOnBoard = () => {
-  console.log("Trip Starting: Passenger is on board.");
+  const handlePassengerOnBoard = async () => {
+    if (!ride?.id || isStartingRide) return;
 
-  navigation.navigate("TripInProgressScreen", {
-    ride,
-  });
-};
+    setIsStartingRide(true);
+    try {
+      const response = await api.post(`/rides/${ride.id}/start`);
+      const updatedRide = response.data?.data ?? response.data ?? ride;
+
+      navigation.navigate("TripInProgressScreen", {
+        ride: { ...ride, ...updatedRide },
+      });
+    } catch (error) {
+      console.log("Error starting ride:", error);
+      alert(
+        error.response?.data?.message ||
+        "Failed to start the ride. Please try again.",
+      );
+    } finally {
+      setIsStartingRide(false);
+    }
+  };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent={true} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="transparent"
+        translucent={true}
+      />
 
       {/* MAP VIEWPORT */}
-      <MapView
-        ref={mapRef}
+      <GoogleRideMap
         style={styles.map}
-        initialRegion={{
-          latitude: (origin.latitude + destination.latitude) / 2,
-          longitude: (origin.longitude + destination.longitude) / 2,
-          latitudeDelta: 0.015,
-          longitudeDelta: 0.015,
-        }}
-      >
-        <Polyline
-          coordinates={routeCoordinates}
-          strokeWidth={5}
-          strokeColor="#00A859"
-          lineCap="round"
-          lineJoin="round"
-        />
+        origin={origin}
+        destination={destination}
+        routeCoordinates={routeCoordinates}
+        routeColor="#00A859"
+        destinationColor="#00A859"
+        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
+        vehicleSize={46}
+        edgePadding={mapPadding}
+        followVehicle={followVehicle}
+        followZoom={16}
+        followPitch={45}
+        onFollowStateChange={setFollowVehicle}
+      />
 
-        {/* DRIVER CAR VEHICLE MARKER */}
-        <Marker
-          coordinate={origin}
-          anchor={{ x: 0.5, y: 0.8 }}
-          flat={true}
-          rotation={38}
-          style={styles.markerFix}
+      {!followVehicle ? (
+        <TouchableOpacity
+          style={styles.recenterButton}
+          onPress={() => setFollowVehicle(true)}
+          activeOpacity={0.8}
         >
-          <Image 
-            source={require('../../assets/car3d.png')} 
-            style={styles.driver3DVehicle}
-            resizeMode="contain"
-          />
-        </Marker>
-
-        {/* PICKUP TARGET LOCATION MARKER */}
-        {pickupCoord ? (
-          <Marker coordinate={pickupCoord} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.pickupMarkerOuter}>
-              <View style={styles.pickupMarkerInner} />
-            </View>
-          </Marker>
-        ) : null}
-      </MapView>
+          <Ionicons name="locate" size={22} color="#0F172A" />
+        </TouchableOpacity>
+      ) : null}
 
       {/* ARRIVED STATUS FLOATING ALERT BADGE UI CARD OVERLAY */}
       <View style={styles.arrivedStatusCardContainer} pointerEvents="box-none">
@@ -145,20 +159,18 @@ const handlePassengerOnBoard = () => {
           </View>
           <Text style={styles.arrivedStatusTitle}>You ve arrived</Text>
           <Text style={styles.arrivedStatusSubtitle}>at pickup location</Text>
-          
+
           <View style={styles.inlineAddressRow}>
             <Ionicons name="location" size={14} color="#00A859" />
-            <Text style={styles.inlineAddressText} numberOfLines={1}>{pickup}</Text>
+            <Text style={styles.inlineAddressText} numberOfLines={1}>
+              {pickup}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity style={styles.circleBtn} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-          <Feather name="arrow-left" size={22} color="#0F172A" />
-        </TouchableOpacity>
-        
         <TouchableOpacity style={styles.circleBtn} activeOpacity={0.7}>
           <Feather name="phone" size={20} color="#0F172A" />
         </TouchableOpacity>
@@ -172,14 +184,14 @@ const handlePassengerOnBoard = () => {
           {/* CUSTOMER META INFO LINE ROW PANEL */}
           <View style={styles.customerRow}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={26} color="#FFF" />
+              {customerProfilePicture ? (
+                <Image source={{ uri: customerProfilePicture }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={26} color="#FFF" />
+              )}
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
-              <View style={styles.ratingRow}>
-                <Ionicons name="star" size={13} color="#0F172A" style={{ marginRight: 4 }} />
-                <Text style={styles.ratingText}>{rating} Customer Rating</Text>
-              </View>
             </View>
           </View>
 
@@ -187,12 +199,21 @@ const handlePassengerOnBoard = () => {
           <View style={styles.waitingTimerBar}>
             <Text style={styles.waitingLabel}>Waiting for passenger</Text>
             {/* 4. Swapped static text out for dynamic formatting helper output */}
-            <Text style={styles.waitingClockTimer}>{formatTimer(secondsElapsed)}</Text>
+            <Text style={styles.waitingClockTimer}>
+              {formatTimer(secondsElapsed)}
+            </Text>
           </View>
 
           {/* PROGRESSIVE PRIMARY CTA SUBMIT WORKFLOW ELEMENT */}
-          <TouchableOpacity style={styles.actionBtnPrimary} onPress={handlePassengerOnBoard} activeOpacity={0.9}>
-            <Text style={styles.actionBtnPrimaryText}>Passenger On Board</Text>
+          <TouchableOpacity
+            style={styles.actionBtnPrimary}
+            onPress={handlePassengerOnBoard}
+            activeOpacity={0.9}
+            disabled={isStartingRide}
+          >
+            <Text style={styles.actionBtnPrimaryText}>
+              {isStartingRide ? "Starting Trip..." : "Passenger On Board"}
+            </Text>
             <View style={styles.innerBtnArrowCircle}>
               <Feather name="chevrons-right" size={20} color="#00A859" />
             </View>
@@ -200,6 +221,11 @@ const handlePassengerOnBoard = () => {
         </View>
         <SafeAreaView edges={["bottom"]} style={styles.blackBottomSafeArea} />
       </View>
+      <PassengerCancellationNotice
+        rideId={ride?.id}
+        navigation={navigation}
+        customerName={customerName}
+      />
     </View>
   );
 };
@@ -213,6 +239,19 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  recenterButton: {
+    position: "absolute",
+    right: 20,
+    top: 190,
+    zIndex: 12,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 6,
   },
   header: {
     position: "absolute",
@@ -367,6 +406,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginRight: 14,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   customerName: {
     fontSize: 19,

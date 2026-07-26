@@ -42,7 +42,18 @@ return [
     | for this duration.
     |
     */
-    'rejection_cooldown_seconds' => (int) env('RIDE_REJECTION_COOLDOWN_SECONDS', 300),
+    'rejection_cooldown_seconds' => (int) env('RIDE_REJECTION_COOLDOWN_SECONDS', 15),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Free passenger waiting window (minutes)
+    |--------------------------------------------------------------------------
+    |
+    | Waiting is measured from driver arrival at pickup until trip start. The
+    | first few minutes are free, and only the remainder is added to final fare.
+    |
+    */
+    'waiting_grace_minutes' => (float) env('RIDE_WAITING_GRACE_MINUTES', 5),
 
     /*
     |--------------------------------------------------------------------------

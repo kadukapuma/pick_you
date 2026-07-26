@@ -6,8 +6,10 @@ use App\Events\DashboardUpdated;
 use App\Events\VehicleCreated;
 use App\Http\Controllers\Controller;
 use App\Models\AdminNotificationLog;
+use App\Models\User;
 use App\Models\Vehicle;
 use App\Models\VehicleImage;
+use App\Services\Media\ImageStorageService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
@@ -24,6 +26,11 @@ class VehicleController extends Controller
         $perPage = min($perPage, 100);
 
         $query = Vehicle::with(['driver.user'])->orderByDesc('id');
+        if ($request->user()?->canActAs(User::ROLE_DRIVER)) {
+            $query->where('driver_id', $request->user()->driver->id);
+        } elseif (! $request->user()?->hasPermission('manage_vehicles')) {
+            return $this->error('You are not authorized to view vehicles.', 403);
+        }
         if ($request->filled('driver_id')) {
             $query->where('driver_id', $request->input('driver_id'));
         }
@@ -33,9 +40,15 @@ class VehicleController extends Controller
         return $this->success($data, 'Vehicle list retrieved successfully.');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ImageStorageService $images)
     {
-        $vehicle = Vehicle::create($request->all());
+        $attributes = $request->all();
+        if ($request->user()?->canActAs(User::ROLE_DRIVER)) {
+            $attributes['driver_id'] = $request->user()->driver->id;
+        } elseif (! $request->user()?->hasPermission('manage_vehicles')) {
+            return $this->error('You are not authorized to create vehicles.', 403);
+        }
+        $vehicle = Vehicle::create($attributes);
 
         $imageFields = ['insurance_img', 'licence_img', 'v_front', 'v_back', 'v_side'];
         $hasImages = false;
@@ -47,7 +60,7 @@ class VehicleController extends Controller
         }
 
         if ($hasImages) {
-            $this->saveVehicleImages($request, $vehicle);
+            $this->saveVehicleImages($request, $vehicle, $images);
         }
 
         $vehicle->load(['images', 'driver.user']);
@@ -55,7 +68,7 @@ class VehicleController extends Controller
         event(new VehicleCreated($vehicle));
 
         $driverName = $vehicle->driver?->user
-            ? trim(($vehicle->driver->user->first_name ?? '') . ' ' . ($vehicle->driver->user->last_name ?? ''))
+            ? trim(($vehicle->driver->user->first_name ?? '').' '.($vehicle->driver->user->last_name ?? ''))
             : "Driver #{$vehicle->driver_id}";
         if ($driverName === '') {
             $driverName = "Driver #{$vehicle->driver_id}";
@@ -73,37 +86,55 @@ class VehicleController extends Controller
         return $this->success($vehicle, 'Vehicle created successfully.', 201);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
         $data = Vehicle::with(['driver.user', 'images'])->find($id);
-        if (!$data) return $this->error('Vehicle not found.', 404);
+        if (! $data) {
+            return $this->error('Vehicle not found.', 404);
+        }
+        if (! $this->canManage($request, $data)) {
+            return $this->error('You are not authorized to view this vehicle.', 403);
+        }
+
         return $this->success($data, 'Vehicle retrieved successfully.');
     }
 
     public function update(Request $request, $id)
     {
         $data = Vehicle::find($id);
-        if (!$data) return $this->error('Vehicle not found.', 404);
-        $data->update($request->all());
+        if (! $data) {
+            return $this->error('Vehicle not found.', 404);
+        }
+        if (! $this->canManage($request, $data)) {
+            return $this->error('You are not authorized to update this vehicle.', 403);
+        }
+        $attributes = $request->except('driver_id');
+        $data->update($attributes);
+
         return $this->success($data, 'Vehicle updated successfully.');
     }
 
     public function destroy($id)
     {
         $data = Vehicle::find($id);
-        if (!$data) return $this->error('Vehicle not found.', 404);
+        if (! $data) {
+            return $this->error('Vehicle not found.', 404);
+        }
         $data->delete();
+
         return $this->success(null, 'Vehicle deleted successfully.');
     }
 
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:pending,approved,suspended,updated'
+            'status' => 'required|in:pending,approved,suspended,updated',
         ]);
 
         $vehicle = Vehicle::with(['driver.user'])->find($id);
-        if (!$vehicle) return $this->error('Vehicle not found.', 404);
+        if (! $vehicle) {
+            return $this->error('Vehicle not found.', 404);
+        }
 
         $vehicle->update(['status' => $request->status]);
 
@@ -122,21 +153,30 @@ class VehicleController extends Controller
         return $this->success($vehicle, "Vehicle status has been updated to {$request->status} successfully.");
     }
 
-
-    public function uploadImages(Request $request, $id)
+    public function uploadImages(Request $request, $id, ImageStorageService $images)
     {
         $vehicle = Vehicle::find($id);
-        if (!$vehicle) return $this->error('Vehicle not found.', 404);
+        if (! $vehicle) {
+            return $this->error('Vehicle not found.', 404);
+        }
+        if (! $this->canManage($request, $vehicle)) {
+            return $this->error('You are not authorized to update this vehicle.', 403);
+        }
 
-        $this->saveVehicleImages($request, $vehicle);
+        $this->saveVehicleImages($request, $vehicle, $images);
 
         return $this->success($vehicle->load('images'), 'Images uploaded successfully.');
     }
 
-    private function saveVehicleImages(Request $request, Vehicle $vehicle)
+    private function saveVehicleImages(
+        Request $request,
+        Vehicle $vehicle,
+        ImageStorageService $images,
+    )
     {
         $driverId = $vehicle->driver_id;
         $vehicleId = $vehicle->id;
+        $existingImages = $vehicle->images()->first();
 
         $imageData = [
             'driver_id' => $driverId,
@@ -147,10 +187,10 @@ class VehicleController extends Controller
 
         foreach ($imageFields as $field) {
             if ($request->hasFile($field)) {
-                $imageData[$field] = $this->uploadImageToCloudinary(
+                $imageData[$field] = $images->store(
                     $request->file($field),
                     "drivers/{$driverId}/vehicles/{$vehicleId}",
-                    $field
+                    str_replace('_', '-', $field),
                 );
             }
         }
@@ -159,20 +199,17 @@ class VehicleController extends Controller
             ['vehicle_id' => $vehicleId],
             $imageData
         );
+
+        foreach (array_keys($imageData) as $field) {
+            if (! in_array($field, ['driver_id', 'vehicle_id'], true)) {
+                $images->deleteLocal($existingImages?->{$field});
+            }
+        }
     }
 
-    private function uploadImageToCloudinary($file, string $folder, string $publicId): ?string
+    private function canManage(Request $request, Vehicle $vehicle): bool
     {
-        $uploadResult = cloudinary()->uploadApi()->upload($file->getRealPath(), [
-            'folder' => $folder,
-            'public_id' => $publicId,
-            'overwrite' => true,
-            'invalidate' => true,
-            'resource_type' => 'image',
-        ]);
-
-        return data_get($uploadResult, 'secure_url')
-            ?? data_get($uploadResult, 'url')
-            ?? null;
+        return $request->user()?->hasPermission('manage_vehicles')
+            || ($request->user()?->driver && (int) $request->user()->driver->id === (int) $vehicle->driver_id);
     }
 }

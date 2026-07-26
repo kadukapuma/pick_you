@@ -1,59 +1,128 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
+  Platform,
+  StatusBar,
   StyleSheet,
-  View,
+  Switch,
   Text,
   TouchableOpacity,
-  Switch,
-  StatusBar,
-  Platform,
-  ActivityIndicator,
+  View,
 } from "react-native";
 
-import MapView, { Marker, AnimatedRegion } from "react-native-maps";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useFocusEffect, useNavigation } from "@react-navigation/native";
-import * as Location from "expo-location";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { MotiView, AnimatePresence } from "moti";
-import api from "../../services/api";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
+import { AnimatePresence, MotiView } from "moti";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import IncomingRideModal from "../../components/IncomingRideModel";
-import { normalizeRidePayload } from "../../utils/rideLocation";
+import GoogleRideMap from "../../components/map/GoogleRideMap";
+import { useDriverLocation } from "../../hooks/useDriverLocation";
+import api from "../../services/api";
+import {
+  setActiveRideLocationSync,
+  startDriverLocationSync,
+  stopDriverLocationSync,
+} from "../../services/driverLocationSync";
 import {
   connectRideRealtime,
   disconnectRideRealtime,
   enableRideFallbackSync,
   syncPendingRideOnce,
 } from "../../services/rideRealtime";
-import {
-  startDriverLocationSync,
-  stopDriverLocationSync,
-} from "../../services/driverLocationSync";
+import { normalizeRidePayload } from "../../utils/rideLocation";
+import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
+
+const DEFAULT_DRIVER_COORD = { latitude: 6.9271, longitude: 79.8612 };
+const IS_AVAILABILITY_TOGGLE_DISABLED = false;
+
+const getActiveVehicleType = (driver) => {
+  const activeVehicle =
+    driver?.vehicles?.find((vehicle) => vehicle?.is_active) ??
+    driver?.vehicles?.[0];
+
+  return (
+    activeVehicle?.vehicle_type ||
+    activeVehicle?.vehicleType?.name ||
+    driver?.vehicle_type ||
+    null
+  );
+};
+
+const ONGOING_STATUS_ROUTE = {
+  ACCEPTED: "PickupNavigation",
+  ARRIVED: "ArrivedAtPickupScreen",
+  STARTED: "TripInProgressScreen",
+};
+
+const getActiveRideSubtitle = (status) => {
+  switch (String(status || "").toUpperCase()) {
+    case "ACCEPTED":
+      return "Heading to pickup";
+    case "ARRIVED":
+      return "Waiting for passenger";
+    case "STARTED":
+      return "Trip in progress";
+    default:
+      return "Continue your ride";
+  }
+};
 
 const HomeScreen = () => {
-  const mapRef = useRef(null);
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
+  const cameraRef = useRef(null);
+  const {
+    location: driverCoord,
+    loading: isLocationLoading,
+    error: locationError,
+  } = useDriverLocation();
+  const mapOrigin = useMemo(
+    () => driverCoord ?? DEFAULT_DRIVER_COORD,
+    [driverCoord],
+  );
+
 
   const [isOnline, setIsOnline] = useState(false);
   const [isToggling, setIsToggling] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
-  const [activeVehicleType, setActiveVehicleType] = useState(null);
+  const [realtimeStatus, setRealtimeStatus] = useState("disconnected");
   const [showRideModal, setShowRideModal] = useState(false);
   const [rideData, setRideData] = useState(null);
-  const [isRideHandled, setIsRideHandled] = useState(false);
+  const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
+  const [driverVehicleType, setDriverVehicleType] = useState(null);
+  const [screenError, setScreenError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [activeRide, setActiveRide] = useState(null);
+  const [isCheckingActiveRide, setIsCheckingActiveRide] = useState(false);
+
+  const homeRouteCoordinates = useMemo(() => [mapOrigin], [mapOrigin]);
+  const homeVehicleImage = useMemo(
+    () => getVehicleMapIcon(rideData?.vehicle_type || driverVehicleType),
+    [rideData?.vehicle_type, driverVehicleType],
+  );
 
   const toastTimerRef = useRef(null);
+  const incomingRideTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
-  const isRideHandledRef = useRef(false);
+  const handledRideIdRef = useRef(null);
 
-  useEffect(() => {
-    isRideHandledRef.current = isRideHandled;
-  }, [isRideHandled]);
+  const clearIncomingRideTimer = useCallback(() => {
+    if (incomingRideTimerRef.current) {
+      clearTimeout(incomingRideTimerRef.current);
+      incomingRideTimerRef.current = null;
+    }
+  }, []);
 
   // --- REFINED PREMIUM TOAST SYSTEM ---
-  const [toast, setToast] = useState({ visible: false, type: "success", message: "" });
+  const [toast, setToast] = useState({
+    visible: false,
+    type: "success",
+    message: "",
+  });
 
   const showCustomToast = (type, message, duration = 35000) => {
     if (toastTimerRef.current) {
@@ -66,30 +135,42 @@ const HomeScreen = () => {
     }, duration);
   };
 
-  const [region] = useState(
-    new AnimatedRegion({
-      latitude: 6.9271,
-      longitude: 79.8612,
-      latitudeDelta: 0.01,
-      longitudeDelta: 0.01,
-    })
-  );
+  const fetchOngoingRide = useCallback(async () => {
+    setIsCheckingActiveRide(true);
+    try {
+      const response = await api.get("/driver/rides?status=ongoing&per_page=1");
+      const payload = response.data?.data ?? response.data ?? {};
+      const ride = Array.isArray(payload.data) ? payload.data[0] : null;
+      setActiveRide(ride ? { ...ride, ...normalizeRidePayload(ride) } : null);
+    } catch (error) {
+      console.log("Could not fetch active driver ride:", error.response?.data || error);
+      setActiveRide(null);
+    } finally {
+      setIsCheckingActiveRide(false);
+    }
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
-      StatusBar.setBarStyle("dark-content", true);
-      StatusBar.setBackgroundColor("#fff", true);
-      StatusBar.setTranslucent(false);
-      StatusBar.setHidden(false);
+      try {
+        StatusBar.setBarStyle("dark-content", true);
+        StatusBar.setBackgroundColor("#fff", true);
+        StatusBar.setTranslucent(false);
+        StatusBar.setHidden(false);
 
-      // Reset ride handling refs when screen comes into focus
-      lastNotifiedRideIdRef.current = null;
-      setIsRideHandled(false);
-      isRideHandledRef.current = false;
+        // Reset ride handling refs when screen comes into focus
+        clearIncomingRideTimer();
+        lastNotifiedRideIdRef.current = null;
+        handledRideIdRef.current = null;
 
-      fetchDriverData();
+        fetchDriverData();
+        fetchOngoingRide();
+      } catch (err) {
+        console.error("❌ useFocusEffect error:", err);
+        setScreenError("Failed to initialize home screen");
+      }
       return () => { };
-    }, [])
+    }, [clearIncomingRideTimer, fetchOngoingRide]),
   );
 
   const presentIncomingRide = useCallback((ride) => {
@@ -100,7 +181,7 @@ const HomeScreen = () => {
 
     const rideId = Number(ride.id);
     if (
-      isRideHandledRef.current ||
+      handledRideIdRef.current === rideId ||
       Number(lastNotifiedRideIdRef.current) === rideId
     ) {
       if (__DEV__) {
@@ -109,29 +190,41 @@ const HomeScreen = () => {
       return;
     }
 
-    if (__DEV__) console.log("presentIncomingRide: showing modal for ride", rideId);
+    if (__DEV__)
+      console.log("presentIncomingRide: showing modal for ride", rideId);
 
     // Show UI first — do not wait for sound or network
     setShowRideModal(true);
     setRideData(ride);
+    setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = rideId;
-    setIsRideHandled(false);
 
-    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = setTimeout(() => {
+    clearIncomingRideTimer();
+    incomingRideTimerRef.current = setTimeout(() => {
+      incomingRideTimerRef.current = null;
       setShowRideModal(false);
       setRideData(null);
+      setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
     }, 12000);
-  }, []);
+  }, [clearIncomingRideTimer]);
 
   // WebSocket-first ride delivery (no 5s polling — scales to large fleets)
   // WebSocket + GPS while online (socket stays warm — popup is instant when a ride is broadcast)
   useEffect(() => {
     if (!isOnline || !driverId) {
-      disconnectRideRealtime();
-      stopDriverLocationSync();
+      clearIncomingRideTimer();
+      try {
+        disconnectRideRealtime();
+        stopDriverLocationSync();
+      } catch (err) {
+        console.log("Error disconnecting services:", err);
+      }
       setWsConnected(false);
+      setRealtimeStatus("disconnected");
+      setShowRideModal(false);
+      setRideData(null);
+      setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
       return;
     }
@@ -139,9 +232,9 @@ const HomeScreen = () => {
     let cancelled = false;
 
     const startOnlineServices = async () => {
-      startDriverLocationSync();
-
       try {
+        startDriverLocationSync();
+
         await connectRideRealtime(driverId, {
           onRide: (ride) => {
             if (!cancelled) presentIncomingRide(ride);
@@ -149,13 +242,21 @@ const HomeScreen = () => {
           onConnectionChange: (connected) => {
             if (!cancelled) setWsConnected(connected);
           },
+          onStatusChange: (status) => {
+            if (!cancelled) setRealtimeStatus(status);
+          },
         });
       } catch (err) {
         console.log("Ride realtime connect error:", err?.message || err);
         if (!cancelled) {
           setWsConnected(false);
-          enableRideFallbackSync();
-          await syncPendingRideOnce();
+          setRealtimeStatus("fallback");
+          try {
+            enableRideFallbackSync();
+            await syncPendingRideOnce();
+          } catch (fallbackErr) {
+            console.log("Fallback sync error:", fallbackErr);
+          }
         }
       }
     };
@@ -164,58 +265,94 @@ const HomeScreen = () => {
 
     return () => {
       cancelled = true;
-      disconnectRideRealtime();
-      stopDriverLocationSync();
+      clearIncomingRideTimer();
+      try {
+        disconnectRideRealtime();
+        stopDriverLocationSync();
+      } catch (err) {
+        console.log("Error in cleanup:", err);
+      }
     };
-  }, [isOnline, driverId, presentIncomingRide]);
+  }, [clearIncomingRideTimer, isOnline, driverId, presentIncomingRide]);
 
   // Clean up any pending timers when component unmounts
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      clearIncomingRideTimer();
     };
-  }, []);
+  }, [clearIncomingRideTimer]);
+
+  const getStatusSubtitle = () => {
+    if (!isOnline) return "Go online to start earning";
+    if (wsConnected) return "Live - trips arrive instantly";
+    if (realtimeStatus === "auth_error") return "Live auth failed - checking trips...";
+    if (realtimeStatus === "fallback") return "Looking for trips...";
+    return "Connecting to live trips...";
+  };
 
   const fetchDriverData = async () => {
     try {
+      console.log("🔵 Fetching driver data...");
       const response = await api.get("/user");
-      const driverObj = response.data?.driver;
-      const driverAvailability = driverObj?.availability;
-      const primaryVehicle = driverObj?.vehicles?.[0];
-      setIsOnline(driverAvailability === 1);
-      setDriverId(driverObj?.id || null);
-      setActiveVehicleType(
-        primaryVehicle?.vehicle_type || driverObj?.vehicle_type || null,
+      const payload = response.data?.data ?? response.data ?? {};
+      const userObj = payload.user ?? payload;
+      const driverObj = payload.driver ?? userObj.driver;
+      console.log("✅ Driver data fetched:", driverObj?.id);
+
+      if (!driverObj) {
+        throw new Error("No driver data returned from server");
+      }
+
+      const isAvailable = Boolean(
+        driverObj?.availability === 1 ||
+        driverObj?.availability === true ||
+        driverObj?.availability === "1"
       );
+      setIsOnline(isAvailable);
+      setDriverId(driverObj?.id || null);
+      setDriverVehicleType(getActiveVehicleType(driverObj));
+      setScreenError(null);
     } catch (error) {
-      console.log("Error fetching driver data:", error);
+      console.error("❌ Error fetching driver data:", error.message || error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
+      setScreenError(error.message || "Failed to load driver data");
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleAcceptRide = async () => {
-    if (!rideData?.id) return;
+    if (!rideData?.id || isAcceptingRide) return;
     const rideId = rideData.id;
-    try {
-      await api.post(`/rides/${rideId}/accept`);
+    clearIncomingRideTimer();
+    setIsAcceptingRide(true);
 
-      let rideForNav = rideData;
-      try {
-        const detailRes = await api.get(`/rides/${rideId}`);
-        const detail = detailRes.data?.data ?? detailRes.data;
-        if (detail) {
-          rideForNav = normalizeRidePayload({ ...rideData, ...detail });
-        }
-      } catch (detailErr) {
-        console.log("Could not refresh ride details:", detailErr);
-      }
+    try {
+      const acceptRes = await api.post(`/rides/${rideId}/accept`);
+      const acceptedRide = acceptRes.data?.data ?? acceptRes.data;
+      const rideForNav = acceptedRide
+        ? normalizeRidePayload({ ...rideData, ...acceptedRide })
+        : rideData;
 
       setShowRideModal(false);
       setRideData(null);
+      setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
-      setIsRideHandled(true);
+      handledRideIdRef.current = rideId;
+      setActiveRide(rideForNav);
       navigation.navigate("RideDetails", { ride: rideForNav });
+
+      setActiveRideLocationSync(rideId).catch((syncErr) => {
+        console.log("Could not start active ride location sync:", syncErr);
+      });
+
+      api.get(`/rides/${rideId}`).catch((detailErr) => {
+        console.log("Could not refresh ride details:", detailErr);
+      });
     } catch (error) {
       console.log("Error accepting ride:", error);
+      setIsAcceptingRide(false);
       showCustomToast(
         "error",
         error.response?.data?.message || "Failed to accept ride.",
@@ -224,14 +361,16 @@ const HomeScreen = () => {
   };
 
   const handleRejectRide = async () => {
-    if (!rideData?.id) return;
+    if (!rideData?.id || isAcceptingRide) return;
     const rideId = rideData.id;
+    clearIncomingRideTimer();
 
     // Dismiss modal and prevent re‑showing this ride request
     setShowRideModal(false);
     setRideData(null);
+    setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = null;
-    setIsRideHandled(true); // mark as handled to stop looping
+    handledRideIdRef.current = rideId; // mark as handled to stop looping
 
     try {
       console.log("🔔 Driver rejecting ride request:", rideId);
@@ -242,9 +381,11 @@ const HomeScreen = () => {
   };
 
   const handleToggleAvailability = async (newValue) => {
+    if (IS_AVAILABILITY_TOGGLE_DISABLED) return;
+
     setIsToggling(true);
     try {
-      await api.put('/driver/availability', {
+      await api.put("/driver/availability", {
         is_active: newValue,
       });
 
@@ -253,7 +394,7 @@ const HomeScreen = () => {
         "success",
         newValue
           ? "You are now online. Searching for trips..."
-          : "You are now offline. Enjoy your break!"
+          : "You are now offline. Enjoy your break!",
       );
     } catch (error) {
       console.log("Error updating driver availability:", error);
@@ -269,156 +410,241 @@ const HomeScreen = () => {
     }
   };
 
-  const goToMyLocation = async () => {
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") return;
-
-      const location = await Location.getCurrentPositionAsync({});
-      const newRegion = {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      };
-
-      region.timing(newRegion).start();
-      mapRef.current?.animateToRegion(newRegion, 1000);
-    } catch (error) {
-      console.log(error);
+  // Center Map Viewport cleanly over Driver Coordinates
+  const handleCenterLocation = () => {
+    if (cameraRef.current && mapOrigin) {
+      cameraRef.current.setCamera({
+        centerCoordinate: [mapOrigin.longitude, mapOrigin.latitude],
+        zoomLevel: 15,
+        animationDuration: 600,
+      });
     }
+  };
+
+  const handleResumeActiveRide = () => {
+    if (!activeRide?.id) return;
+
+    const status = String(activeRide.status || "").toUpperCase();
+    const routeName = ONGOING_STATUS_ROUTE[status] || "PickupNavigation";
+
+    setActiveRideLocationSync(activeRide.id).catch((syncErr) => {
+      console.log("Could not resume active ride location sync:", syncErr);
+    });
+
+    navigation.navigate(routeName, { ride: activeRide });
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" translucent={false} />
+      <StatusBar
+        barStyle="dark-content"
+        backgroundColor="#fff"
+        translucent={false}
+      />
 
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        initialRegion={{
-          latitude: 6.9271,
-          longitude: 79.8612,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
-        showsUserLocation={false}
-        showsMyLocationButton={false}
-      >
-        <Marker.Animated coordinate={region}>
-          <View style={styles.markerContainer}>
-            <View style={styles.driverIcon}>
-              <Feather name="navigation" size={20} color="#1E293B" />
-            </View>
-          </View>
-        </Marker.Animated>
-      </MapView>
-
-      {/* --- TOP HEADER ROW --- */}
-      <SafeAreaView style={[styles.topContainer, { paddingTop: insets.top }]}>
-        <View style={styles.headerRow}>
-          <TouchableOpacity style={styles.locationButton}>
-            <Feather name="navigation" size={16} color="#00A859" />
-            <Text style={styles.locationText}>Downtown Area</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => navigation.navigate("Notifications")}
-          >
-            <Feather name="bell" size={20} color="#0F172A" />
-            <View style={styles.dot} />
+      {/* ERROR STATE */}
+      {screenError && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>⚠️ Error Loading Home</Text>
+            <Text style={styles.errorMessage}>{screenError}</Text>
+            <TouchableOpacity
+              style={styles.errorRetryBtn}
+              onPress={() => {
+                setScreenError(null);
+                fetchDriverData();
+                fetchOngoingRide();
+              }}
+            >
+            <Text style={styles.errorRetryText}>Retry</Text>
           </TouchableOpacity>
         </View>
-      </SafeAreaView>
+      )}
 
-      {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
-      <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
-        <TouchableOpacity style={styles.floatingBtn} onPress={goToMyLocation}>
-          <Feather name="navigation" size={20} color="#0F172A" />
-        </TouchableOpacity>
+      {/* LOADING STATE */}
+      {isLoading && !screenError && (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#00A859" />
+          <Text style={styles.loadingText}>Loading home screen...</Text>
+        </View>
+      )}
 
-        <TouchableOpacity style={styles.floatingBtn}>
-          <Feather name="refresh-cw" size={18} color="#0F172A" />
-        </TouchableOpacity>
-      </View>
+      {/* MAIN CONTENT - Only show if no error and not loading */}
+      {!screenError && !isLoading && (
+        <>
+          {/* MAP VIEWPORT */}
+          <View style={styles.map}>
+            <GoogleRideMap
+              cameraRef={cameraRef}
+              style={styles.map}
+              origin={mapOrigin}
+              routeCoordinates={homeRouteCoordinates}
+              vehicleImage={homeVehicleImage}
+              vehicleHeading={mapOrigin.heading ?? 0}
+              vehicleSize={46}
+            />
 
-      {/* --- ANCHORED PREMIUM BANNER (SHIFTS DYNAMICALLY ABOVE THE BOTTOM STATUS CARD) --- */}
-      <AnimatePresence>
-        {toast.visible && (
-          <MotiView
-            from={{ opacity: 0, y: 15, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 10, scale: 0.96 }}
-            transition={{ type: "spring", damping: 20, stiffness: 150 }}
+            {(isLocationLoading || locationError) && (
+              <View style={styles.mapStatusPill} pointerEvents="none">
+                {isLocationLoading ? (
+                  <ActivityIndicator size="small" color="#00A859" />
+                ) : (
+                  <Feather name="map-pin" size={14} color="#EF4444" />
+                )}
+                <Text style={styles.mapStatusText} numberOfLines={1}>
+                  {isLocationLoading
+                    ? "Finding your location..."
+                    : "Location unavailable"}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* --- TOP HEADER ROW --- */}
+          <SafeAreaView
+            style={[styles.topContainer, { paddingTop: insets.top }]}
+          >
+            <View style={styles.headerRow}>
+              {/* TODAY'S EARNINGS DISPLAY SHEET */}
+              <View style={styles.earningsCard}>
+                <Text style={styles.earningsLabel}>Todays Earnings</Text>
+                <Text style={styles.earningsAmount}>LKR 0.00</Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.notificationButton}
+                onPress={() => navigation.navigate("Notifications")}
+              >
+                <Feather name="bell" size={20} color="#0F172A" />
+                <View style={styles.dot} />
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+
+          {/* --- RIGHT SIDE FLOATING CONTROLS --- */}
+          <View style={[styles.rightButtons, { bottom: 265 + insets.bottom }]}>
+            <TouchableOpacity style={styles.floatingBtn} onPress={handleCenterLocation}>
+              <Ionicons name="locate" size={22} color="#00A859" />
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.floatingBtn}>
+              <Feather name="refresh-cw" size={18} color="#0F172A" />
+            </TouchableOpacity>
+          </View>
+
+          {/* --- ANCHORED PREMIUM BANNER (SHIFTS DYNAMICALLY ABOVE THE BOTTOM STATUS CARD) --- */}
+          <AnimatePresence>
+            {toast.visible && (
+              <MotiView
+                from={{ opacity: 0, y: 15, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.96 }}
+                transition={{ type: "spring", damping: 20, stiffness: 150 }}
+                style={[
+                  styles.toastCard,
+                  {
+                    bottom:
+                      Platform.OS === "android" ? 225 : 205 + insets.bottom,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.statusIndicatorIndicator,
+                    {
+                      backgroundColor:
+                        toast.type === "error" ? "#EF4444" : "#00A859",
+                    },
+                  ]}
+                />
+                <View style={styles.toastContentContainer}>
+                  <Text style={styles.toastTitleText}>
+                    {toast.type === "error"
+                      ? "System Update Fail"
+                      : "Status Changed"}
+                  </Text>
+                  <Text style={styles.toastBodyText}>{toast.message}</Text>
+                </View>
+                <TouchableOpacity
+                  onPress={() =>
+                    setToast((prev) => ({ ...prev, visible: false }))
+                  }
+                  style={styles.toastCloseBtn}
+                >
+                  <Ionicons name="close" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              </MotiView>
+            )}
+          </AnimatePresence>
+
+          {/* --- YOUR PERFECT POSITIONED STATUS CARD --- */}
+          <SafeAreaView
+            edges={["bottom"]}
             style={[
-              styles.toastCard,
-              { bottom: Platform.OS === "android" ? 225 : 205 + insets.bottom }
+              styles.bottomContainer,
+              { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
             ]}
           >
-            <View style={[
-              styles.statusIndicatorIndicator,
-              { backgroundColor: toast.type === "error" ? "#EF4444" : "#00A859" }
-            ]} />
-            <View style={styles.toastContentContainer}>
-              <Text style={styles.toastTitleText}>
-                {toast.type === "error" ? "System Update Fail" : "Status Changed"}
-              </Text>
-              <Text style={styles.toastBodyText}>{toast.message}</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => setToast((prev) => ({ ...prev, visible: false }))}
-              style={styles.toastCloseBtn}
-            >
-              <Ionicons name="close" size={16} color="#94A3B8" />
-            </TouchableOpacity>
-          </MotiView>
-        )}
-      </AnimatePresence>
+            {activeRide ? (
+              <TouchableOpacity
+                style={styles.activeRideCard}
+                onPress={handleResumeActiveRide}
+                activeOpacity={0.86}
+              >
+                <View style={styles.activeRideIcon}>
+                  <Feather name="navigation" size={22} color="#FFFFFF" />
+                </View>
+                <View style={styles.activeRideCopy}>
+                  <Text style={styles.activeRideTitle}>Ride in progress</Text>
+                  <Text style={styles.activeRideSubtitle}>
+                    {getActiveRideSubtitle(activeRide.status)}
+                  </Text>
+                  <Text style={styles.activeRideRoute} numberOfLines={1}>
+                    {activeRide.customerName || "Passenger"} - {activeRide.drop || activeRide.pickup || "Current ride"}
+                  </Text>
+                </View>
+                {isCheckingActiveRide ? (
+                  <ActivityIndicator size="small" color="#00A859" />
+                ) : (
+                  <View style={styles.continuePill}>
+                    <Text style={styles.continueText}>Continue</Text>
+                    <Feather name="arrow-right" size={14} color="#00A859" />
+                  </View>
+                )}
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.statusCard}>
+                <View>
+                  <Text style={styles.statusTitle}>
+                    {isOnline ? "You're Online" : "You're Offline"}
+                  </Text>
+                  <Text style={styles.statusSubtitle}>{getStatusSubtitle()}</Text>
+                </View>
 
-      {/* --- YOUR PERFECT POSITIONED STATUS CARD --- */}
-      <SafeAreaView
-        edges={["bottom"]}
-        style={[
-          styles.bottomContainer,
-          { bottom: Platform.OS === "android" ? 82 : 62 + insets.bottom },
-        ]}
-      >
-        <View style={styles.statusCard}>
-          <View>
-            <Text style={styles.statusTitle}>
-              {isOnline ? "You're Online" : "You're Offline"}
-            </Text>
-            <Text style={styles.statusSubtitle}>
-              {isOnline
-                ? wsConnected
-                  ? "Live — trips arrive instantly"
-                  : "Reconnecting… (backup sync active)"
-                : "Go online to start earning"}
-            </Text>
-          </View>
+                {isToggling ? (
+                  <ActivityIndicator size="large" color="#00A859" />
+                ) : (
+                  <Switch
+                    trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
+                    thumbColor={isOnline ? "#00A859" : "#FFF"}
+                    onValueChange={handleToggleAvailability}
+                    value={isOnline}
+                    disabled={IS_AVAILABILITY_TOGGLE_DISABLED || isToggling}
+                  />
+                )}
+              </View>
+            )}
+          </SafeAreaView>
 
-          {isToggling ? (
-            <ActivityIndicator size="large" color="#00A859" />
-          ) : (
-            <Switch
-              trackColor={{ false: "#CBD5E1", true: "#86EFAC" }}
-              thumbColor={isOnline ? "#00A859" : "#FFF"}
-              onValueChange={handleToggleAvailability}
-              value={isOnline}
-              disabled={isToggling}
-            />
-          )}
-        </View>
-      </SafeAreaView>
-
-      {/* --- INCOMING RIDE REQUEST SHEET OVERLAY --- */}
-      <IncomingRideModal
-        visible={showRideModal}
-        rideData={rideData}
-        onAccept={handleAcceptRide}
-        onReject={handleRejectRide}
-      />
+          {/* --- INCOMING RIDE REQUEST SHEET OVERLAY --- */}
+          <IncomingRideModal
+            visible={showRideModal}
+            rideData={rideData}
+            onAccept={handleAcceptRide}
+            onReject={handleRejectRide}
+            isAccepting={isAcceptingRide}
+          />
+        </>
+      )}
     </View>
   );
 };
@@ -434,6 +660,31 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+    backgroundColor: "#f5f5f5",
+  },
+  mapStatusPill: {
+    position: "absolute",
+    top: 112,
+    alignSelf: "center",
+    maxWidth: "78%",
+    minHeight: 36,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    elevation: 5,
+  },
+  mapStatusText: {
+    flexShrink: 1,
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#0F172A",
   },
   /* --- REFINED CUSTOM PLACEMENT TOAST STYLING --- */
   toastCard: {
@@ -501,20 +752,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingBottom: 10,
   },
-  locationButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  earningsCard: {
     backgroundColor: "#FFF",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 22,
+    paddingHorizontal: 18,
+    paddingVertical: 8,
+    borderRadius: 20,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    alignItems: "flex-start",
+    minWidth: 150,
   },
-  locationText: {
-    marginLeft: 8,
-    fontSize: 14,
-    fontWeight: "700",
+  earningsLabel: {
+    fontSize: 10,
+    fontWeight: "600",
+    color: "#64748B",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  earningsAmount: {
+    fontSize: 16,
+    fontWeight: "800",
     color: "#0F172A",
+    marginTop: 2,
   },
   notificationButton: {
     width: 46,
@@ -524,6 +786,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   dot: {
     position: "absolute",
@@ -537,6 +803,7 @@ const styles = StyleSheet.create({
   rightButtons: {
     position: "absolute",
     right: 18,
+    gap: 2,
   },
   floatingBtn: {
     width: 50,
@@ -547,6 +814,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
   },
   bottomContainer: {
     position: "absolute",
@@ -563,6 +834,67 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     elevation: 6,
+  },
+  activeRideCard: {
+    width: "90%",
+    minHeight: 96,
+    backgroundColor: "#0F172A",
+    borderRadius: 24,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+  },
+  activeRideIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 16,
+    backgroundColor: "#00A859",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 13,
+  },
+  activeRideCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  activeRideTitle: {
+    color: "#FFFFFF",
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  activeRideSubtitle: {
+    color: "#86EFAC",
+    fontSize: 13,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+  activeRideRoute: {
+    color: "#CBD5E1",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 5,
+  },
+  continuePill: {
+    minWidth: 88,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 5,
+    marginLeft: 10,
+  },
+  continueText: {
+    color: "#00A859",
+    fontSize: 12,
+    fontWeight: "900",
   },
   requestContainer: {
     position: "absolute",
@@ -661,17 +993,47 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#64748B",
   },
-  markerContainer: {
-    alignItems: "center",
+  errorContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
     justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
   },
-  driverIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "#12cd76",
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#EF4444",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  errorMessage: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  errorRetryBtn: {
+    backgroundColor: "#00A859",
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 12,
+  },
+  errorRetryText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 6,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 16,
   },
 });

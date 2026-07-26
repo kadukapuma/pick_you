@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import api from '../../services/api';
+import ThemedFeedbackModal from '../../components/ThemedFeedbackModal';
 
 const EditProfileScreen = ({ navigation }) => {
   const [name, setName] = useState('');
@@ -22,6 +23,22 @@ const EditProfileScreen = ({ navigation }) => {
   const [phone, setPhone] = useState('');
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [feedback, setFeedback] = useState({
+    visible: false,
+    type: 'success',
+    title: '',
+    message: '',
+    onPrimary: null,
+  });
+
+  const showFeedback = ({ type = 'success', title, message, onPrimary }) => {
+    setFeedback({ visible: true, type, title, message, onPrimary });
+  };
+
+  const closeFeedback = () => {
+    setFeedback((prev) => ({ ...prev, visible: false, onPrimary: null }));
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -36,12 +53,73 @@ const EditProfileScreen = ({ navigation }) => {
         }
       } catch (error) {
         console.log('Error fetching profile for edit:', error);
+        showFeedback({
+          type: 'error',
+          title: 'Profile Unavailable',
+          message: 'Failed to load your profile details.',
+        });
       } finally {
         setLoading(false);
       }
     };
     fetchProfile();
   }, []);
+
+  const getNameParts = () => {
+    const trimmedName = name.trim().replace(/\s+/g, ' ');
+    const [firstName, ...rest] = trimmedName.split(' ');
+
+    return {
+      first_name: firstName || '',
+      last_name: rest.join(' '),
+    };
+  };
+
+  const handleSave = async () => {
+    const { first_name, last_name } = getNameParts();
+
+    if (!first_name) {
+      showFeedback({
+        type: 'warning',
+        title: 'Name Required',
+        message: 'Please enter your full name before saving.',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await api.put('/driver/profile', {
+        first_name,
+        last_name,
+        email: email.trim(),
+        phone: phone.trim(),
+      });
+
+      if (response.data.status === 'success') {
+        showFeedback({
+          type: 'success',
+          title: 'Profile Updated',
+          message: 'Your personal information has been saved successfully.',
+          onPrimary: () => navigation.goBack(),
+        });
+      }
+    } catch (error) {
+      console.log('Error updating profile:', error.response?.data || error);
+      const errors = error.response?.data?.errors;
+      const firstError = errors ? Object.values(errors).flat()[0] : null;
+      showFeedback({
+        type: 'error',
+        title: 'Update Failed',
+        message:
+          firstError ||
+          error.response?.data?.message ||
+          'Could not update your profile. Please try again.',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const InputField = ({ label, value, onChangeText, icon, keyboardType = 'default' }) => (
     <View style={styles.inputWrapper}>
@@ -73,8 +151,16 @@ const EditProfileScreen = ({ navigation }) => {
                 <Feather name="arrow-left" size={24} color="#FFF" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Personal Info</Text>
-              <TouchableOpacity style={styles.saveBtn}>
-                <Text style={styles.saveBtnText}>Save</Text>
+              <TouchableOpacity
+                style={styles.saveBtn}
+                onPress={handleSave}
+                disabled={saving || loading}
+              >
+                {saving ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Save</Text>
+                )}
               </TouchableOpacity>
             </View>
           </SafeAreaView>
@@ -139,6 +225,19 @@ const EditProfileScreen = ({ navigation }) => {
         </ScrollView>
         )}
       </KeyboardAvoidingView>
+
+      <ThemedFeedbackModal
+        visible={feedback.visible}
+        type={feedback.type}
+        title={feedback.title}
+        message={feedback.message}
+        onClose={closeFeedback}
+        onPrimary={() => {
+          const action = feedback.onPrimary;
+          closeFeedback();
+          action?.();
+        }}
+      />
     </View>
   );
 };
@@ -167,6 +266,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
   },
   saveBtnText: { color: '#FFF', fontWeight: '700', fontSize: 14 },
   

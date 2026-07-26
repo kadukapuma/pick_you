@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Modal,
   View,
@@ -6,6 +6,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Dimensions,
+  ActivityIndicator,
+  Image,
 } from "react-native";
 import { MotiView } from "moti";
 import { MaterialCommunityIcons, Feather, Ionicons } from "@expo/vector-icons";
@@ -14,10 +16,110 @@ import { Audio } from "expo-av";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
+const unloadSoundAsync = async (sound) => {
+  if (!sound) return;
+
+  try {
+    await sound.stopAsync();
+  } catch (error) {
+    console.log("Audio stop error:", error);
+  }
+
+  try {
+    await sound.unloadAsync();
+  } catch (error) {
+    console.log("Audio unload error:", error);
+  }
+};
+
+const IncomingRideModal = ({
+  visible,
+  onAccept,
+  onReject,
+  rideData,
+  isAccepting = false,
+}) => {
   const OFFER_SECONDS = 12;
+  const customerProfilePicture = rideData?.customerProfilePicture;
   const [countdown, setCountdown] = useState(OFFER_SECONDS);
   const soundRef = useRef(null);
+  const soundOperationRef = useRef(Promise.resolve());
+  const shouldPlaySoundRef = useRef(false);
+  const isMountedRef = useRef(false);
+  const onRejectRef = useRef(onReject);
+
+  const enqueueSoundOperation = useCallback((operation) => {
+    const runOperation = soundOperationRef.current
+      .catch(() => {})
+      .then(operation);
+
+    soundOperationRef.current = runOperation.catch(() => {});
+    return runOperation;
+  }, []);
+
+  const playSound = useCallback(() => {
+    shouldPlaySoundRef.current = true;
+
+    return enqueueSoundOperation(async () => {
+      if (!shouldPlaySoundRef.current || soundRef.current) return;
+
+      let nextSound = null;
+
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require("../assets/Ride-ringtone.mp3"),
+          {
+            shouldPlay: true,
+            isLooping: true,
+          }
+        );
+        nextSound = sound;
+      } catch (error) {
+        console.log("Audio play error:", error);
+        return;
+      }
+
+      if (!shouldPlaySoundRef.current || !isMountedRef.current) {
+        await unloadSoundAsync(nextSound);
+        return;
+      }
+
+      soundRef.current = nextSound;
+    });
+  }, [enqueueSoundOperation]);
+
+  const stopSound = useCallback(() => {
+    shouldPlaySoundRef.current = false;
+
+    return enqueueSoundOperation(async () => {
+      const currentSound = soundRef.current;
+      soundRef.current = null;
+      await unloadSoundAsync(currentSound);
+    });
+  }, [enqueueSoundOperation]);
+
+  const handleAcceptPress = useCallback(() => {
+    stopSound();
+    onAccept?.();
+  }, [onAccept, stopSound]);
+
+  const handleRejectPress = useCallback(() => {
+    stopSound();
+    onReject?.();
+  }, [onReject, stopSound]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      stopSound();
+    };
+  }, [stopSound]);
+
+  useEffect(() => {
+    onRejectRef.current = onReject;
+  }, [onReject]);
 
   // Sound Handler
   useEffect(() => {
@@ -31,14 +133,16 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
     return () => {
       stopSound();
     };
-  }, [visible]);
+  }, [playSound, stopSound, visible]);
 
   // Precise 15s Countdown & Automatic Job Rejection Loop
   useEffect(() => {
     if (!visible) return;
+    if (isAccepting) return;
 
     if (countdown === 0) {
-      onReject(); // Fire parent automatic denial update block
+      stopSound();
+      onRejectRef.current?.(); // Fire parent automatic denial update block
       return;
     }
 
@@ -47,35 +151,11 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [countdown, visible]);
+  }, [countdown, isAccepting, stopSound, visible]);
 
-  const playSound = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/Ride-ringtone.mp3"),
-        {
-          shouldPlay: true,
-          isLooping: true,
-        }
-      );
-      soundRef.current = sound;
-      await sound.playAsync();
-    } catch (error) {
-      console.log("Audio play error:", error);
-    }
-  };
-
-  const stopSound = async () => {
-    if (soundRef.current) {
-      try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-      } catch (e) {
-        console.log("Audio stop error:", e);
-      }
-      soundRef.current = null;
-    }
-  };
+  useEffect(() => {
+    if (isAccepting) stopSound();
+  }, [isAccepting, stopSound]);
 
   return (
     <Modal transparent visible={visible} animationType="none">
@@ -187,7 +267,11 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
 
               {/* UPDATED LABEL FROM RIDER TO CUSTOMER */}
               <View style={[styles.triMetricCell, { borderRightWidth: 0 }]}>
-                <Feather name="user" size={16} color="#64748B" style={styles.metricIcon} />
+                {customerProfilePicture ? (
+                  <Image source={{ uri: customerProfilePicture }} style={styles.customerMetricAvatar} />
+                ) : (
+                  <Feather name="user" size={16} color="#64748B" style={styles.metricIcon} />
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.triLabel}>CUSTOMER</Text> 
                   <Text style={styles.triValue} numberOfLines={1}>
@@ -204,21 +288,29 @@ const IncomingRideModal = ({ visible, onAccept, onReject, rideData }) => {
             {/* Action Buttons */}
             <View style={styles.buttonActionRow}>
               <TouchableOpacity
-                style={styles.rejectButton}
-                onPress={onReject}
+                style={[styles.rejectButton, isAccepting && styles.disabledButton]}
+                onPress={handleRejectPress}
                 activeOpacity={0.7}
+                disabled={isAccepting}
               >
                 <Ionicons name="close-circle-outline" size={20} color="#EF4444" style={{ marginRight: 6 }} />
                 <Text style={styles.rejectBtnText}>Reject</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={styles.acceptButton}
-                onPress={onAccept}
+                style={[styles.acceptButton, isAccepting && styles.acceptButtonLoading]}
+                onPress={handleAcceptPress}
                 activeOpacity={0.85}
+                disabled={isAccepting}
               >
-                <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
-                <Text style={styles.acceptBtnText}>Accept Ride</Text>
+                {isAccepting ? (
+                  <ActivityIndicator size="small" color="#FFF" style={{ marginRight: 6 }} />
+                ) : (
+                  <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{ marginRight: 6 }} />
+                )}
+                <Text style={styles.acceptBtnText}>
+                  {isAccepting ? "Accepting..." : "Accept Ride"}
+                </Text>
               </TouchableOpacity>
             </View>
 
@@ -456,6 +548,13 @@ const styles = StyleSheet.create({
   metricIcon: {
     marginRight: 6,
   },
+  customerMetricAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 6,
+    backgroundColor: "#E2E8F0",
+  },
   triLabel: {
     fontSize: 8,
     fontWeight: "800",
@@ -496,6 +595,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 10,
   },
+  disabledButton: {
+    opacity: 0.55,
+  },
   rejectBtnText: {
     color: "#EF4444",
     fontWeight: "800",
@@ -514,6 +616,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 6,
     elevation: 4,
+  },
+  acceptButtonLoading: {
+    backgroundColor: "#059669",
   },
   acceptBtnText: {
     color: "#FFFFFF",
