@@ -1,0 +1,495 @@
+import { useState, useEffect, useRef } from "react";
+import {
+  StyleSheet,
+  View,
+  TextInput,
+  TouchableOpacity,
+  Text,
+  FlatList,
+  ActivityIndicator,
+  Keyboard,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  createPlacesSessionToken,
+  resolveLocationSuggestion,
+  searchLocationSuggestions,
+} from "../../../services/maps/placesApi";
+import { getFreshCurrentLocationSuggestion } from "../../../services/maps/currentLocation";
+import type { LocationSuggestion } from "../../../services/maps/placesApi";
+
+interface LocationDualPickerProps {
+  initialPickup?: LocationSuggestion | null;
+  onConfirm: (pickup: LocationSuggestion, dropoff: LocationSuggestion) => void;
+  pickupLabel?: string;
+  dropoffLabel?: string;
+}
+
+export default function LocationDualPicker({
+  initialPickup,
+  onConfirm,
+  pickupLabel = "Pickup",
+  dropoffLabel = "Drop-off",
+}: LocationDualPickerProps) {
+  const [pickupSearch, setPickupSearch] = useState("");
+  const [dropoffSearch, setDropoffSearch] = useState("");
+  const [selectedPickup, setSelectedPickup] =
+    useState<LocationSuggestion | null>(initialPickup || null);
+  const [selectedDropoff, setSelectedDropoff] =
+    useState<LocationSuggestion | null>(null);
+
+  const [pickupSuggestions, setPickupSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<
+    LocationSuggestion[]
+  >([]);
+
+  const [activeField, setActiveField] = useState<"pickup" | "dropoff" | null>(
+    null,
+  );
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Refs for TextInput focus
+  const pickupInputRef = useRef<TextInput>(null);
+  const dropoffInputRef = useRef<TextInput>(null);
+
+  // Debounce timers (React Native setTimeout returns number, not Timeout)
+  const pickupDebounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const dropoffDebounceTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const sessionTokens = useRef<Record<"pickup" | "dropoff", string>>({
+    pickup: createPlacesSessionToken(),
+    dropoff: createPlacesSessionToken(),
+  });
+
+  const resetSessionToken = (field: "pickup" | "dropoff") => {
+    sessionTokens.current[field] = createPlacesSessionToken();
+  };
+
+
+  useEffect(() => {
+    if (initialPickup) {
+      setSelectedPickup((prev) => prev || initialPickup);
+      setPickupSearch((prev) => prev || initialPickup.address);
+    }
+  }, [initialPickup]);
+  // Auto-focus dropoff when pickup is selected
+  useEffect(() => {
+    if (
+      selectedPickup &&
+      activeField === "dropoff" &&
+      dropoffInputRef.current
+    ) {
+      setTimeout(() => dropoffInputRef.current?.focus(), 200);
+    }
+  }, [selectedPickup, activeField]);
+
+  // Cleanup debounce timers on unmount
+  useEffect(() => {
+    return () => {
+      if (pickupDebounceTimer.current)
+        clearTimeout(pickupDebounceTimer.current);
+      if (dropoffDebounceTimer.current)
+        clearTimeout(dropoffDebounceTimer.current);
+    };
+  }, []);
+
+  // Handle pickup search with debouncing
+  const handlePickupSearch = async (query: string) => {
+    setPickupSearch(query);
+
+    // Clear previous timer
+    if (pickupDebounceTimer.current) {
+      clearTimeout(pickupDebounceTimer.current);
+    }
+
+    // Set new debounce timer (wait 800ms after user stops typing)
+    pickupDebounceTimer.current = setTimeout(async () => {
+      if (query.length > 2) {
+        setIsLoading(true);
+        try {
+          const results = await searchLocationSuggestions(query, {
+            sessionToken: sessionTokens.current.pickup,
+          });
+          setPickupSuggestions(results);
+        } catch (error) {
+          console.log("Search error:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setPickupSuggestions([]);
+      }
+    }, 800); // Wait 800ms (optimized for free tier)
+  };
+
+  // Handle dropoff search with debouncing
+  const handleDropoffSearch = async (query: string) => {
+    setDropoffSearch(query);
+
+    // Clear previous timer
+    if (dropoffDebounceTimer.current) {
+      clearTimeout(dropoffDebounceTimer.current);
+    }
+
+    // Set new debounce timer (wait 800ms after user stops typing)
+    dropoffDebounceTimer.current = setTimeout(async () => {
+      if (query.length > 2) {
+        setIsLoading(true);
+        try {
+          const results = await searchLocationSuggestions(query, {
+            sessionToken: sessionTokens.current.dropoff,
+          });
+          setDropoffSuggestions(results);
+        } catch (error) {
+          console.log("Search error:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      } else {
+        setDropoffSuggestions([]);
+      }
+    }, 800); // Wait 800ms (optimized for free tier)
+  };
+
+  // Use current location for pickup
+  const handleUseCurrentLocation = async () => {
+    try {
+      setIsLoading(true);
+      const currentLocation = await getFreshCurrentLocationSuggestion();
+      setSelectedPickup(currentLocation);
+      setPickupSearch(currentLocation.address);
+      setActiveField("dropoff");
+    } catch (error) {
+      console.log("Location Error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Select pickup location
+  const handleSelectPickup = async (location: LocationSuggestion) => {
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current.pickup,
+    );
+    setIsLoading(false);
+    if (!resolvedLocation) return;
+
+    setSelectedPickup(resolvedLocation);
+    setPickupSearch(resolvedLocation.address);
+    setPickupSuggestions([]);
+    resetSessionToken("pickup");
+    setActiveField("dropoff");
+  };
+
+  // Select dropoff location
+  const handleSelectDropoff = async (location: LocationSuggestion) => {
+    setIsLoading(true);
+    const resolvedLocation = await resolveLocationSuggestion(
+      location,
+      sessionTokens.current.dropoff,
+    );
+    setIsLoading(false);
+    if (!resolvedLocation) return;
+
+    setSelectedDropoff(resolvedLocation);
+    setDropoffSearch(resolvedLocation.address);
+    setDropoffSuggestions([]);
+    resetSessionToken("dropoff");
+  };
+
+  // Confirm selection
+  const handleConfirm = () => {
+    if (selectedPickup && selectedDropoff) {
+      Keyboard.dismiss();
+      onConfirm(selectedPickup, selectedDropoff);
+    }
+  };
+
+  // Swap locations
+  const handleSwap = () => {
+    const temp = selectedPickup;
+    setSelectedPickup(selectedDropoff);
+    setSelectedDropoff(temp);
+
+    const tempSearch = pickupSearch;
+    setPickupSearch(dropoffSearch);
+    setDropoffSearch(tempSearch);
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Pickup Location */}
+      <View style={styles.locationInputWrapper}>
+        <View style={styles.locationInputContainer}>
+          <Ionicons name="location" size={20} color="#0B7BDC" />
+          <TextInput
+            ref={pickupInputRef}
+            style={styles.input}
+            placeholder={`${pickupLabel} location`}
+            placeholderTextColor="#9CA3AF"
+            value={pickupSearch}
+            onChangeText={handlePickupSearch}
+            onFocus={() => setActiveField("pickup")}
+            editable={true}
+          />
+          {pickupSearch && (
+            <TouchableOpacity
+              onPress={() => {
+                setPickupSearch("");
+                setSelectedPickup(null);
+                setPickupSuggestions([]);
+                resetSessionToken("pickup");
+              }}
+            >
+              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Use Current Location Button (only if no pickup selected) */}
+        {!selectedPickup && activeField === "pickup" && (
+          <TouchableOpacity
+            style={styles.currentLocationButton}
+            onPress={handleUseCurrentLocation}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator size="small" color="#0B7BDC" />
+            ) : (
+              <>
+                <Ionicons name="navigate-circle" size={18} color="#0B7BDC" />
+                <Text style={styles.currentLocationText}>
+                  Use current location
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        )}
+
+        {/* Pickup Suggestions */}
+        {activeField === "pickup" && pickupSuggestions.length > 0 && (
+          <FlatList
+            data={pickupSuggestions}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.suggestionItem}
+                onPress={() => handleSelectPickup(item)}
+              >
+                <Ionicons name="location" size={16} color="#6B7280" />
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionAddress}>{item.address}</Text>
+                  <Text style={styles.suggestionDetails}>{item.details}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            scrollEnabled={false}
+            style={styles.suggestionsList}
+          />
+        )}
+        {activeField === "pickup" &&
+          pickupSuggestions.some((item) => item.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
+      </View>
+
+      {/* Swap Button */}
+      {selectedPickup && selectedDropoff && (
+        <TouchableOpacity style={styles.swapButton} onPress={handleSwap}>
+          <Ionicons name="swap-vertical" size={20} color="#0B7BDC" />
+        </TouchableOpacity>
+      )}
+
+      {/* Dropoff Location */}
+      <View style={styles.locationInputWrapper}>
+        <View style={styles.locationInputContainer}>
+          <Ionicons name="location" size={20} color="#F97316" />
+          <TextInput
+            ref={dropoffInputRef}
+            style={styles.input}
+            placeholder={`${dropoffLabel} location`}
+            placeholderTextColor="#9CA3AF"
+            value={dropoffSearch}
+            onChangeText={handleDropoffSearch}
+            onFocus={() => setActiveField("dropoff")}
+            editable={true}
+          />
+          {dropoffSearch && (
+            <TouchableOpacity
+              onPress={() => {
+                setDropoffSearch("");
+                setSelectedDropoff(null);
+                setDropoffSuggestions([]);
+                resetSessionToken("dropoff");
+              }}
+            >
+              <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Dropoff Suggestions */}
+        {activeField === "dropoff" && dropoffSuggestions.length > 0 && (
+          <FlatList
+            data={dropoffSuggestions}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.suggestionItem}
+                onPress={() => handleSelectDropoff(item)}
+              >
+                <Ionicons name="location" size={16} color="#6B7280" />
+                <View style={styles.suggestionContent}>
+                  <Text style={styles.suggestionAddress}>{item.address}</Text>
+                  <Text style={styles.suggestionDetails}>{item.details}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            scrollEnabled={false}
+            style={styles.suggestionsList}
+          />
+        )}
+        {activeField === "dropoff" &&
+          dropoffSuggestions.some((item) => item.provider === "google") && (
+            <Text style={styles.googleAttribution}>Powered by Google</Text>
+          )}
+      </View>
+
+      {/* Confirm Button */}
+      <TouchableOpacity
+        style={[
+          styles.confirmButton,
+          !selectedPickup || !selectedDropoff
+            ? styles.confirmButtonDisabled
+            : {},
+        ]}
+        onPress={handleConfirm}
+        disabled={!selectedPickup || !selectedDropoff}
+      >
+        <Text style={styles.confirmButtonText}>Continue</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#F4FBFF",
+    padding: 16,
+    justifyContent: "flex-start",
+  },
+
+  locationInputWrapper: {
+    marginBottom: 16,
+  },
+
+  locationInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    elevation: 2,
+  },
+
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: "#111827",
+    marginHorizontal: 8,
+  },
+
+  currentLocationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 8,
+    backgroundColor: "#F0F9FF",
+    borderRadius: 8,
+  },
+
+  currentLocationText: {
+    color: "#0B7BDC",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+
+  suggestionsList: {
+    backgroundColor: "#fff",
+    marginTop: 4,
+    borderRadius: 8,
+    overflow: "hidden",
+    elevation: 1,
+  },
+
+  suggestionItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+
+  suggestionContent: {
+    flex: 1,
+    marginLeft: 8,
+  },
+
+  suggestionAddress: {
+    fontSize: 14,
+    color: "#111827",
+    fontWeight: "600",
+  },
+
+  suggestionDetails: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginTop: 2,
+  },
+  googleAttribution: {
+    alignSelf: "flex-end",
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "600",
+    marginTop: 4,
+    marginRight: 8,
+  },
+
+  swapButton: {
+    alignSelf: "center",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+    marginVertical: 8,
+    elevation: 2,
+  },
+
+  confirmButton: {
+    backgroundColor: "#0B7BDC",
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    marginTop: 16,
+  },
+
+  confirmButtonDisabled: {
+    backgroundColor: "#D1D5DB",
+  },
+
+  confirmButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});

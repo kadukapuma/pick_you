@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Modal,
   View,
@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Dimensions,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { MotiView } from "moti";
 import { MaterialCommunityIcons, Feather, Ionicons } from "@expo/vector-icons";
@@ -14,6 +15,22 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Audio } from "expo-av";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+const unloadSoundAsync = async (sound) => {
+  if (!sound) return;
+
+  try {
+    await sound.stopAsync();
+  } catch (error) {
+    console.log("Audio stop error:", error);
+  }
+
+  try {
+    await sound.unloadAsync();
+  } catch (error) {
+    console.log("Audio unload error:", error);
+  }
+};
 
 const IncomingRideModal = ({
   visible,
@@ -23,9 +40,82 @@ const IncomingRideModal = ({
   isAccepting = false,
 }) => {
   const OFFER_SECONDS = 12;
+  const customerProfilePicture = rideData?.customerProfilePicture;
   const [countdown, setCountdown] = useState(OFFER_SECONDS);
   const soundRef = useRef(null);
+  const soundOperationRef = useRef(Promise.resolve());
+  const shouldPlaySoundRef = useRef(false);
+  const isMountedRef = useRef(false);
   const onRejectRef = useRef(onReject);
+
+  const enqueueSoundOperation = useCallback((operation) => {
+    const runOperation = soundOperationRef.current
+      .catch(() => {})
+      .then(operation);
+
+    soundOperationRef.current = runOperation.catch(() => {});
+    return runOperation;
+  }, []);
+
+  const playSound = useCallback(() => {
+    shouldPlaySoundRef.current = true;
+
+    return enqueueSoundOperation(async () => {
+      if (!shouldPlaySoundRef.current || soundRef.current) return;
+
+      let nextSound = null;
+
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          require("../assets/Ride-ringtone.mp3"),
+          {
+            shouldPlay: true,
+            isLooping: true,
+          }
+        );
+        nextSound = sound;
+      } catch (error) {
+        console.log("Audio play error:", error);
+        return;
+      }
+
+      if (!shouldPlaySoundRef.current || !isMountedRef.current) {
+        await unloadSoundAsync(nextSound);
+        return;
+      }
+
+      soundRef.current = nextSound;
+    });
+  }, [enqueueSoundOperation]);
+
+  const stopSound = useCallback(() => {
+    shouldPlaySoundRef.current = false;
+
+    return enqueueSoundOperation(async () => {
+      const currentSound = soundRef.current;
+      soundRef.current = null;
+      await unloadSoundAsync(currentSound);
+    });
+  }, [enqueueSoundOperation]);
+
+  const handleAcceptPress = useCallback(() => {
+    stopSound();
+    onAccept?.();
+  }, [onAccept, stopSound]);
+
+  const handleRejectPress = useCallback(() => {
+    stopSound();
+    onReject?.();
+  }, [onReject, stopSound]);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    return () => {
+      isMountedRef.current = false;
+      stopSound();
+    };
+  }, [stopSound]);
 
   useEffect(() => {
     onRejectRef.current = onReject;
@@ -43,7 +133,7 @@ const IncomingRideModal = ({
     return () => {
       stopSound();
     };
-  }, [visible]);
+  }, [playSound, stopSound, visible]);
 
   // Precise 15s Countdown & Automatic Job Rejection Loop
   useEffect(() => {
@@ -51,6 +141,7 @@ const IncomingRideModal = ({
     if (isAccepting) return;
 
     if (countdown === 0) {
+      stopSound();
       onRejectRef.current?.(); // Fire parent automatic denial update block
       return;
     }
@@ -60,39 +151,11 @@ const IncomingRideModal = ({
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [countdown, visible, isAccepting]);
+  }, [countdown, isAccepting, stopSound, visible]);
 
   useEffect(() => {
     if (isAccepting) stopSound();
-  }, [isAccepting]);
-
-  const playSound = async () => {
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/Ride-ringtone.mp3"),
-        {
-          shouldPlay: true,
-          isLooping: true,
-        }
-      );
-      soundRef.current = sound;
-      await sound.playAsync();
-    } catch (error) {
-      console.log("Audio play error:", error);
-    }
-  };
-
-  const stopSound = async () => {
-    if (soundRef.current) {
-      try {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-      } catch (e) {
-        console.log("Audio stop error:", e);
-      }
-      soundRef.current = null;
-    }
-  };
+  }, [isAccepting, stopSound]);
 
   return (
     <Modal transparent visible={visible} animationType="none">
@@ -204,7 +267,11 @@ const IncomingRideModal = ({
 
               {/* UPDATED LABEL FROM RIDER TO CUSTOMER */}
               <View style={[styles.triMetricCell, { borderRightWidth: 0 }]}>
-                <Feather name="user" size={16} color="#64748B" style={styles.metricIcon} />
+                {customerProfilePicture ? (
+                  <Image source={{ uri: customerProfilePicture }} style={styles.customerMetricAvatar} />
+                ) : (
+                  <Feather name="user" size={16} color="#64748B" style={styles.metricIcon} />
+                )}
                 <View style={{ flex: 1 }}>
                   <Text style={styles.triLabel}>CUSTOMER</Text> 
                   <Text style={styles.triValue} numberOfLines={1}>
@@ -222,7 +289,7 @@ const IncomingRideModal = ({
             <View style={styles.buttonActionRow}>
               <TouchableOpacity
                 style={[styles.rejectButton, isAccepting && styles.disabledButton]}
-                onPress={onReject}
+                onPress={handleRejectPress}
                 activeOpacity={0.7}
                 disabled={isAccepting}
               >
@@ -232,7 +299,7 @@ const IncomingRideModal = ({
 
               <TouchableOpacity
                 style={[styles.acceptButton, isAccepting && styles.acceptButtonLoading]}
-                onPress={onAccept}
+                onPress={handleAcceptPress}
                 activeOpacity={0.85}
                 disabled={isAccepting}
               >
@@ -480,6 +547,13 @@ const styles = StyleSheet.create({
   },
   metricIcon: {
     marginRight: 6,
+  },
+  customerMetricAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginRight: 6,
+    backgroundColor: "#E2E8F0",
   },
   triLabel: {
     fontSize: 8,

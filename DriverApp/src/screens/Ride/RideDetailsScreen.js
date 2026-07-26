@@ -2,15 +2,17 @@ import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useEffect } from "react";
 import {
-    Dimensions,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View
+  Dimensions,
+  Image,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context"; // Optimized for proper notch & gesture bar management
+import PassengerCancellationNotice from "../../components/PassengerCancellationNotice";
 import { setActiveRideLocationSync } from "../../services/driverLocationSync";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
@@ -25,6 +27,7 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
   // Clean data properties or clean local user fallbacks
   const customerName = ride?.customerName || "John David";
+  const customerProfilePicture = ride?.customerProfilePicture;
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropoffLocation = ride?.drop || "Peradeniya Junction";
   const totalDistance = ride?.distance || "5.4 km";
@@ -84,7 +87,11 @@ const RideDetailsScreen = ({ navigation, route }) => {
           <View style={styles.profileMainRow}>
             {/* Emerald User Avatar */}
             <View style={styles.avatarGreenCircle}>
-              <Ionicons name="person" size={32} color="#FFFFFF" />
+              {customerProfilePicture ? (
+                <Image source={{ uri: customerProfilePicture }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="person" size={32} color="#FFFFFF" />
+              )}
             </View>
 
             {/* Profile Context metadata */}
@@ -257,6 +264,12 @@ const RideDetailsScreen = ({ navigation, route }) => {
         </View>
       </View>
 
+      <PassengerCancellationNotice
+        rideId={ride?.id}
+        navigation={navigation}
+        customerName={customerName}
+      />
+
       {/* --- PURE BLACK SAFE AREA FOOTER EXCLUSIVITY --- */}
       <SafeAreaView edges={["bottom"]} style={styles.blackBottomSafeArea} />
     </View>
@@ -336,6 +349,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
+    overflow: "hidden",
+  },
+  avatarImage: {
+    width: "100%",
+    height: "100%",
+    resizeMode: "cover",
   },
   profileIdentityBlock: {
     flex: 1,

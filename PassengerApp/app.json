@@ -20,8 +20,8 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/vehicles/icon.jpeg",
-        "backgroundImage": "./assets/images/vehicles/icon.jpeg",
+        "foregroundImage": "./assets/images/vehicles/icon.png",
+        "backgroundImage": "./assets/images/vehicles/icon.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
@@ -64,7 +64,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "e3777b37-3bd1-47a0-bf78-6620f4fc9916"
+        "projectId": "06853f0a-c351-4c8e-a613-4b9bd328203a"
       }
     }
   }

@@ -1,7 +1,7 @@
 // Export auth service utilities
-export { AuthService } from "./authService";
-export { ProfileService } from "./profileService";
-export type { PassengerProfile } from "./profileService";
-export type { RegisterPhonePayload, AuthResponse } from "./authService";
-export { StorageService } from "./storageService";
-export type { StoredUser } from "./storageService";
+export { AuthService } from "./authApi";
+export { ProfileService } from "./profileApi";
+export type { PassengerProfile } from "./profileApi";
+export type { RegisterPhonePayload, AuthResponse } from "./authApi";
+export { StorageService } from "./authStorage";
+export type { StoredUser } from "./authStorage";

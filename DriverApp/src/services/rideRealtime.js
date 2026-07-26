@@ -209,6 +209,7 @@ const onRideRequestedTargeted = (raw) => {
     estimated_fare: e.estimated_fare,
     distance_km: e.distance_km,
     passenger_name: e.passenger_name,
+    passenger_profile_picture: e.passenger_profile_picture,
     vehicle_type: e.vehicle_type,
     requested_at: e.requested_at,
     status: "REQUESTED",

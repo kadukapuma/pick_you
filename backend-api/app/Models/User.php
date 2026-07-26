@@ -73,6 +73,8 @@ class User extends Authenticatable
 
     protected $appends = [
         'permissions',
+        'profile_picture',
+        'profile_picture_url',
     ];
 
     /**
@@ -207,6 +209,27 @@ class User extends Authenticatable
             ->filter()
             ->values()
             ->all();
+    }
+
+    public function getProfilePictureAttribute(): ?string
+    {
+        return $this->profilePictureUrl();
+    }
+
+    public function getProfilePictureUrlAttribute(): ?string
+    {
+        return $this->profilePictureUrl();
+    }
+
+    private function profilePictureUrl(): ?string
+    {
+        $path = $this->profile_picture_path;
+
+        if (! $path || filter_var($path, FILTER_VALIDATE_URL)) {
+            return $path;
+        }
+
+        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
     }
 
     public function passenger()

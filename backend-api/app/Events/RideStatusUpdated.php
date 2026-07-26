@@ -17,7 +17,7 @@ class RideStatusUpdated implements ShouldBroadcastNow
 
     public function __construct(Ride $ride)
     {
-        $this->ride = $ride->loadMissing(['driver.user', 'vehicle', 'fareConfig', 'payment'])->toArray();
+        $this->ride = $ride->loadMissing(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment'])->toArray();
     }
 
     public function broadcastOn(): PrivateChannel

@@ -5,18 +5,21 @@ use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
-use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverAuthController;
+use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverDocumentController;
 use App\Http\Controllers\Api\DriverLocationController;
 use App\Http\Controllers\Api\DriverProfileController;
+use App\Http\Controllers\Api\DriverRideHistoryController;
 use App\Http\Controllers\Api\FareConfigController;
 use App\Http\Controllers\Api\MapsController;
+use App\Http\Controllers\Api\NearbyVehicleController;
 use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
 use App\Http\Controllers\Api\PassengerController;
 use App\Http\Controllers\Api\PassengerProfileController;
+use App\Http\Controllers\Api\PassengerRideHistoryController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RatingController;
@@ -28,9 +31,9 @@ use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\WalletTransactionController;
+use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use App\Services\Auth\AuthPayload;
 
 Route::prefix('driver/auth')->middleware('throttle:auth')->group(function () {
     Route::post('/register', [DriverAuthController::class, 'register']);
@@ -103,11 +106,16 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/routes', [MapsController::class, 'routes']);
     });
     Route::post('/rides/estimate', [RideController::class, 'estimate'])->middleware('role:passenger');
+    Route::get('/nearby-vehicles', [NearbyVehicleController::class, 'index'])
+        ->middleware(['role:passenger', 'throttle:60,1']);
     Route::post('/rides', [RideController::class, 'store'])->middleware(['role:passenger', 'idempotent']);
+    Route::get('/rides', [PassengerRideHistoryController::class, 'index'])->middleware('role:passenger');
     Route::get('/rides/{id}', [RideController::class, 'show']);
     Route::delete('/rides/{id}', [RideController::class, 'destroy'])->middleware('idempotent');
+    Route::post('/rides/{id}/cancel', [RideController::class, 'cancel'])->middleware('idempotent');
     Route::middleware('role:driver')->group(function () {
         Route::get('/driver/ride-requests', [RideController::class, 'driverRideRequests']);
+        Route::get('/driver/rides', [DriverRideHistoryController::class, 'index']);
         Route::post('/rides/{id}/accept', [RideController::class, 'acceptRide'])->middleware('idempotent');
         Route::post('/rides/{id}/reject', [RideController::class, 'rejectRide'])->middleware('idempotent');
         Route::post('/rides/{id}/arrive', [RideController::class, 'arriveRide'])->middleware('idempotent');
