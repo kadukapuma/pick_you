@@ -48,26 +48,38 @@ class DriverLocationService
             'sequence' => (int) ($data['sequence'] ?? $recordedAt->getTimestampMs()),
         ];
 
-        $activeRide = null;
-
+        $activeRideId = null;
         if (! empty($data['ride_id'])) {
-            $activeRide = Ride::query()
-                ->where('id', $data['ride_id'])
-                ->where('driver_id', $driver->id)
-                ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
-                ->first();
+            $activeRideId = (int) $data['ride_id'];
+        } else {
+            try {
+                $cachedRideId = Redis::get("driver:active_ride:{$driver->id}");
+                if ($cachedRideId) {
+                    $activeRideId = (int) $cachedRideId;
+                }
+            } catch (Throwable) {
+                // Ignore Redis read error
+            }
+
+            if (! $activeRideId) {
+                $activeRide = Ride::query()
+                    ->where('driver_id', $driver->id)
+                    ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
+                    ->latest('accepted_at')
+                    ->first();
+                if ($activeRide) {
+                    $activeRideId = (int) $activeRide->id;
+                    try {
+                        Redis::setex("driver:active_ride:{$driver->id}", 86400, (string) $activeRideId);
+                    } catch (Throwable) {
+                        // Ignore Redis write error
+                    }
+                }
+            }
         }
 
-        if (! $activeRide) {
-            $activeRide = Ride::query()
-                ->where('driver_id', $driver->id)
-                ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
-                ->latest('accepted_at')
-                ->first();
-        }
-
-        if ($activeRide) {
-            $payload['ride_id'] = (int) $activeRide->id;
+        if ($activeRideId) {
+            $payload['ride_id'] = $activeRideId;
         }
 
         try {
@@ -217,19 +229,6 @@ class DriverLocationService
                 $payload['recorded_at'] ?? null,
                 $payload['sequence'] ?? null,
             );
-
-            if (empty($payload['ride_id'])) {
-                try {
-                    $job->handle();
-                } catch (Throwable $exception) {
-                    Log::warning('Idle driver location snapshot could not be persisted directly.', [
-                        'driver_id' => $payload['driver_id'],
-                        'error' => $exception->getMessage(),
-                    ]);
-                }
-
-                return;
-            }
 
             try {
                 dispatch($job);

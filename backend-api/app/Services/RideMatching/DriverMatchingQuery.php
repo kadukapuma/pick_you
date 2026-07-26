@@ -105,7 +105,42 @@ class DriverMatchingQuery
     private function findNearbyDriversFromRedis(float $pickupLat, float $pickupLng, string $vehicleType, float $radiusMeters): Collection
     {
         try {
-            $onlineDriverIds = DB::table('drivers as d')
+            $geoKey = config('location.geo_key', 'drivers:online:geo');
+            $maxDrivers = (int) config('ride.match_max_drivers', 50);
+            $candidates = Redis::geosearch(
+                $geoKey,
+                'FROMLONLAT',
+                (string) $pickupLng,
+                (string) $pickupLat,
+                'BYRADIUS',
+                (string) ($radiusMeters / 1000),
+                'km',
+                'WITHDIST',
+                'ASC',
+                'COUNT',
+                (string) ($maxDrivers * 2)
+            );
+
+            if (! is_array($candidates) || $candidates === []) {
+                return collect();
+            }
+
+            $driverDistanceMap = [];
+            foreach ($candidates as $cand) {
+                if (is_array($cand) && isset($cand[0])) {
+                    $dId = (int) $cand[0];
+                    $distMeters = (float) ($cand[1] ?? 0) * 1000;
+                    $driverDistanceMap[$dId] = $distMeters;
+                }
+            }
+
+            if ($driverDistanceMap === []) {
+                return collect();
+            }
+
+            $candidateDriverIds = array_keys($driverDistanceMap);
+            $eligibleDriverIds = DB::table('drivers as d')
+                ->whereIn('d.id', $candidateDriverIds)
                 ->where('d.availability', 1)
                 ->where('d.status', 'approved')
                 ->whereExists(function ($query) use ($vehicleType) {
@@ -123,59 +158,23 @@ class DriverMatchingQuery
                             [$vehicleType, $vehicleType]
                         );
                 })
-                ->pluck('d.id');
+                ->pluck('d.id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
             $redisDrivers = [];
-            foreach ($onlineDriverIds as $dId) {
-                $driverId = (int) $dId;
-                $dLat = 0.0;
-                $dLng = 0.0;
-
-                // 1. Check Redis string key
-                $locationJson = Redis::get("driver:location:{$driverId}");
-                if ($locationJson) {
-                    $loc = json_decode($locationJson, true);
-                    $dLat = (float) ($loc['latitude'] ?? 0);
-                    $dLng = (float) ($loc['longitude'] ?? 0);
-                }
-
-                // 2. Check Redis Geo ZSet if string key was empty
-                if ($dLat === 0.0 || $dLng === 0.0) {
-                    try {
-                        $geoPos = Redis::geopos(config('location.geo_key', 'drivers:online:geo'), (string) $driverId);
-                        if (! empty($geoPos[0]) && is_array($geoPos[0])) {
-                            $dLng = (float) $geoPos[0][0];
-                            $dLat = (float) $geoPos[0][1];
-                        }
-                    } catch (Throwable) {
-                        // ignore geo error
-                    }
-                }
-
-                // 3. Check DB driver_locations table if Redis keys were empty
-                if ($dLat === 0.0 || $dLng === 0.0) {
-                    $dbLoc = DB::table('driver_locations')->where('driver_id', $driverId)->first();
-                    if ($dbLoc) {
-                        $dLat = (float) ($dbLoc->latitude ?? 0);
-                        $dLng = (float) ($dbLoc->longitude ?? 0);
-                    }
-                }
-
-                if ($dLat === 0.0 || $dLng === 0.0) {
-                    continue;
-                }
-
-                $dist = $this->haversineMeters($pickupLat, $pickupLng, $dLat, $dLng);
-                if ($dist <= $radiusMeters) {
+            foreach ($candidateDriverIds as $dId) {
+                if (in_array($dId, $eligibleDriverIds, true)) {
                     $redisDrivers[] = (object) [
-                        'driver_id' => $driverId,
-                        'distance_meters' => $dist,
+                        'driver_id' => $dId,
+                        'distance_meters' => $driverDistanceMap[$dId],
                     ];
                 }
             }
 
             if ($redisDrivers !== []) {
                 usort($redisDrivers, fn ($a, $b) => $a->distance_meters <=> $b->distance_meters);
+
                 return collect($redisDrivers);
             }
         } catch (Throwable $e) {

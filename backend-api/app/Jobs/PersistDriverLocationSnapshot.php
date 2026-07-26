@@ -60,17 +60,27 @@ class PersistDriverLocationSnapshot implements ShouldQueue
         }
     }
 
+    private static ?array $columns = null;
+
     private function withSpatialColumns(array $payload): array
     {
-        if (! Schema::hasColumn('driver_locations', 'ride_id')) {
+        if (self::$columns === null) {
+            self::$columns = [
+                'has_ride_id' => Schema::hasColumn('driver_locations', 'ride_id'),
+                'has_location' => Schema::hasColumn('driver_locations', 'location'),
+                'has_location_geog' => Schema::hasColumn('driver_locations', 'location_geog'),
+            ];
+        }
+
+        if (! self::$columns['has_ride_id']) {
             unset($payload['ride_id']);
         }
 
-        if (Schema::hasColumn('driver_locations', 'location')) {
+        if (self::$columns['has_location']) {
             $payload['location'] = DB::raw("point({$this->longitude}, {$this->latitude})");
         }
 
-        if (Schema::hasColumn('driver_locations', 'location_geog')) {
+        if (self::$columns['has_location_geog']) {
             $payload['location_geog'] = DB::raw(
                 "ST_SetSRID(ST_MakePoint({$this->longitude}, {$this->latitude}), 4326)::geography"
             );
