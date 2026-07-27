@@ -231,13 +231,21 @@ class DriverLocationService
             );
 
             try {
-                dispatch($job);
+                if (config('queue.default') === 'sync' || config('app.env') === 'local') {
+                    $job->handle();
+                } else {
+                    dispatch($job);
+                }
             } catch (Throwable $exception) {
                 Log::warning('Location snapshot queue unavailable; persisting directly.', [
                     'driver_id' => $payload['driver_id'],
                     'error' => $exception->getMessage(),
                 ]);
-                $job->handle();
+                try {
+                    $job->handle();
+                } catch (Throwable) {
+                    // Ignore inline handle error
+                }
             }
         }
 

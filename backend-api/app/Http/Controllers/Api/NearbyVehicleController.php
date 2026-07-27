@@ -87,18 +87,13 @@ class NearbyVehicleController extends Controller
     ): ?array {
         try {
             $geoKey = config('location.geo_key', 'drivers:online:geo');
-            $candidates = \Illuminate\Support\Facades\Redis::geosearch(
+            $candidates = \Illuminate\Support\Facades\Redis::georadius(
                 $geoKey,
-                'FROMLONLAT',
-                (string) $longitude,
-                (string) $latitude,
-                'BYRADIUS',
-                (string) ($radiusMeters / 1000),
+                $longitude,
+                $latitude,
+                $radiusMeters / 1000,
                 'km',
-                'WITHDIST',
-                'ASC',
-                'COUNT',
-                (string) ($limit * 3)
+                ['WITHDIST', 'asc', 'COUNT' => $limit * 3]
             );
 
             if (! is_array($candidates) || $candidates === []) {
