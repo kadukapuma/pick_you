@@ -10,7 +10,13 @@ export default function GetStartedScreen() {
   const insets = useSafeAreaInsets();
   const isShortScreen = height < 720;
   const heroHeight = Math.min(height * (isShortScreen ? 0.42 : 0.46), 390);
-  const logoSize = Math.min(Math.max(width * 0.34, 126), 158);
+  const logoSize = Math.min(
+    width * (isShortScreen ? 0.78 : 0.84),
+    height * (isShortScreen ? 0.46 : 0.5),
+    380,
+  );
+  const logoGap = isShortScreen ? -38 : -30;
+  const sectionGap = isShortScreen ? 14 : 22;
 
   return (
     <View style={styles.screen}>
@@ -21,9 +27,26 @@ export default function GetStartedScreen() {
           resizeMode="cover"
         />
       </View>
-
-      <View style={[styles.content, { paddingBottom: Math.max(insets.bottom + 18, 28) }]}> 
-        <View style={[styles.logoWrap, { width: logoSize, height: logoSize * 0.62 }]}> 
+    
+      <View
+        style={[
+          styles.content,
+          {
+            paddingTop: isShortScreen ? 20 : 26,
+            paddingBottom: Math.max(insets.bottom + 16, 24),
+          },
+        ]}
+      > 
+        <View
+          style={[
+            styles.logoWrap,
+            {
+              width: logoSize,
+              height: logoSize * 0.62,
+              marginBottom: logoGap,
+            },
+          ]}
+        > 
           <Image
             source={require("../../assets/images/logo.png")}
             style={styles.logo}
@@ -32,13 +55,29 @@ export default function GetStartedScreen() {
         </View>
 
         <Text style={[styles.title, isShortScreen && styles.titleShort]}>
-          Fast delivery for a{"\n"}better life
+          Smarter rides for a{"\n"}better journey
         </Text>
+
+        <View
+          style={[
+            styles.flexibleGap,
+            {
+              minHeight: sectionGap,
+              maxHeight: isShortScreen ? 30 : 52,
+            },
+          ]}
+        />
 
         <TouchableOpacity
           onPress={() => router.push("/(auth)/sign-in")}
           activeOpacity={0.86}
-          style={[styles.button, { width: Math.min(width - 96, 430) }]}
+          style={[
+            styles.button,
+            {
+              width: Math.min(width - 64, 430),
+              marginBottom: isShortScreen ? 14 : 18,
+            },
+          ]}
         >
           <Text style={styles.buttonText}>Get started</Text>
         </TouchableOpacity>
@@ -73,12 +112,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     paddingHorizontal: 24,
-    paddingTop: 34,
   },
   logoWrap: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 38,
   },
   logo: {
     width: "100%",
@@ -90,7 +127,6 @@ const styles = StyleSheet.create({
     lineHeight: 42,
     fontWeight: "900",
     textAlign: "center",
-    marginBottom: "auto",
   },
   titleShort: {
     fontSize: 30,
@@ -107,7 +143,10 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 8 },
     elevation: 7,
-    marginBottom: 26,
+  },
+  flexibleGap: {
+    flex: 1,
+    width: "100%",
   },
   buttonText: {
     color: "#FFFFFF",

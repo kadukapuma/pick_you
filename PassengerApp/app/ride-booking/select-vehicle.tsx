@@ -26,6 +26,7 @@ import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { logExpectedError } from "../../services/errors/userMessages";
 import { loadRebookDraft } from "../../services/rides/rebookDraft";
+import { getVehicleRideImage } from "../../utils/vehicleRideImages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -152,26 +153,6 @@ const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
 // Normalise any backend vehicle name to a consistent key
 function normaliseVehicleKey(raw: string): string {
   return raw.toLowerCase().replace(/[\s_\-]+/g, "");
-}
-
-const VEHICLE_IMAGE_MAP: Record<string, any> = {
-  car: require("../../assets/images/vehicles/car.png"),
-  tuk: require("../../assets/images/vehicles/threewheel.png"),
-  tuktuk: require("../../assets/images/vehicles/threewheel.png"),
-  threewheel: require("../../assets/images/vehicles/threewheel.png"),
-  bike: require("../../assets/images/vehicles/bike.png"),
-  motorbike: require("../../assets/images/vehicles/bike.png"),
-  motorcycle: require("../../assets/images/vehicles/bike.png"),
-  suv: require("../../assets/images/vehicles/minivan.png"),
-  van: require("../../assets/images/vehicles/van.png"),
-  minivan: require("../../assets/images/vehicles/van.png"),
-  minicar: require("../../assets/images/vehicles/minicar.png"),
-  mini: require("../../assets/images/vehicles/minicar.png"),
-};
-
-function getVehicleImage(id: string) {
-  const key = normaliseVehicleKey(id);
-  return VEHICLE_IMAGE_MAP[key] ?? VEHICLE_IMAGE_MAP.car;
 }
 
 const ETA_MAP: Record<string, string> = {
@@ -317,7 +298,7 @@ function RideCard({
           {/* Icon area */}
           <View style={styles.cardIconWrap}>
             <Image
-              source={getVehicleImage(ride.id ?? "car")}
+              source={getVehicleRideImage(ride.id)}
               style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
@@ -369,7 +350,7 @@ function RideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { tripType, outboundTrip, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
+  const { tripType, outboundTrip, paymentMethod, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
     useRideSearch();
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
@@ -714,9 +695,22 @@ export default function SelectRideScreen() {
 
         {/* ── OPTIONS ROW ────────────────────────────────────────────────── */}
         <View style={styles.optionsRow}>
-          <TouchableOpacity style={styles.optionChip}>
-            <Ionicons name="cash-outline" size={16} color={GREEN} />
-            <Text style={styles.optionChipText}>Cash</Text>
+          <TouchableOpacity
+            style={styles.optionChip}
+            onPress={() => router.push("/ride-booking/payment-method")}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel={`Change payment method. Currently ${paymentMethod}`}
+          >
+            <Ionicons
+              name={paymentMethod === "card" ? "card-outline" : paymentMethod === "wallet" ? "wallet-outline" : "cash-outline"}
+              size={16}
+              color={GREEN}
+            />
+            <Text style={styles.optionChipText}>
+              {paymentMethod === "card" ? "Card" : paymentMethod === "wallet" ? "Wallet" : "Cash"}
+            </Text>
+            <Ionicons name="chevron-down" size={13} color={GREEN} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.optionChip}>
