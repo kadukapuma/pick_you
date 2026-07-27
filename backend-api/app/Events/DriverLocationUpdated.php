@@ -4,11 +4,11 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\InteractsWithSockets;
 use Illuminate\Broadcasting\PrivateChannel;
-use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldBroadcast;
 use Illuminate\Foundation\Events\Dispatchable;
 use Illuminate\Queue\SerializesModels;
 
-class DriverLocationUpdated implements ShouldBroadcastNow
+class DriverLocationUpdated implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
@@ -23,6 +23,11 @@ class DriverLocationUpdated implements ShouldBroadcastNow
         public readonly string $recorded_at,
         public readonly int $sequence,
     ) {}
+
+    public function broadcastQueue(): string
+    {
+        return config('location.queue', 'locations');
+    }
 
     public function broadcastOn(): PrivateChannel
     {

@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CacheSanctumToken;
 use App\Http\Middleware\CheckAdmin;
 use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\EnsureIdempotentRequest;
@@ -30,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'super_admin' => SuperAdminMiddleware::class,
             'role' => EnsureUserRole::class,
             'idempotent' => EnsureIdempotentRequest::class,
+            'cache.sanctum' => CacheSanctumToken::class,
+        ]);
+        $middleware->api(prepend: [
+            CacheSanctumToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

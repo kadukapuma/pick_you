@@ -79,30 +79,34 @@ class GoogleMapsService
 
     public function reverseGeocode(float $latitude, float $longitude): array
     {
-        $response = $this->legacyGet((string) config('google_maps.endpoints.geocode'), [
-            'latlng' => $latitude.','.$longitude,
-            'language' => config('google_maps.language', 'en'),
-            'region' => config('google_maps.country', 'lk'),
-        ]);
+        $cacheKey = sprintf('google-reverse:%0.4f,%0.4f', $latitude, $longitude);
 
-        $result = $response['results'][0] ?? null;
+        return Cache::remember($cacheKey, (int) config('google_maps.geocode_cache_ttl_seconds', 600), function () use ($latitude, $longitude) {
+            $response = $this->legacyGet((string) config('google_maps.endpoints.geocode'), [
+                'latlng' => $latitude.','.$longitude,
+                'language' => config('google_maps.language', 'en'),
+                'region' => config('google_maps.country', 'lk'),
+            ]);
 
-        if (! $result) {
-            throw new GoogleMapsException('No address found for this location.', 404);
-        }
+            $result = $response['results'][0] ?? null;
 
-        $address = $result['formatted_address'] ?? 'Selected location';
+            if (! $result) {
+                throw new GoogleMapsException('No address found for this location.', 404);
+            }
 
-        return [
-            'id' => 'google_reverse_'.md5($latitude.','.$longitude),
-            'placeId' => $result['place_id'] ?? null,
-            'address' => $this->shortAddress($address),
-            'details' => $address,
-            'latitude' => $latitude,
-            'longitude' => $longitude,
-            'placeType' => 'address',
-            'provider' => 'google',
-        ];
+            $address = $result['formatted_address'] ?? 'Selected location';
+
+            return [
+                'id' => 'google_reverse_'.md5($latitude.','.$longitude),
+                'placeId' => $result['place_id'] ?? null,
+                'address' => $this->shortAddress($address),
+                'details' => $address,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'placeType' => 'address',
+                'provider' => 'google',
+            ];
+        });
     }
 
     public function route(float $originLat, float $originLng, float $destinationLat, float $destinationLng): array

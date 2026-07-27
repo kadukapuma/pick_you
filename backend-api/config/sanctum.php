@@ -84,4 +84,6 @@ return [
         'validate_csrf_token' => ValidateCsrfToken::class,
     ],
 
+    'cache_ttl_seconds' => (int) env('SANCTUM_CACHE_TTL_SECONDS', 300),
+
 ];
