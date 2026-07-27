@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BackHandler,
   StatusBar,
@@ -21,20 +21,59 @@ import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
+const formatTimer = (totalSeconds) => {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  const paddedMins = mins < 10 ? `0${mins}` : mins;
+  const paddedSecs = secs < 10 ? `0${secs}` : secs;
+  return `${paddedMins}:${paddedSecs}`;
+};
+
+const WaitingTimer = memo(function WaitingTimer() {
+  const [secondsElapsed, setSecondsElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSecondsElapsed((prevSeconds) => prevSeconds + 1);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <Text style={styles.waitingClockTimer}>
+      {formatTimer(secondsElapsed)}
+    </Text>
+  );
+});
+
 const ArrivedAtPickupScreen = ({ navigation, route }) => {
   const ride = route?.params?.ride || {};
-  const pickupCoord = getPickupCoordinate(ride);
+  const pickupLat = ride?.pickupLat;
+  const pickupLng = ride?.pickupLng;
+  const pickupCoord = useMemo(
+    () => getPickupCoordinate({ pickupLat, pickupLng }),
+    [pickupLat, pickupLng],
+  );
   const { location: driverCoord } = useDriverLocation();
+  const cameraRef = useRef(null);
+  const hasDriverLocation = Boolean(driverCoord);
 
   const origin = useMemo(
-    () => driverCoord ?? DEFAULT_COORD,
-    [driverCoord],
+    () => driverCoord ?? pickupCoord ?? DEFAULT_COORD,
+    [driverCoord, pickupCoord],
   );
   const destination = useMemo(
     () => pickupCoord ?? origin,
     [pickupCoord, origin],
   );
-  const { directions } = useGoogleRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination, {
+    enabled: hasDriverLocation,
+  });
+  const vehicleImage = useMemo(
+    () => getVehicleMapIcon(ride?.vehicle_type),
+    [ride?.vehicle_type],
+  );
 
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
@@ -70,29 +109,18 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
     [],
   );
 
-  // 1. Setup active state for tracking elapsed seconds
-  const [secondsElapsed, setSecondsElapsed] = useState(0);
   const [isStartingRide, setIsStartingRide] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
-  // 2. Active Interval Timer Hook (Increments every 1000ms)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSecondsElapsed((prevSeconds) => prevSeconds + 1);
-    }, 1000);
-
-    // Clean up the interval loop when component unmounts to prevent memory leaks
-    return () => clearInterval(interval);
-  }, []);
-
-  // 3. Helper function to format raw seconds integers into clean MM:SS strings
-  const formatTimer = (totalSeconds) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    const paddedMins = mins < 10 ? `0${mins}` : mins;
-    const paddedSecs = secs < 10 ? `0${secs}` : secs;
-    return `${paddedMins}:${paddedSecs}`;
-  };
+  const handleRecenter = useCallback(() => {
+    setFollowVehicle(true);
+    cameraRef.current?.setCamera({
+      centerCoordinate: [origin.longitude, origin.latitude],
+      pitch: 45,
+      zoomLevel: 16,
+      animationDuration: 350,
+    });
+  }, [origin]);
 
   const handlePassengerOnBoard = async () => {
     if (!ride?.id || isStartingRide) return;
@@ -126,13 +154,15 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
       {/* MAP VIEWPORT */}
       <GoogleRideMap
+        cameraRef={cameraRef}
         style={styles.map}
         origin={origin}
         destination={destination}
         routeCoordinates={routeCoordinates}
+        showRoute={hasDriverLocation}
         routeColor="#00A859"
         destinationColor="#00A859"
-        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
+        vehicleImage={vehicleImage}
         vehicleSize={46}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
@@ -144,7 +174,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
       {!followVehicle ? (
         <TouchableOpacity
           style={styles.recenterButton}
-          onPress={() => setFollowVehicle(true)}
+          onPress={handleRecenter}
           activeOpacity={0.8}
         >
           <Ionicons name="locate" size={22} color="#0F172A" />
@@ -198,10 +228,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
           {/* WAITING TIMING COUNTER METRIC BOX BAR CONTAINER */}
           <View style={styles.waitingTimerBar}>
             <Text style={styles.waitingLabel}>Waiting for passenger</Text>
-            {/* 4. Swapped static text out for dynamic formatting helper output */}
-            <Text style={styles.waitingClockTimer}>
-              {formatTimer(secondsElapsed)}
-            </Text>
+            <WaitingTimer />
           </View>
 
           {/* PROGRESSIVE PRIMARY CTA SUBMIT WORKFLOW ELEMENT */}

@@ -24,6 +24,7 @@ import {
   logExpectedError,
 } from "../../services/errors/userMessages";
 import {
+  fallbackRoute,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
@@ -132,6 +133,14 @@ export default function ConfirmationScreen() {
     (async () => {
       if (outboundTrip.pickup && outboundTrip.dropoff) {
         setLoadingRoute(true);
+        const fallback = fallbackRoute(
+          outboundTrip.pickup.latitude,
+          outboundTrip.pickup.longitude,
+          outboundTrip.dropoff.latitude,
+          outboundTrip.dropoff.longitude,
+        );
+        setDirections(fallback);
+        setLoadingRoute(false);
         try {
           const res = await getCachedDirections_withCache(
             outboundTrip.pickup.latitude,
@@ -139,7 +148,7 @@ export default function ConfirmationScreen() {
             outboundTrip.dropoff.latitude,
             outboundTrip.dropoff.longitude,
           );
-          if (!cancelled) setDirections(res);
+          if (!cancelled && res) setDirections(res);
         } catch (e) {
           logExpectedError("Confirmation route lookup failed", e);
         } finally {

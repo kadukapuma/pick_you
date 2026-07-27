@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
 import type { EdgePadding } from "react-native-maps";
 import {
+  fallbackRoute,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../../services/maps/directionsApi";
@@ -137,7 +138,9 @@ export default function RideMap({
         return;
       }
 
+      const fallback = fallbackRoute(originLat, originLng, targetLat, targetLng);
       setRouteCoordinates(fallbackRouteCoordinates);
+      onRouteInfoChange?.(fallback);
 
       const directions = await getCachedDirections_withCache(
         originLat,

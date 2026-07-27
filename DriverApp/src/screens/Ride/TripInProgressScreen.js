@@ -86,9 +86,21 @@ const TripInProgressScreen = ({ navigation, route }) => {
     ride?.actual_distance_km || ride?.estimated_distance_km || ride?.distance_km || 0,
   );
   const summaryFare = Number(ride?.final_fare || ride?.estimated_fare || 0);
-  const dropCoord = getDropCoordinate(ride);
-  const pickupCoord = getPickupCoordinate(ride);
+  const dropLat = ride?.dropLat;
+  const dropLng = ride?.dropLng;
+  const pickupLat = ride?.pickupLat;
+  const pickupLng = ride?.pickupLng;
+  const dropCoord = useMemo(
+    () => getDropCoordinate({ dropLat, dropLng }),
+    [dropLat, dropLng],
+  );
+  const pickupCoord = useMemo(
+    () => getPickupCoordinate({ pickupLat, pickupLng }),
+    [pickupLat, pickupLng],
+  );
   const { location: driverCoord } = useDriverLocation();
+  const cameraRef = useRef(null);
+  const hasRouteOrigin = Boolean(driverCoord || pickupCoord);
 
   const minimizeToHome = useCallback(() => {
     navigation.navigate("MainTabs");
@@ -114,7 +126,13 @@ const TripInProgressScreen = ({ navigation, route }) => {
     () => dropCoord ?? origin,
     [dropCoord, origin],
   );
-  const { directions } = useGoogleRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination, {
+    enabled: hasRouteOrigin,
+  });
+  const vehicleImage = useMemo(
+    () => getVehicleMapIcon(ride?.vehicle_type),
+    [ride?.vehicle_type],
+  );
   const currentStep = directions?.currentStep || directions?.steps?.[0] || null;
   const durationText =
     directions?.durationText ||
@@ -153,6 +171,16 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const [completed, setCompleted] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
+
+  const handleRecenter = useCallback(() => {
+    setFollowVehicle(true);
+    cameraRef.current?.setCamera({
+      centerCoordinate: [origin.longitude, origin.latitude],
+      pitch: 45,
+      zoomLevel: 16,
+      animationDuration: 350,
+    });
+  }, [origin]);
 
   const progressWidth = slideX.interpolate({
     inputRange: [0, SLIDER_WIDTH - THUMB_SIZE - 10],
@@ -272,13 +300,15 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* MAP VIEWER INTERACTIVE SYSTEM */}
       <GoogleRideMap
+        cameraRef={cameraRef}
         style={styles.mapViewport}
         origin={origin}
         destination={destination}
         routeCoordinates={routeCoordinates}
+        showRoute={hasRouteOrigin}
         routeColor="#2F80ED"
         destinationColor="#EF4444"
-        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
+        vehicleImage={vehicleImage}
         vehicleSize={46}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
@@ -300,7 +330,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.mapUtilityBtn}
             activeOpacity={0.8}
-            onPress={() => setFollowVehicle(true)}
+            onPress={handleRecenter}
           >
             <Ionicons name="locate" size={22} color="#334155" />
           </TouchableOpacity>
