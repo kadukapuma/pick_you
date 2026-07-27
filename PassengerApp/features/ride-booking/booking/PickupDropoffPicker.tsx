@@ -23,7 +23,7 @@ import { useSavedPlaces } from "../../../hooks/useSavedPlaces";
 const getPlaceConfig = (type: string) => {
   switch (type) {
     case "home":
-      return { icon: "home-outline" as const, color: "#22B36A" };
+      return { icon: "home-outline" as const, color: "#20B768" };
     case "office":
       return { icon: "briefcase-outline" as const, color: "#3BAAE8" };
     default:
@@ -118,6 +118,7 @@ export default function LocationPicker({
   const [activeField, setActiveField] = useState<"pickup" | "drop" | null>(
     null,
   );
+  const [hasAutoNavigated, setHasAutoNavigated] = useState(false);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -194,13 +195,14 @@ export default function LocationPicker({
 
   // Auto-confirm as soon as both locations are filled — no button tap needed
   useEffect(() => {
-    if (pickup && destination) {
+    if (pickup && destination && !hasAutoNavigated) {
       const timer = setTimeout(() => {
+        setHasAutoNavigated(true);
         onConfirm(pickup, destination);
       }, 300); // brief pause so the selection visually lands before navigating
       return () => clearTimeout(timer);
     }
-  }, [pickup, destination]);
+  }, [pickup, destination, hasAutoNavigated, onConfirm]);
 
   const handleConfirm = () => {
     if (pickup && destination) {
@@ -278,7 +280,7 @@ export default function LocationPicker({
               {selectedLocation.address}
             </Text>
             <View style={styles.editIcon}>
-              <Ionicons name="create-outline" size={18} color="#1B9E6E" />
+              <Ionicons name="create-outline" size={18} color="#20B768" />
             </View>
           </TouchableOpacity>
         ) : (
@@ -287,7 +289,7 @@ export default function LocationPicker({
             onPress={() => handleFieldFocus(field)}
           >
             <Text style={styles.placeholderText}>{placeholder}</Text>
-            <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+            <Ionicons name="chevron-forward" size={20} color="#20B768" />
           </TouchableOpacity>
         )}
       </View>
@@ -299,6 +301,7 @@ export default function LocationPicker({
       <ScrollView
         ref={scrollViewRef}
         style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
@@ -327,7 +330,7 @@ export default function LocationPicker({
           <View style={styles.suggestionsContainer}>
             {isLoading ? (
               <View style={styles.loadingContainer}>
-                <ActivityIndicator size="small" color="#1B9E6E" />
+                <ActivityIndicator size="small" color="#20B768" />
               </View>
             ) : (
               <>
@@ -343,16 +346,16 @@ export default function LocationPicker({
                       setSuggestions([]);
                     }}
                   >
-                    <Ionicons name="locate" size={20} color="#1B9E6E" />
+                    <Ionicons name="locate" size={20} color="#20B768" />
                     <View style={styles.suggestionText}>
-                      <Text style={[styles.suggestionTitle, { color: "#1B9E6E" }]}>
+                      <Text style={[styles.suggestionTitle, { color: "#20B768" }]}>
                         Use Current Location
                       </Text>
                       <Text style={styles.suggestionDetails}>
                         {currentLocationRef.current.address}
                       </Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#1B9E6E" />
+                    <Ionicons name="chevron-forward" size={20} color="#20B768" />
                   </TouchableOpacity>
                 )}
                 {suggestions.map((suggestion) => (
@@ -361,7 +364,7 @@ export default function LocationPicker({
                     style={styles.suggestionItem}
                     onPress={() => handleSelectLocation(suggestion)}
                   >
-                    <Ionicons name="location-outline" size={20} color="#1B9E6E" />
+                    <Ionicons name="location-outline" size={20} color="#20B768" />
                     <View style={styles.suggestionText}>
                       <Text style={styles.suggestionTitle}>
                         {suggestion.address}
@@ -389,7 +392,7 @@ export default function LocationPicker({
           <View style={styles.savedSection}>
             <View style={styles.savedHeader}>
               <Text style={styles.savedTitle}>Saved Locations</Text>
-              <Ionicons name="chevron-forward" size={20} color="#38765D" style={{ paddingHorizontal: 16 }} />
+              <Ionicons name="chevron-forward" size={20} color="#20B768" style={{ paddingHorizontal: 16 }} />
             </View>
 
             <TouchableOpacity
@@ -409,7 +412,7 @@ export default function LocationPicker({
               <Ionicons
                 name="map-outline"
                 size={26}
-                color="#1B9E6E"
+                color="#20B768"
                 style={{ opacity: 0.8 }}
               />
               <Text style={styles.savedText}>Set Location on Map</Text>
@@ -467,7 +470,7 @@ export default function LocationPicker({
       </ScrollView>
 
       {/* Confirm Button */}
-      {pickup && destination && !activeField && (
+      {pickup && destination && hasAutoNavigated && !activeField && (
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
           <Text style={styles.confirmText}>SEARCH FOR RIDES</Text>
         </TouchableOpacity>
@@ -485,6 +488,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 16,
     paddingTop: 8,
+  },
+  scrollContent: {
+    paddingBottom: 92,
   },
   fieldsRow: {
     flexDirection: "row",
@@ -526,7 +532,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#38765D",
+    backgroundColor: "#20B768",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -584,7 +590,7 @@ const styles = StyleSheet.create({
   currentLocationItem: {
     backgroundColor: "#F0FAF5",
     borderLeftWidth: 3,
-    borderLeftColor: "#1B9E6E",
+    borderLeftColor: "#20B768",
   },
   loadingContainer: {
     paddingVertical: 20,
@@ -668,7 +674,7 @@ const styles = StyleSheet.create({
     bottom: 20,
     left: 16,
     right: 16,
-    backgroundColor: "#38765D",
+    backgroundColor: "#20B768",
     paddingVertical: 16,
     borderRadius: 24,
     alignItems: "center",

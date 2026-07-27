@@ -3,6 +3,7 @@ import {
   BackHandler,
   Dimensions,
   Easing,
+  Image,
   PanResponder,
   StatusBar,
   StyleSheet,
@@ -30,6 +31,7 @@ import OnTripSheet from "../../features/ride-tracking/OnTripSheet";
 import RideEventModal from "../../features/ride-tracking/RideEventModal";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
+import { getVehicleRideImage } from "../../utils/vehicleRideImages";
 import {
   getRideDropoffCoordinate,
   getRidePickupCoordinate,
@@ -202,14 +204,6 @@ const normalizeVehicleLabel = (value?: string | null) => {
   return "Car";
 };
 
-const getVehicleIconName = (value?: string | null) => {
-  const normalized = String(value || "").toLowerCase();
-  if (normalized.includes("bike") || normalized.includes("motor"))
-    return "bicycle" as const;
-  if (normalized.includes("van") || normalized.includes("suv"))
-    return "bus" as const;
-  return "car-sport-outline" as const;
-};
 const isFreshDriverLocation = (
   location?: DriverLocationUpdate | null,
 ): location is DriverLocationUpdate => {
@@ -393,7 +387,6 @@ export default function SearchingScreen() {
     outboundTrip.selectedRide?.name ||
     "car";
   const requestedVehicleLabel = normalizeVehicleLabel(requestedVehicleType);
-  const requestedVehicleIcon = getVehicleIconName(requestedVehicleType);
 
   // ── Search animations ────────────────────────────────────────────────────
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -456,7 +449,14 @@ export default function SearchingScreen() {
           setTimeout(() => {
             router.replace({
               pathname: "/ride-tracking",
-              params: { rideData: JSON.stringify(merged), eventStatus: nextEventStatus },
+              params: {
+                rideData: JSON.stringify({
+                  ...merged,
+                  selected_payment_method:
+                    merged?.selected_payment_method || paymentMethod,
+                }),
+                eventStatus: nextEventStatus,
+              },
             });
           }, 0);
         }
@@ -511,7 +511,7 @@ export default function SearchingScreen() {
       clearInterval(pollTimer);
       unsubscribe?.();
     };
-  }, [rideId, setActiveRide, setIsSearchingForDriver]);
+  }, [paymentMethod, rideId, setActiveRide, setIsSearchingForDriver]);
 
   // ── Actions ───────────────────────────────────────────────────────────────
   const handleShowDriver = () => {
@@ -558,7 +558,12 @@ export default function SearchingScreen() {
 
   // ── Progress segments ─────────────────────────────────────────────────────
   const ProgressSegments = () => (
-    <View style={styles.segmentsRow}>
+    <View
+      style={styles.segmentsWrap}
+      accessibilityRole="progressbar"
+      accessibilityLabel="Searching for a driver"
+    >
+      <View style={styles.segmentsRow}>
       {SEARCH_STEPS.map((step, i) => {
         const isDone = i < searchStepIndex;
         const isCurrent = i === searchStepIndex;
@@ -566,22 +571,18 @@ export default function SearchingScreen() {
           <View
             key={step.title}
             style={[
-              styles.progressSquare,
-              isDone && styles.progressSquareDone,
-              isCurrent && styles.progressSquareCurrent,
+              styles.progressSegment,
+              isDone && styles.progressSegmentDone,
+              isCurrent && styles.progressSegmentCurrent,
             ]}
-          >
-            <Text
-              style={[
-                styles.progressSquareNumber,
-                (isDone || isCurrent) && styles.progressSquareNumberActive,
-              ]}
-            >
-              {i + 1}
-            </Text>
-          </View>
+          />
         );
       })}
+      </View>
+      <View style={styles.progressCaptionRow}>
+        <View style={styles.progressLiveDot} />
+        <Text style={styles.progressCaption}>Searching securely nearby</Text>
+      </View>
     </View>
   );
 
@@ -839,7 +840,11 @@ export default function SearchingScreen() {
 
           <View style={styles.selectedVehicleCard}>
             <View style={styles.selectedVehicleIconWrap}>
-              <Ionicons name={requestedVehicleIcon} size={24} color={GREEN} />
+              <Image
+                source={getVehicleRideImage(requestedVehicleType)}
+                style={styles.selectedVehicleImage}
+                resizeMode="contain"
+              />
             </View>
             <View style={styles.selectedVehicleTextWrap}>
               <Text style={styles.selectedVehicleLabel}>Selected ride</Text>
@@ -1175,12 +1180,17 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   selectedVehicleIconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 64,
+    height: 46,
+    borderRadius: 14,
     backgroundColor: "#E8F8F0",
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  selectedVehicleImage: {
+    width: 58,
+    height: 40,
   },
   selectedVehicleTextWrap: {
     flex: 1,
@@ -1334,44 +1344,48 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
+  segmentsWrap: {
+    marginBottom: 20,
+    paddingHorizontal: 2,
+  },
   segmentsRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    gap: 10,
-    marginBottom: 24,
+    gap: 7,
   },
-  progressSquare: {
+  progressSegment: {
     flex: 1,
-    height: 52,
-    maxWidth: 70,
-    borderRadius: 15,
-    backgroundColor: "#F1F5F9",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
+    height: 6,
+    borderRadius: 999,
+    backgroundColor: "#E7EEEB",
+    overflow: "hidden",
   },
-  progressSquareCurrent: {
+  progressSegmentCurrent: {
     backgroundColor: GREEN,
-    borderColor: GREEN,
-    elevation: 4,
     shadowColor: GREEN,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.25,
-    shadowRadius: 7,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 2,
   },
-  progressSquareDone: {
+  progressSegmentDone: {
     backgroundColor: DARK_GREEN,
-    borderColor: DARK_GREEN,
   },
-  progressSquareNumber: {
-    color: "#94A3B8",
-    fontSize: 16,
-    fontWeight: "900",
+  progressCaptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 10,
+    gap: 7,
   },
-  progressSquareNumberActive: {
-    color: "rgba(255,255,255,0.82)",
+  progressLiveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: GREEN,
+  },
+  progressCaption: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "700",
   },
   footerRow: {
     flexDirection: "row",

@@ -37,13 +37,19 @@ const mergeRideData = (previous: any, next: any) => ({
 
 export default function LiveTrackerPage() {
     const params = useLocalSearchParams();
-    const { resetTrip, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
+    const { paymentMethod, resetTrip, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;
     const initialEventStatus = Array.isArray(params.eventStatus)
         ? params.eventStatus[0]
         : params.eventStatus;
     const [rideData, setRideData] = useState(initialRideData);
     const rideId = Number(rideData?.id || 0);
+    const selectedPaymentMethod = String(
+        rideData?.selected_payment_method ||
+        initialRideData?.selected_payment_method ||
+        paymentMethod ||
+        "cash",
+    ).toLowerCase();
     const initialStatus = String(initialRideData?.status || "").toUpperCase();
     const initialPaymentStatus = String(initialRideData?.payment?.payment_status || "").toUpperCase();
     const isInitiallyPaid = initialStatus === "COMPLETED" && initialPaymentStatus === "COMPLETED";
@@ -70,6 +76,7 @@ export default function LiveTrackerPage() {
     const lastAlertedStatusRef = useRef<string | null>(
         initialRideData?.status ? String(initialRideData.status).toUpperCase() : null,
     );
+    const cardPaymentRedirectedRef = useRef(false);
     const lastPaymentStatusRef = useRef<string | null>(
         initialRideData?.payment?.payment_status ? String(initialRideData.payment.payment_status).toUpperCase() : null,
     );
@@ -81,6 +88,25 @@ export default function LiveTrackerPage() {
             params: { rideData: JSON.stringify(initialRideData) },
         });
     }, [initialRideData, shouldUseActiveRideMap]);
+
+    useEffect(() => {
+        if (
+            initialStatus === "COMPLETED" &&
+            selectedPaymentMethod === "card" &&
+            initialPaymentStatus !== "COMPLETED" &&
+            rideId &&
+            !cardPaymentRedirectedRef.current
+        ) {
+            cardPaymentRedirectedRef.current = true;
+            router.replace({
+                pathname: "/payments/processing",
+                params: {
+                    rideId: String(rideId),
+                    amount: String(initialRideData?.final_fare || initialRideData?.estimated_fare || 0),
+                },
+            });
+        }
+    }, [initialPaymentStatus, initialRideData?.estimated_fare, initialRideData?.final_fare, initialStatus, rideId, selectedPaymentMethod]);
 
     useEffect(() => {
         if (initialStatus === "COMPLETED" && rideId) {
@@ -105,6 +131,23 @@ export default function LiveTrackerPage() {
                     setIsSearchingForDriver(false);
                 }
             }
+            if (
+                status === "COMPLETED" &&
+                selectedPaymentMethod === "card" &&
+                paymentStatus !== "COMPLETED" &&
+                !cardPaymentRedirectedRef.current
+            ) {
+                cardPaymentRedirectedRef.current = true;
+                router.replace({
+                    pathname: "/payments/processing",
+                    params: {
+                        rideId: String(rideId),
+                        amount: String(ride?.final_fare || ride?.estimated_fare || 0),
+                    },
+                });
+                return;
+            }
+
             if (status && lastAlertedStatusRef.current !== status) {
                 lastAlertedStatusRef.current = status;
                 if (["COMPLETED", "CANCELLED", "CANCELED"].includes(status)) {
@@ -149,7 +192,7 @@ export default function LiveTrackerPage() {
             cancelled = true;
             unsubscribe?.();
         };
-    }, [rideId, ratingSubmitted, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap]);
+    }, [rideId, ratingSubmitted, selectedPaymentMethod, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap]);
 
     if (shouldUseActiveRideMap) {
         return (
@@ -259,7 +302,7 @@ export default function LiveTrackerPage() {
                             Rate your trip
                         </Text>
                         <Text style={{ color: "#64748B", textAlign: "center", marginTop: 7, fontWeight: "700", lineHeight: 20 }}>
-                            Cash collected. How was your driver?
+                            Payment confirmed. How was your driver?
                         </Text>
 
                         <View style={{ flexDirection: "row", justifyContent: "center", marginVertical: 22 }}>

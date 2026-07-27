@@ -32,7 +32,7 @@ const isValidCoordinate = (value: any) =>
 export default function LiveRideTracker({ rideData, driverLocation, trackingStatus }: any) {
     const [followVehicle, setFollowVehicle] = React.useState(true);
     const insets = useSafeAreaInsets();
-    const { outboundTrip } = useRideSearch();
+    const { outboundTrip, paymentMethod } = useRideSearch();
     const vehicleType =
         rideData.vehicle?.vehicle_type ||
         rideData.vehicle?.vehicleType?.name ||
@@ -45,6 +45,20 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
     const rideStatus = String(rideData.status || "").toUpperCase();
     const isOnTrip = rideStatus === "STARTED";
     const paymentStatus = String(rideData.payment?.payment_status || "").toUpperCase();
+    const selectedPaymentMethod = String(
+        rideData.selected_payment_method ||
+        rideData.payment?.payment_method ||
+        paymentMethod ||
+        "cash",
+    ).toLowerCase();
+    const paymentMethodLabel = selectedPaymentMethod === "card" ? "Card" : selectedPaymentMethod === "wallet" ? "Wallet" : "Cash";
+    const paymentStateLabel = paymentStatus === "COMPLETED"
+        ? "Paid"
+        : selectedPaymentMethod === "card"
+          ? "Payment required"
+          : selectedPaymentMethod === "wallet"
+            ? "Pending deduction"
+            : "Pending collection";
     const statusUi = getPassengerRideStatusUI(rideStatus, paymentStatus);
     const estimatedFare = toNumber(rideData.estimated_fare);
     const finalFare = toNumber(rideData.final_fare);
@@ -407,7 +421,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                                     </Text>
                                 ) : null}
                                 <Text style={{ color: "#64748B", fontSize: 12, marginTop: 6 }}>
-                                    Payment: Cash • {paymentStatus === "COMPLETED" ? "Collected" : "Pending collection"}
+                                    Payment: {paymentMethodLabel} • {paymentStateLabel}
                                 </Text>
                             </View>
                         ) : null}
