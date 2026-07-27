@@ -1,40 +1,72 @@
 import { useLocalSearchParams } from "expo-router";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
+import DelayedLoader from "../../components/ui/DelayedLoader";
+import RideReceiptDetails from "../../features/ride-support/RideReceiptDetails";
 import RideScreenShell, { RideCard } from "../../features/ride-support/RideScreenShell";
-import { money, rideTheme } from "../../features/ride-support/rideUtils";
+import { apiClient } from "../../services/api/client";
 
-function row(label: string, value: any) {
-  return <View style={styles.row}><Text style={styles.label}>{label}</Text><Text style={styles.value}>Rs. {money(value)}</Text></View>;
-}
+const parseRideData = (value?: string) => {
+  if (!value) return {};
+
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+};
 
 export default function RideReceiptScreen() {
   const { rideData } = useLocalSearchParams<{ rideData?: string }>();
-  const ride = rideData ? JSON.parse(rideData) : {};
-  const total = ride.final_fare || ride.estimated_fare || ride.payment?.amount;
-  return (
-    <RideScreenShell title="Receipt" subtitle={`Trip #${ride.id || ""}`}>
-      <RideCard>
-        {row("Estimated fare", ride.estimated_fare)}
-        {row("Extra distance", ride.extra_distance_fare)}
-        {row("Waiting charge", ride.waiting_fare)}
-        <View style={styles.divider} />
-        <View style={styles.row}><Text style={styles.totalLabel}>Final fare</Text><Text style={styles.total}>Rs. {money(total)}</Text></View>
-      </RideCard>
-      <RideCard>
-        <Text style={styles.note}>Payment: {ride.payment?.payment_method || "Cash"} - {ride.payment?.payment_status || "Pending"}</Text>
-        <Text style={styles.note}>Pickup: {ride.pickup_address || "Pickup location"}</Text>
-        <Text style={styles.note}>Drop-off: {ride.drop_address || "Destination"}</Text>
-      </RideCard>
-    </RideScreenShell>
-  );
+  const [ride, setRide] = useState<any>(() => parseRideData(rideData));
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    const initialRide = parseRideData(rideData);
+    const id = Number(initialRide?.id || 0);
+
+    setRide(initialRide);
+
+    async function loadFullRide() {
+      if (!id) return;
+
+      setLoading(true);
+      const response = await apiClient.get<any>(`/rides/${id}`, { suppressErrorLog: true });
+      if (!cancelled) {
+        if (response.success && response.data) {
+          setRide((current: any) => ({ ...(current || {}), ...response.data }));
+        }
+        setLoading(false);
+      }
+    }
+
+    loadFullRide();
+    return () => {
+      cancelled = true;
+    };
+  }, [rideData]);
+
+  if (loading && !ride?.id) {
+    return (
+      <RideScreenShell title="Receipt" scroll={false}>
+        <View style={styles.center}><DelayedLoader label="Loading receipt" delayMs={220} /></View>
+      </RideScreenShell>
+    );
+  }
+
+  if (!ride || Object.keys(ride).length === 0) {
+    return (
+      <RideScreenShell title="Receipt">
+        <RideCard><Text style={styles.muted}>Receipt details are unavailable.</Text></RideCard>
+      </RideScreenShell>
+    );
+  }
+
+  return <RideReceiptDetails ride={ride} initialTab="receipt" />;
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", justifyContent: "space-between", gap: 14, paddingVertical: 8 },
-  label: { color: rideTheme.muted, fontWeight: "800" },
-  value: { color: rideTheme.ink, fontWeight: "900" },
-  divider: { height: 1, backgroundColor: rideTheme.line, marginVertical: 8 },
-  totalLabel: { color: rideTheme.ink, fontSize: 17, fontWeight: "900" },
-  total: { color: rideTheme.green, fontSize: 18, fontWeight: "900" },
-  note: { color: rideTheme.muted, fontSize: 13, lineHeight: 20, marginBottom: 6 },
+  center: { flex: 1, alignItems: "center", justifyContent: "center" },
+  muted: { color: "#64748B", fontSize: 13, lineHeight: 19 },
 });

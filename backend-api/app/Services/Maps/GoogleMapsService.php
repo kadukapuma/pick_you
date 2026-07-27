@@ -112,19 +112,19 @@ class GoogleMapsService
     public function route(float $originLat, float $originLng, float $destinationLat, float $destinationLng): array
     {
         $cacheKey = sprintf(
-            'google-route:%0.5f,%0.5f:%0.5f,%0.5f',
+            'google-route-v2:%0.5f,%0.5f:%0.5f,%0.5f',
             $originLat,
             $originLng,
             $destinationLat,
             $destinationLng,
         );
 
-        return Cache::remember($cacheKey, (int) config('google_maps.route_cache_ttl_seconds', 300), function () use (
-            $originLat,
-            $originLng,
-            $destinationLat,
-            $destinationLng,
-        ) {
+        $cached = Cache::get($cacheKey);
+        if (is_array($cached)) {
+            return $cached;
+        }
+
+        try {
             $response = $this->googlePost(
                 (string) config('google_maps.endpoints.routes'),
                 [
@@ -148,9 +148,17 @@ class GoogleMapsService
                     'routingPreference' => 'TRAFFIC_AWARE',
                     'computeAlternativeRoutes' => false,
                     'units' => 'METRIC',
-                    'polylineQuality' => 'OVERVIEW',
+                    'polylineQuality' => 'HIGH_QUALITY',
+                    'polylineEncoding' => 'ENCODED_POLYLINE',
                 ],
-                'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
+                implode(',', [
+                    'routes.duration',
+                    'routes.distanceMeters',
+                    'routes.polyline.encodedPolyline',
+                    'routes.legs.steps.distanceMeters',
+                    'routes.legs.steps.staticDuration',
+                    'routes.legs.steps.navigationInstruction',
+                ]),
             );
 
             $route = $response['routes'][0] ?? null;
@@ -162,15 +170,92 @@ class GoogleMapsService
             $duration = $this->durationSeconds((string) ($route['duration'] ?? '0s'));
             $encodedPolyline = (string) ($route['polyline']['encodedPolyline'] ?? '');
             $polyline = $encodedPolyline !== '' ? $this->decodePolyline($encodedPolyline) : [];
+            $steps = $this->normalizeRouteSteps($route);
 
-            return [
+            $normalized = [
                 'distance' => $distance,
                 'duration' => $duration,
                 'polyline' => $polyline,
                 'distanceText' => $this->formatDistance($distance),
                 'durationText' => $this->formatDuration($duration),
+                'steps' => $steps,
+                'currentStep' => $steps[0] ?? null,
             ];
-        });
+
+            Cache::put($cacheKey, $normalized, (int) config('google_maps.route_cache_ttl_seconds', 300));
+
+            return $normalized;
+        } catch (GoogleMapsException $exception) {
+            Log::warning('Google route fallback used', [
+                'message' => $exception->getMessage(),
+                'origin' => [$originLat, $originLng],
+                'destination' => [$destinationLat, $destinationLng],
+            ]);
+
+            return $this->fallbackRoute($originLat, $originLng, $destinationLat, $destinationLng);
+        }
+    }
+
+    private function fallbackRoute(
+        float $originLat,
+        float $originLng,
+        float $destinationLat,
+        float $destinationLng,
+    ): array {
+        $latScale = 111320;
+        $lngScale = $latScale * cos((($originLat + $destinationLat) / 2) * pi() / 180);
+        $straightLineDistance = hypot(
+            ($destinationLat - $originLat) * $latScale,
+            ($destinationLng - $originLng) * $lngScale,
+        );
+        $distance = (int) round($straightLineDistance * 1.28);
+        $duration = max(60, (int) round(($distance / 35000) * 3600));
+
+        return [
+            'distance' => $distance,
+            'duration' => $duration,
+            'polyline' => [
+                ['latitude' => $originLat, 'longitude' => $originLng],
+                ['latitude' => $destinationLat, 'longitude' => $destinationLng],
+            ],
+            'distanceText' => $this->formatDistance($distance),
+            'durationText' => $this->formatDuration($duration),
+            'steps' => [],
+            'currentStep' => null,
+        ];
+    }
+
+    private function normalizeRouteSteps(array $route): array
+    {
+        $steps = collect($route['legs'] ?? [])
+            ->flatMap(fn (array $leg) => $leg['steps'] ?? [])
+            ->map(fn (array $step) => $this->normalizeRouteStep($step))
+            ->filter()
+            ->values()
+            ->all();
+
+        return $steps;
+    }
+
+    private function normalizeRouteStep(array $step): ?array
+    {
+        $instruction = trim((string) ($step['navigationInstruction']['instructions'] ?? ''));
+
+        if ($instruction === '') {
+            return null;
+        }
+
+        $distance = (int) ($step['distanceMeters'] ?? 0);
+        $duration = $this->durationSeconds((string) ($step['staticDuration'] ?? '0s'));
+
+        return [
+            'distance' => $distance,
+            'distanceText' => $this->formatDistance($distance),
+            'duration' => $duration,
+            'durationText' => $this->formatDuration($duration),
+            'instruction' => $instruction,
+            'maneuver' => $step['navigationInstruction']['maneuver'] ?? null,
+        ];
     }
 
     private function normalizePrediction(array $prediction, int $index): ?array

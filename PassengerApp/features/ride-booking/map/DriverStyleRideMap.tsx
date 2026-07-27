@@ -215,6 +215,7 @@ export default function DriverStyleRideMap({
   vehicleImage,
   followVehicle = true,
   followZoom = 16,
+  followPitch = 0,
   onFollowStateChange,
   fitEdgePadding = DEFAULT_PADDING,
   focusControlsTop = 170,
@@ -316,12 +317,13 @@ export default function DriverStyleRideMap({
       {
         center: toLatLng(renderedVehicleLocation),
         heading: 0,
-        pitch: 0,
+        pitch: followPitch,
         zoom: followZoom,
       },
       { duration: 600 },
     );
   }, [
+    followPitch,
     followZoom,
     onFollowStateChange,
     renderedVehicleLocation,
@@ -389,13 +391,14 @@ export default function DriverStyleRideMap({
       {
         center,
         heading: 0,
-        pitch: 0,
+        pitch: followVehicle ? followPitch : 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
   }, [
     cameraVehicleLocation,
+    followPitch,
     followVehicle,
     followZoom,
     renderedVehicleLocation,
@@ -421,8 +424,8 @@ export default function DriverStyleRideMap({
         showsCompass={false}
         showsMyLocationButton={false}
         showsBuildings
-        pitchEnabled={false}
-        rotateEnabled={false}
+        pitchEnabled={followPitch > 0}
+        rotateEnabled={followPitch > 0}
         userInterfaceStyle="light"
         customMapStyle={PASSENGER_LIGHT_MAP_STYLE}
         onMapReady={() => setIsMapReady(true)}

@@ -161,6 +161,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     cameraRef,
     followVehicle = false,
     followZoom = 16,
+    followPitch = 0,
     onFollowStateChange,
   },
   forwardedRef,
@@ -313,13 +314,13 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
       {
         center,
         heading: 0,
-        pitch: 0,
+        pitch: followVehicle ? followPitch : 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraLat, cameraLng, followVehicle, followZoom]);
+  }, [cameraLat, cameraLng, followPitch, followVehicle, followZoom]);
 
   return (
     <MapView
@@ -333,7 +334,10 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
         longitudeDelta: DEFAULT_DELTA,
       }}
       showsCompass={false}
+      showsBuildings
       showsMyLocationButton={false}
+      pitchEnabled={followPitch > 0}
+      rotateEnabled={followPitch > 0}
       onPanDrag={() => {
         if (followVehicle) onFollowStateChange?.(false);
       }}

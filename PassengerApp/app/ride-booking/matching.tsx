@@ -672,6 +672,7 @@ export default function SearchingScreen() {
             nearbyVehicles={acceptedDriverVehicle}
             rideStatus={rideStatus}
             followVehicle={followAcceptedVehicle && !!acceptedVehicleLocation}
+            followPitch={45}
             onFollowStateChange={setFollowAcceptedVehicle}
             showFocusControls
             focusControlsTop={rideStatus === "STARTED" ? 166 : 150}

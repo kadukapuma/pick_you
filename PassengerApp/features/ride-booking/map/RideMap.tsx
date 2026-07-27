@@ -18,6 +18,7 @@ type Props = {
   rideStatus?: string;
   onMapPress?: (event: any) => void;
   followVehicle?: boolean;
+  followPitch?: number;
   onFollowStateChange?: (following: boolean) => void;
   vehicleImage?: ImageSourcePropType;
   showDriverMarker?: boolean;
@@ -52,6 +53,7 @@ export default function RideMap({
   driverLocation,
   rideStatus,
   followVehicle = false,
+  followPitch = 0,
   onFollowStateChange,
   vehicleImage,
   style,
@@ -176,6 +178,7 @@ export default function RideMap({
       routeColor={routeColor}
       vehicleImage={vehicleImage}
       followVehicle={followVehicle}
+      followPitch={followPitch}
       followLookAheadMeters={isOnTrip ? 65 : 45}
       onFollowStateChange={onFollowStateChange}
       showFocusControls={showFocusControls}

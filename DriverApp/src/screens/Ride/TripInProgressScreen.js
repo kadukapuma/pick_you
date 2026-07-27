@@ -39,6 +39,42 @@ const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 const SLIDER_WIDTH = width - 40; // Adjusted for padding calculation (20px on each side)
 const THUMB_SIZE = 50;
 
+const formatRideDurationMinutes = (minutes) => {
+  const value = Number(minutes);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const rounded = Math.max(1, Math.round(value));
+  return rounded === 1 ? "1 min" : `${rounded} mins`;
+};
+
+const getRideDurationFallback = (ride) =>
+  ride?.durationText ||
+  ride?.duration_text ||
+  ride?.time ||
+  formatRideDurationMinutes(
+    ride?.actual_duration_minutes || ride?.estimated_duration_minutes,
+  );
+
+const splitDurationText = (durationText) => {
+  const text = String(durationText || "").trim();
+  if (!text || text.toLowerCase() === "updating") {
+    return { value: "--", unit: "min" };
+  }
+
+  const compactLessThanMinute = text.match(/^<\s*1\s*(min|mins|minute|minutes)$/i);
+  if (compactLessThanMinute) {
+    return { value: "<1", unit: "min" };
+  }
+
+  const numericMinutes = text.match(/^(\d+)\s*(min|mins|minute|minutes)$/i);
+  if (numericMinutes) {
+    return { value: numericMinutes[1], unit: numericMinutes[2].startsWith("minute") ? "min" : numericMinutes[2] };
+  }
+
+  const [value, ...unitParts] = text.split(/\s+/);
+  return { value, unit: unitParts.join(" ") };
+};
+
 const TripInProgressScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
 
@@ -79,6 +115,24 @@ const TripInProgressScreen = ({ navigation, route }) => {
     [dropCoord, origin],
   );
   const { directions } = useGoogleRoute(origin, destination);
+  const currentStep = directions?.currentStep || directions?.steps?.[0] || null;
+  const durationText =
+    directions?.durationText ||
+    getRideDurationFallback(ride) ||
+    "Updating";
+  const etaDisplay = splitDurationText(durationText);
+  const remainingDistanceText =
+    directions?.distanceText ||
+    (summaryDistanceKm > 0 ? `${summaryDistanceKm.toFixed(1)} km` : "Distance pending");
+  const maneuverDistanceText =
+    currentStep?.distanceText ||
+    directions?.distanceText ||
+    "Updating";
+  const maneuverInstruction =
+    currentStep?.instruction ||
+    (directions?.distanceText
+      ? `Continue to ${destinationLabel}`
+      : "Calculating route to destination");
 
   const routeCoordinates = useMemo(
     () =>
@@ -200,9 +254,9 @@ const TripInProgressScreen = ({ navigation, route }) => {
             />
           </View>
           <View style={styles.maneuverTextContainer}>
-            <Text style={styles.maneuverDistance}>In 500 meters</Text>
+            <Text style={styles.maneuverDistance}>{maneuverDistanceText}</Text>
             <Text style={styles.maneuverInstruction} numberOfLines={1}>
-              Merge onto AB16 / {destinationLabel}
+              {maneuverInstruction}
             </Text>
           </View>
           <TouchableOpacity style={styles.navPhoneBtn} activeOpacity={0.7}>
@@ -272,13 +326,13 @@ const TripInProgressScreen = ({ navigation, route }) => {
         {/* Journey Duration & Distance Row */}
         <View style={styles.navSummaryRow}>
           <View style={styles.etaContainer}>
-            <Text style={styles.etaTextValue}>12</Text>
-            <Text style={styles.etaUnitLabel}>min</Text>
+            <Text style={styles.etaTextValue}>{etaDisplay.value}</Text>
+            <Text style={styles.etaUnitLabel}>{etaDisplay.unit}</Text>
           </View>
 
           <View style={styles.summaryMetaContainer}>
             <Text style={styles.summaryMetaText}>
-              {summaryDistanceKm > 0 ? `${summaryDistanceKm.toFixed(1)} km` : "Distance pending"} • Rs.{" "}
+              {remainingDistanceText} • Rs.{" "}
               {summaryFare > 0 ? summaryFare.toFixed(2) : "0.00"}
             </Text>
             <Text style={styles.summaryDestinationName} numberOfLines={1}>

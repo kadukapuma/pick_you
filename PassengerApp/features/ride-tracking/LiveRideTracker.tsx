@@ -303,6 +303,7 @@ export default function LiveRideTracker({ rideData, driverLocation, trackingStat
                     nearbyVehicles={activeDriverVehicle}
                     rideStatus={rideStatus}
                     followVehicle={followVehicle && !!resolvedDriverLocation}
+                    followPitch={45}
                     onFollowStateChange={setFollowVehicle}
                     vehicleImage={getVehicleMapIcon(vehicleType)}
                     showDriverMarker={false}
