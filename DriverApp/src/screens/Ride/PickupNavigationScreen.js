@@ -5,6 +5,7 @@ import {
   Alert,
   BackHandler,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StatusBar,
@@ -75,7 +76,16 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const customerPhone = ride?.customerPhone;
   const pickup = ride?.pickup || "Pickup";
+
+  const handleCallCustomer = useCallback(() => {
+    if (!customerPhone) {
+      Alert.alert("Unavailable", "Passenger phone number is not available yet.");
+      return;
+    }
+    Linking.openURL(`tel:${customerPhone}`);
+  }, [customerPhone]);
 
   const minimizeToHome = useCallback(() => {
     navigation.navigate("MainTabs");
@@ -329,7 +339,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={handleCallCustomer}>
               <Feather name="phone" size={18} color="#0F172A" />
               <Text style={styles.actionText}>Call</Text>
             </TouchableOpacity>

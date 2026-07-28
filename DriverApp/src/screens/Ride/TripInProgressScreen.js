@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     BackHandler,
     Dimensions,
     Image,
+    Linking,
     PanResponder,
     StatusBar,
     StyleSheet,
@@ -81,7 +83,16 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const ride = route?.params?.ride || {};
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const customerPhone = ride?.customerPhone;
   const destinationLabel = ride?.drop || "Destination";
+
+  const handleCallCustomer = useCallback(() => {
+    if (!customerPhone) {
+      Alert.alert("Unavailable", "Passenger phone number is not available yet.");
+      return;
+    }
+    Linking.openURL(`tel:${customerPhone}`);
+  }, [customerPhone]);
   const summaryDistanceKm = Number(
     ride?.actual_distance_km || ride?.estimated_distance_km || ride?.distance_km || 0,
   );
@@ -287,7 +298,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
               {maneuverInstruction}
             </Text>
           </View>
-          <TouchableOpacity style={styles.navPhoneBtn} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.navPhoneBtn} activeOpacity={0.7} onPress={handleCallCustomer}>
             <Feather name="phone" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>

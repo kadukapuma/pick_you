@@ -1,7 +1,9 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   BackHandler,
+  Linking,
   StatusBar,
   StyleSheet,
   Image,
@@ -77,6 +79,16 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const customerPhone = ride?.customerPhone;
+
+  const handleCallCustomer = useCallback(() => {
+    if (!customerPhone) {
+      Alert.alert("Unavailable", "Passenger phone number is not available yet.");
+      return;
+    }
+    Linking.openURL(`tel:${customerPhone}`);
+  }, [customerPhone]);
+
   const pickup = ride?.pickup || "Pickup";
 
   const minimizeToHome = useCallback(() => {
@@ -201,7 +213,7 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
       {/* HEADER CONTROLS NAVIGATION ACTION ROW */}
       <SafeAreaView style={styles.header} pointerEvents="box-none">
-        <TouchableOpacity style={styles.circleBtn} activeOpacity={0.7}>
+        <TouchableOpacity style={styles.circleBtn} activeOpacity={0.7} onPress={handleCallCustomer}>
           <Feather name="phone" size={20} color="#0F172A" />
         </TouchableOpacity>
       </SafeAreaView>
