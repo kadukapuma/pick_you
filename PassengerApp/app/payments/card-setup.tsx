@@ -16,8 +16,12 @@ export default function CardSetupScreen() {
       await paymentService.beginSecureCardSetup();
       Alert.alert(
         "Secure setup preview",
-        "The HNB-hosted card form will open here after the backend creates a secure session.",
-        [{ text: "Preview return", onPress: () => router.replace({ pathname: "/payments/card-setup-complete", params: { mode } }) }],
+        "The payment provider's secure card form will open here after the backend creates a sandbox session.",
+        [
+          { text: "Complete", onPress: () => router.replace({ pathname: "/payments/card-setup-complete", params: { mode } }) },
+          { text: "Cancel", onPress: () => router.replace({ pathname: "/payments/card-setup-status", params: { status: "cancelled", mode } }) },
+          { text: "Timeout", onPress: () => router.replace({ pathname: "/payments/card-setup-status", params: { status: "timeout", mode } }) },
+        ],
       );
     } finally {
       setOpening(false);
@@ -28,8 +32,15 @@ export default function CardSetupScreen() {
     <PaymentScreen
       title="Add new card"
       subtitle="Secure bank setup"
-      footer={<PaymentButton label={opening ? "Opening secure setup…" : "Continue to secure form"} icon="lock-closed-outline" onPress={continueSecurely} disabled={opening} />}
+      footer={<PaymentButton label={opening ? "Opening secure payment…" : "Continue to secure payment"} icon="lock-closed-outline" onPress={continueSecurely} disabled={opening} />}
     >
+      <View style={styles.previewBanner}>
+        <Ionicons name="flask-outline" size={18} color="#8A5A00" />
+        <View style={styles.previewCopy}>
+          <Text style={styles.previewTitle}>Sandbox preview</Text>
+          <Text style={styles.previewText}>No real card will be saved or charged.</Text>
+        </View>
+      </View>
       <View style={styles.cardPreview}>
         <View style={styles.cardTop}>
           <View style={styles.chip}><View style={styles.chipLine} /></View>
@@ -68,6 +79,10 @@ export default function CardSetupScreen() {
 }
 
 const styles = StyleSheet.create({
+  previewBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#FFF8E6", borderWidth: 1, borderColor: "#F4D58D" },
+  previewCopy: { flex: 1 },
+  previewTitle: { color: "#6B4600", fontSize: 12, fontWeight: "900" },
+  previewText: { color: "#8A681F", fontSize: 11, lineHeight: 16, marginTop: 2 },
   cardPreview: { minHeight: 190, borderRadius: 24, padding: 22, backgroundColor: paymentTheme.deepGreen, justifyContent: "space-between", shadowColor: paymentTheme.deepGreen, shadowOpacity: 0.22, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 5 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   chip: { width: 42, height: 31, borderRadius: 8, backgroundColor: "#D8BC70", justifyContent: "center" },

@@ -3,38 +3,32 @@ import type {
   PaymentResult,
   SavedCard,
 } from "./paymentTypes";
+import { PREVIEW_CARDS } from "./paymentPreviewData";
+
+/** Keep false until the server-side sandbox and callback flow are ready. */
+export const CARD_PAYMENTS_ENABLED = false;
 
 /**
  * Passenger payment boundary.
  *
- * Replace these preview implementations with backend endpoints after the HNB
- * merchant flow is confirmed. Screens should not call HNB directly.
+ * Replace these preview implementations with backend endpoints after the
+ * merchant flow is confirmed. Screens should not call the provider directly.
  */
 export const paymentService = {
   async listCards(): Promise<SavedCard[]> {
-    return [
-      {
-        id: "preview-visa-6492",
-        brand: "visa",
-        last4: "6492",
-        expiryLabel: "11/30",
-        isDefault: true,
-      },
-      {
-        id: "preview-mastercard-7294",
-        brand: "mastercard",
-        last4: "7294",
-        expiryLabel: "01/28",
-        isDefault: false,
-      },
-      {
-        id: "preview-amex-8321",
-        brand: "amex",
-        last4: "8321",
-        expiryLabel: "05/28",
-        isDefault: false,
-      },
-    ];
+    return PREVIEW_CARDS;
+  },
+
+  async getCard(cardId: string): Promise<SavedCard | null> {
+    return PREVIEW_CARDS.find((card) => card.id === cardId) || null;
+  },
+
+  async setDefaultCard(_cardId: string): Promise<void> {
+    return;
+  },
+
+  async removeCard(_cardId: string): Promise<void> {
+    return;
   },
 
   async beginSecureCardSetup(): Promise<{ redirectUrl: string }> {
@@ -45,7 +39,7 @@ export const paymentService = {
     return {
       status: "requires_action",
       message:
-        "Card payment is ready, but the secure HNB backend connection is not active yet.",
+        "Card payments are not available while the secure payment connection is being configured.",
     };
   },
 
