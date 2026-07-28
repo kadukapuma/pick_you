@@ -454,7 +454,17 @@ a.nav-link {
 .legal-links {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.8rem;
+}
+
+.legal-link-label {
+  min-width: 64px;
+  color: #e2e8f0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .legal-links a {

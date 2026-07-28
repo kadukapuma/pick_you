@@ -8,6 +8,12 @@ import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
 import PrivacyPolicy from '../views/Landing/PrivacyPolicy/PrivacyPolicy'
 import TermsAndConditions from '../views/Landing/TermsAndConditions/TermsAndConditions'
+import {
+    PassengerPayment,
+    PassengerPrivacy,
+    PassengerRefund,
+    PassengerTerms,
+} from '../views/Landing/LegalDocuments/PassengerLegalPages'
 
 // Admin Views
 import AdminLayout from '../views/AdminLayout'
@@ -63,6 +69,10 @@ const AppRoutes = () => {
                 <Route path="contact" element={<ContactUs />} />
                 <Route path="privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="passenger/terms-and-conditions" element={<PassengerTerms />} />
+                <Route path="passenger/privacy-policy" element={<PassengerPrivacy />} />
+                <Route path="passenger/payment-policy" element={<PassengerPayment />} />
+                <Route path="passenger/cancellation-refund-policy" element={<PassengerRefund />} />
             </Route>
 
             {/* Hidden Admin Portal */}
