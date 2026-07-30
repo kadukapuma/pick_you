@@ -138,6 +138,12 @@ class DriverMatchingQuery
                 return collect();
             }
 
+            $driverDistanceMap = $this->filterFreshDrivers($driverDistanceMap);
+
+            if ($driverDistanceMap === []) {
+                return collect();
+            }
+
             $candidateDriverIds = array_keys($driverDistanceMap);
             $eligibleDriverIds = DB::table('drivers as d')
                 ->whereIn('d.id', $candidateDriverIds)
@@ -239,6 +245,55 @@ class DriverMatchingQuery
         }
 
         return collect();
+    }
+
+    /**
+     * Drop drivers whose GEO index entry has no corresponding fresh
+     * `driver:location:{id}` key — a crashed/killed app can leave a driver
+     * in the GEO set without ever refreshing (or clearing) its location key.
+     *
+     * @param  array<int, float>  $driverDistanceMap
+     * @return array<int, float>
+     */
+    private function filterFreshDrivers(array $driverDistanceMap): array
+    {
+        try {
+            $driverIds = array_keys($driverDistanceMap);
+            $staleThreshold = now()->subSeconds((int) config('location.stale_after_seconds', 20));
+
+            $pipelineResults = Redis::pipeline(function ($pipe) use ($driverIds) {
+                foreach ($driverIds as $dId) {
+                    $pipe->get("driver:location:{$dId}");
+                }
+            });
+
+            $fresh = [];
+            foreach ($driverIds as $index => $dId) {
+                $raw = $pipelineResults[$index] ?? null;
+                if (! $raw) {
+                    continue;
+                }
+
+                $loc = json_decode($raw, true);
+                if (! is_array($loc) || ! isset($loc['recorded_at'])) {
+                    continue;
+                }
+
+                if (\Carbon\CarbonImmutable::parse($loc['recorded_at'])->lt($staleThreshold)) {
+                    continue;
+                }
+
+                $fresh[$dId] = $driverDistanceMap[$dId];
+            }
+
+            return $fresh;
+        } catch (Throwable $e) {
+            Log::warning('filterFreshDrivers staleness check failed; returning unfiltered candidates.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return $driverDistanceMap;
+        }
     }
 
     private function haversineMeters(float $lat1, float $lng1, float $lat2, float $lng2): float

@@ -92,6 +92,11 @@ You should **not** see that request every 5 seconds anymore.
 ## Production (100k+ drivers)
 
 - Run **Reverb** behind a load balancer with sticky sessions or use **Pusher/Ably** managed WebSockets.
+  - A single `reverb:start` process cannot hold 100k connections — you must run multiple Reverb nodes.
+  - Before running more than one node, set `REVERB_SCALING_ENABLED=true` in `backend-api/.env` (config already wired at `backend-api/config/reverb.php`). This turns on Reverb's Redis pub/sub adapter so a location update received by one Reverb node is broadcast to clients connected to every other node — without it, broadcasts silently only reach clients on the node that received the underlying event.
+  - Redis itself is a single point of failure once scaling is on (geo index, queues, and the scaling channel all depend on it) — use Sentinel or a managed HA Redis in production, not a single instance.
 - Keep **Redis** for matching queues and `ride:current_driver:*`.
 - Use **horizon** / multiple `queue:work` workers for `ProcessRideTimeout`.
+  - The `locations` queue (`backend-api/deploy/supervisor/laravel-workers.conf`) handles up to 3 jobs per GPS ping (DB snapshot, ride-point processing, the live broadcast) — size its worker count for driver volume, not a fixed default.
+- `php artisan drivers:prune-stale-online` runs every 5 minutes (`backend-api/routes/console.php`) to remove drivers from the online GEO index whose location key expired without an explicit "go offline" call (crashed/killed app) — keeps ride matching from offering rides to phantom drivers.
 - Do **not** poll ride lists on an interval for all drivers.
