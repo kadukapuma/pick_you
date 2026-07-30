@@ -1,7 +1,9 @@
 import api from "../api";
 
 const directionsCache = new Map();
+const directionsInFlight = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
+const ROUTE_TIMEOUT_MS = 6000;
 
 const formatDistance = (meters) => {
   if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
@@ -85,7 +87,7 @@ const normalizePolyline = (polyline, steps, fallbackPolyline) => {
   return fallbackPolyline;
 };
 
-const fallbackRoute = (pickupLat, pickupLon, destinationLat, destinationLon) => {
+export const fallbackRoute = (pickupLat, pickupLon, destinationLat, destinationLon) => {
   const latScale = 111320;
   const lngScale =
     latScale * Math.cos(((pickupLat + destinationLat) / 2) * Math.PI / 180);
@@ -96,6 +98,7 @@ const fallbackRoute = (pickupLat, pickupLon, destinationLat, destinationLon) => 
   const duration = Math.max(60, Math.round((distance / 35000) * 3600));
 
   return {
+    isFallback: true,
     distance,
     duration,
     polyline: [
@@ -188,6 +191,7 @@ const normalizeDirections = (
   const polyline = normalizePolyline(rawPolyline, steps, fallback.polyline);
 
   return {
+    isFallback: false,
     distance,
     duration,
     polyline,
@@ -214,6 +218,8 @@ export const getDirections = async (
     const response = await api.post("/maps/routes", {
       origin: { latitude: pickupLat, longitude: pickupLon },
       destination: { latitude: destinationLat, longitude: destinationLon },
+    }, {
+      timeout: ROUTE_TIMEOUT_MS,
     });
 
     return normalizeDirections(
@@ -251,14 +257,22 @@ export const getCachedDirections_withCache = async (
   const cached = getCachedDirections(key);
   if (cached) return cached;
 
-  const directions = await getDirections(
+  const pending = directionsInFlight.get(key);
+  if (pending) return pending;
+
+  const pendingRequest = getDirections(
     pickupLat,
     pickupLon,
     destinationLat,
     destinationLon,
-  );
+  ).finally(() => {
+    directionsInFlight.delete(key);
+  });
 
-  if (directions) {
+  directionsInFlight.set(key, pendingRequest);
+  const directions = await pendingRequest;
+
+  if (directions && !directions.isFallback) {
     directionsCache.set(key, { data: directions, timestamp: Date.now() });
   }
 

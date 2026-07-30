@@ -170,11 +170,23 @@ const startForegroundWatch = async ({ active }) => {
     ? { accuracy: Location.Accuracy.High, distanceInterval: 10, timeInterval: 5000 }
     : { accuracy: Location.Accuracy.Balanced, distanceInterval: 40, timeInterval: 15000 };
 
-  const current = await Location.getCurrentPositionAsync(options);
-  await postLocation(current.coords);
+  const cached = await Location.getLastKnownPositionAsync({
+    maxAge: active ? 30 * 1000 : 60 * 1000,
+    requiredAccuracy: active ? 100 : 200,
+  });
+  if (cached?.coords) {
+    await postLocation(cached.coords);
+  }
+
   watchSubscription = await Location.watchPositionAsync(options, (location) =>
     postLocation(location.coords),
   );
+
+  Location.getCurrentPositionAsync(options)
+    .then((current) => postLocation(current.coords))
+    .catch((err) => {
+      if (__DEV__) console.log("driverLocationSync current fix:", err?.message || err);
+    });
 
   if (!active) {
     heartbeatTimer = setInterval(async () => {

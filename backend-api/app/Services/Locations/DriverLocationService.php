@@ -121,10 +121,10 @@ class DriverLocationService
 
         $this->queueSnapshot($payload);
 
-        if ($activeRide) {
+        if ($activeRideId) {
             try {
                 event(new DriverLocationUpdated(
-                    ride_id: (int) $activeRide->id,
+                    ride_id: $activeRideId,
                     driver_id: $payload['driver_id'],
                     latitude: $payload['latitude'],
                     longitude: $payload['longitude'],
@@ -136,7 +136,7 @@ class DriverLocationService
                 ));
             } catch (Throwable $exception) {
                 Log::warning('Driver location broadcast could not be queued.', [
-                    'ride_id' => $activeRide->id,
+                    'ride_id' => $activeRideId,
                     'error' => $exception->getMessage(),
                 ]);
             }
@@ -204,18 +204,18 @@ class DriverLocationService
 
     private function queueSnapshot(array $payload): void
     {
-        if (! empty($payload['ride_id'])) {
+        $snapshotIntervalSeconds = ! empty($payload['ride_id'])
+            ? config('location.ride_snapshot_interval_seconds', 10)
+            : config('location.snapshot_interval_seconds', 30);
+
+        try {
+            $shouldPersist = Cache::store('redis')->add(
+                'driver:location:snapshot-lock:'.$payload['driver_id'],
+                true,
+                $snapshotIntervalSeconds,
+            );
+        } catch (Throwable) {
             $shouldPersist = true;
-        } else {
-            try {
-                $shouldPersist = Cache::store('redis')->add(
-                    'driver:location:snapshot-lock:'.$payload['driver_id'],
-                    true,
-                    config('location.snapshot_interval_seconds', 30),
-                );
-            } catch (Throwable) {
-                $shouldPersist = true;
-            }
         }
 
         if ($shouldPersist) {

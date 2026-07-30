@@ -1,9 +1,11 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import {
+  Alert,
   Dimensions,
   Image,
+  Linking,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -34,6 +36,15 @@ const RideDetailsScreen = ({ navigation, route }) => {
   const estimatedTime = ride?.time || "18 min";
   const paymentMethod = ride?.paymentMode || "Cash";
   const totalFare = ride?.price || 850;
+  const customerPhone = ride?.customerPhone;
+
+  const handleCallCustomer = useCallback(() => {
+    if (!customerPhone) {
+      Alert.alert("Unavailable", "Passenger phone number is not available yet.");
+      return;
+    }
+    Linking.openURL(`tel:${customerPhone}`);
+  }, [customerPhone]);
 
   // Split-fare distribution logic matching the itemized receipt layout
   const parsedFare = parseFloat(totalFare) || 850;
@@ -66,7 +77,7 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
         <TouchableOpacity
           style={styles.phoneCircleBtn}
-          onPress={() => console.log("Dialing:", customerName)}
+          onPress={handleCallCustomer}
           activeOpacity={0.7}
         >
           <Feather name="phone" size={20} color="#00A859" />

@@ -145,19 +145,16 @@ class GoogleMapsService
                         ],
                     ],
                     'travelMode' => 'DRIVE',
-                    'routingPreference' => 'TRAFFIC_AWARE',
+                    'routingPreference' => 'TRAFFIC_UNAWARE',
                     'computeAlternativeRoutes' => false,
                     'units' => 'METRIC',
-                    'polylineQuality' => 'HIGH_QUALITY',
+                    'polylineQuality' => 'OVERVIEW',
                     'polylineEncoding' => 'ENCODED_POLYLINE',
                 ],
                 implode(',', [
                     'routes.duration',
                     'routes.distanceMeters',
                     'routes.polyline.encodedPolyline',
-                    'routes.legs.steps.distanceMeters',
-                    'routes.legs.steps.staticDuration',
-                    'routes.legs.steps.navigationInstruction',
                 ]),
             );
 

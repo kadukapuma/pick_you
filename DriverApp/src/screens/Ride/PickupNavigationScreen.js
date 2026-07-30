@@ -1,10 +1,11 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   Alert,
   BackHandler,
   Image,
+  Linking,
   Modal,
   ScrollView,
   StatusBar,
@@ -29,18 +30,31 @@ const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 const PickupNavigationScreen = ({ navigation, route }) => {
   const ride = route?.params?.ride || {};
-  const pickupCoord = getPickupCoordinate(ride);
+  const pickupLat = ride?.pickupLat;
+  const pickupLng = ride?.pickupLng;
+  const pickupCoord = useMemo(
+    () => getPickupCoordinate({ pickupLat, pickupLng }),
+    [pickupLat, pickupLng],
+  );
   const { location: driverCoord } = useDriverLocation();
+  const cameraRef = useRef(null);
+  const hasDriverLocation = Boolean(driverCoord);
 
   const origin = useMemo(
-    () => driverCoord ?? DEFAULT_COORD,
-    [driverCoord],
+    () => driverCoord ?? pickupCoord ?? DEFAULT_COORD,
+    [driverCoord, pickupCoord],
   );
   const destination = useMemo(
     () => pickupCoord ?? origin,
     [pickupCoord, origin],
   );
-  const { directions } = useGoogleRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination, {
+    enabled: hasDriverLocation,
+  });
+  const vehicleImage = useMemo(
+    () => getVehicleMapIcon(ride?.vehicle_type),
+    [ride?.vehicle_type],
+  );
   const [isMarkingArrived, setIsMarkingArrived] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
@@ -62,7 +76,16 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const customerPhone = ride?.customerPhone;
   const pickup = ride?.pickup || "Pickup";
+
+  const handleCallCustomer = useCallback(() => {
+    if (!customerPhone) {
+      Alert.alert("Unavailable", "Passenger phone number is not available yet.");
+      return;
+    }
+    Linking.openURL(`tel:${customerPhone}`);
+  }, [customerPhone]);
 
   const minimizeToHome = useCallback(() => {
     navigation.navigate("MainTabs");
@@ -93,6 +116,16 @@ const PickupNavigationScreen = ({ navigation, route }) => {
     () => ({ top: 140, right: 70, bottom: 360, left: 70 }),
     [],
   );
+
+  const handleRecenter = useCallback(() => {
+    setFollowVehicle(true);
+    cameraRef.current?.setCamera({
+      centerCoordinate: [origin.longitude, origin.latitude],
+      pitch: 45,
+      zoomLevel: 16,
+      animationDuration: 350,
+    });
+  }, [origin]);
 
   const handleArrived = () => {
     const markArrived = async () => {
@@ -214,13 +247,15 @@ const PickupNavigationScreen = ({ navigation, route }) => {
 
       {/* MAP VIEWPORT */}
       <GoogleRideMap
+        cameraRef={cameraRef}
         style={styles.map}
         origin={origin}
         destination={destination}
         routeCoordinates={routeCoordinates}
+        showRoute={hasDriverLocation}
         routeColor="#00A859"
         destinationColor="#00A859"
-        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
+        vehicleImage={vehicleImage}
         vehicleSize={46}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
@@ -232,7 +267,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
       {!followVehicle ? (
         <TouchableOpacity
           style={styles.recenterButton}
-          onPress={() => setFollowVehicle(true)}
+          onPress={handleRecenter}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons
@@ -283,6 +318,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
             </View>
             <TouchableOpacity
               style={styles.inlineNavCircle}
+              onPress={handleRecenter}
               activeOpacity={0.7}
             >
               <Feather name="navigation" size={18} color="#0F172A" />
@@ -303,7 +339,7 @@ const PickupNavigationScreen = ({ navigation, route }) => {
           </View>
 
           <View style={styles.actionRow}>
-            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7}>
+            <TouchableOpacity style={styles.actionBtn} activeOpacity={0.7} onPress={handleCallCustomer}>
               <Feather name="phone" size={18} color="#0F172A" />
               <Text style={styles.actionText}>Call</Text>
             </TouchableOpacity>
