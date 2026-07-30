@@ -19,6 +19,14 @@ export function money(value: any): string {
   return Number.isFinite(number) ? number.toFixed(2) : "0.00";
 }
 
+export function firstPositiveNumber(...values: any[]): number {
+  for (const value of values) {
+    const number = Number(value);
+    if (Number.isFinite(number) && number > 0) return number;
+  }
+  return 0;
+}
+
 export function getRideId(ride: any): number | null {
   const id = Number(ride?.id || ride?.ride_id || ride?.trip_id);
   return Number.isFinite(id) && id > 0 ? id : null;
@@ -64,7 +72,12 @@ export function getVehicleDescription(ride: any): string {
 }
 
 export function getFareTotal(ride: any): string {
-  return money(ride?.final_fare || ride?.estimated_fare || ride?.payment?.amount);
+  return money(firstPositiveNumber(
+    ride?.final_fare,
+    ride?.fare_total,
+    ride?.payment?.amount,
+    ride?.estimated_fare,
+  ));
 }
 
 export function statusTitle(status: string): string {

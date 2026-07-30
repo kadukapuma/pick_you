@@ -49,7 +49,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
     borderWidth: 1,
-    borderColor: "#38765D",
+    borderColor: "#20B768",
     height: 48,
     position: "relative",
     overflow: "hidden",
@@ -58,10 +58,10 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: -1,
     left: -1,
-    width: (require("react-native").Dimensions.get("window").width - 32) / 2 + 1,
+    width: "50%",
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#38765D",
+    backgroundColor: "#20B768",
   },
   toggleOption: {
     flex: 1,
@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
   toggleLabel: {
     fontSize: 15,
     fontWeight: "500",
-    color: "#38765D",
+    color: "#20B768",
   },
   toggleLabelActive: {
     color: "#FFFFFF",

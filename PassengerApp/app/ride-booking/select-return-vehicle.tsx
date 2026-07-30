@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useRideSearch, type RideOption } from "../../state/booking/RideBookingContext";
 import {
+  fallbackRoute,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
@@ -173,6 +174,14 @@ export default function SelectRideReturnScreen() {
     const fetchDirections = async () => {
       if (returnTrip.pickup && returnTrip.dropoff) {
         setLoadingRoute(true);
+        const fallback = fallbackRoute(
+          returnTrip.pickup.latitude,
+          returnTrip.pickup.longitude,
+          returnTrip.dropoff.latitude,
+          returnTrip.dropoff.longitude,
+        );
+        setDirections(fallback);
+        setLoadingRoute(false);
         try {
           const result = await getCachedDirections_withCache(
             returnTrip.pickup.latitude,
@@ -180,7 +189,7 @@ export default function SelectRideReturnScreen() {
             returnTrip.dropoff.latitude,
             returnTrip.dropoff.longitude,
           );
-          setDirections(result);
+          if (result) setDirections(result);
         } catch (error) {
           logExpectedError("Return route lookup failed", error);
         } finally {
@@ -219,18 +228,24 @@ export default function SelectRideReturnScreen() {
     fetchVehicles();
   }, []);
 
-  // Compute dyn pricing once both vehicle types and routing directions are ready
+  // Compute local fares first, then refine backend estimates in the background.
   useEffect(() => {
     if (directions && dbVehicles.length > 0 && pickup && dropoff) {
       let cancelled = false;
+      const fallbackOptions = dbVehicles.map((vt) =>
+        mapDBVehicleToOption(vt, directions.distance, directions.duration),
+      );
+
+      setRideOptions(fallbackOptions);
+      setSelectedRide((current) => current ?? fallbackOptions[0]?.id ?? null);
+
       const loadEstimates = async () => {
-        const mapped = await Promise.all(
-          dbVehicles.map(async (vt) => {
-            const fallback = mapDBVehicleToOption(
-              vt,
-              directions.distance,
-              directions.duration,
-            );
+        for (const vt of dbVehicles) {
+          if (cancelled) return;
+          const fallback = fallbackOptions.find((option) => option.id === vt.name);
+          if (!fallback) continue;
+
+          try {
             const estimate = await apiClient.post<RideEstimateResponse>(
               "/rides/estimate",
               {
@@ -240,21 +255,29 @@ export default function SelectRideReturnScreen() {
                 drop_lat: dropoff.latitude,
                 drop_lng: dropoff.longitude,
               },
+              {
+                suppressErrorLog: true,
+                timeoutMs: 4500,
+              },
             );
 
-            if (!estimate.success || !estimate.data) return fallback;
+            if (cancelled) return;
+            if (!estimate.success || !estimate.data) continue;
 
-            return {
-              ...fallback,
-              price: Number(estimate.data.estimated_fare) || fallback.price,
-            };
-          }),
-        );
+            const apiFare = Number(estimate.data.estimated_fare);
+            const sane = apiFare > 0 && apiFare < fallback.price * 10;
+            if (!sane) continue;
 
-        if (cancelled) return;
-        setRideOptions(mapped);
-        if (mapped.length > 0 && !selectedRide) {
-          setSelectedRide(mapped[0].id);
+            setRideOptions((current) =>
+              current.map((option) =>
+                option.id === vt.name
+                  ? { ...option, price: parseFloat(apiFare.toFixed(2)) }
+                  : option,
+              ),
+            );
+          } catch {
+            // Local fare remains available when backend estimate is slow.
+          }
         }
       };
 
@@ -264,7 +287,7 @@ export default function SelectRideReturnScreen() {
         cancelled = true;
       };
     }
-  }, [directions, dbVehicles, pickup, dropoff, selectedRide]);
+  }, [directions, dbVehicles, pickup, dropoff]);
 
   // Validate data
   if (!pickup || !dropoff) {

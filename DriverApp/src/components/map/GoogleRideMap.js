@@ -1,5 +1,5 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Image, Platform, StyleSheet, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
@@ -151,6 +151,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     origin,
     destination,
     routeCoordinates = [],
+    showRoute = true,
     routeColor = "#00A859",
     destinationColor = "#00A859",
     vehicleImage,
@@ -161,6 +162,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     cameraRef,
     followVehicle = false,
     followZoom = 16,
+    followPitch = 0,
     onFollowStateChange,
   },
   forwardedRef,
@@ -196,6 +198,8 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     [renderedLat, renderedLng, destLat, destLng, routeCoordsLen],
   );
   const routeLine = useMemo(() => {
+    if (!showRoute) return [];
+
     const lineCoordinates =
       routeCoordinates.length > 1
         ? routeCoordinates
@@ -205,7 +209,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 
     return lineCoordinates.filter(isValidCoordinate).map(toLatLng);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renderedLat, renderedLng, destLat, destLng, routeCoordsLen]);
+  }, [renderedLat, renderedLng, destLat, destLng, routeCoordsLen, showRoute]);
 
   const cameraHandle = useMemo(
     () => ({
@@ -313,13 +317,13 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
       {
         center,
         heading: 0,
-        pitch: 0,
+        pitch: followVehicle ? followPitch : 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraLat, cameraLng, followVehicle, followZoom]);
+  }, [cameraLat, cameraLng, followPitch, followVehicle, followZoom]);
 
   return (
     <MapView
@@ -333,7 +337,10 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
         longitudeDelta: DEFAULT_DELTA,
       }}
       showsCompass={false}
+      showsBuildings
       showsMyLocationButton={false}
+      pitchEnabled={followPitch > 0}
+      rotateEnabled={followPitch > 0}
       onPanDrag={() => {
         if (followVehicle) onFollowStateChange?.(false);
       }}
@@ -371,7 +378,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
   );
 });
 
-export default GoogleRideMap;
+export default memo(GoogleRideMap);
 
 const styles = StyleSheet.create({
   map: {

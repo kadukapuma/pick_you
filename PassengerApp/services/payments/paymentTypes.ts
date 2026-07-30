@@ -1,0 +1,31 @@
+export type PaymentMethodId = "cash" | "wallet" | "card";
+
+export type SavedCard = {
+  id: string;
+  brand: "visa" | "mastercard" | "amex" | "unknown";
+  last4: string;
+  expiryLabel: string;
+  isDefault: boolean;
+};
+
+export type PaymentResultStatus =
+  | "processing"
+  | "completed"
+  | "failed"
+  | "requires_action";
+
+export type PaymentResult = {
+  status: PaymentResultStatus;
+  reference?: string;
+  message?: string;
+};
+
+export type OutstandingPayment = {
+  rideId: string;
+  rideCode: string;
+  amount: number;
+  currency: "LKR";
+  reason: string;
+  createdAtLabel: string;
+};
+

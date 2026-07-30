@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ImageSourcePropType, StyleProp, ViewStyle } from "react-native";
 import type { EdgePadding } from "react-native-maps";
 import {
+  fallbackRoute,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../../services/maps/directionsApi";
@@ -18,6 +19,7 @@ type Props = {
   rideStatus?: string;
   onMapPress?: (event: any) => void;
   followVehicle?: boolean;
+  followPitch?: number;
   onFollowStateChange?: (following: boolean) => void;
   vehicleImage?: ImageSourcePropType;
   showDriverMarker?: boolean;
@@ -52,6 +54,7 @@ export default function RideMap({
   driverLocation,
   rideStatus,
   followVehicle = false,
+  followPitch = 0,
   onFollowStateChange,
   vehicleImage,
   style,
@@ -135,7 +138,9 @@ export default function RideMap({
         return;
       }
 
+      const fallback = fallbackRoute(originLat, originLng, targetLat, targetLng);
       setRouteCoordinates(fallbackRouteCoordinates);
+      onRouteInfoChange?.(fallback);
 
       const directions = await getCachedDirections_withCache(
         originLat,
@@ -176,6 +181,7 @@ export default function RideMap({
       routeColor={routeColor}
       vehicleImage={vehicleImage}
       followVehicle={followVehicle}
+      followPitch={followPitch}
       followLookAheadMeters={isOnTrip ? 65 : 45}
       onFollowStateChange={onFollowStateChange}
       showFocusControls={showFocusControls}

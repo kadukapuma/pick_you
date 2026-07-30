@@ -10,13 +10,13 @@ export default function BookForFriendToggle({ value, onToggle }: Props) {
   return (
     <View style={styles.container}>
       <View style={styles.leftSection}>
-        <Ionicons name="people" size={20} color="#1B9E6E" />
+        <Ionicons name="people" size={20} color="#20B768" />
         <Text style={styles.text}>Book for a friend</Text>
       </View>
       <Switch
         value={value}
         onValueChange={onToggle}
-        trackColor={{ false: "#D6F2E7", true: "#1B9E6E" }}
+        trackColor={{ false: "#D6F2E7", true: "#20B768" }}
         thumbColor="#FFFFFF"
       />
     </View>

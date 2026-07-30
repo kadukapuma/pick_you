@@ -69,6 +69,12 @@ export function normalizeRidePayload(source = {}) {
     customerName:
       source.customerName || source.passenger_name || passengerName || "Passenger",
     customerProfilePicture: passengerProfilePicture,
+    customerPhone:
+      source.customerPhone ??
+      source.passenger_phone ??
+      source.passenger?.phone ??
+      passengerUser.phone ??
+      null,
     rating: source.rating,
     vehicle_type: vehicleType,
     requested_at: source.requested_at,

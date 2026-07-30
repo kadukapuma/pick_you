@@ -9,21 +9,56 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  DeviceEventEmitter,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import api from '../../services/api';
 import ThemedFeedbackModal from '../../components/ThemedFeedbackModal';
+import { imageAssetToFormFile } from '../../utils/imageUpload';
+
+const DRIVER_PROFILE_SNAPSHOT_KEY = 'driverProfileSnapshot';
+const DRIVER_PROFILE_UPDATED_EVENT = 'driverProfileUpdated';
+const SNAPSHOT_MAX_AGE_MS = 5 * 60 * 1000;
+
+const avatarUriWithVersion = (uri, version) => {
+  if (!uri || typeof uri !== 'string') return uri;
+  if (uri.startsWith('file:') || uri.startsWith('content:')) return uri;
+
+  return `${uri}${uri.includes('?') ? '&' : '?'}v=${version || 0}`;
+};
+
+const InputField = ({ label, value, onChangeText, icon, keyboardType = 'default' }) => (
+  <View style={styles.inputWrapper}>
+    <Text style={styles.inputLabel}>{label}</Text>
+    <View style={styles.inputContainer}>
+      <Feather name={icon} size={18} color="#64748B" style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        placeholderTextColor="#94A3B8"
+        autoCorrect={false}
+        autoCapitalize={keyboardType === 'email-address' ? 'none' : 'sentences'}
+      />
+    </View>
+  </View>
+);
 
 const EditProfileScreen = ({ navigation }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [profileImage, setProfileImage] = useState(null);
+  const [profileImageVersion, setProfileImageVersion] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [feedback, setFeedback] = useState({
     visible: false,
     type: 'success',
@@ -40,16 +75,58 @@ const EditProfileScreen = ({ navigation }) => {
     setFeedback((prev) => ({ ...prev, visible: false, onPrimary: null }));
   };
 
+  const applyProfileData = (data) => {
+    if (!data) return;
+
+    setName(data.name || '');
+    setEmail(data.email || '');
+    setPhone(data.phone || '');
+    setProfileImage(data.profile_picture || null);
+    setProfileImageVersion(data.__snapshotAt || Date.now());
+  };
+
   useEffect(() => {
+    let mounted = true;
+
+    const applyCachedProfile = async () => {
+      try {
+        const snapshotValue = await AsyncStorage.getItem(DRIVER_PROFILE_SNAPSHOT_KEY);
+        if (!snapshotValue || !mounted) return null;
+
+        const snapshot = JSON.parse(snapshotValue);
+        const snapshotAge = Date.now() - Number(snapshot.__snapshotAt || 0);
+        if (snapshotAge > SNAPSHOT_MAX_AGE_MS) {
+          await AsyncStorage.removeItem(DRIVER_PROFILE_SNAPSHOT_KEY);
+          return null;
+        }
+
+        applyProfileData(snapshot);
+        setLoading(false);
+        return snapshot;
+      } catch (error) {
+        console.log('Error loading cached profile for edit:', error);
+        return null;
+      }
+    };
+
     const fetchProfile = async () => {
       try {
-        const response = await api.get('/driver/profile');
+        const cachedProfile = await applyCachedProfile();
+        const response = await api.get('/driver/profile', {
+          params: { _: Date.now() },
+        });
+
+        if (!mounted) return;
+
         if (response.data.status === 'success') {
-          const data = response.data.data;
-          setName(data.name || '');
-          setEmail(data.email || '');
-          setPhone(data.phone || '');
-          if (data.profile_picture) setProfileImage(data.profile_picture);
+          if (cachedProfile?.__optimisticUntil && cachedProfile.__optimisticUntil > Date.now()) {
+            applyProfileData(cachedProfile);
+          } else {
+            applyProfileData({
+              ...response.data.data,
+              __snapshotAt: Date.now(),
+            });
+          }
         }
       } catch (error) {
         console.log('Error fetching profile for edit:', error);
@@ -59,10 +136,20 @@ const EditProfileScreen = ({ navigation }) => {
           message: 'Failed to load your profile details.',
         });
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
     fetchProfile();
+
+    const subscription = DeviceEventEmitter.addListener(
+      DRIVER_PROFILE_UPDATED_EVENT,
+      applyProfileData,
+    );
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
   }, []);
 
   const getNameParts = () => {
@@ -73,6 +160,94 @@ const EditProfileScreen = ({ navigation }) => {
       first_name: firstName || '',
       last_name: rest.join(' '),
     };
+  };
+
+  const cacheProfileSnapshot = async (snapshot) => {
+    const nextSnapshot = {
+      ...snapshot,
+      __snapshotAt: Date.now(),
+      __optimisticUntil: Date.now() + 15000,
+    };
+
+    try {
+      await AsyncStorage.setItem(
+        DRIVER_PROFILE_SNAPSHOT_KEY,
+        JSON.stringify(nextSnapshot),
+      );
+    } catch (error) {
+      console.log('Error caching profile snapshot:', error);
+    }
+
+    DeviceEventEmitter.emit(DRIVER_PROFILE_UPDATED_EVENT, nextSnapshot);
+  };
+
+  const handlePickProfileImage = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (!permission.granted) {
+        showFeedback({
+          type: 'warning',
+          title: 'Gallery Access Needed',
+          message: 'Please allow gallery access to change your profile photo.',
+        });
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.85,
+      });
+
+      if (result.canceled || !result.assets?.length) {
+        return;
+      }
+
+      const asset = result.assets[0];
+      const file = imageAssetToFormFile(asset, 'driver_profile');
+      if (!file) return;
+
+      setUploadingImage(true);
+
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+
+      const response = await api.post('/user/profile-picture', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const uploadedUrl =
+        response.data?.data?.profile_picture_path ||
+        response.data?.data?.profile_picture ||
+        asset.uri;
+
+      setProfileImage(uploadedUrl);
+      setProfileImageVersion(Date.now());
+      await cacheProfileSnapshot({
+        name,
+        email: email.trim(),
+        phone: phone.trim(),
+        profile_picture: uploadedUrl,
+      });
+      showFeedback({
+        type: 'success',
+        title: 'Photo Updated',
+        message: 'Your profile photo has been updated successfully.',
+      });
+    } catch (error) {
+      console.log('Error updating profile photo:', error.response?.data || error);
+      showFeedback({
+        type: 'error',
+        title: 'Upload Failed',
+        message:
+          error.response?.data?.message ||
+          'Could not update your profile photo. Please try again.',
+      });
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   const handleSave = async () => {
@@ -97,6 +272,11 @@ const EditProfileScreen = ({ navigation }) => {
       });
 
       if (response.data.status === 'success') {
+        applyProfileData({
+          ...response.data.data,
+          __snapshotAt: Date.now(),
+        });
+        await cacheProfileSnapshot(response.data.data);
         showFeedback({
           type: 'success',
           title: 'Profile Updated',
@@ -121,22 +301,6 @@ const EditProfileScreen = ({ navigation }) => {
     }
   };
 
-  const InputField = ({ label, value, onChangeText, icon, keyboardType = 'default' }) => (
-    <View style={styles.inputWrapper}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.inputContainer}>
-        <Feather name={icon} size={18} color="#64748B" style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType}
-          placeholderTextColor="#94A3B8"
-        />
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.mainContainer}>
       <KeyboardAvoidingView
@@ -154,7 +318,7 @@ const EditProfileScreen = ({ navigation }) => {
               <TouchableOpacity
                 style={styles.saveBtn}
                 onPress={handleSave}
-                disabled={saving || loading}
+                disabled={saving || loading || uploadingImage}
               >
                 {saving ? (
                   <ActivityIndicator size="small" color="#FFF" />
@@ -171,25 +335,56 @@ const EditProfileScreen = ({ navigation }) => {
             <ActivityIndicator size="large" color="#00A859" />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
           {/* Updated Profile Picture Section */}
           <View style={styles.avatarSection}>
             {profileImage ? (
               <View>
-                <Image source={{ uri: profileImage }} style={styles.avatarLarge} />
-                <TouchableOpacity style={styles.editPhotoBadge}>
-                  <Feather name="camera" size={14} color="#FFF" />
+                <Image
+                  source={{ uri: avatarUriWithVersion(profileImage, profileImageVersion) }}
+                  style={styles.avatarLarge}
+                />
+                <TouchableOpacity
+                  style={styles.editPhotoBadge}
+                  onPress={handlePickProfileImage}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Feather name="camera" size={14} color="#FFF" />
+                  )}
                 </TouchableOpacity>
               </View>
             ) : (
               <LinearGradient colors={['#00A859', '#007A41']} style={styles.avatarLarge}>
                 <Text style={styles.avatarTextLarge}>{name ? name.charAt(0).toUpperCase() : ''}</Text>
-                <TouchableOpacity style={styles.editPhotoBadge}>
-                  <Feather name="camera" size={14} color="#FFF" />
+                <TouchableOpacity
+                  style={styles.editPhotoBadge}
+                  onPress={handlePickProfileImage}
+                  disabled={uploadingImage}
+                >
+                  {uploadingImage ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Feather name="camera" size={14} color="#FFF" />
+                  )}
                 </TouchableOpacity>
               </LinearGradient>
             )}
-            <Text style={styles.changePhotoText}>Change Profile Photo</Text>
+            <TouchableOpacity
+              onPress={handlePickProfileImage}
+              disabled={uploadingImage}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.changePhotoText}>
+                {uploadingImage ? 'Uploading Photo...' : 'Change Profile Photo'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Form Section */}

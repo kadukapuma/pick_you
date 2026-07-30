@@ -13,6 +13,7 @@ type ApiRequestOptions = RequestInit & {
   suppressErrorLog?: boolean;
   /** Set true to skip the global 401 auto-logout handler (e.g. during token validation on startup) */
   skipAuthCheck?: boolean;
+  timeoutMs?: number;
 };
 
 class ApiClient {
@@ -29,28 +30,37 @@ class ApiClient {
     options: ApiRequestOptions = {},
   ): Promise<ApiResponse<T>> {
     try {
+      const {
+        skipAuthCheck,
+        suppressErrorLog,
+        timeoutMs,
+        ...fetchOptions
+      } = options;
       const url = `${this.baseURL}${endpoint}`;
       const token = await StorageService.getToken();
 
       const headers: Record<string, string> = {
         ...API_CONFIG.HEADERS,
-        ...options.headers,
+        ...fetchOptions.headers,
       } as Record<string, string>;
 
       // Add token if available
       if (token) {
         headers["Authorization"] = `Bearer ${token}`;
       }
-      if (options.method && ["POST", "PUT", "PATCH", "DELETE"].includes(options.method)) {
+      if (fetchOptions.method && ["POST", "PUT", "PATCH", "DELETE"].includes(fetchOptions.method)) {
         headers["Idempotency-Key"] =
           `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       }
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      const timeoutId = setTimeout(
+        () => controller.abort(),
+        timeoutMs ?? this.timeout,
+      );
 
       const response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
         signal: controller.signal,
       });
@@ -76,12 +86,12 @@ class ApiClient {
       }
 
       if (!response.ok) {
-        if (!options.suppressErrorLog) {
+        if (!suppressErrorLog) {
           if (__DEV__) console.warn(`[DEV] [${response.status}] ${endpoint}:`, data);
         }
 
         // Global 401 handler — token was revoked mid-session
-        if (response.status === 401 && !options.skipAuthCheck) {
+        if (response.status === 401 && !skipAuthCheck) {
           console.warn("🔒 401 received mid-session — clearing auth and redirecting to login");
           await StorageService.clearAuth();
           router.replace("/(auth)/get-started" as any);
@@ -123,8 +133,13 @@ class ApiClient {
     return this.request<T>(endpoint, { ...options, method: "GET" });
   }
 
-  public post<T>(endpoint: string, body?: any): Promise<ApiResponse<T>> {
+  public post<T>(
+    endpoint: string,
+    body?: any,
+    options: ApiRequestOptions = {},
+  ): Promise<ApiResponse<T>> {
     return this.request<T>(endpoint, {
+      ...options,
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
     });

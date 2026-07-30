@@ -58,10 +58,17 @@ export function useDriverLocation() {
           locationRef.current = next;
           setLocation(next);
           setError(null);
+          setLoading(false);
         };
 
-        const current = await Location.getCurrentPositionAsync(options);
-        updateLocation(current);
+        const cached = await Location.getLastKnownPositionAsync({
+          maxAge: 60 * 1000,
+          requiredAccuracy: 200,
+        });
+        if (cached) {
+          updateLocation(cached);
+          if (!cancelled) setLoading(false);
+        }
 
         const subscription = await Location.watchPositionAsync(
           options,
@@ -71,7 +78,11 @@ export function useDriverLocation() {
 
         if (cancelled) {
           subscription.remove();
+          return;
         }
+
+        const current = await Location.getCurrentPositionAsync(options);
+        updateLocation(current);
       } catch (err) {
         if (!cancelled) {
           setError(err?.message || "Failed to get location");

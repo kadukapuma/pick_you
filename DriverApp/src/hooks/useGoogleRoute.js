@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { getCachedDirections_withCache } from "../services/routing/googleRoutingService";
+import {
+  fallbackRoute,
+  getCachedDirections_withCache,
+} from "../services/routing/googleRoutingService";
 
 const routeDistanceMeters = (from, to) => {
   const latScale = 111320;
@@ -11,7 +14,8 @@ const routeDistanceMeters = (from, to) => {
   );
 };
 
-export function useGoogleRoute(origin, destination) {
+export function useGoogleRoute(origin, destination, options = {}) {
+  const enabled = options.enabled ?? true;
   const originLatitude = origin.latitude;
   const originLongitude = origin.longitude;
   const destLatitude = destination?.latitude;
@@ -23,6 +27,8 @@ export function useGoogleRoute(origin, destination) {
   const lastRouteAtRef = useRef(Date.now());
 
   useEffect(() => {
+    if (!enabled) return;
+
     const moved = routeDistanceMeters(
       { latitude: routeOriginLat, longitude: routeOriginLng },
       { latitude: originLatitude, longitude: originLongitude },
@@ -33,15 +39,35 @@ export function useGoogleRoute(origin, destination) {
       setRouteOriginLat(originLatitude);
       setRouteOriginLng(originLongitude);
     }
-  }, [originLatitude, originLongitude, routeOriginLat, routeOriginLng]);
+  }, [enabled, originLatitude, originLongitude, routeOriginLat, routeOriginLng]);
 
   useEffect(() => {
-    if (destLatitude == null || destLongitude == null) return;
+    if (!enabled || destLatitude == null || destLongitude == null) {
+      setDirections(null);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
 
     const fetchRoute = async () => {
+      const routeOriginIsStale =
+        routeDistanceMeters(
+          { latitude: routeOriginLat, longitude: routeOriginLng },
+          { latitude: originLatitude, longitude: originLongitude },
+        ) >= 100;
+
+      if (routeOriginIsStale) return;
+
       setLoading(true);
+      setDirections(
+        fallbackRoute(
+          routeOriginLat,
+          routeOriginLng,
+          destLatitude,
+          destLongitude,
+        ),
+      );
       try {
         const result = await getCachedDirections_withCache(
           routeOriginLat,
@@ -63,7 +89,15 @@ export function useGoogleRoute(origin, destination) {
     return () => {
       cancelled = true;
     };
-  }, [routeOriginLat, routeOriginLng, destLatitude, destLongitude]);
+  }, [
+    enabled,
+    originLatitude,
+    originLongitude,
+    routeOriginLat,
+    routeOriginLng,
+    destLatitude,
+    destLongitude,
+  ]);
 
   return { directions, loading };
 }

@@ -3,7 +3,8 @@ import { Platform } from "react-native";
 import type { LocationSuggestion } from "./placesApi";
 import { reverseGeocodeLocation } from "./placesApi";
 
-const POSITION_TIMEOUT_MS = 12000;
+const POSITION_TIMEOUT_MS = 8000;
+const REVERSE_GEOCODE_TIMEOUT_MS = 3500;
 const GOOD_ACCURACY_METERS = 120;
 
 const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
@@ -21,7 +22,10 @@ const withTimeout = async <T,>(promise: Promise<T>, ms: number): Promise<T> => {
 
 const getReadableAddress = async (latitude: number, longitude: number) => {
   try {
-    const googleResult = await reverseGeocodeLocation(latitude, longitude);
+    const googleResult = await withTimeout(
+      reverseGeocodeLocation(latitude, longitude),
+      REVERSE_GEOCODE_TIMEOUT_MS,
+    );
     if (googleResult) {
       return googleResult.details || googleResult.address || "Current position";
     }
@@ -53,17 +57,23 @@ export async function getFreshCurrentLocationSuggestion(): Promise<LocationSugge
     } catch {}
   }
 
-  let position: Location.LocationObject | null = null;
-  try {
-    position = await withTimeout(
-      Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest }),
-      POSITION_TIMEOUT_MS,
-    );
-  } catch {
-    position = await Location.getLastKnownPositionAsync({
-      maxAge: 30000,
-      requiredAccuracy: GOOD_ACCURACY_METERS,
-    });
+  let position: Location.LocationObject | null = await Location.getLastKnownPositionAsync({
+    maxAge: 60000,
+    requiredAccuracy: GOOD_ACCURACY_METERS,
+  });
+
+  if (!position) {
+    try {
+      position = await withTimeout(
+        Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }),
+        POSITION_TIMEOUT_MS,
+      );
+    } catch {
+      position = await Location.getLastKnownPositionAsync({
+        maxAge: 30000,
+        requiredAccuracy: GOOD_ACCURACY_METERS,
+      });
+    }
   }
 
   if (!position) {

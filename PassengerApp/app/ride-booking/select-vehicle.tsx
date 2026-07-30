@@ -17,6 +17,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 
 import {
+  fallbackRoute,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
@@ -26,6 +27,7 @@ import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { logExpectedError } from "../../services/errors/userMessages";
 import { loadRebookDraft } from "../../services/rides/rebookDraft";
+import { getVehicleRideImage } from "../../utils/vehicleRideImages";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface DBVehicleType {
@@ -152,26 +154,6 @@ const ICON_MAP: Record<string, "car" | "bicycle" | "bus"> = {
 // Normalise any backend vehicle name to a consistent key
 function normaliseVehicleKey(raw: string): string {
   return raw.toLowerCase().replace(/[\s_\-]+/g, "");
-}
-
-const VEHICLE_IMAGE_MAP: Record<string, any> = {
-  car: require("../../assets/images/vehicles/car.png"),
-  tuk: require("../../assets/images/vehicles/threewheel.png"),
-  tuktuk: require("../../assets/images/vehicles/threewheel.png"),
-  threewheel: require("../../assets/images/vehicles/threewheel.png"),
-  bike: require("../../assets/images/vehicles/bike.png"),
-  motorbike: require("../../assets/images/vehicles/bike.png"),
-  motorcycle: require("../../assets/images/vehicles/bike.png"),
-  suv: require("../../assets/images/vehicles/minivan.png"),
-  van: require("../../assets/images/vehicles/van.png"),
-  minivan: require("../../assets/images/vehicles/van.png"),
-  minicar: require("../../assets/images/vehicles/minicar.png"),
-  mini: require("../../assets/images/vehicles/minicar.png"),
-};
-
-function getVehicleImage(id: string) {
-  const key = normaliseVehicleKey(id);
-  return VEHICLE_IMAGE_MAP[key] ?? VEHICLE_IMAGE_MAP.car;
 }
 
 const ETA_MAP: Record<string, string> = {
@@ -317,7 +299,7 @@ function RideCard({
           {/* Icon area */}
           <View style={styles.cardIconWrap}>
             <Image
-              source={getVehicleImage(ride.id ?? "car")}
+              source={getVehicleRideImage(ride.id)}
               style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
@@ -369,7 +351,7 @@ function RideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { tripType, outboundTrip, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
+  const { tripType, outboundTrip, paymentMethod, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
     useRideSearch();
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
@@ -459,6 +441,14 @@ export default function SelectRideScreen() {
     let cancelled = false;
     (async () => {
       setLoadingRoute(true);
+      const fallback = fallbackRoute(
+        Number(pickupLatitude),
+        Number(pickupLongitude),
+        Number(destinationLatitude),
+        Number(destinationLongitude),
+      );
+      setDirections(fallback);
+      setLoadingRoute(false);
       try {
         const result = await getCachedDirections_withCache(
           Number(pickupLatitude),
@@ -466,7 +456,7 @@ export default function SelectRideScreen() {
           Number(destinationLatitude),
           Number(destinationLongitude),
         );
-        if (!cancelled) setDirections(result);
+        if (!cancelled && result) setDirections(result);
       } catch (e) {
         logExpectedError("Vehicle selection route lookup failed", e);
       } finally {
@@ -530,41 +520,45 @@ export default function SelectRideScreen() {
     setLoadingVehicles(false);
 
     const loadBackendEstimates = async () => {
-      await Promise.all(
-        _rawVehicles.map(async (vehicle) => {
-          const fallback = fallbackOptions.find((option) => option.id === vehicle.name);
-          if (!fallback) return;
+      for (const vehicle of _rawVehicles) {
+        if (cancelled) return;
+        const fallback = fallbackOptions.find((option) => option.id === vehicle.name);
+        if (!fallback) continue;
 
-          try {
-            const estimate = await apiClient.post<RideEstimateResponse>(
-              "/rides/estimate",
-              {
-                vehicle_type: vehicle.name,
-                pickup_lat: Number(pickupLatitude),
-                pickup_lng: Number(pickupLongitude),
-                drop_lat: Number(destinationLatitude),
-                drop_lng: Number(destinationLongitude),
-              },
-            );
+        try {
+          const estimate = await apiClient.post<RideEstimateResponse>(
+            "/rides/estimate",
+            {
+              vehicle_type: vehicle.name,
+              pickup_lat: Number(pickupLatitude),
+              pickup_lng: Number(pickupLongitude),
+              drop_lat: Number(destinationLatitude),
+              drop_lng: Number(destinationLongitude),
+            },
+            {
+              suppressErrorLog: true,
+              timeoutMs: 4500,
+            },
+          );
 
-            if (cancelled || !estimate.success || !estimate.data) return;
+          if (cancelled) return;
+          if (!estimate.success || !estimate.data) continue;
 
-            const apiFare = Number(estimate.data.estimated_fare);
-            const sane = apiFare > 0 && apiFare < fallback.price * 10;
-            if (!sane) return;
+          const apiFare = Number(estimate.data.estimated_fare);
+          const sane = apiFare > 0 && apiFare < fallback.price * 10;
+          if (!sane) continue;
 
-            setRideOptions((current) =>
-              current.map((option) =>
-                option.id === vehicle.name
-                  ? { ...option, price: parseFloat(apiFare.toFixed(2)) }
-                  : option,
-              ),
-            );
-          } catch {
-            // The local fare config estimate remains usable if backend estimate is slow.
-          }
-        }),
-      );
+          setRideOptions((current) =>
+            current.map((option) =>
+              option.id === vehicle.name
+                ? { ...option, price: parseFloat(apiFare.toFixed(2)) }
+                : option,
+            ),
+          );
+        } catch {
+          // The local fare config estimate remains usable if backend estimate is slow.
+        }
+      }
     };
 
     loadBackendEstimates();
@@ -714,9 +708,22 @@ export default function SelectRideScreen() {
 
         {/* ── OPTIONS ROW ────────────────────────────────────────────────── */}
         <View style={styles.optionsRow}>
-          <TouchableOpacity style={styles.optionChip}>
-            <Ionicons name="cash-outline" size={16} color={GREEN} />
-            <Text style={styles.optionChipText}>Cash</Text>
+          <TouchableOpacity
+            style={styles.optionChip}
+            onPress={() => router.push("/ride-booking/payment-method")}
+            activeOpacity={0.82}
+            accessibilityRole="button"
+            accessibilityLabel={`Change payment method. Currently ${paymentMethod}`}
+          >
+            <Ionicons
+              name={paymentMethod === "card" ? "card-outline" : paymentMethod === "wallet" ? "wallet-outline" : "cash-outline"}
+              size={16}
+              color={GREEN}
+            />
+            <Text style={styles.optionChipText}>
+              {paymentMethod === "card" ? "Card" : paymentMethod === "wallet" ? "Wallet" : "Cash"}
+            </Text>
+            <Ionicons name="chevron-down" size={13} color={GREEN} />
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.optionChip}>

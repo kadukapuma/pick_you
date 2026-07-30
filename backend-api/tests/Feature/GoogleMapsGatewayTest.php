@@ -145,6 +145,16 @@ class GoogleMapsGatewayTest extends TestCase
                     'distanceMeters' => 2500,
                     'duration' => '600s',
                     'polyline' => ['encodedPolyline' => '_p~iF~ps|U_ulLnnqC_mqNvxq`@'],
+                    'legs' => [[
+                        'steps' => [[
+                            'distanceMeters' => 450,
+                            'staticDuration' => '90s',
+                            'navigationInstruction' => [
+                                'maneuver' => 'TURN_LEFT',
+                                'instructions' => 'Turn left onto Kandy Road',
+                            ],
+                        ]],
+                    ]],
                 ]],
             ]),
         ]);
@@ -156,7 +166,12 @@ class GoogleMapsGatewayTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.distance', 2500)
             ->assertJsonPath('data.duration', 600)
-            ->assertJsonPath('data.distanceText', '2.5 km');
+            ->assertJsonPath('data.distanceText', '2.5 km')
+            ->assertJsonPath('data.currentStep.distance', 450)
+            ->assertJsonPath('data.currentStep.distanceText', '450 m')
+            ->assertJsonPath('data.currentStep.durationText', '2 mins')
+            ->assertJsonPath('data.currentStep.instruction', 'Turn left onto Kandy Road')
+            ->assertJsonPath('data.currentStep.maneuver', 'TURN_LEFT');
 
         $this->postJson('/api/rides/estimate', [
             'vehicle_type' => 'car',
@@ -169,5 +184,34 @@ class GoogleMapsGatewayTest extends TestCase
             ->assertJsonPath('data.distance_km', 2.5)
             ->assertJsonPath('data.estimated_duration_minutes', 10)
             ->assertJsonPath('data.estimated_fare', 325);
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://routes.googleapis.com/directions/v2:computeRoutes'
+            && str_contains($request->header('X-Goog-FieldMask')[0] ?? '', 'routes.legs.steps.distanceMeters')
+            && str_contains($request->header('X-Goog-FieldMask')[0] ?? '', 'routes.legs.steps.navigationInstruction')
+            && ! str_contains($request->header('X-Goog-FieldMask')[0] ?? '', 'routes.legs.steps.duration')
+            && $request['polylineQuality'] === 'HIGH_QUALITY'
+            && $request['polylineEncoding'] === 'ENCODED_POLYLINE');
+    }
+
+    public function test_routes_fall_back_without_fake_turn_instruction_when_google_fails(): void
+    {
+        Http::fake([
+            'https://routes.googleapis.com/directions/v2:computeRoutes' => Http::response([
+                'error' => [
+                    'code' => 503,
+                    'message' => 'Routes unavailable',
+                    'status' => 'UNAVAILABLE',
+                ],
+            ], 503),
+        ]);
+
+        $this->postJson('/api/maps/routes', [
+            'origin' => ['latitude' => 6.92, 'longitude' => 79.86],
+            'destination' => ['latitude' => 6.94, 'longitude' => 79.88],
+        ])
+            ->assertOk()
+            ->assertJsonPath('data.steps', [])
+            ->assertJsonPath('data.currentStep', null)
+            ->assertJsonMissingPath('data.currentStep.instruction');
     }
 }

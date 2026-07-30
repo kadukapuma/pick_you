@@ -38,6 +38,23 @@ class RideTransitionService
                 'notes' => $notes,
             ]);
 
+            $driverId = $attributes['driver_id'] ?? $ride->driver_id;
+            if ($driverId) {
+                try {
+                    if (in_array($toStatus, [RideStateMachine::ACCEPTED, RideStateMachine::ARRIVED, RideStateMachine::STARTED], true)) {
+                        \Illuminate\Support\Facades\Redis::setex("driver:active_ride:{$driverId}", 86400, (string) $ride->id);
+                    } elseif (in_array($toStatus, [RideStateMachine::COMPLETED, RideStateMachine::CANCELLED], true)) {
+                        \Illuminate\Support\Facades\Redis::del("driver:active_ride:{$driverId}");
+                    }
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Could not sync driver active ride to Redis.', [
+                        'driver_id' => $driverId,
+                        'ride_id' => $ride->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return $ride->refresh();
         }, 3);
     }

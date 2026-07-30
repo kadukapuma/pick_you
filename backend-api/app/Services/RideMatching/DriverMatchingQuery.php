@@ -84,9 +84,14 @@ class DriverMatchingQuery
             $collection = collect();
         }
 
-        // Fallback: If DB spatial query returns 0 drivers, query online drivers directly from Redis & DB
+        // Fallback 1: Query online drivers from Redis GEO index
         if ($collection->isEmpty()) {
             $collection = $this->findNearbyDriversFromRedis($pickupLat, $pickupLng, $vehicleType, $radiusMeters);
+        }
+
+        // Fallback 2: Query online drivers from database using SQL Haversine formula
+        if ($collection->isEmpty()) {
+            $collection = $this->findNearbyDriversFromDatabase($pickupLat, $pickupLng, $vehicleType, $radiusMeters);
         }
 
         if ($collection->isEmpty()) {
@@ -105,7 +110,43 @@ class DriverMatchingQuery
     private function findNearbyDriversFromRedis(float $pickupLat, float $pickupLng, string $vehicleType, float $radiusMeters): Collection
     {
         try {
-            $onlineDriverIds = DB::table('drivers as d')
+            $geoKey = config('location.geo_key', 'drivers:online:geo');
+            $maxDrivers = (int) config('ride.match_max_drivers', 50);
+            $candidates = Redis::georadius(
+                $geoKey,
+                $pickupLng,
+                $pickupLat,
+                $radiusMeters / 1000,
+                'km',
+                ['WITHDIST', 'asc', 'COUNT' => $maxDrivers * 2]
+            );
+
+            if (! is_array($candidates) || $candidates === []) {
+                return collect();
+            }
+
+            $driverDistanceMap = [];
+            foreach ($candidates as $cand) {
+                if (is_array($cand) && isset($cand[0])) {
+                    $dId = (int) $cand[0];
+                    $distMeters = (float) ($cand[1] ?? 0) * 1000;
+                    $driverDistanceMap[$dId] = $distMeters;
+                }
+            }
+
+            if ($driverDistanceMap === []) {
+                return collect();
+            }
+
+            $driverDistanceMap = $this->filterFreshDrivers($driverDistanceMap);
+
+            if ($driverDistanceMap === []) {
+                return collect();
+            }
+
+            $candidateDriverIds = array_keys($driverDistanceMap);
+            $eligibleDriverIds = DB::table('drivers as d')
+                ->whereIn('d.id', $candidateDriverIds)
                 ->where('d.availability', 1)
                 ->where('d.status', 'approved')
                 ->whereExists(function ($query) use ($vehicleType) {
@@ -123,59 +164,23 @@ class DriverMatchingQuery
                             [$vehicleType, $vehicleType]
                         );
                 })
-                ->pluck('d.id');
+                ->pluck('d.id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
 
             $redisDrivers = [];
-            foreach ($onlineDriverIds as $dId) {
-                $driverId = (int) $dId;
-                $dLat = 0.0;
-                $dLng = 0.0;
-
-                // 1. Check Redis string key
-                $locationJson = Redis::get("driver:location:{$driverId}");
-                if ($locationJson) {
-                    $loc = json_decode($locationJson, true);
-                    $dLat = (float) ($loc['latitude'] ?? 0);
-                    $dLng = (float) ($loc['longitude'] ?? 0);
-                }
-
-                // 2. Check Redis Geo ZSet if string key was empty
-                if ($dLat === 0.0 || $dLng === 0.0) {
-                    try {
-                        $geoPos = Redis::geopos(config('location.geo_key', 'drivers:online:geo'), (string) $driverId);
-                        if (! empty($geoPos[0]) && is_array($geoPos[0])) {
-                            $dLng = (float) $geoPos[0][0];
-                            $dLat = (float) $geoPos[0][1];
-                        }
-                    } catch (Throwable) {
-                        // ignore geo error
-                    }
-                }
-
-                // 3. Check DB driver_locations table if Redis keys were empty
-                if ($dLat === 0.0 || $dLng === 0.0) {
-                    $dbLoc = DB::table('driver_locations')->where('driver_id', $driverId)->first();
-                    if ($dbLoc) {
-                        $dLat = (float) ($dbLoc->latitude ?? 0);
-                        $dLng = (float) ($dbLoc->longitude ?? 0);
-                    }
-                }
-
-                if ($dLat === 0.0 || $dLng === 0.0) {
-                    continue;
-                }
-
-                $dist = $this->haversineMeters($pickupLat, $pickupLng, $dLat, $dLng);
-                if ($dist <= $radiusMeters) {
+            foreach ($candidateDriverIds as $dId) {
+                if (in_array($dId, $eligibleDriverIds, true)) {
                     $redisDrivers[] = (object) [
-                        'driver_id' => $driverId,
-                        'distance_meters' => $dist,
+                        'driver_id' => $dId,
+                        'distance_meters' => $driverDistanceMap[$dId],
                     ];
                 }
             }
 
             if ($redisDrivers !== []) {
                 usort($redisDrivers, fn ($a, $b) => $a->distance_meters <=> $b->distance_meters);
+
                 return collect($redisDrivers);
             }
         } catch (Throwable $e) {
@@ -183,6 +188,112 @@ class DriverMatchingQuery
         }
 
         return collect();
+    }
+
+    private function findNearbyDriversFromDatabase(float $pickupLat, float $pickupLng, string $vehicleType, float $radiusMeters): Collection
+    {
+        try {
+            $freshWithinSeconds = max((int) config('location.stale_after_seconds', 300), 300);
+            $maxDrivers = (int) config('ride.match_max_drivers', 50);
+
+            $drivers = DB::table('driver_locations as dl')
+                ->join('drivers as d', 'dl.driver_id', '=', 'd.id')
+                ->where('d.availability', 1)
+                ->where('d.status', 'approved')
+                ->whereNotNull('dl.latitude')
+                ->whereNotNull('dl.longitude')
+                ->where(function ($q) use ($freshWithinSeconds) {
+                    $q->where('dl.recorded_at', '>=', now()->subSeconds($freshWithinSeconds))
+                      ->orWhere('dl.updated_at', '>=', now()->subSeconds($freshWithinSeconds));
+                })
+                ->whereExists(function ($query) use ($vehicleType) {
+                    $query->select(DB::raw(1))
+                        ->from('vehicles as v')
+                        ->join('vehicle_types as vt', 'v.vehicle_type_id', '=', 'vt.id')
+                        ->whereColumn('v.driver_id', 'd.id')
+                        ->where('v.is_active', true)
+                        ->where(function ($q) {
+                            $q->where('v.status', 'approved')->orWhereNull('v.status');
+                        })
+                        ->where('vt.is_active', true)
+                        ->whereRaw(
+                            "(LOWER(vt.name) = LOWER(?) OR LOWER(REPLACE(REPLACE(vt.name, '-', ''), ' ', '')) = LOWER(REPLACE(REPLACE(?, '-', ''), ' ', '')))",
+                            [$vehicleType, $vehicleType]
+                        );
+                })
+                ->select(['d.id as driver_id', 'dl.latitude', 'dl.longitude'])
+                ->get();
+
+            $results = [];
+            foreach ($drivers as $d) {
+                $dist = $this->haversineMeters($pickupLat, $pickupLng, (float) $d->latitude, (float) $d->longitude);
+                if ($dist <= $radiusMeters) {
+                    $results[] = (object) [
+                        'driver_id' => (int) $d->driver_id,
+                        'distance_meters' => $dist,
+                    ];
+                }
+            }
+
+            if ($results !== []) {
+                usort($results, fn ($a, $b) => $a->distance_meters <=> $b->distance_meters);
+
+                return collect($results)->take($maxDrivers);
+            }
+        } catch (Throwable $e) {
+            Log::error('findNearbyDriversFromDatabase failed:', ['error' => $e->getMessage()]);
+        }
+
+        return collect();
+    }
+
+    /**
+     * Drop drivers whose GEO index entry has no corresponding fresh
+     * `driver:location:{id}` key — a crashed/killed app can leave a driver
+     * in the GEO set without ever refreshing (or clearing) its location key.
+     *
+     * @param  array<int, float>  $driverDistanceMap
+     * @return array<int, float>
+     */
+    private function filterFreshDrivers(array $driverDistanceMap): array
+    {
+        try {
+            $driverIds = array_keys($driverDistanceMap);
+            $staleThreshold = now()->subSeconds((int) config('location.stale_after_seconds', 20));
+
+            $pipelineResults = Redis::pipeline(function ($pipe) use ($driverIds) {
+                foreach ($driverIds as $dId) {
+                    $pipe->get("driver:location:{$dId}");
+                }
+            });
+
+            $fresh = [];
+            foreach ($driverIds as $index => $dId) {
+                $raw = $pipelineResults[$index] ?? null;
+                if (! $raw) {
+                    continue;
+                }
+
+                $loc = json_decode($raw, true);
+                if (! is_array($loc) || ! isset($loc['recorded_at'])) {
+                    continue;
+                }
+
+                if (\Carbon\CarbonImmutable::parse($loc['recorded_at'])->lt($staleThreshold)) {
+                    continue;
+                }
+
+                $fresh[$dId] = $driverDistanceMap[$dId];
+            }
+
+            return $fresh;
+        } catch (Throwable $e) {
+            Log::warning('filterFreshDrivers staleness check failed; returning unfiltered candidates.', [
+                'error' => $e->getMessage(),
+            ]);
+
+            return $driverDistanceMap;
+        }
     }
 
     private function haversineMeters(float $lat1, float $lng1, float $lat2, float $lng2): float

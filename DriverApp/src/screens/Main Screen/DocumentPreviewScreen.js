@@ -14,26 +14,42 @@ import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import ThemedFeedbackModal from "../../components/ThemedFeedbackModal";
+import api from "../../services/api";
+import { imageAssetToFormFile } from "../../utils/imageUpload";
+
+const DOCUMENT_UPLOAD_FIELDS = {
+  licenseFront: "license_front",
+  licenseBack: "license_back",
+  vehicleRegistration: "registration",
+  insuranceCertificate: "insurance",
+  vehicleFront: "front",
+  vehicleBack: "back",
+  vehicleSide: "interior",
+};
 
 const DocumentPreviewScreen = ({ navigation, route }) => {
   const {
     title = "Driving License Front",
     status = "verified",
     image = null,
+    imageType = null,
     uploadedAt = null,
     updatedAt = null,
   } = route.params || {};
 
   const [selectedImage, setSelectedImage] = useState(image);
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState({
     visible: false,
     type: "warning",
     title: "",
     message: "",
+    onPrimary: null,
   });
 
   const closeFeedback = () => {
-    setFeedback((prev) => ({ ...prev, visible: false }));
+    setFeedback((prev) => ({ ...prev, visible: false, onPrimary: null }));
   };
 
   /* ---------------- STATUS UI ---------------- */
@@ -113,10 +129,85 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
       });
 
       if (!result.canceled) {
-        setSelectedImage(result.assets[0].uri);
+        const asset = result.assets[0];
+        setSelectedImage(asset.uri);
+        setSelectedAsset(asset);
       }
     } catch (error) {
       console.log(error);
+      setFeedback({
+        visible: true,
+        type: "error",
+        title: "Image Picker Failed",
+        message: "Could not select this image. Please try again.",
+        onPrimary: null,
+      });
+    }
+  };
+
+  const saveDocument = async () => {
+    const uploadField = DOCUMENT_UPLOAD_FIELDS[imageType];
+
+    if (!uploadField) {
+      setFeedback({
+        visible: true,
+        type: "error",
+        title: "Document Type Missing",
+        message: "This document cannot be uploaded because its upload type was not found.",
+        onPrimary: null,
+      });
+      return;
+    }
+
+    if (!selectedAsset) {
+      setFeedback({
+        visible: true,
+        type: "warning",
+        title: "No New Image",
+        message: "Please choose a new document image before saving.",
+        onPrimary: null,
+      });
+      return;
+    }
+
+    const file = imageAssetToFormFile(selectedAsset, uploadField);
+    if (!file) return;
+
+    try {
+      setSaving(true);
+
+      const formData = new FormData();
+      formData.append(uploadField, file);
+
+      await api.post("/driver/complete-profile", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      setSelectedAsset(null);
+      setFeedback({
+        visible: true,
+        type: "success",
+        title: "Document Saved",
+        message: "Your document has been uploaded and sent for verification.",
+        onPrimary: () => navigation.goBack(),
+      });
+    } catch (error) {
+      console.log("Document upload error:", error.response?.data || error);
+      const errors = error.response?.data?.errors;
+      const firstError = errors ? Object.values(errors).flat()[0] : null;
+
+      setFeedback({
+        visible: true,
+        type: "error",
+        title: "Save Failed",
+        message:
+          firstError ||
+          error.response?.data?.message ||
+          "Could not save this document. Please try again.",
+        onPrimary: null,
+      });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -284,6 +375,7 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.uploadBtn}
             onPress={pickImage}
+            disabled={saving}
             activeOpacity={0.8}
           >
             <LinearGradient
@@ -303,6 +395,25 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
               </Text>
             </LinearGradient>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.saveDocumentBtn,
+              (!selectedAsset || saving) && styles.saveDocumentBtnDisabled,
+            ]}
+            onPress={saveDocument}
+            disabled={!selectedAsset || saving}
+            activeOpacity={0.85}
+          >
+            {saving ? (
+              <Text style={styles.saveDocumentText}>Saving...</Text>
+            ) : (
+              <>
+                <Feather name="save" size={18} color="#FFF" />
+                <Text style={styles.saveDocumentText}>Save Document</Text>
+              </>
+            )}
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
 
@@ -312,7 +423,11 @@ const DocumentPreviewScreen = ({ navigation, route }) => {
         title={feedback.title}
         message={feedback.message}
         onClose={closeFeedback}
-        onPrimary={closeFeedback}
+        onPrimary={() => {
+          const action = feedback.onPrimary;
+          closeFeedback();
+          action?.();
+        }}
       />
     </View>
   );
@@ -520,6 +635,7 @@ const styles = StyleSheet.create({
 
   bottomButtons: {
     marginBottom: 10,
+    gap: 10,
   },
 
   uploadBtn: {
@@ -538,6 +654,26 @@ const styles = StyleSheet.create({
   },
 
   uploadBtnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+
+  saveDocumentBtn: {
+    height: 56,
+    borderRadius: 18,
+    backgroundColor: "#0F172A",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 10,
+  },
+
+  saveDocumentBtnDisabled: {
+    backgroundColor: "#94A3B8",
+  },
+
+  saveDocumentText: {
     color: "#FFF",
     fontSize: 16,
     fontWeight: "800",

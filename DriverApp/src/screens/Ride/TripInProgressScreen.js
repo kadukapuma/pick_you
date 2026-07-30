@@ -1,10 +1,12 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Animated,
     BackHandler,
     Dimensions,
     Image,
+    Linking,
     PanResponder,
     StatusBar,
     StyleSheet,
@@ -39,20 +41,77 @@ const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 const SLIDER_WIDTH = width - 40; // Adjusted for padding calculation (20px on each side)
 const THUMB_SIZE = 50;
 
+const formatRideDurationMinutes = (minutes) => {
+  const value = Number(minutes);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const rounded = Math.max(1, Math.round(value));
+  return rounded === 1 ? "1 min" : `${rounded} mins`;
+};
+
+const getRideDurationFallback = (ride) =>
+  ride?.durationText ||
+  ride?.duration_text ||
+  ride?.time ||
+  formatRideDurationMinutes(
+    ride?.actual_duration_minutes || ride?.estimated_duration_minutes,
+  );
+
+const splitDurationText = (durationText) => {
+  const text = String(durationText || "").trim();
+  if (!text || text.toLowerCase() === "updating") {
+    return { value: "--", unit: "min" };
+  }
+
+  const compactLessThanMinute = text.match(/^<\s*1\s*(min|mins|minute|minutes)$/i);
+  if (compactLessThanMinute) {
+    return { value: "<1", unit: "min" };
+  }
+
+  const numericMinutes = text.match(/^(\d+)\s*(min|mins|minute|minutes)$/i);
+  if (numericMinutes) {
+    return { value: numericMinutes[1], unit: numericMinutes[2].startsWith("minute") ? "min" : numericMinutes[2] };
+  }
+
+  const [value, ...unitParts] = text.split(/\s+/);
+  return { value, unit: unitParts.join(" ") };
+};
+
 const TripInProgressScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
 
   const ride = route?.params?.ride || {};
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const customerPhone = ride?.customerPhone;
   const destinationLabel = ride?.drop || "Destination";
+
+  const handleCallCustomer = useCallback(() => {
+    if (!customerPhone) {
+      Alert.alert("Unavailable", "Passenger phone number is not available yet.");
+      return;
+    }
+    Linking.openURL(`tel:${customerPhone}`);
+  }, [customerPhone]);
   const summaryDistanceKm = Number(
     ride?.actual_distance_km || ride?.estimated_distance_km || ride?.distance_km || 0,
   );
   const summaryFare = Number(ride?.final_fare || ride?.estimated_fare || 0);
-  const dropCoord = getDropCoordinate(ride);
-  const pickupCoord = getPickupCoordinate(ride);
+  const dropLat = ride?.dropLat;
+  const dropLng = ride?.dropLng;
+  const pickupLat = ride?.pickupLat;
+  const pickupLng = ride?.pickupLng;
+  const dropCoord = useMemo(
+    () => getDropCoordinate({ dropLat, dropLng }),
+    [dropLat, dropLng],
+  );
+  const pickupCoord = useMemo(
+    () => getPickupCoordinate({ pickupLat, pickupLng }),
+    [pickupLat, pickupLng],
+  );
   const { location: driverCoord } = useDriverLocation();
+  const cameraRef = useRef(null);
+  const hasRouteOrigin = Boolean(driverCoord || pickupCoord);
 
   const minimizeToHome = useCallback(() => {
     navigation.navigate("MainTabs");
@@ -78,7 +137,31 @@ const TripInProgressScreen = ({ navigation, route }) => {
     () => dropCoord ?? origin,
     [dropCoord, origin],
   );
-  const { directions } = useGoogleRoute(origin, destination);
+  const { directions } = useGoogleRoute(origin, destination, {
+    enabled: hasRouteOrigin,
+  });
+  const vehicleImage = useMemo(
+    () => getVehicleMapIcon(ride?.vehicle_type),
+    [ride?.vehicle_type],
+  );
+  const currentStep = directions?.currentStep || directions?.steps?.[0] || null;
+  const durationText =
+    directions?.durationText ||
+    getRideDurationFallback(ride) ||
+    "Updating";
+  const etaDisplay = splitDurationText(durationText);
+  const remainingDistanceText =
+    directions?.distanceText ||
+    (summaryDistanceKm > 0 ? `${summaryDistanceKm.toFixed(1)} km` : "Distance pending");
+  const maneuverDistanceText =
+    currentStep?.distanceText ||
+    directions?.distanceText ||
+    "Updating";
+  const maneuverInstruction =
+    currentStep?.instruction ||
+    (directions?.distanceText
+      ? `Continue to ${destinationLabel}`
+      : "Calculating route to destination");
 
   const routeCoordinates = useMemo(
     () =>
@@ -99,6 +182,16 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const [completed, setCompleted] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
   const [followVehicle, setFollowVehicle] = useState(true);
+
+  const handleRecenter = useCallback(() => {
+    setFollowVehicle(true);
+    cameraRef.current?.setCamera({
+      centerCoordinate: [origin.longitude, origin.latitude],
+      pitch: 45,
+      zoomLevel: 16,
+      animationDuration: 350,
+    });
+  }, [origin]);
 
   const progressWidth = slideX.interpolate({
     inputRange: [0, SLIDER_WIDTH - THUMB_SIZE - 10],
@@ -200,12 +293,12 @@ const TripInProgressScreen = ({ navigation, route }) => {
             />
           </View>
           <View style={styles.maneuverTextContainer}>
-            <Text style={styles.maneuverDistance}>In 500 meters</Text>
+            <Text style={styles.maneuverDistance}>{maneuverDistanceText}</Text>
             <Text style={styles.maneuverInstruction} numberOfLines={1}>
-              Merge onto AB16 / {destinationLabel}
+              {maneuverInstruction}
             </Text>
           </View>
-          <TouchableOpacity style={styles.navPhoneBtn} activeOpacity={0.7}>
+          <TouchableOpacity style={styles.navPhoneBtn} activeOpacity={0.7} onPress={handleCallCustomer}>
             <Feather name="phone" size={20} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
@@ -218,13 +311,15 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
       {/* MAP VIEWER INTERACTIVE SYSTEM */}
       <GoogleRideMap
+        cameraRef={cameraRef}
         style={styles.mapViewport}
         origin={origin}
         destination={destination}
         routeCoordinates={routeCoordinates}
+        showRoute={hasRouteOrigin}
         routeColor="#2F80ED"
         destinationColor="#EF4444"
-        vehicleImage={getVehicleMapIcon(ride?.vehicle_type)}
+        vehicleImage={vehicleImage}
         vehicleSize={46}
         edgePadding={mapPadding}
         followVehicle={followVehicle}
@@ -246,7 +341,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={styles.mapUtilityBtn}
             activeOpacity={0.8}
-            onPress={() => setFollowVehicle(true)}
+            onPress={handleRecenter}
           >
             <Ionicons name="locate" size={22} color="#334155" />
           </TouchableOpacity>
@@ -272,13 +367,13 @@ const TripInProgressScreen = ({ navigation, route }) => {
         {/* Journey Duration & Distance Row */}
         <View style={styles.navSummaryRow}>
           <View style={styles.etaContainer}>
-            <Text style={styles.etaTextValue}>12</Text>
-            <Text style={styles.etaUnitLabel}>min</Text>
+            <Text style={styles.etaTextValue}>{etaDisplay.value}</Text>
+            <Text style={styles.etaUnitLabel}>{etaDisplay.unit}</Text>
           </View>
 
           <View style={styles.summaryMetaContainer}>
             <Text style={styles.summaryMetaText}>
-              {summaryDistanceKm > 0 ? `${summaryDistanceKm.toFixed(1)} km` : "Distance pending"} • Rs.{" "}
+              {remainingDistanceText} • Rs.{" "}
               {summaryFare > 0 ? summaryFare.toFixed(2) : "0.00"}
             </Text>
             <Text style={styles.summaryDestinationName} numberOfLines={1}>

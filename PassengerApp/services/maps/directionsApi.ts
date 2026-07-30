@@ -11,13 +11,16 @@ export interface DirectionsResult {
   polyline: RouteCoordinate[];
   distanceText: string;
   durationText: string;
+  isFallback?: boolean;
 }
 
 const directionsCache = new Map<
   string,
   { data: DirectionsResult; timestamp: number }
 >();
+const directionsInFlight = new Map<string, Promise<DirectionsResult | null>>();
 const CACHE_TTL = 5 * 60 * 1000;
+const ROUTE_REQUEST_TIMEOUT_MS = 5500;
 const FALLBACK_ROAD_DISTANCE_FACTOR = 1.28;
 
 const formatDistance = (meters: number): string => {
@@ -32,7 +35,7 @@ const formatDuration = (seconds: number): string => {
   return `${minutes} mins`;
 };
 
-const fallbackRoute = (
+export const fallbackRoute = (
   pickupLat: number,
   pickupLon: number,
   destinationLat: number,
@@ -49,6 +52,7 @@ const fallbackRoute = (
   const duration = Math.max(60, Math.round((distance / 35000) * 3600));
 
   return {
+    isFallback: true,
     distance,
     duration,
     polyline: [
@@ -87,6 +91,7 @@ const normalizeDirections = (
     fallback.polyline;
 
   return {
+    isFallback: false,
     distance: Number.isFinite(distance) ? distance : fallback.distance,
     duration: Number.isFinite(duration) ? duration : fallback.duration,
     polyline: Array.isArray(polyline) && polyline.length > 1 ? polyline : fallback.polyline,
@@ -109,6 +114,9 @@ export const getDirections = async (
   const response = await apiClient.post<DirectionsResult>("/maps/routes", {
     origin: { latitude: pickupLat, longitude: pickupLon },
     destination: { latitude: destinationLat, longitude: destinationLon },
+  }, {
+    suppressErrorLog: true,
+    timeoutMs: ROUTE_REQUEST_TIMEOUT_MS,
   });
 
   if (response.success && response.data) {
@@ -147,14 +155,22 @@ export const getCachedDirections_withCache = async (
   const cached = getCachedDirections(key);
   if (cached) return cached;
 
-  const directions = await getDirections(
+  const pending = directionsInFlight.get(key);
+  if (pending) return pending;
+
+  const pendingRequest = getDirections(
     pickupLat,
     pickupLon,
     destinationLat,
     destinationLon,
-  );
+  ).finally(() => {
+    directionsInFlight.delete(key);
+  });
 
-  if (directions) {
+  directionsInFlight.set(key, pendingRequest);
+  const directions = await pendingRequest;
+
+  if (directions && !directions.isFallback) {
     directionsCache.set(key, { data: directions, timestamp: Date.now() });
   }
 

@@ -13,15 +13,20 @@ function mapRide(ride: PastRide): TripListItem {
   const user = ride.driver?.user;
   const duration = ride.actual_duration_minutes || ride.estimated_duration_minutes;
   return {
-    id: String(ride.id), status: ride.status, pickup: ride.pickup_address, dropoff: ride.drop_address,
+    id: String(ride.id), rideCode: ride.ride_code, status: ride.status, pickup: ride.pickup_address, dropoff: ride.drop_address,
     date: date ? date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }) : "",
     time: date ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "",
+    requestedAt: ride.requested_at, completedAt: ride.completed_at, cancelledAt: ride.cancelled_at,
+    estimatedFare: Number(ride.estimated_fare || 0), finalFare: Number(ride.final_fare || 0), paymentAmount: Number(ride.payment?.amount || 0),
     fare: ride.status === "COMPLETED" ? `Rs. ${Number(ride.final_fare || ride.estimated_fare || 0).toFixed(2)}` : undefined,
     distance: ride.distance_km ? `${Number(ride.distance_km).toFixed(1)} km` : undefined,
+    distanceKm: Number(ride.distance_km || 0), estimatedDistanceKm: Number(ride.estimated_distance_km || 0), actualDistanceKm: Number(ride.actual_distance_km || 0),
     duration: duration ? `${Math.round(duration)} min` : undefined,
+    estimatedDurationMinutes: Number(ride.estimated_duration_minutes || 0), actualDurationMinutes: Number(ride.actual_duration_minutes || 0),
     driverName: user ? `${user.first_name || ""} ${user.last_name || ""}`.trim() : undefined,
+    driverProfilePicture: user?.profile_picture || user?.profile_picture_url,
     vehicleLabel: [ride.vehicle?.brand, ride.vehicle?.model].filter(Boolean).join(" ") || ride.vehicle?.vehicle_type,
-    vehicleNumber: ride.vehicle?.vehicle_number, paymentMethod: ride.payment?.payment_method,
+    vehicleNumber: ride.vehicle?.vehicle_number, paymentMethod: ride.payment?.payment_method, paymentStatus: ride.payment?.payment_status,
   };
 }
 

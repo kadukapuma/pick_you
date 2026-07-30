@@ -48,26 +48,38 @@ class DriverLocationService
             'sequence' => (int) ($data['sequence'] ?? $recordedAt->getTimestampMs()),
         ];
 
-        $activeRide = null;
-
+        $activeRideId = null;
         if (! empty($data['ride_id'])) {
-            $activeRide = Ride::query()
-                ->where('id', $data['ride_id'])
-                ->where('driver_id', $driver->id)
-                ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
-                ->first();
+            $activeRideId = (int) $data['ride_id'];
+        } else {
+            try {
+                $cachedRideId = Redis::get("driver:active_ride:{$driver->id}");
+                if ($cachedRideId) {
+                    $activeRideId = (int) $cachedRideId;
+                }
+            } catch (Throwable) {
+                // Ignore Redis read error
+            }
+
+            if (! $activeRideId) {
+                $activeRide = Ride::query()
+                    ->where('driver_id', $driver->id)
+                    ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
+                    ->latest('accepted_at')
+                    ->first();
+                if ($activeRide) {
+                    $activeRideId = (int) $activeRide->id;
+                    try {
+                        Redis::setex("driver:active_ride:{$driver->id}", 86400, (string) $activeRideId);
+                    } catch (Throwable) {
+                        // Ignore Redis write error
+                    }
+                }
+            }
         }
 
-        if (! $activeRide) {
-            $activeRide = Ride::query()
-                ->where('driver_id', $driver->id)
-                ->whereIn('status', ['ACCEPTED', 'ARRIVED', 'STARTED'])
-                ->latest('accepted_at')
-                ->first();
-        }
-
-        if ($activeRide) {
-            $payload['ride_id'] = (int) $activeRide->id;
+        if ($activeRideId) {
+            $payload['ride_id'] = $activeRideId;
         }
 
         try {
@@ -109,10 +121,10 @@ class DriverLocationService
 
         $this->queueSnapshot($payload);
 
-        if ($activeRide) {
+        if ($activeRideId) {
             try {
                 event(new DriverLocationUpdated(
-                    ride_id: (int) $activeRide->id,
+                    ride_id: $activeRideId,
                     driver_id: $payload['driver_id'],
                     latitude: $payload['latitude'],
                     longitude: $payload['longitude'],
@@ -124,7 +136,7 @@ class DriverLocationService
                 ));
             } catch (Throwable $exception) {
                 Log::warning('Driver location broadcast could not be queued.', [
-                    'ride_id' => $activeRide->id,
+                    'ride_id' => $activeRideId,
                     'error' => $exception->getMessage(),
                 ]);
             }
@@ -192,18 +204,18 @@ class DriverLocationService
 
     private function queueSnapshot(array $payload): void
     {
-        if (! empty($payload['ride_id'])) {
+        $snapshotIntervalSeconds = ! empty($payload['ride_id'])
+            ? config('location.ride_snapshot_interval_seconds', 10)
+            : config('location.snapshot_interval_seconds', 30);
+
+        try {
+            $shouldPersist = Cache::store('redis')->add(
+                'driver:location:snapshot-lock:'.$payload['driver_id'],
+                true,
+                $snapshotIntervalSeconds,
+            );
+        } catch (Throwable) {
             $shouldPersist = true;
-        } else {
-            try {
-                $shouldPersist = Cache::store('redis')->add(
-                    'driver:location:snapshot-lock:'.$payload['driver_id'],
-                    true,
-                    config('location.snapshot_interval_seconds', 30),
-                );
-            } catch (Throwable) {
-                $shouldPersist = true;
-            }
         }
 
         if ($shouldPersist) {
@@ -218,27 +230,22 @@ class DriverLocationService
                 $payload['sequence'] ?? null,
             );
 
-            if (empty($payload['ride_id'])) {
-                try {
-                    $job->handle();
-                } catch (Throwable $exception) {
-                    Log::warning('Idle driver location snapshot could not be persisted directly.', [
-                        'driver_id' => $payload['driver_id'],
-                        'error' => $exception->getMessage(),
-                    ]);
-                }
-
-                return;
-            }
-
             try {
-                dispatch($job);
+                if (config('queue.default') === 'sync' || config('app.env') === 'local') {
+                    $job->handle();
+                } else {
+                    dispatch($job);
+                }
             } catch (Throwable $exception) {
                 Log::warning('Location snapshot queue unavailable; persisting directly.', [
                     'driver_id' => $payload['driver_id'],
                     'error' => $exception->getMessage(),
                 ]);
-                $job->handle();
+                try {
+                    $job->handle();
+                } catch (Throwable) {
+                    // Ignore inline handle error
+                }
             }
         }
 

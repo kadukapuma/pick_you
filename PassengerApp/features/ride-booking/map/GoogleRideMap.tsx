@@ -196,6 +196,8 @@ export default function GoogleRideMap({
   onMapPress,
   followVehicle = false,
   followZoom = 16,
+  followPitch = 0,
+  initialPitch = 0,
   onFollowStateChange,
   showFocusControls = false,
   focusControlsTop = 170,
@@ -336,13 +338,14 @@ export default function GoogleRideMap({
       {
         center: toLatLng(focusVehicleCoordinate),
         heading: 0,
-        pitch: 0,
+        pitch: followPitch,
         zoom: followZoom,
       },
       { duration: 600 },
     );
   }, [
     focusVehicleCoordinate,
+    followPitch,
     followZoom,
     onFollowStateChange,
   ]);
@@ -416,12 +419,12 @@ export default function GoogleRideMap({
       {
         center,
         heading: 0,
-        pitch: 0,
+        pitch: followVehicle ? followPitch : 0,
         zoom: followZoom,
       },
       { duration: FOLLOW_CAMERA_ANIMATION_MS },
     );
-  }, [cameraDriverLocation, followVehicle, followZoom, vehicleLocationForCamera]);
+  }, [cameraDriverLocation, followPitch, followVehicle, followZoom, vehicleLocationForCamera]);
 
   const canShowFocusControls =
     showFocusControls &&
@@ -436,7 +439,7 @@ export default function GoogleRideMap({
         style={styles.map}
         initialCamera={{
           center: toLatLng(focusVehicleCoordinate || pickup),
-          pitch: 0,
+          pitch: initialPitch,
           heading: 0,
           altitude: 1200,
           zoom: 14.5,
@@ -444,8 +447,8 @@ export default function GoogleRideMap({
         showsCompass={false}
         showsMyLocationButton={false}
         showsBuildings
-        pitchEnabled={false}
-        rotateEnabled={false}
+        pitchEnabled={followPitch > 0 || initialPitch > 0}
+        rotateEnabled={followPitch > 0 || initialPitch > 0}
         userInterfaceStyle="light"
         customMapStyle={PASSENGER_LIGHT_MAP_STYLE}
         onMapReady={() => setIsMapReady(true)}

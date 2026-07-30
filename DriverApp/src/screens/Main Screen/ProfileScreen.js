@@ -1,8 +1,10 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
+  DeviceEventEmitter,
   Modal,
+  RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -17,34 +19,136 @@ import { useFocusEffect } from "@react-navigation/native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "../../services/api";
 
+const DRIVER_PROFILE_SNAPSHOT_KEY = "driverProfileSnapshot";
+const DRIVER_PROFILE_UPDATED_EVENT = "driverProfileUpdated";
+const SNAPSHOT_MAX_AGE_MS = 5 * 60 * 1000;
+const OPTIMISTIC_PROFILE_FIELDS = ["name", "email", "phone", "profile_picture"];
+
+const avatarUriWithVersion = (uri, version) => {
+  if (!uri || typeof uri !== "string") return uri;
+  if (uri.startsWith("file:") || uri.startsWith("content:")) return uri;
+
+  return `${uri}${uri.includes("?") ? "&" : "?"}v=${version || 0}`;
+};
+
 const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const mergeProfileSnapshot = useCallback((snapshot) => {
+    if (!snapshot) return;
+
+    setUser((current) => ({
+      ...(current || {}),
+      ...snapshot,
+    }));
+    setLoading(false);
+  }, []);
+
+  const keepOptimisticFields = useCallback((freshProfile, currentProfile) => {
+    if (!currentProfile?.__optimisticUntil || currentProfile.__optimisticUntil <= Date.now()) {
+      return freshProfile;
+    }
+
+    return OPTIMISTIC_PROFILE_FIELDS.reduce(
+      (nextProfile, field) => {
+        if (currentProfile[field] !== undefined && currentProfile[field] !== null) {
+          nextProfile[field] = currentProfile[field];
+        }
+
+        return nextProfile;
+      },
+      {
+        ...freshProfile,
+        __snapshotAt: currentProfile.__snapshotAt || freshProfile.__snapshotAt,
+        __optimisticUntil: currentProfile.__optimisticUntil,
+      },
+    );
+  }, []);
+
+  const applyCachedProfileSnapshot = useCallback(async () => {
+    try {
+      const snapshotValue = await AsyncStorage.getItem(DRIVER_PROFILE_SNAPSHOT_KEY);
+      if (!snapshotValue) return;
+
+      const snapshot = JSON.parse(snapshotValue);
+      const snapshotAge = Date.now() - Number(snapshot.__snapshotAt || 0);
+
+      if (snapshotAge > SNAPSHOT_MAX_AGE_MS) {
+        await AsyncStorage.removeItem(DRIVER_PROFILE_SNAPSHOT_KEY);
+        return;
+      }
+
+      mergeProfileSnapshot(snapshot);
+      setLoading(false);
+    } catch (error) {
+      console.log("Error applying cached profile snapshot:", error);
+    }
+  }, [mergeProfileSnapshot]);
 
   const fetchProfile = useCallback(async () => {
     try {
-      const response = await api.get("/driver/profile");
+      const response = await api.get("/driver/profile", {
+        params: { _: Date.now() },
+      });
       if (response.data.status === 'success') {
-        setUser(response.data.data);
+        const freshProfile = {
+          ...response.data.data,
+          __snapshotAt: Date.now(),
+        };
+
+        setUser((current) => {
+          const nextProfile = keepOptimisticFields(freshProfile, current);
+
+          AsyncStorage.setItem(
+            DRIVER_PROFILE_SNAPSHOT_KEY,
+            JSON.stringify(nextProfile),
+          ).catch((error) => {
+            console.log("Error caching fresh profile:", error);
+          });
+
+          return nextProfile;
+        });
       }
     } catch (error) {
       console.log("Error fetching profile:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [keepOptimisticFields]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchProfile();
+    setRefreshing(false);
+  }, [fetchProfile]);
+
+  useEffect(() => {
+    const subscription = DeviceEventEmitter.addListener(
+      DRIVER_PROFILE_UPDATED_EVENT,
+      mergeProfileSnapshot,
+    );
+
+    return () => subscription.remove();
+  }, [mergeProfileSnapshot]);
 
   useFocusEffect(
     useCallback(() => {
+      applyCachedProfileSnapshot();
       fetchProfile();
-    }, [fetchProfile]),
+
+      const delayedRefresh = setTimeout(fetchProfile, 5000);
+      return () => clearTimeout(delayedRefresh);
+    }, [applyCachedProfileSnapshot, fetchProfile]),
   );
 
   const confirmLogout = async () => {
     setShowLogoutModal(false);
     try {
       await AsyncStorage.removeItem("userToken");
+      await AsyncStorage.removeItem(DRIVER_PROFILE_SNAPSHOT_KEY);
     } catch (e) {
       console.log("Error clearing token on logout:", e);
     }
@@ -146,7 +250,19 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
         </View>
       ) : (
         <>
-          <ScrollView bounces={false} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            bounces
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor="#00A859"
+                colors={["#00A859"]}
+                progressBackgroundColor="#FFFFFF"
+              />
+            }
+          >
             {/* Header Section */}
             <LinearGradient
               colors={["#00A859", "#007A41"]}
@@ -155,7 +271,12 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
               <SafeAreaView edges={["top"]}>
                 <View style={styles.profileHeader}>
                   {user.profile_picture ? (
-                    <Image source={{ uri: user.profile_picture }} style={styles.avatarCircle} />
+                    <Image
+                      source={{
+                        uri: avatarUriWithVersion(user.profile_picture, user.__snapshotAt),
+                      }}
+                      style={styles.avatarCircle}
+                    />
                   ) : (
                     <LinearGradient
                       colors={["#A855F7", "#EC4899"]}
