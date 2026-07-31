@@ -220,6 +220,37 @@ try {
     $info('at '.$e->getFile().':'.$e->getLine());
 }
 
+echo "\nCard save (the 'Server Error' on Add new card)\n";
+
+// This is the actual failure point: PassengerPaymentMethodController::store()
+// resolves the gateway lazily too, but on a misconfigured server it throws
+// before ever reaching a passenger or a database row.
+try {
+    $gateway = app(App\Services\Payments\PaymentGateway::class);
+    $ok('Payment gateway resolves: '.get_class($gateway));
+
+    $result = $gateway->tokenizeCard([
+        'number' => App\Services\Payments\MockPaymentGateway::CARD_SUCCESS,
+        'exp_month' => 12,
+        'exp_year' => (int) date('Y') + 1,
+        'cvv' => '123',
+    ]);
+
+    $result->successful
+        ? $ok('tokenizeCard() succeeds - card save should work from the app now')
+        : $bad('tokenizeCard() returned a decline: '.$result->failureReason);
+} catch (Throwable $e) {
+    $bad('THIS IS YOUR ERROR (card save): '.get_class($e).': '.$e->getMessage());
+    $info('at '.$e->getFile().':'.$e->getLine());
+
+    if (str_contains($e->getMessage(), 'mock')) {
+        $info('  -> This is the mock gateway refusing to run in production.');
+        $info('  -> Add to .env: PAYMENTS_ALLOW_MOCK_IN_PRODUCTION=true');
+        $info('  -> Then:        php artisan config:clear && restart php-fpm');
+        $info('  -> This simulates card capture; do not run driver payouts while it is on.');
+    }
+}
+
 echo "\nRecent errors from the log\n";
 $log = storage_path('logs/laravel.log');
 

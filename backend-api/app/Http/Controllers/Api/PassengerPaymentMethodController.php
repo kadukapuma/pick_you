@@ -8,12 +8,22 @@ use App\Services\Payments\PaymentGateway;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class PassengerPaymentMethodController extends Controller
 {
     use ApiResponse;
 
-    public function __construct(private readonly PaymentGateway $gateway) {}
+    /**
+     * Resolved lazily, and only where a card is actually tokenized. Listing,
+     * defaulting or deleting a saved card needs no gateway; a constructor
+     * dependency would mean a gateway misconfiguration 500s those too.
+     */
+    private function gateway(): PaymentGateway
+    {
+        return app(PaymentGateway::class);
+    }
 
     public function index(Request $request)
     {
@@ -51,12 +61,24 @@ class PassengerPaymentMethodController extends Controller
 
         $number = preg_replace('/\D/', '', $validated['number']);
 
-        $result = $this->gateway->tokenizeCard([
-            'number' => $number,
-            'exp_month' => (int) $validated['exp_month'],
-            'exp_year' => (int) $validated['exp_year'],
-            'cvv' => $validated['cvv'] ?? null,
-        ]);
+        try {
+            $result = $this->gateway()->tokenizeCard([
+                'number' => $number,
+                'exp_month' => (int) $validated['exp_month'],
+                'exp_year' => (int) $validated['exp_year'],
+                'cvv' => $validated['cvv'] ?? null,
+            ]);
+        } catch (Throwable $exception) {
+            // Most likely cause: the payment gateway is misconfigured (e.g. the
+            // mock gateway's production guard - see PaymentGatewayServiceProvider).
+            // That is a deployment problem, not something the passenger caused.
+            Log::error('Card tokenization failed.', [
+                'passenger_id' => $passenger->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return $this->error('Card setup is temporarily unavailable. Please try again shortly.', 500);
+        }
 
         if (! $result->successful) {
             return $this->error($result->failureReason ?: 'Could not save this card.', 422);

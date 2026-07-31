@@ -4,7 +4,10 @@ namespace Tests\Feature;
 
 use App\Services\Payments\MockPaymentGateway;
 use App\Services\Payments\PaymentGateway;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use RuntimeException;
+use Tests\Concerns\BuildsLedgerScenarios;
 use Tests\TestCase;
 
 /**
@@ -14,6 +17,8 @@ use Tests\TestCase;
  */
 class MockGatewayProductionGuardTest extends TestCase
 {
+    use BuildsLedgerScenarios, RefreshDatabase;
+
     private function pretendProduction(): void
     {
         $this->app['env'] = 'production';
@@ -86,5 +91,30 @@ class MockGatewayProductionGuardTest extends TestCase
         $this->expectExceptionMessageMatches('/Unknown payment gateway driver/');
 
         $this->app->make(PaymentGateway::class);
+    }
+
+    /**
+     * A misconfigured gateway must fail as a normal API error, not an
+     * unhandled 500. The tell for "unhandled" is a body with no "status" key -
+     * ApiResponse::error() always includes one.
+     */
+    public function test_card_save_returns_a_structured_error_when_the_gateway_is_misconfigured(): void
+    {
+        $this->pretendProduction();
+        config(['payments.driver' => 'mock', 'payments.allow_mock_in_production' => false]);
+        $this->app->forgetInstance(PaymentGateway::class);
+
+        [$passengerUser] = $this->makePassenger();
+        Sanctum::actingAs($passengerUser, ['role:passenger']);
+
+        $response = $this->postJson('/api/payment-methods', [
+            'number' => MockPaymentGateway::CARD_SUCCESS,
+            'exp_month' => 12,
+            'exp_year' => (int) now()->addYear()->year,
+        ]);
+
+        $response->assertStatus(500);
+        $response->assertJsonPath('status', 'error');
+        $this->assertDatabaseCount('passenger_payment_methods', 0);
     }
 }

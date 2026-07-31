@@ -5,8 +5,19 @@ import { StatusOrb } from "../../features/payments/PaymentVisuals";
 import { paymentTheme } from "../../features/payments/paymentTheme";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 
+const BRAND_LABELS: Record<string, string> = {
+  visa: "Visa",
+  mastercard: "Mastercard",
+  amex: "American Express",
+  unknown: "Card",
+};
+
 export default function CardSetupCompleteScreen() {
-  const { mode } = useLocalSearchParams<{ mode?: string }>();
+  const { mode, brand, last4 } = useLocalSearchParams<{
+    mode?: string;
+    brand?: string;
+    last4?: string;
+  }>();
   const { setPaymentMethod } = useRideSearch();
 
   const done = () => {
@@ -14,6 +25,10 @@ export default function CardSetupCompleteScreen() {
     if (mode === "booking") router.replace("/ride-booking/payment-method");
     else router.replace("/payments/cards");
   };
+
+  const cardLabel = last4
+    ? `${BRAND_LABELS[brand || "unknown"]} •••• ${last4}`
+    : "Card saved";
 
   return (
     <PaymentScreen
@@ -27,7 +42,7 @@ export default function CardSetupCompleteScreen() {
         <Text style={styles.text}>Your card is ready for supported PickU payments.</Text>
       </View>
       <PaymentCard>
-        <View style={styles.row}><Text style={styles.label}>Card</Text><Text style={styles.value}>Visa •••• 4242</Text></View>
+        <View style={styles.row}><Text style={styles.label}>Card</Text><Text style={styles.value}>{cardLabel}</Text></View>
         <View style={styles.divider} />
         <View style={styles.row}><Text style={styles.label}>Status</Text><Text style={styles.success}>Ready</Text></View>
       </PaymentCard>
