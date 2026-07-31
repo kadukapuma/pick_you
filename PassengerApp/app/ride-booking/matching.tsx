@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams, useNavigation } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useRideSearch } from "../../state/booking/RideBookingContext";
@@ -223,7 +223,6 @@ const isFreshDriverLocation = (
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SearchingScreen() {
   const params = useLocalSearchParams();
-  const navigation = useNavigation();
   const initialRideData = useMemo(
     () => (params.rideData ? JSON.parse(params.rideData as string) : null),
     [params.rideData],
@@ -273,20 +272,6 @@ export default function SearchingScreen() {
   const isAccepted = ["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus);
   const isCancelled = ["CANCELLED", "CANCELED"].includes(rideStatus);
   const isTerminal = rideStatus === "COMPLETED" || paymentStatus === "COMPLETED";
-  const returnToTrips = useCallback(() => {
-    router.replace("/(app)/(tabs)/trips");
-  }, []);
-
-  useEffect(() => {
-    if (!isAccepted) return;
-
-    return navigation.addListener("beforeRemove", (event) => {
-      const actionType = event.data.action.type;
-      if (!["GO_BACK", "POP", "POP_TO_TOP"].includes(actionType)) return;
-      event.preventDefault();
-      returnToTrips();
-    });
-  }, [isAccepted, navigation, returnToTrips]);
   const captureTripStart = useCallback(
     (location?: DriverLocationUpdate | null) => {
       if (capturedTripStartRef.current || !isFreshDriverLocation(location)) return;
@@ -388,18 +373,12 @@ export default function SearchingScreen() {
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      if (isMapFocused) {
-        setIsMapFocused(false);
-        return true;
-      }
-      if (isAccepted) {
-        returnToTrips();
-        return true;
-      }
-      return false;
+      if (!isMapFocused) return false;
+      setIsMapFocused(false);
+      return true;
     });
     return () => subscription.remove();
-  }, [isAccepted, isMapFocused, returnToTrips]);
+  }, [isMapFocused]);
 
   const currentSearchStep = SEARCH_STEPS[searchStepIndex];
   const requestedVehicleType =
@@ -759,7 +738,7 @@ export default function SearchingScreen() {
           }
           subtitle={`Heading to ${dropoffAddress}`}
           distanceText={activeRouteInfo?.distanceText}
-          onBack={returnToTrips}
+          onBack={() => router.replace("/(app)/(tabs)/trips")}
           onCall={() =>
             router.push({
               pathname: "/ride-tracking/contact-driver",
@@ -777,7 +756,7 @@ export default function SearchingScreen() {
               return;
             }
             if (isAccepted) {
-              returnToTrips();
+              router.replace("/(app)/(tabs)/home");
               return;
             }
             router.back();

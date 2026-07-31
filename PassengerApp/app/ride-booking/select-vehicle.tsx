@@ -6,16 +6,13 @@ import {
   Easing,
   Platform,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
-  useWindowDimensions,
   View,
   Image,
-  LayoutAnimation,
-  PanResponder,
-  UIManager,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -24,10 +21,7 @@ import {
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
-import {
-  useRideSearch,
-  type RideOption,
-} from "../../state/booking/RideBookingContext";
+import { useRideSearch, type RideOption } from "../../state/booking/RideBookingContext";
 import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
@@ -62,15 +56,6 @@ interface RideEstimateResponse {
 const GREEN = "#20B768";
 const GREEN_LIGHT = "#E8F8F0";
 const GREEN_DARK = "#178A50";
-const RIDE_CARD_WIDTH = 112;
-const CAROUSEL_EDGE_COPIES = 3;
-
-if (
-  Platform.OS === "android" &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
-}
 
 const parseLocationParam = (value: unknown) => {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -171,15 +156,6 @@ function normaliseVehicleKey(raw: string): string {
   return raw.toLowerCase().replace(/[\s_\-]+/g, "");
 }
 
-function getVehicleCapacity(vehicleId: string): number {
-  const key = normaliseVehicleKey(vehicleId);
-  if (["bike", "motorbike", "motorcycle"].includes(key)) return 1;
-  if (["tuk", "tuktuk", "threewheel", "minicar", "mini"].includes(key))
-    return 3;
-  if (["suv", "van", "minivan"].includes(key)) return 6;
-  return 4;
-}
-
 const ETA_MAP: Record<string, string> = {
   bike: "1 min",
   motorbike: "1 min",
@@ -226,9 +202,9 @@ function mapDBVehicleToOption(
   } else {
     price = 150 + (distanceMeters / 1000) * 60;
   }
-
+  
   const safeName = normaliseVehicleKey(vt.name ?? "car");
-
+  
   return {
     id: vt.name, // Keep original for backend queries
     name: vt.display_name,
@@ -246,9 +222,6 @@ type RideCardProps = {
   onSelect: () => void;
   index: number;
   directions: DirectionsResult | null;
-  scrollX: Animated.Value;
-  itemInterval: number;
-  frontOffset: number;
 };
 
 function RideCard({
@@ -257,11 +230,8 @@ function RideCard({
   onSelect,
   index,
   directions,
-  scrollX,
-  itemInterval,
-  frontOffset,
 }: RideCardProps) {
-  const scale = useRef(new Animated.Value(selected ? 1 : 0.98)).current;
+  const scale = useRef(new Animated.Value(selected ? 1.02 : 0.98)).current;
   const borderAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
   const liftAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
@@ -291,7 +261,7 @@ function RideCard({
   useEffect(() => {
     Animated.parallel([
       Animated.spring(scale, {
-        toValue: selected ? 1 : 0.98,
+        toValue: selected ? 1.02 : 0.98,
         useNativeDriver: true,
         damping: 14,
         stiffness: 220,
@@ -318,204 +288,77 @@ function RideCard({
 
   const cardLiftY = liftAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 0],
+    outputRange: [0, -4],
+  });
+
+  const shadowOpacity = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.04, 0.12],
+  });
+
+  const shadowRadius = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [3, 7],
+  });
+
+  const elevation = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 4],
   });
 
   const stars = (ride.price * STARS_PER_LKR).toFixed(1);
-  const carouselInputRange = [
-    (index - 2) * itemInterval,
-    (index - 1) * itemInterval,
-    index * itemInterval,
-    (index + 1) * itemInterval,
-    (index + 2) * itemInterval,
-  ];
-  const carouselRotateY = scrollX.interpolate({
-    inputRange: carouselInputRange,
-    outputRange: ["70deg", "44deg", "0deg", "-44deg", "-70deg"],
-    extrapolate: "clamp",
-  });
-  const carouselTranslateY = scrollX.interpolate({
-    inputRange: carouselInputRange,
-    outputRange: [4, -12, 46, -12, 4],
-    extrapolate: "clamp",
-  });
-  const carouselTranslateX = scrollX.interpolate({
-    inputRange: carouselInputRange,
-    outputRange: [14, 7, frontOffset, -7, -14],
-    extrapolate: "clamp",
-  });
-  const carouselOpacity = scrollX.interpolate({
-    inputRange: carouselInputRange,
-    outputRange: [0.62, 0.82, 1, 0.82, 0.62],
-    extrapolate: "clamp",
-  });
-  const carouselScale = scrollX.interpolate({
-    inputRange: carouselInputRange,
-    outputRange: [0.68, 0.82, 1.04, 0.82, 0.68],
-    extrapolate: "clamp",
-  });
 
   return (
     <Animated.View
       style={{
-        opacity: carouselOpacity,
-        zIndex: selected ? 10 : 1,
+        opacity: entranceOpacity,
+        zIndex: selected ? 4 : 1,
+        elevation: selected ? 4 : 1,
         transform: [
-          { perspective: 700 },
-          { translateX: carouselTranslateX },
-          { translateY: carouselTranslateY },
-          { rotateY: carouselRotateY },
-          { scale: carouselScale },
+          { translateY: entranceY },
+          { translateY: cardLiftY },
+          { scale },
         ],
       }}
-      renderToHardwareTextureAndroid
-      needsOffscreenAlphaCompositing
     >
-      <Animated.View
-        style={{
-          opacity: entranceOpacity,
-          zIndex: selected ? 4 : 1,
-          transform: [
-            { translateY: entranceY },
-            { translateY: cardLiftY },
-            { scale },
-          ],
-        }}
-      >
-        <Pressable onPress={onSelect} style={{ borderRadius: 16 }}>
-          <Animated.View
-            style={[
-              styles.rideCard,
-              { borderColor },
-              selected && { backgroundColor: "#F3F4F6" },
-            ]}
-          >
-            {selected && (
-              <View style={styles.selectedCheck}>
-                <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-              </View>
-            )}
-            {/* Icon area */}
-            <View style={styles.cardIconWrap}>
-              <Image
-                source={getVehicleRideImage(ride.id)}
-                style={{ width: 85, height: 46, resizeMode: "contain" }}
-              />
-            </View>
-
-            {/* Name */}
-            <Text
-              style={styles.cardName}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-            >
-              {ride.name}
-            </Text>
-
-            {/* ETA */}
-            <View style={styles.cardMeta}>
-              <Ionicons name="person-outline" size={11} color="#9CA3AF" />
-              <Text style={styles.cardEta} numberOfLines={1}>
-                {ride.eta}
-              </Text>
-            </View>
-
-            {/* Price */}
-            <Text
-              style={styles.cardPrice}
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.6}
-            >
-              LKR {ride.price.toFixed(2)}
-            </Text>
-
-            {/* Stars earned */}
-            <View style={styles.starsRow}>
-              <Ionicons name="star" size={11} color="#FBBF24" />
-              <Text style={styles.starsText} numberOfLines={1}>
-                Earn {stars}
-              </Text>
-            </View>
-
-            {/* Route info */}
-            {directions && (
-              <Text style={styles.cardRoute} numberOfLines={1}>
-                {directions.distanceText} · {directions.durationText}
-              </Text>
-            )}
-          </Animated.View>
-        </Pressable>
-      </Animated.View>
-    </Animated.View>
-  );
-}
-
-type CircularRideCardProps = {
-  ride: RideOption;
-  selected: boolean;
-  onSelect: () => void;
-  directions: DirectionsResult | null;
-  left: number;
-  top: number;
-  scale: number;
-  rotateY: string;
-  opacity: number;
-  zIndex: number;
-};
-
-function CircularRideCard({
-  ride,
-  selected,
-  onSelect,
-  directions,
-  left,
-  top,
-  scale,
-  rotateY,
-  opacity,
-  zIndex,
-}: CircularRideCardProps) {
-  const stars = (ride.price * STARS_PER_LKR).toFixed(1);
-
-  return (
-    <View
-      style={[
-        styles.circularCardPosition,
-        {
-          left,
-          top,
-          opacity,
-          zIndex,
-          transform: [{ perspective: 800 }, { rotateY }, { scale }],
-        },
-      ]}
-      renderToHardwareTextureAndroid
-    >
-      <Pressable onPress={onSelect} style={styles.circularCardPressable}>
-        <View
-          style={[styles.rideCard, selected && styles.circularCardSelected]}
+      <Pressable onPress={onSelect} style={{ borderRadius: 16 }}>
+        <Animated.View
+          style={[
+            styles.rideCard,
+            { borderColor },
+            selected && { backgroundColor: "#F3F4F6" },
+            Platform.OS === "ios"
+              ? {
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity,
+                  shadowRadius,
+                }
+              : { elevation },
+          ]}
         >
-          {selected && (
-            <View style={styles.selectedCheck}>
-              <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-            </View>
-          )}
+          {/* Icon area */}
           <View style={styles.cardIconWrap}>
             <Image
               source={getVehicleRideImage(ride.id)}
-              style={styles.circularVehicleImage}
+              style={{ width: 85, height: 46, resizeMode: "contain" }}
             />
           </View>
+
+          {/* Name */}
           <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
             {ride.name}
           </Text>
+
+          {/* ETA */}
           <View style={styles.cardMeta}>
             <Ionicons name="person-outline" size={11} color="#9CA3AF" />
             <Text style={styles.cardEta} numberOfLines={1}>
               {ride.eta}
             </Text>
           </View>
+
+          {/* Price */}
           <Text
             style={styles.cardPrice}
             numberOfLines={1}
@@ -524,20 +367,24 @@ function CircularRideCard({
           >
             LKR {ride.price.toFixed(2)}
           </Text>
+
+          {/* Stars earned */}
           <View style={styles.starsRow}>
             <Ionicons name="star" size={11} color="#FBBF24" />
             <Text style={styles.starsText} numberOfLines={1}>
               Earn {stars}
             </Text>
           </View>
+
+          {/* Route info */}
           {directions && (
             <Text style={styles.cardRoute} numberOfLines={1}>
               {directions.distanceText} · {directions.durationText}
             </Text>
           )}
-        </View>
+        </Animated.View>
       </Pressable>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -545,38 +392,21 @@ function CircularRideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { width: screenWidth } = useWindowDimensions();
-  const responsiveCardGap = Math.max(10, Math.min(18, screenWidth * 0.035));
-  const carouselItemInterval = RIDE_CARD_WIDTH + responsiveCardGap;
-  const carouselFrontOffset = Math.max(42, Math.min(64, screenWidth * 0.14));
-  const {
-    tripType,
-    outboundTrip,
-    paymentMethod,
-    setOutboundRide,
-    setOutboundPickup,
-    setOutboundDropoff,
-  } = useRideSearch();
+  const { tripType, outboundTrip, paymentMethod, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
+    useRideSearch();
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
-  const carouselScrollX = useRef(new Animated.Value(0)).current;
-  const carouselRef = useRef<any>(null);
-  const [centeredCarouselIndex, setCenteredCarouselIndex] = useState(0);
   const [savedRoute, setSavedRoute] = useState<{
     pickup: any;
     destination: any;
   } | null>(null);
 
-  const pickupParam = Array.isArray(params.pickup)
-    ? params.pickup[0]
-    : params.pickup;
-  const destinationParam = Array.isArray(params.destination)
-    ? params.destination[0]
-    : params.destination;
+  const pickupParam = Array.isArray(params.pickup) ? params.pickup[0] : params.pickup;
+  const destinationParam = Array.isArray(params.destination) ? params.destination[0] : params.destination;
   const pickupFromParams = React.useMemo(
     () => parseLocationParam(pickupParam),
     [pickupParam],
@@ -590,79 +420,8 @@ export default function SelectRideScreen() {
     [outboundTrip.pickup, pickupFromParams, savedRoute?.pickup],
   );
   const destination = React.useMemo(
-    () =>
-      destinationFromParams ||
-      outboundTrip.dropoff ||
-      savedRoute?.destination ||
-      null,
+    () => destinationFromParams || outboundTrip.dropoff || savedRoute?.destination || null,
     [destinationFromParams, outboundTrip.dropoff, savedRoute?.destination],
-  );
-  const loopCopyCount =
-    rideOptions.length > 1
-      ? Math.min(CAROUSEL_EDGE_COPIES, rideOptions.length)
-      : 0;
-  const carouselItems = React.useMemo(
-    () =>
-      loopCopyCount > 0
-        ? [
-            ...rideOptions.slice(-loopCopyCount),
-            ...rideOptions,
-            ...rideOptions.slice(0, loopCopyCount),
-          ]
-        : rideOptions,
-    [loopCopyCount, rideOptions],
-  );
-
-  useEffect(() => {
-    if (rideOptions.length === 0) return;
-    const initialIndex = loopCopyCount;
-    const initialOffset = initialIndex * carouselItemInterval;
-    setCenteredCarouselIndex(initialIndex);
-    carouselScrollX.setValue(initialOffset);
-    const frame = requestAnimationFrame(() => {
-      carouselRef.current?.scrollTo({ x: initialOffset, animated: false });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [
-    carouselItemInterval,
-    carouselScrollX,
-    loopCopyCount,
-    rideOptions.length,
-  ]);
-  const selectedCircularIndex = Math.max(
-    0,
-    rideOptions.findIndex((ride) => ride.id === selectedRide),
-  );
-  const selectedCircularRide = rideOptions[selectedCircularIndex] || null;
-  const selectCircularRide = useCallback(
-    (nextIndex: number) => {
-      if (rideOptions.length === 0) return;
-      const normalizedIndex =
-        ((nextIndex % rideOptions.length) + rideOptions.length) %
-        rideOptions.length;
-      LayoutAnimation.configureNext({
-        duration: 180,
-        update: { type: LayoutAnimation.Types.easeInEaseOut },
-      });
-      setSelectedRide(rideOptions[normalizedIndex].id);
-    },
-    [rideOptions],
-  );
-  const circularPanResponder = React.useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gesture) =>
-          Math.abs(gesture.dx) > 10 &&
-          Math.abs(gesture.dx) > Math.abs(gesture.dy),
-        onPanResponderRelease: (_, gesture) => {
-          if (gesture.dx < -32 || gesture.vx < -0.35) {
-            selectCircularRide(selectedCircularIndex + 1);
-          } else if (gesture.dx > 32 || gesture.vx > 0.35) {
-            selectCircularRide(selectedCircularIndex - 1);
-          }
-        },
-      }),
-    [selectCircularRide, selectedCircularIndex],
   );
   const pickupLatitude = pickup?.latitude;
   const pickupLongitude = pickup?.longitude;
@@ -748,12 +507,7 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, [
-    destinationLatitude,
-    destinationLongitude,
-    pickupLatitude,
-    pickupLongitude,
-  ]);
+  }, [destinationLatitude, destinationLongitude, pickupLatitude, pickupLongitude]);
 
   // Fetch vehicles
   useEffect(() => {
@@ -795,8 +549,7 @@ export default function SelectRideScreen() {
       !Number.isFinite(Number(pickupLongitude)) ||
       !Number.isFinite(Number(destinationLatitude)) ||
       !Number.isFinite(Number(destinationLongitude))
-    )
-      return;
+    ) return;
 
     let cancelled = false;
     const fallbackOptions = _rawVehicles.map((vehicle) =>
@@ -810,9 +563,7 @@ export default function SelectRideScreen() {
     const loadBackendEstimates = async () => {
       for (const vehicle of _rawVehicles) {
         if (cancelled) return;
-        const fallback = fallbackOptions.find(
-          (option) => option.id === vehicle.name,
-        );
+        const fallback = fallbackOptions.find((option) => option.id === vehicle.name);
         if (!fallback) continue;
 
         try {
@@ -856,17 +607,9 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, [
-    destinationLatitude,
-    destinationLongitude,
-    directions,
-    pickupLatitude,
-    pickupLongitude,
-    _rawVehicles,
-  ]);
+  }, [destinationLatitude, destinationLongitude, directions, pickupLatitude, pickupLongitude, _rawVehicles]);
   const handleBookNow = useCallback(() => {
-    if (!pickup || !destination || !selectedRide || rideOptions.length === 0)
-      return;
+    if (!pickup || !destination || !selectedRide || rideOptions.length === 0) return;
     const opt = rideOptions.find((r) => r.id === selectedRide);
     if (!opt) return;
     setOutboundPickup(pickup);
@@ -877,21 +620,9 @@ export default function SelectRideScreen() {
         ? "/ride-booking/return-location"
         : "/ride-booking/confirm",
     );
-  }, [
-    destination,
-    pickup,
-    rideOptions,
-    router,
-    selectedRide,
-    setOutboundDropoff,
-    setOutboundPickup,
-    setOutboundRide,
-    tripType,
-  ]);
+  }, [destination, pickup, rideOptions, router, selectedRide, setOutboundDropoff, setOutboundPickup, setOutboundRide, tripType]);
 
-  const hasPendingFareSetup = Boolean(
-    directions && _rawVehicles.length > 0 && rideOptions.length === 0,
-  );
+  const hasPendingFareSetup = Boolean(directions && _rawVehicles.length > 0 && rideOptions.length === 0);
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
   const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
 
@@ -997,213 +728,23 @@ export default function SelectRideScreen() {
             </Text>
           </View>
         ) : (
-          <View style={styles.carouselStage}>
-            <View pointerEvents="none" style={styles.carouselCenterMarker}>
-              <View style={styles.carouselMarkerPin}>
-                <Ionicons name="location" size={24} color="#FFFFFF" />
-              </View>
-            </View>
-            <View
-              style={styles.circularCardsLayer}
-              {...circularPanResponder.panHandlers}
-            >
-              {rideOptions.map((ride, index) => {
-                const count = rideOptions.length;
-                const relativeIndex =
-                  (((index - selectedCircularIndex) % count) + count) % count;
-                const angleDegrees = 90 + (relativeIndex * 360) / count;
-                const angle = (angleDegrees * Math.PI) / 180;
-                const stageWidth = screenWidth - 32;
-                const radiusX = Math.max(96, stageWidth / 2 - 43);
-                const radiusY = Math.max(38, Math.min(52, screenWidth * 0.13));
-                const depth = (Math.sin(angle) + 1) / 2;
-                const isSelected = index === selectedCircularIndex;
-
-                if (isSelected) return null;
-
-                return (
-                  <Pressable
-                    key={`vehicle-orbit-${ride.id}`}
-                    onPress={() => selectCircularRide(index)}
-                    style={[
-                      styles.orbitVehicle,
-                      {
-                        left: stageWidth / 2 + Math.cos(angle) * radiusX - 39,
-                        top: 67 + Math.sin(angle) * radiusY - 28,
-                        opacity: 0.72 + depth * 0.28,
-                        zIndex: Math.round(5 + depth * 10),
-                        transform: [{ scale: 0.78 + depth * 0.16 }],
-                      },
-                    ]}
-                  >
-                    <Image
-                      source={getVehicleRideImage(ride.id)}
-                      style={styles.orbitVehicleImage}
-                    />
-                  </Pressable>
-                );
-              })}
-            </View>
-            {selectedCircularRide && (
-              <View style={styles.selectedVehiclePanel}>
-                <View style={styles.selectedVehicleTopRow}>
-                  <Image
-                    source={getVehicleRideImage(selectedCircularRide.id)}
-                    style={styles.selectedVehicleImage}
-                  />
-                  <View style={styles.selectedVehicleHeading}>
-                    <Text style={styles.selectedVehicleName} numberOfLines={1}>
-                      {selectedCircularRide.name}
-                    </Text>
-                    <View style={styles.selectedVehicleMeta}>
-                      <Ionicons
-                        name="person-outline"
-                        size={13}
-                        color="#94A3B8"
-                      />
-                      <Text style={styles.selectedVehicleMetaText}>
-                        {getVehicleCapacity(selectedCircularRide.id)} seats
-                      </Text>
-                      <Ionicons name="time-outline" size={13} color="#94A3B8" />
-                      <Text style={styles.selectedVehicleMetaText}>
-                        {selectedCircularRide.eta}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={styles.selectedPanelCheck}>
-                    <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                  </View>
-                </View>
-                <View style={styles.selectedVehicleDivider} />
-                <View style={styles.selectedVehicleBottomRow}>
-                  <View>
-                    <Text style={styles.selectedVehiclePrice}>
-                      LKR {selectedCircularRide.price.toFixed(2)}
-                    </Text>
-                    {directions && (
-                      <Text style={styles.selectedVehicleRoute}>
-                        {directions.distanceText} · {directions.durationText}
-                      </Text>
-                    )}
-                  </View>
-                  <View style={styles.bestMatchBadge}>
-                    <Ionicons name="star" size={12} color={GREEN} />
-                    <Text style={styles.bestMatchText}>Best match</Text>
-                  </View>
-                </View>
-              </View>
-            )}
-            <Animated.ScrollView
-              ref={carouselRef}
-              horizontal
-              removeClippedSubviews={false}
-              showsHorizontalScrollIndicator={false}
-              decelerationRate="fast"
-              snapToInterval={carouselItemInterval}
-              snapToAlignment="start"
-              disableIntervalMomentum
-              onScroll={Animated.event(
-                [{ nativeEvent: { contentOffset: { x: carouselScrollX } } }],
-                {
-                  useNativeDriver: true,
-                  listener: (event: any) => {
-                    const centeredIndex = Math.max(
-                      0,
-                      Math.min(
-                        carouselItems.length - 1,
-                        Math.round(
-                          event.nativeEvent.contentOffset.x /
-                            carouselItemInterval,
-                        ),
-                      ),
-                    );
-                    const centeredRide = carouselItems[centeredIndex];
-                    setCenteredCarouselIndex(centeredIndex);
-                    if (centeredRide && centeredRide.id !== selectedRide) {
-                      setSelectedRide(centeredRide.id);
-                    }
-                  },
-                },
-              )}
-              scrollEventThrottle={16}
-              onMomentumScrollEnd={(event) => {
-                let centeredIndex = Math.max(
-                  0,
-                  Math.min(
-                    carouselItems.length - 1,
-                    Math.round(
-                      event.nativeEvent.contentOffset.x / carouselItemInterval,
-                    ),
-                  ),
-                );
-                const centeredRide = carouselItems[centeredIndex];
-                if (centeredRide) setSelectedRide(centeredRide.id);
-
-                if (loopCopyCount > 0) {
-                  if (centeredIndex < loopCopyCount) {
-                    centeredIndex += rideOptions.length;
-                  } else if (
-                    centeredIndex >=
-                    loopCopyCount + rideOptions.length
-                  ) {
-                    centeredIndex -= rideOptions.length;
-                  }
-
-                  const normalizedOffset = centeredIndex * carouselItemInterval;
-                  carouselRef.current?.scrollTo({
-                    x: normalizedOffset,
-                    animated: false,
-                  });
-                  carouselScrollX.setValue(normalizedOffset);
-                }
-                setCenteredCarouselIndex(centeredIndex);
-              }}
-              contentContainerStyle={[
-                styles.cardsRow,
-                {
-                  gap: responsiveCardGap,
-                  paddingHorizontal: Math.max(
-                    16,
-                    (screenWidth - RIDE_CARD_WIDTH) / 2,
-                  ),
-                },
-              ]}
-              style={[styles.cardsScroll, styles.hiddenCarousel]}
-            >
-              {carouselItems.map((ride, i) => (
-                <RideCard
-                  key={`${ride.id}-${i}`}
-                  ride={ride}
-                  selected={
-                    selectedRide === ride.id && centeredCarouselIndex === i
-                  }
-                  onSelect={() => {
-                    setSelectedRide(ride.id);
-                    carouselRef.current?.scrollTo({
-                      x: i * carouselItemInterval,
-                      animated: true,
-                    });
-                  }}
-                  index={i}
-                  directions={directions}
-                  scrollX={carouselScrollX}
-                  itemInterval={carouselItemInterval}
-                  frontOffset={carouselFrontOffset}
-                />
-              ))}
-            </Animated.ScrollView>
-            <View pointerEvents="none" style={styles.carouselDots}>
-              {rideOptions.map((ride) => (
-                <View
-                  key={`dot-${ride.id}`}
-                  style={[
-                    styles.carouselDot,
-                    selectedRide === ride.id && styles.carouselDotActive,
-                  ]}
-                />
-              ))}
-            </View>
-          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.cardsRow}
+            style={styles.cardsScroll}
+          >
+            {rideOptions.map((ride, i) => (
+              <RideCard
+                key={ride.id}
+                ride={ride}
+                selected={selectedRide === ride.id}
+                onSelect={() => setSelectedRide(ride.id)}
+                index={i}
+                directions={directions}
+              />
+            ))}
+          </ScrollView>
         )}
 
         {/* ── OPTIONS ROW ────────────────────────────────────────────────── */}
@@ -1216,22 +757,12 @@ export default function SelectRideScreen() {
             accessibilityLabel={`Change payment method. Currently ${paymentMethod}`}
           >
             <Ionicons
-              name={
-                paymentMethod === "card"
-                  ? "card-outline"
-                  : paymentMethod === "wallet"
-                    ? "wallet-outline"
-                    : "cash-outline"
-              }
+              name={paymentMethod === "card" ? "card-outline" : paymentMethod === "wallet" ? "wallet-outline" : "cash-outline"}
               size={16}
               color={GREEN}
             />
             <Text style={styles.optionChipText}>
-              {paymentMethod === "card"
-                ? "Card"
-                : paymentMethod === "wallet"
-                  ? "Wallet"
-                  : "Cash"}
+              {paymentMethod === "card" ? "Card" : paymentMethod === "wallet" ? "Wallet" : "Cash"}
             </Text>
             <Ionicons name="chevron-down" size={13} color={GREEN} />
           </TouchableOpacity>
@@ -1262,11 +793,7 @@ export default function SelectRideScreen() {
           activeOpacity={0.82}
         >
           <Text style={styles.bookBtnText}>
-            {tripType === "return"
-              ? "Continue to Return →"
-              : selectedCircularRide
-                ? `Book ${selectedCircularRide.name} · LKR ${selectedCircularRide.price.toFixed(2)}`
-                : "Book Now"}
+            {tripType === "return" ? "Continue to Return →" : "Book Now"}
           </Text>
         </TouchableOpacity>
       </Animated.View>
@@ -1369,14 +896,14 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
     backgroundColor: "#E5E7EB",
-    marginBottom: 6,
+    marginBottom: 14,
   },
 
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 2,
+    marginBottom: 14,
   },
 
   sheetTitle: {
@@ -1414,225 +941,18 @@ const styles = StyleSheet.create({
   // ── Ride cards ──────────────────────────────────────────────────────────────
   cardsScroll: {
     marginHorizontal: -16,
-    height: 274,
     overflow: "visible",
-    zIndex: 1,
-  },
-
-  hiddenCarousel: {
-    display: "none",
-  },
-
-  carouselStage: {
-    position: "relative",
-    height: 286,
-  },
-
-  circularCardsLayer: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 274,
-    zIndex: 1,
-    overflow: "visible",
-  },
-
-  orbitVehicle: {
-    position: "absolute",
-    width: 78,
-    height: 58,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  orbitVehicleImage: {
-    width: 76,
-    height: 48,
-    resizeMode: "contain",
-  },
-
-  selectedVehiclePanel: {
-    position: "absolute",
-    top: 140,
-    left: 12,
-    right: 12,
-    minHeight: 116,
-    zIndex: 40,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: GREEN,
-    paddingHorizontal: 14,
-    paddingVertical: 11,
-    backgroundColor: "#FFFFFF",
-  },
-
-  selectedVehicleTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 50,
-  },
-
-  selectedVehicleImage: {
-    width: 88,
-    height: 48,
-    resizeMode: "contain",
-    marginRight: 10,
-  },
-
-  selectedVehicleHeading: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  selectedVehicleName: {
-    color: "#0F172A",
-    fontSize: 18,
-    fontWeight: "800",
-  },
-
-  selectedVehicleMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 5,
-  },
-
-  selectedVehicleMetaText: {
-    color: "#64748B",
-    fontSize: 11,
-    fontWeight: "600",
-    marginRight: 5,
-  },
-
-  selectedPanelCheck: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    alignItems: "center",
-    justifyContent: "center",
-    marginLeft: 6,
-    backgroundColor: GREEN,
-  },
-
-  selectedVehicleDivider: {
-    height: 1,
-    marginVertical: 8,
-    backgroundColor: "#E5E7EB",
-  },
-
-  selectedVehicleBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  selectedVehiclePrice: {
-    color: "#0F172A",
-    fontSize: 17,
-    fontWeight: "900",
-  },
-
-  selectedVehicleRoute: {
-    color: "#94A3B8",
-    fontSize: 10,
-    marginTop: 2,
-  },
-
-  bestMatchBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    borderRadius: 999,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    backgroundColor: "#E8F8F0",
-  },
-
-  bestMatchText: {
-    color: GREEN,
-    fontSize: 11,
-    fontWeight: "800",
-  },
-
-  circularCardPosition: {
-    position: "absolute",
-    width: RIDE_CARD_WIDTH,
-    height: 180,
-    backfaceVisibility: "hidden",
-  },
-
-  circularCardPressable: {
-    width: "100%",
-    height: "100%",
-    borderRadius: 16,
-  },
-
-  circularCardSelected: {
-    borderColor: GREEN,
-    backgroundColor: "#F3F4F6",
-  },
-
-  circularVehicleImage: {
-    width: 85,
-    height: 46,
-    resizeMode: "contain",
-  },
-
-  carouselCenterMarker: {
-    position: "absolute",
-    top: 25,
-    left: "50%",
-    width: 62,
-    height: 62,
-    marginLeft: -31,
-    zIndex: 0,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  carouselMarkerPin: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: GREEN,
-    transform: [{ translateY: -8 }],
-  },
-
-  carouselDots: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-  },
-
-  carouselDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#D1D5DB",
-  },
-
-  carouselDotActive: {
-    width: 16,
-    backgroundColor: GREEN,
   },
 
   cardsRow: {
     paddingHorizontal: 16,
-    paddingTop: 30,
+    gap: 10,
+    paddingTop: 16,
     paddingBottom: 4,
   },
 
   rideCard: {
-    width: RIDE_CARD_WIDTH,
+    width: 112,
     height: 180,
     borderRadius: 16,
     borderWidth: 2,
@@ -1643,7 +963,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 3,
-    backfaceVisibility: "hidden",
   },
 
   rideCardSelected: {
@@ -1657,19 +976,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 4,
-  },
-
-  selectedCheck: {
-    position: "absolute",
-    top: 7,
-    right: 7,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    zIndex: 3,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: GREEN,
   },
 
   cardName: {
@@ -1721,7 +1027,7 @@ const styles = StyleSheet.create({
   optionsRow: {
     flexDirection: "row",
     gap: 8,
-    marginTop: 2,
+    marginTop: 14,
     marginBottom: 12,
   },
 
@@ -1772,3 +1078,11 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 });
+
+
+
+
+
+
+
+
