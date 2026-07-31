@@ -11,7 +11,6 @@ import {
   Dimensions,
   Image,
   ActivityIndicator,
-  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -20,6 +19,8 @@ import { MotiView, MotiText } from "moti";
 // Customs imported from your friend's architecture
 import KeyboardAwareWrapper from "../../components/KeyboardAwareWrapper";
 import api from "../../services/api";
+import { getApiErrorMessage, getFieldError } from "../../utils/apiError";
+import ThemedFeedbackModal from "../../components/ThemedFeedbackModal";
 
 const { width, height } = Dimensions.get("window");
 
@@ -91,7 +92,7 @@ const RegisterScreen = ({ navigation }) => {
 
   // Force truncating input value past 10 characters
   const handlePhoneChange = (value) => {
-    const cleanedValue = value.slice(0, 10);
+    const cleanedValue = value.replace(/\D/g, "").slice(0, 10);
     setPhone(cleanedValue);
 
     if (!cleanedValue) {
@@ -182,11 +183,12 @@ const RegisterScreen = ({ navigation }) => {
 
     try {
       setIsLoading(true);
+      const normalizedEmail = email.trim().toLowerCase();
 
       const response = await api.post("/driver/auth/register", {
-        first_name: firstName,
-        last_name: lastName || firstName,
-        email,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        email: normalizedEmail,
         phone,
         password,
         password_confirmation: confirmPassword,
@@ -200,40 +202,68 @@ const RegisterScreen = ({ navigation }) => {
           phone,
           enrollmentToken: response.data.data.enrollment_token,
         });
+      } else {
+        showPopup(
+          "Registration Incomplete",
+          "The server did not complete the registration. Please try again.",
+          "error"
+        );
       }
     } catch (error) {
-  console.log("FULL ERROR:", error.response || error.message);
+      console.log("Registration error:", error.response?.data || error.message);
+      const emailMessage = getFieldError(error, "email");
+      const phoneMessage = getFieldError(error, "phone");
+      const responseMessage = error.response?.data?.message || "";
 
-  console.log("Registration error:", error.response?.data || error.message);
-  const resp = error.response?.data;
-  const msg = resp?.message || "An error occurred during registration.";
-
-  const isEmailTaken = resp?.errors?.email || /email|already/i.test(msg);
-  if (isEmailTaken) {
-    showPopup(
-      "Email Already Registered",
-      "This email is already registered. Please log in to continue.",
-      "warning",
-      () => navigation.navigate("Login", { email }),
-      "Login"
-    );
-    return;
-  }
-
-  const isPhoneTaken = resp?.errors?.phone || /phone|already/i.test(msg);
-  if (isPhoneTaken) {
-    showPopup(
-      "Number Already Registered",
-      "Your mobile number is already registered. Please log in to continue.",
-      "warning",
-      () => navigation.navigate("Login", { phone }),
-      "Login"
-    );
-    return;
-  }
-
-  showPopup("Registration Failed", msg, "error");
-}
+      if (emailMessage && /already|taken|exist|registered/i.test(emailMessage)) {
+        showPopup(
+          "Email Already Registered",
+          "This email is already registered. Please log in to continue.",
+          "warning",
+          () => navigation.navigate("Login", { email: email.trim().toLowerCase() }),
+          "Login"
+        );
+      } else if (
+        phoneMessage && /already|taken|exist|registered/i.test(phoneMessage)
+      ) {
+        showPopup(
+          "Number Already Registered",
+          "This mobile number is already registered. Please log in to continue.",
+          "warning",
+          () => navigation.navigate("Login"),
+          "Login"
+        );
+      } else if (/email/i.test(responseMessage) && /already|taken|exist|registered/i.test(responseMessage)) {
+        showPopup(
+          "Email Already Registered",
+          "This email is already registered. Please log in to continue.",
+          "warning",
+          () => navigation.navigate("Login", { email: email.trim().toLowerCase() }),
+          "Login"
+        );
+      } else if (/phone|mobile|number/i.test(responseMessage) && /already|taken|exist|registered/i.test(responseMessage)) {
+        showPopup(
+          "Number Already Registered",
+          "This mobile number is already registered. Please log in to continue.",
+          "warning",
+          () => navigation.navigate("Login"),
+          "Login"
+        );
+      } else {
+        if (emailMessage) setEmailError(emailMessage);
+        if (phoneMessage) setPhoneError(phoneMessage);
+        showPopup(
+          "Registration Failed",
+          getApiErrorMessage(
+            error,
+            "We couldn't create your account. Please try again."
+          ),
+          "error"
+        );
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -589,47 +619,18 @@ const RegisterScreen = ({ navigation }) => {
         </KeyboardAwareWrapper>
       </KeyboardAvoidingView>
 
-      {/* SYSTEM POPUP */}
-      <Modal transparent visible={popupVisible} animationType="fade">
-        <View style={styles.popupOverlay}>
-          <MotiView
-            from={{ opacity: 0, scale: 0.8, translateY: 20 }}
-            animate={{ opacity: 1, scale: 1, translateY: 0 }}
-            transition={{ type: "spring" }}
-            style={styles.popupCard}
-          >
-            <View
-              style={[
-                styles.popupIconCircle,
-                popupType === "error" && { backgroundColor: "rgba(239,68,68,0.12)" },
-                popupType === "warning" && { backgroundColor: "rgba(245,158,11,0.12)" },
-              ]}
-            >
-              <Feather
-                name={popupType === "warning" ? "alert-triangle" : "x"}
-                size={26}
-                color={popupType === "warning" ? "#F59E0B" : "#EF4444"}
-              />
-            </View>
-
-            <Text style={styles.popupTitle}>{popupTitle}</Text>
-
-            <Text style={styles.popupMessage}>{popupMessage}</Text>
-
-            <TouchableOpacity
-              style={styles.popupButton}
-              onPress={() => {
-                setPopupVisible(false);
-                if (typeof popupAction === "function") {
-                  popupAction();
-                }
-              }}
-            >
-              <Text style={styles.popupButtonText}>{popupButtonText}</Text>
-            </TouchableOpacity>
-          </MotiView>
-        </View>
-      </Modal>
+      <ThemedFeedbackModal
+        visible={popupVisible}
+        type={popupType}
+        title={popupTitle}
+        message={popupMessage}
+        primaryLabel={popupButtonText}
+        onClose={() => setPopupVisible(false)}
+        onPrimary={() => {
+          setPopupVisible(false);
+          if (typeof popupAction === "function") popupAction();
+        }}
+      />
 
       {/* SYSTEM DEVICE LOWER BAR VIEW FILL */}
       <SafeAreaView
@@ -844,54 +845,6 @@ const styles = StyleSheet.create({
   carImage: {
     width: width * 1.08,
     height: height * 0.22,
-  },
-  popupOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(15,23,42,0.45)",
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 24,
-  },
-  popupCard: {
-    width: "100%",
-    backgroundColor: "#FFF",
-    borderRadius: 28,
-    padding: 24,
-    alignItems: "center",
-  },
-  popupIconCircle: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 18,
-  },
-  popupTitle: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: "#0F172A",
-    marginBottom: 8,
-  },
-  popupMessage: {
-    fontSize: 14,
-    color: "#64748B",
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 22,
-  },
-  popupButton: {
-    backgroundColor: "#00A859",
-    width: "100%",
-    height: 52,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  popupButtonText: {
-    color: "#FFF",
-    fontSize: 15,
-    fontWeight: "800",
   },
   bottomSafeArea: {
     backgroundColor: "#000000",
