@@ -33,7 +33,22 @@ export default function PaymentProcessingScreen() {
           const result = await paymentService.beginRidePayment(rideId, Number(amount || 0));
           if (cancelled) return;
           if (result.status === "completed") {
-            router.replace({ pathname: "/payments/success", params: { rideId, amount, reference: result.reference || "" } });
+            // Back into ride-tracking, not a dead-end success screen: that is
+            // the only place the rating prompt lives, and cash rides already
+            // land there the moment payment completes. Routing card payments
+            // anywhere else means the driver never gets rated after a card ride.
+            router.replace({
+              pathname: "/ride-tracking",
+              params: {
+                rideData: JSON.stringify({
+                  id: Number(rideId),
+                  status: "COMPLETED",
+                  final_fare: Number(amount),
+                  payment: { payment_status: "COMPLETED", gateway_reference: result.reference },
+                  selected_payment_method: "card",
+                }),
+              },
+            });
             return;
           }
           if (result.status === "failed" || result.status === "requires_action") {

@@ -91,6 +91,11 @@
   text-transform: capitalize;
 }
 
+.fare-config-commission {
+  font-weight: 600;
+  color: var(--accent, #059669);
+}
+
 .fare-config-modal-overlay {
   position: fixed;
   inset: 0;

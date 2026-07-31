@@ -49,11 +49,16 @@ class MockGatewayProductionGuardTest extends TestCase
         $this->app->make(PaymentGateway::class);
     }
 
-    /** PAYMENTS_DRIVER alone must never be enough to enable it. */
+    /**
+     * PAYMENTS_DRIVER alone must never be enough to enable it - explicitly
+     * false here rather than relying on the config default, since a local
+     * .env with PAYMENTS_ALLOW_MOCK_IN_PRODUCTION=true (set for manually
+     * exercising the mock gateway) would otherwise mask this guard.
+     */
     public function test_driver_setting_alone_does_not_unlock_mock_in_production(): void
     {
         $this->pretendProduction();
-        config(['payments.driver' => 'mock']);
+        config(['payments.driver' => 'mock', 'payments.allow_mock_in_production' => false]);
 
         $this->app->forgetInstance(PaymentGateway::class);
 
