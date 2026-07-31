@@ -191,6 +191,11 @@ export default function ConfirmationScreen() {
         drop_address: outboundTrip.dropoff!.address || "Unknown Drop",
         drop_lat: outboundTrip.dropoff!.latitude,
         drop_lng: outboundTrip.dropoff!.longitude,
+        // The server is what decides how the ride settles - without this the
+        // ride is created (and later paid) as cash no matter what was picked
+        // on the payment-method screen. Backend only accepts cash|card; wallet
+        // stays hidden in the UI until its backend flow exists.
+        payment_method: paymentMethod === "card" ? "card" : "cash",
       };
 
       if (__DEV__) {

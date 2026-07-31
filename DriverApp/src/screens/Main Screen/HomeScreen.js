@@ -32,6 +32,7 @@ import {
   enableRideFallbackSync,
   syncPendingRideOnce,
 } from "../../services/rideRealtime";
+import { fetchEarningsSummary } from "../../services/earnings";
 import { normalizeRidePayload } from "../../utils/rideLocation";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 
@@ -98,6 +99,7 @@ const HomeScreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeRide, setActiveRide] = useState(null);
   const [isCheckingActiveRide, setIsCheckingActiveRide] = useState(false);
+  const [todayEarnings, setTodayEarnings] = useState(null);
 
   const homeRouteCoordinates = useMemo(() => [mapOrigin], [mapOrigin]);
   const homeVehicleImage = useMemo(
@@ -150,6 +152,17 @@ const HomeScreen = () => {
     }
   }, []);
 
+  // Net (after commission) for today, refreshed whenever the driver returns
+  // to Home - e.g. right after finishing a trip.
+  const fetchTodayEarnings = useCallback(async () => {
+    try {
+      const summary = await fetchEarningsSummary("day");
+      setTodayEarnings(summary?.net ?? 0);
+    } catch (error) {
+      console.log("Could not fetch today's earnings:", error?.response?.data || error);
+    }
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       try {
@@ -165,12 +178,13 @@ const HomeScreen = () => {
 
         fetchDriverData();
         fetchOngoingRide();
+        fetchTodayEarnings();
       } catch (err) {
         console.error("❌ useFocusEffect error:", err);
         setScreenError("Failed to initialize home screen");
       }
       return () => { };
-    }, [clearIncomingRideTimer, fetchOngoingRide]),
+    }, [clearIncomingRideTimer, fetchOngoingRide, fetchTodayEarnings]),
   );
 
   const presentIncomingRide = useCallback((ride) => {
@@ -507,7 +521,14 @@ const HomeScreen = () => {
               {/* TODAY'S EARNINGS DISPLAY SHEET */}
               <View style={styles.earningsCard}>
                 <Text style={styles.earningsLabel}>Todays Earnings</Text>
-                <Text style={styles.earningsAmount}>LKR 0.00</Text>
+                <Text style={styles.earningsAmount}>
+                  {todayEarnings === null
+                    ? "LKR --"
+                    : `LKR ${Number(todayEarnings).toLocaleString("en-LK", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`}
+                </Text>
               </View>
 
               <TouchableOpacity

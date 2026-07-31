@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -8,83 +8,76 @@ import {
   StatusBar,
   Animated,
   Dimensions,
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import UnderConstructionBanner from "../../components/UnderConstructionBanner";
+import { useFocusEffect } from "@react-navigation/native";
+import {
+  fetchDriverAccount,
+  fetchEarningsSummary,
+  formatRs,
+} from "../../services/earnings";
 
 const { width } = Dimensions.get("window");
 
-const PERIOD_DATA = {
-  day: {
-    title: "Today",
-    mainAmount: 452.1,
-    trendText: "+12% from yesterday",
-    trips: 18,
-    hoursOnline: 6.5,
-    avgPerTrip: 25.12,
-    rating: 4.9,
-    weeklyGoal: 500,
-    goalProgress: 78,
-    chartLabel: "This Day",
-    chartData: [
-      { label: "6", amount: 35 },
-      { label: "9", amount: 52 },
-      { label: "12", amount: 68 },
-      { label: "3", amount: 84 },
-      { label: "6", amount: 74 },
-      { label: "9", amount: 98 },
-    ],
-  },
-  week: {
-    title: "This Week",
-    mainAmount: 2452.1,
-    trendText: "+12% from last week",
-    trips: 247,
-    hoursOnline: 42.5,
-    avgPerTrip: 24.8,
-    rating: 4.9,
-    weeklyGoal: 1500,
-    goalProgress: 78,
-    chartLabel: "This Week",
-    chartData: [
-      { label: "Mon", amount: 125 },
-      { label: "Tue", amount: 189 },
-      { label: "Wed", amount: 145 },
-      { label: "Thu", amount: 210 },
-      { label: "Fri", amount: 245 },
-      { label: "Sat", amount: 198 },
-      { label: "Sun", amount: 150 },
-    ],
-  },
-  month: {
-    title: "This Month",
-    mainAmount: 9850.75,
-    trendText: "+18% from last month",
-    trips: 1034,
-    hoursOnline: 176.2,
-    avgPerTrip: 26.15,
-    rating: 4.9,
-    weeklyGoal: 6000,
-    goalProgress: 84,
-    chartLabel: "This Month",
-    chartData: [
-      { label: "W1", amount: 1800 },
-      { label: "W2", amount: 2200 },
-      { label: "W3", amount: 2400 },
-      { label: "W4", amount: 3450 },
-    ],
-  },
+const PERIOD_TITLES = {
+  day: "Today",
+  week: "This Week",
+  month: "This Month",
 };
 
 const EarningsScreen = () => {
   const [period, setPeriod] = useState("day");
+  const [summary, setSummary] = useState(null);
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(24)).current;
 
-  const summary = useMemo(() => PERIOD_DATA[period], [period]);
+  const load = useCallback(async (selectedPeriod) => {
+    try {
+      setError(null);
+
+      const [summaryData, accountData] = await Promise.all([
+        fetchEarningsSummary(selectedPeriod),
+        fetchDriverAccount(),
+      ]);
+
+      setSummary(summaryData);
+      setAccount(accountData);
+    } catch (err) {
+      setError(
+        err?.response?.data?.message ||
+          "Could not load your earnings. Pull down to retry."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    load(period);
+  }, [period, load]);
+
+  // Refresh on focus so the balance reflects rides completed since last view.
+  useFocusEffect(
+    useCallback(() => {
+      load(period);
+    }, [period, load])
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load(period);
+  }, [period, load]);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -104,10 +97,14 @@ const EarningsScreen = () => {
     ]).start();
   }, [period, fadeAnim, slideAnim]);
 
-  const maxAmount = Math.max(...summary.chartData.map((d) => d.amount));
+  const chartData = summary?.chart || [];
+  const maxAmount = Math.max(1, ...chartData.map((d) => Number(d.amount) || 0));
+  const commissionRate = Number(summary?.gross) > 0
+    ? (Number(summary.commission) / Number(summary.gross)) * 100
+    : 0;
 
-  const platformFee = summary.mainAmount * 0.15;
-  const driverNet = summary.mainAmount - platformFee;
+  const balance = Number(account?.balance ?? 0);
+  const owesPickU = balance < 0;
 
   const StatCard = ({ icon, label, value, bgColor, iconColor }) => (
     <View style={[styles.statCard, { backgroundColor: bgColor }]}>
@@ -119,8 +116,6 @@ const EarningsScreen = () => {
     </View>
   );
 
-  const formatRs = (amount) => `Rs.${amount.toFixed(2)}`;
-
   return (
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="light-content" backgroundColor="#00A859" />
@@ -129,8 +124,10 @@ const EarningsScreen = () => {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
-        bounces={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#00A859" />
+        }
       >
         <LinearGradient colors={["#00A859", "#007A41"]} style={styles.headerGradient}>
           <SafeAreaView edges={["top"]}>
@@ -162,116 +159,203 @@ const EarningsScreen = () => {
                 transform: [{ translateY: slideAnim }],
               }}
             >
-              <Text style={styles.mainAmount}>{formatRs(summary.mainAmount)}</Text>
+              <Text style={styles.mainAmount}>
+                {loading ? "—" : formatRs(summary?.net)}
+              </Text>
 
               <View style={styles.trendRow}>
-                <Feather name="trending-up" size={16} color="#FFF" />
-                <Text style={styles.trendText}>{summary.trendText}</Text>
+                <Feather name="check-circle" size={16} color="#FFF" />
+                <Text style={styles.trendText}>
+                  {loading
+                    ? "Loading your earnings..."
+                    : `${summary?.ride_count ?? 0} trip${
+                        (summary?.ride_count ?? 0) === 1 ? "" : "s"
+                      } · after commission`}
+                </Text>
               </View>
             </Animated.View>
           </SafeAreaView>
         </LinearGradient>
 
         <View style={styles.content}>
-          <UnderConstructionBanner style={styles.constructionBanner} />
-
-          <View style={styles.breakdownCard}>
-            <View style={styles.breakdownHeader}>
-              <Text style={styles.sectionTitle}>Earnings Breakdown</Text>
-              <Text style={styles.breakdownPeriod}>{summary.title}</Text>
+          {error && (
+            <View style={styles.errorBanner}>
+              <Feather name="alert-circle" size={16} color="#B91C1C" />
+              <Text style={styles.errorText}>{error}</Text>
             </View>
+          )}
 
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Total Earnings</Text>
-              <Text style={styles.breakdownValue}>{formatRs(summary.mainAmount)}</Text>
-            </View>
+          {loading ? (
+            <ActivityIndicator size="large" color="#00A859" style={styles.loader} />
+          ) : (
+            <>
+              {/* Signed position with PickU: the driver's single most important number. */}
+              <View
+                style={[
+                  styles.balanceCard,
+                  owesPickU ? styles.balanceCardOwing : styles.balanceCardOwed,
+                ]}
+              >
+                <View style={styles.balanceHeader}>
+                  <Feather
+                    name={owesPickU ? "arrow-up-circle" : "arrow-down-circle"}
+                    size={20}
+                    color={owesPickU ? "#B91C1C" : "#15803D"}
+                  />
+                  <Text
+                    style={[
+                      styles.balanceLabel,
+                      { color: owesPickU ? "#B91C1C" : "#15803D" },
+                    ]}
+                  >
+                    {balance === 0
+                      ? "Account settled"
+                      : owesPickU
+                        ? "You owe PickU"
+                        : "PickU owes you"}
+                  </Text>
+                </View>
 
-            <View style={styles.breakdownRow}>
-              <Text style={styles.breakdownLabel}>Platform Fee (15%)</Text>
-              <Text style={styles.breakdownValueRed}>- {formatRs(platformFee)}</Text>
-            </View>
+                <Text
+                  style={[
+                    styles.balanceAmount,
+                    { color: owesPickU ? "#B91C1C" : "#15803D" },
+                  ]}
+                >
+                  {formatRs(balance)}
+                </Text>
 
-            <View style={styles.breakdownRowLast}>
-              <Text style={styles.breakdownLabelNet}>Driver Net Earnings</Text>
-              <Text style={styles.breakdownValueNet}>{formatRs(driverNet)}</Text>
-            </View>
-          </View>
+                <Text style={styles.balanceHint}>
+                  {balance === 0
+                    ? "Nothing outstanding either way."
+                    : owesPickU
+                      ? "Commission on cash rides you collected in full. Card rides reduce this automatically."
+                      : "Your share of card rides, payable to your bank account."}
+                </Text>
 
-          <Text style={styles.sectionTitle}>{summary.chartLabel}</Text>
-          <View style={styles.chartContainer}>
-            <View style={styles.barWrapper}>
-              {summary.chartData.map((item, index) => {
-                const barHeight = (item.amount / maxAmount) * 120;
-                const isLast = index === summary.chartData.length - 1;
-
-                return (
-                  /* Fixed by passing both key and index to verify individual entries */
-                  <View key={`${item.label}-${index}`} style={styles.barColumn}>
-                    <View
-                      style={[
-                        styles.bar,
-                        { height: barHeight },
-                        isLast && styles.activeBar,
-                      ]}
-                    />
-                    <Text style={styles.barLabel}>{item.label}</Text>
+                {account?.should_warn && (
+                  <View style={styles.warnRow}>
+                    <Feather name="alert-triangle" size={14} color="#B45309" />
+                    <Text style={styles.warnText}>
+                      Approaching your {formatRs(account.credit_limit)} limit. Top up
+                      soon to keep accepting rides.
+                    </Text>
                   </View>
-                );
-              })}
-            </View>
-          </View>
+                )}
 
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="navigation"
-              label="Total Trips"
-              value={String(summary.trips)}
-              bgColor="#F0FDF4"
-              iconColor="#16A34A"
-            />
-            <StatCard
-              icon="clock"
-              label="Hours Online"
-              value={String(summary.hoursOnline)}
-              bgColor="#EFF6FF"
-              iconColor="#2563EB"
-            />
-            <StatCard
-              icon="dollar-sign"
-              label="Avg. per Trip"
-              value={formatRs(summary.avgPerTrip)}
-              bgColor="#FAF5FF"
-              iconColor="#9333EA"
-            />
-            <StatCard
-              icon="star"
-              label="Rating"
-              value={String(summary.rating)}
-              bgColor="#FFFBEB"
-              iconColor="#D97706"
-            />
-          </View>
-
-          <View style={styles.goalCard}>
-            <View style={styles.goalHeader}>
-              <View>
-                <Text style={styles.goalLabel}>Weekly Goal</Text>
-                <Text style={styles.goalValue}>{formatRs(summary.weeklyGoal)}</Text>
+                {account?.over_credit_limit && (
+                  <View style={styles.blockRow}>
+                    <Feather name="slash" size={14} color="#FFF" />
+                    <Text style={styles.blockText}>
+                      You have passed your credit limit and cannot accept rides until
+                      you top up.
+                    </Text>
+                  </View>
+                )}
               </View>
-              <View style={{ alignItems: "flex-end" }}>
-                <Text style={styles.goalLabel}>Progress</Text>
-                <Text style={styles.goalValue}>{summary.goalProgress}%</Text>
+
+              <View style={styles.breakdownCard}>
+                <View style={styles.breakdownHeader}>
+                  <Text style={styles.sectionTitle}>Earnings Breakdown</Text>
+                  <Text style={styles.breakdownPeriod}>{PERIOD_TITLES[period]}</Text>
+                </View>
+
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>Total Fares</Text>
+                  <Text style={styles.breakdownValue}>{formatRs(summary?.gross)}</Text>
+                </View>
+
+                <View style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>
+                    PickU Commission{commissionRate > 0 ? ` (${commissionRate.toFixed(1)}%)` : ""}
+                  </Text>
+                  <Text style={styles.breakdownValueRed}>
+                    - {formatRs(summary?.commission)}
+                  </Text>
+                </View>
+
+                <View style={styles.breakdownRowLast}>
+                  <Text style={styles.breakdownLabelNet}>Your Net Earnings</Text>
+                  <Text style={styles.breakdownValueNet}>{formatRs(summary?.net)}</Text>
+                </View>
               </View>
-            </View>
 
-            <View style={styles.progressTrack}>
-              <View style={[styles.progressBar, { width: `${summary.goalProgress}%` }]} />
-            </View>
+              {Number(summary?.cash_collected) > 0 && (
+                <View style={styles.cashCard}>
+                  <Feather name="dollar-sign" size={18} color="#B45309" />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cashLabel}>Cash collected</Text>
+                    <Text style={styles.cashHint}>
+                      You are holding this. Commission on it is already in your balance
+                      above.
+                    </Text>
+                  </View>
+                  <Text style={styles.cashValue}>
+                    {formatRs(summary?.cash_collected)}
+                  </Text>
+                </View>
+              )}
 
-            <Text style={styles.goalSubtext}>
-              {formatRs(summary.weeklyGoal * (1 - summary.goalProgress / 100))} more to reach your goal!
-            </Text>
-          </View>
+              {chartData.length > 0 && (
+                <>
+                  <Text style={styles.sectionTitle}>{PERIOD_TITLES[period]}</Text>
+                  <View style={styles.chartContainer}>
+                    <View style={styles.barWrapper}>
+                      {chartData.map((item, index) => {
+                        const amount = Number(item.amount) || 0;
+                        const barHeight = Math.max((amount / maxAmount) * 120, 2);
+                        const isLast = index === chartData.length - 1;
+
+                        return (
+                          <View key={`${item.label}-${index}`} style={styles.barColumn}>
+                            <View
+                              style={[
+                                styles.bar,
+                                { height: barHeight },
+                                isLast && styles.activeBar,
+                              ]}
+                            />
+                            <Text style={styles.barLabel}>{item.label}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                </>
+              )}
+
+              <View style={styles.statsGrid}>
+                <StatCard
+                  icon="navigation"
+                  label="Total Trips"
+                  value={String(summary?.ride_count ?? 0)}
+                  bgColor="#F0FDF4"
+                  iconColor="#16A34A"
+                />
+                <StatCard
+                  icon="percent"
+                  label="Commission Paid"
+                  value={formatRs(summary?.commission)}
+                  bgColor="#FEF2F2"
+                  iconColor="#DC2626"
+                />
+                <StatCard
+                  icon="dollar-sign"
+                  label="Avg. per Trip"
+                  value={formatRs(summary?.average_per_trip)}
+                  bgColor="#FAF5FF"
+                  iconColor="#9333EA"
+                />
+                <StatCard
+                  icon="star"
+                  label="Rating"
+                  value={Number(summary?.rating ?? 0).toFixed(1)}
+                  bgColor="#FFFBEB"
+                  iconColor="#D97706"
+                />
+              </View>
+            </>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -355,8 +439,116 @@ const styles = StyleSheet.create({
   content: {
     padding: 24,
   },
-  constructionBanner: {
+  loader: {
+    marginVertical: 48,
+  },
+  errorBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 18,
+  },
+  errorText: {
+    flex: 1,
+    color: "#B91C1C",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  balanceCard: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 18,
+    borderWidth: 1,
+  },
+  balanceCardOwing: {
+    backgroundColor: "#FEF2F2",
+    borderColor: "#FECACA",
+  },
+  balanceCardOwed: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
+  },
+  balanceHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  balanceLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
+  balanceAmount: {
+    fontSize: 32,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  balanceHint: {
+    fontSize: 13,
+    color: "#475569",
+    lineHeight: 18,
+  },
+  warnRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 12,
+  },
+  warnText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#B45309",
+    fontWeight: "600",
+    lineHeight: 16,
+  },
+  blockRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
+    backgroundColor: "#B91C1C",
+    borderRadius: 12,
+    padding: 10,
+    marginTop: 12,
+  },
+  blockText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#FFF",
+    fontWeight: "700",
+    lineHeight: 16,
+  },
+  cashCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#FFFBEB",
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 24,
+  },
+  cashLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  cashHint: {
+    fontSize: 11,
+    color: "#78716C",
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  cashValue: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#B45309",
   },
   sectionTitle: {
     fontSize: 18,
@@ -487,45 +679,5 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "800",
     color: "#0F172A",
-  },
-  goalCard: {
-    backgroundColor: "#2563EB",
-    borderRadius: 24,
-    padding: 24,
-    shadowColor: "#2563EB",
-    shadowOpacity: 0.3,
-    shadowRadius: 15,
-    elevation: 8,
-  },
-  goalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 16,
-  },
-  goalLabel: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  goalValue: {
-    color: "#FFF",
-    fontSize: 24,
-    fontWeight: "800",
-  },
-  progressTrack: {
-    height: 8,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    backgroundColor: "#FFF",
-    borderRadius: 4,
-  },
-  goalSubtext: {
-    color: "rgba(255,255,255,0.8)",
-    fontSize: 13,
-    marginTop: 12,
   },
 });

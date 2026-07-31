@@ -1,57 +1,144 @@
+import { apiClient } from "../api/client";
 import type {
+  NewCardInput,
   OutstandingPayment,
   PaymentResult,
   SavedCard,
 } from "./paymentTypes";
-import { PREVIEW_CARDS } from "./paymentPreviewData";
 
-/** Keep false until the server-side sandbox and callback flow are ready. */
-export const CARD_PAYMENTS_ENABLED = false;
+/** Backend shape from PassengerPaymentMethodController (token is never exposed). */
+type RawPaymentMethod = {
+  id: number | string;
+  gateway: string;
+  brand: string | null;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+  is_default: boolean;
+};
+
+type RawPayment = {
+  payment_status?: string;
+  status?: string;
+  gateway_reference?: string;
+  failure_reason?: string;
+};
+
+function detectBrand(cardNumber: string): SavedCard["brand"] {
+  const digits = cardNumber.replace(/\D/g, "");
+  if (/^4/.test(digits)) return "visa";
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard";
+  if (/^3[47]/.test(digits)) return "amex";
+  return "unknown";
+}
+
+function toSavedCard(raw: RawPaymentMethod): SavedCard {
+  const brand = (raw.brand as SavedCard["brand"]) || "unknown";
+  const month = String(raw.exp_month).padStart(2, "0");
+  const year = String(raw.exp_year).slice(-2);
+
+  return {
+    id: String(raw.id),
+    brand: ["visa", "mastercard", "amex"].includes(brand) ? brand : "unknown",
+    last4: raw.last4,
+    expiryLabel: `${month}/${year}`,
+    isDefault: !!raw.is_default,
+  };
+}
+
+function toPaymentResult(raw: RawPayment | undefined, fallbackMessage: string): PaymentResult {
+  const status = String(raw?.payment_status || raw?.status || "").toUpperCase();
+
+  if (status === "COMPLETED") {
+    return { status: "completed", reference: raw?.gateway_reference };
+  }
+  if (status === "FAILED") {
+    return {
+      status: "failed",
+      message: raw?.failure_reason || "Card payment failed.",
+    };
+  }
+  return { status: "processing", message: fallbackMessage };
+}
 
 /**
  * Passenger payment boundary.
  *
- * Replace these preview implementations with backend endpoints after the
- * merchant flow is confirmed. Screens should not call the provider directly.
+ * Backed by the mock gateway until a real processor (PayHere/HNB) is wired up
+ * server-side - see PaymentGatewayServiceProvider. Screens should not call
+ * any gateway directly; everything goes through the backend so the double-
+ * entry ledger stays the single source of truth for what was actually paid.
  */
 export const paymentService = {
   async listCards(): Promise<SavedCard[]> {
-    return PREVIEW_CARDS;
+    const response = await apiClient.get<RawPaymentMethod[]>("/payment-methods");
+    if (!response.success || !response.data) return [];
+    return response.data.map(toSavedCard);
   },
 
-  async getCard(cardId: string): Promise<SavedCard | null> {
-    return PREVIEW_CARDS.find((card) => card.id === cardId) || null;
+  /**
+   * TEST-MODE card entry. This posts the raw number to our backend, which
+   * tokenizes it (via the mock gateway right now) and discards everything
+   * except the token and last4 - see PassengerPaymentMethodController::store.
+   * This is NOT the intended production posture (a bank-hosted form that
+   * never sends the PAN to us at all); it exists so the card ledger path can
+   * be exercised without a live gateway.
+   */
+  async saveCard(input: NewCardInput): Promise<{ success: boolean; message?: string; card?: SavedCard }> {
+    const response = await apiClient.post<RawPaymentMethod>("/payment-methods", {
+      number: input.number.replace(/\s/g, ""),
+      exp_month: input.expMonth,
+      exp_year: input.expYear,
+      cvv: input.cvv,
+      brand: detectBrand(input.number),
+      is_default: input.isDefault,
+    });
+
+    if (!response.success || !response.data) {
+      return { success: false, message: response.message || "Could not save this card." };
+    }
+
+    return { success: true, card: toSavedCard(response.data) };
   },
 
-  async setDefaultCard(_cardId: string): Promise<void> {
-    return;
+  async setDefaultCard(cardId: string): Promise<boolean> {
+    const response = await apiClient.post(`/payment-methods/${cardId}/default`);
+    return response.success;
   },
 
-  async removeCard(_cardId: string): Promise<void> {
-    return;
+  async deleteCard(cardId: string): Promise<boolean> {
+    const response = await apiClient.delete(`/payment-methods/${cardId}`);
+    return response.success;
   },
 
-  async beginSecureCardSetup(): Promise<{ redirectUrl: string }> {
-    return { redirectUrl: "preview://hnb-secure-card-setup" };
+  /**
+   * Confirms payment for a completed ride. Safe to call even if the driver
+   * app already triggered it (POST /payments/{ride} returns the existing
+   * payment instead of charging twice).
+   */
+  async beginRidePayment(rideId: string, _amount: number): Promise<PaymentResult> {
+    const response = await apiClient.post<RawPayment>(`/payments/${rideId}`);
+
+    if (!response.success) {
+      // 402 = card declined/errored server-side; anything else is unexpected.
+      return {
+        status: "failed",
+        message: response.message || "Card payment failed. Please try again.",
+      };
+    }
+
+    return toPaymentResult(response.data, "Waiting for payment confirmation.");
   },
 
-  async beginRidePayment(_rideId: string, _amount: number): Promise<PaymentResult> {
-    return {
-      status: "requires_action",
-      message:
-        "Card payments are not available while the secure payment connection is being configured.",
-    };
-  },
-
-  async getPaymentResult(_rideId: string): Promise<PaymentResult> {
-    return {
-      status: "processing",
-      message: "Waiting for secure payment confirmation.",
-    };
+  async getPaymentResult(rideId: string): Promise<PaymentResult> {
+    const response = await apiClient.get<{ payment?: RawPayment }>(`/rides/${rideId}`);
+    if (!response.success) {
+      return { status: "processing", message: "Waiting for secure payment confirmation." };
+    }
+    return toPaymentResult(response.data?.payment, "Waiting for secure payment confirmation.");
   },
 
   async listOutstandingPayments(): Promise<OutstandingPayment[]> {
     return [];
   },
 };
-

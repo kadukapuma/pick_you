@@ -57,6 +57,10 @@ const Sidebar = ({ admin, isCollapsed }) => {
                         <span>Fare Configs</span>
                     </NavLink>
                 )}
+                <NavLink to="/admin-portal/finance">
+                    <span className="material-icons">account_balance_wallet</span>
+                    <span>Finance</span>
+                </NavLink>
                 {canManageOperators && (
                     <NavLink to="/admin-portal/operators">
                         <span className="material-icons">admin_panel_settings</span>

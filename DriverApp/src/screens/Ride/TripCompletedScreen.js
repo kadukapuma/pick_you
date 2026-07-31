@@ -41,6 +41,14 @@ const TripCompletedScreen = ({ navigation, route }) => {
         ? `Rs. ${numericFare.toFixed(2)}`
         : fareAmount;
 
+  // Chosen by the passenger at booking. Getting this wrong on a card ride means
+  // the driver collects cash for a fare the gateway also charges.
+  const paymentMethod = (ride?.payment_method || "cash").toLowerCase();
+  const isCash = paymentMethod === "cash";
+
+  const commissionAmount = Number(ride?.commission_amount || 0);
+  const driverEarning = Number(ride?.driver_earning || 0);
+
   useEffect(() => {
     const subscription = BackHandler.addEventListener(
       "hardwareBackPress",
@@ -55,7 +63,9 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
     setIsProcessingCash(true);
     try {
-      await api.post(`/payments/${ride.id}`, { payment_method: "cash" });
+      // The server derives the method from the ride itself; sending it here
+      // would only ever disagree with what the passenger actually chose.
+      await api.post(`/payments/${ride.id}`);
 
       setTimeout(() => {
         navigation.reset({
@@ -107,7 +117,11 @@ const TripCompletedScreen = ({ navigation, route }) => {
           {!isProcessingCash ? "Trip Completed" : "Earnings Added!"}
         </Text>
         <Text style={styles.subTitleText}>
-          {!isProcessingCash ? "Great job!" : `Added ${formattedFare} to your profile wallet`}
+          {!isProcessingCash
+            ? "Great job!"
+            : driverEarning > 0
+              ? `Rs. ${driverEarning.toFixed(2)} added to your account`
+              : "Updating your account..."}
         </Text>
       </View>
 
@@ -128,8 +142,35 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
           <View style={styles.dataRowMetric}>
             <Text style={styles.rowLabelField}>Payment Method</Text>
-            <Text style={styles.rowValueNormal}>Cash</Text>
+            <View style={[styles.methodPill, isCash ? styles.methodPillCash : styles.methodPillCard]}>
+              <MaterialCommunityIcons
+                name={isCash ? "cash" : "credit-card-outline"}
+                size={14}
+                color={isCash ? "#B45309" : "#1D4ED8"}
+              />
+              <Text style={[styles.methodPillText, { color: isCash ? "#B45309" : "#1D4ED8" }]}>
+                {isCash ? "Cash" : "Card"}
+              </Text>
+            </View>
           </View>
+
+          {commissionAmount > 0 ? (
+            <>
+              <View style={styles.dataRowMetric}>
+                <Text style={styles.rowLabelField}>PickU Commission</Text>
+                <Text style={styles.rowValueDeduction}>
+                  - Rs. {commissionAmount.toFixed(2)}
+                </Text>
+              </View>
+
+              <View style={styles.dataRowMetric}>
+                <Text style={styles.rowLabelField}>Your Earnings</Text>
+                <Text style={styles.rowValueHighlight}>
+                  Rs. {driverEarning.toFixed(2)}
+                </Text>
+              </View>
+            </>
+          ) : null}
 
           <View style={styles.dataRowMetric}>
             <Text style={styles.rowLabelField}>Distance</Text>
@@ -187,28 +228,51 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
         {/* --- SYSTEM ACTION BLOCK FOOTER --- */}
         <View style={styles.actionSectionContainer}>
+          {!isProcessingCash && !isCash && (
+            <View style={styles.cardNoticeBanner}>
+              <MaterialCommunityIcons name="information" size={18} color="#1D4ED8" />
+              <Text style={styles.cardNoticeText}>
+                Already paid by card. Do not collect any cash from the passenger.
+              </Text>
+            </View>
+          )}
+
           <Text style={styles.paymentInstructionMessage}>
-            {!isProcessingCash ? "Collect cash from passenger" : "Processing wallet deposition..."}
+            {isProcessingCash
+              ? "Updating your account..."
+              : isCash
+                ? `Collect ${formattedFare} cash from passenger`
+                : "Nothing to collect"}
           </Text>
 
           <TouchableOpacity
             style={[
-              styles.primaryActionButton, 
+              styles.primaryActionButton,
               isProcessingCash && styles.buttonDisabledState
             ]}
             onPress={handleCashCollected}
             disabled={isProcessingCash}
             activeOpacity={0.85}
           >
-            <View style={{ width: 24 }} /> 
+            <View style={{ width: 24 }} />
             <Text style={styles.primaryActionLabel}>
-              {!isProcessingCash ? "Cash Collected" : "Updating Earnings..."}
+              {isProcessingCash
+                ? "Updating Earnings..."
+                : isCash
+                  ? "Cash Collected"
+                  : "Finish Trip"}
             </Text>
             <View style={styles.actionButtonIconFrame}>
-              <MaterialCommunityIcons 
-                name={!isProcessingCash ? "cash-register" : "wallet-outline"} 
-                size={20} 
-                color="#FFFFFF" 
+              <MaterialCommunityIcons
+                name={
+                  isProcessingCash
+                    ? "wallet-outline"
+                    : isCash
+                      ? "cash-register"
+                      : "check-circle-outline"
+                }
+                size={20}
+                color="#FFFFFF"
               />
             </View>
           </TouchableOpacity>
@@ -298,6 +362,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#1E293B",
+  },
+  rowValueDeduction: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#DC2626",
+  },
+  methodPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  methodPillCash: {
+    backgroundColor: "#FEF3C7",
+  },
+  methodPillCard: {
+    backgroundColor: "#DBEAFE",
+  },
+  methodPillText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  cardNoticeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#DBEAFE",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  cardNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    lineHeight: 18,
   },
   rowValueHighlight: {
     fontSize: 14,

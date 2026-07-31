@@ -400,6 +400,33 @@ const deleteVehicleType = async (token, vehicleTypeId) => {
   return payload
 }
 
+// Finance - commission and driver settlement
+const fetchFinanceSummary = async (token, period = 'month') => {
+  const payload = await apiFetch(`/admin/finance/summary?period=${period}`, { token })
+  return payload.data || {}
+}
+
+const fetchDriverAccounts = async (token, { filter = 'all', search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ filter, page: String(page) })
+  if (search) params.set('search', search)
+
+  const payload = await apiFetch(`/admin/finance/driver-accounts?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const fetchDriverStatement = async (token, driverId, page = 1) => {
+  const payload = await apiFetch(
+    `/admin/finance/drivers/${driverId}/statement?page=${page}`,
+    { token },
+  )
+  return payload.data || {}
+}
+
+const fetchTrialBalance = async (token) => {
+  const payload = await apiFetch('/admin/finance/trial-balance', { token })
+  return payload.data || {}
+}
+
 // App Settings
 const fetchAppSettings = async (token) => {
   const payload = await apiFetch('/app-settings', { token })
@@ -465,4 +492,8 @@ export {
   updateRolePermissions,
   fetchAppSettings,
   updateAppSetting,
+  fetchFinanceSummary,
+  fetchDriverAccounts,
+  fetchDriverStatement,
+  fetchTrialBalance,
 }
