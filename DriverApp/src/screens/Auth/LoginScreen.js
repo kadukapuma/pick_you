@@ -19,7 +19,6 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -27,6 +26,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import KeyboardAwareWrapper from "../../components/KeyboardAwareWrapper";
 import api from "../../services/api";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApiErrorMessage } from "../../utils/apiError";
+import ThemedFeedbackModal from "../../components/ThemedFeedbackModal";
 
 const { width, height } = Dimensions.get("window");
 
@@ -44,26 +45,53 @@ const LoginScreen = ({
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [feedback, setFeedback] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    type: "error",
+  });
 
   const BRAND_GREEN = "#00A859";
+  const showFeedback = (title, message, type = "error") => {
+    setFeedback({ visible: true, title, message, type });
+  };
 
   // Production API Login Workflow
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please enter both email and password");
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (!normalizedEmail && !password) {
+      showFeedback("Missing Details", "Please enter your email and password.", "warning");
+      return;
+    }
+    if (!normalizedEmail) {
+      showFeedback("Email Required", "Please enter your email address.", "warning");
+      return;
+    }
+    if (!/\S+@\S+\.\S+/.test(normalizedEmail)) {
+      showFeedback("Invalid Email", "Please enter a valid email address.", "warning");
+      return;
+    }
+    if (!password) {
+      showFeedback("Password Required", "Please enter your password.", "warning");
       return;
     }
 
     setIsLoading(true);
     try {
       const response = await api.post("/driver/auth/login", {
-        email,
+        email: normalizedEmail,
         password,
         role: "driver",
       });
 
-      if (response.data?.data?.token) {
-        await AsyncStorage.setItem("userToken", response.data.data.token);
+      const token = response.data?.data?.token;
+      if (!token) {
+        throw new Error("LOGIN_TOKEN_MISSING");
+      }
+
+      await AsyncStorage.setItem("userToken", token);
 
         const userResponse = await api.get("/user");
         const user = userResponse.data;
@@ -110,15 +138,17 @@ const LoginScreen = ({
           setIsLoading(false);
           setIsLoggedIn?.(true);
         }, 500);
-      }
     } catch (error) {
       setIsLoading(false);
       console.log("Login error:", error.response?.data || error.message);
-      Alert.alert(
-        "Login Failed",
-        error.response?.data?.message ||
-        "Invalid credentials. Please try again."
-      );
+      const message =
+        error.message === "LOGIN_TOKEN_MISSING"
+          ? "The server did not complete the login. Please try again."
+          : getApiErrorMessage(
+              error,
+              "We couldn't sign you in. Please try again."
+            );
+      showFeedback("Login Failed", message, "error");
     }
   };
 
@@ -440,6 +470,19 @@ const LoginScreen = ({
             </MotiText>
           </View>
         </Modal>
+
+        <ThemedFeedbackModal
+          visible={feedback.visible}
+          type={feedback.type}
+          title={feedback.title}
+          message={feedback.message}
+          onClose={() =>
+            setFeedback((current) => ({ ...current, visible: false }))
+          }
+          onPrimary={() =>
+            setFeedback((current) => ({ ...current, visible: false }))
+          }
+        />
       </View>
     </TouchableWithoutFeedback>
   );
