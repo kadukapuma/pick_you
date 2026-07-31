@@ -1,15 +1,16 @@
 import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef } from "react";
 import { Animated, Easing, StyleSheet, Text, View } from "react-native";
-import { paymentService } from "../../services/payments/paymentService";
+import { CARD_PAYMENTS_ENABLED, paymentService } from "../../services/payments/paymentService";
 import PaymentScreen, { PaymentCard } from "../../features/payments/PaymentScreen";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
 
 export default function PaymentProcessingScreen() {
-  const { rideId = "", amount = "0", preview } = useLocalSearchParams<{
+  const { rideId = "", amount = "0", preview, documentPreview } = useLocalSearchParams<{
     rideId?: string;
     amount?: string;
     preview?: string;
+    documentPreview?: string;
   }>();
   const spin = useRef(new Animated.Value(0)).current;
 
@@ -25,7 +26,9 @@ export default function PaymentProcessingScreen() {
     animation.start();
 
     let cancelled = false;
-    const timer = preview
+    const timer = documentPreview
+      ? undefined
+      : preview
       ? setTimeout(() => {
           router.replace({ pathname: "/payments/success", params: { rideId, amount } });
         }, 2200)
@@ -51,16 +54,21 @@ export default function PaymentProcessingScreen() {
             });
             return;
           }
+          if (result.status === "processing") {
+            router.replace({ pathname: "/payments/pending", params: { rideId, amount } });
+            return;
+          }
           if (result.status === "failed" || result.status === "requires_action") {
             router.replace({ pathname: "/payments/failed", params: { rideId, amount, message: result.message || "Payment needs your attention." } });
           }
         }, 900);
 
     return () => {
+      cancelled = true;
       animation.stop();
       if (timer) clearTimeout(timer);
     };
-  }, [amount, preview, rideId, spin]);
+  }, [amount, documentPreview, preview, rideId, spin]);
 
   return (
     <PaymentScreen title="Confirming payment" canGoBack={false}>
@@ -90,13 +98,15 @@ export default function PaymentProcessingScreen() {
         </Text>
       </View>
       <PaymentCard>
-        <View style={styles.row}><Text style={styles.label}>Payment method</Text><Text style={styles.value}>Visa •••• 4242</Text></View>
+        <View style={styles.row}><Text style={styles.label}>Payment method</Text><Text style={styles.value}>Visa •••• 6492</Text></View>
         <View style={styles.divider} />
         <View style={styles.row}><Text style={styles.label}>Ride reference</Text><Text style={styles.value}>{rideId || "Pending"}</Text></View>
       </PaymentCard>
       <View style={styles.tip}>
         <Text style={styles.tipText}>
-          You can leave this screen safely. Payment status will continue to update from the backend.
+          {CARD_PAYMENTS_ENABLED
+            ? "You can leave this screen safely. Payment status will continue to update securely."
+            : "This is a sandbox UI preview. No real payment is being processed."}
         </Text>
       </View>
     </PaymentScreen>

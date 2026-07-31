@@ -414,9 +414,16 @@ const LandingLayout = () => {
           <div className="footer-bottom-left">
             <p>&copy; {new Date().getFullYear()} PickYou. All rights reserved.</p>
             <div className="legal-links">
-              <Link to="/privacy-policy" onClick={() => window.scrollTo(0, 0)}>Privacy Policy</Link>
-              <span className="legal-separator">|</span>
-              <Link to="/terms-and-conditions" onClick={() => window.scrollTo(0, 0)}>Terms &amp; Conditions</Link>
+              <span className="legal-link-label">Passenger</span>
+              <Link to="/passenger/terms-and-conditions" onClick={() => window.scrollTo(0, 0)}>Terms</Link>
+              <Link to="/passenger/privacy-policy" onClick={() => window.scrollTo(0, 0)}>Privacy</Link>
+              <Link to="/passenger/payment-policy" onClick={() => window.scrollTo(0, 0)}>Payments</Link>
+              <Link to="/passenger/cancellation-refund-policy" onClick={() => window.scrollTo(0, 0)}>Refunds</Link>
+            </div>
+            <div className="legal-links">
+              <span className="legal-link-label">Driver</span>
+              <Link to="/terms-and-conditions" onClick={() => window.scrollTo(0, 0)}>Terms</Link>
+              <Link to="/privacy-policy" onClick={() => window.scrollTo(0, 0)}>Privacy</Link>
             </div>
           </div>
           <div className="footer-actions">
