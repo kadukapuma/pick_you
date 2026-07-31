@@ -34,7 +34,8 @@ const RideDetailsScreen = ({ navigation, route }) => {
   const dropoffLocation = ride?.drop || "Peradeniya Junction";
   const totalDistance = ride?.distance || "5.4 km";
   const estimatedTime = ride?.time || "18 min";
-  const paymentMethod = ride?.paymentMode || "Cash";
+  const paymentMethod = (ride?.paymentMode || ride?.payment_method || "cash").toLowerCase();
+  const isCashRide = paymentMethod === "cash";
   const totalFare = ride?.price || 850;
   const customerPhone = ride?.customerPhone;
 
@@ -205,12 +206,32 @@ const RideDetailsScreen = ({ navigation, route }) => {
 
           <View style={styles.smallMetricCard}>
             <View style={styles.iconCircleBg}>
-              <Ionicons name="wallet-outline" size={16} color="#00A859" />
+              <Ionicons
+                name={isCashRide ? "cash-outline" : "card-outline"}
+                size={16}
+                color="#00A859"
+              />
             </View>
             <Text style={styles.metricLabel}>Payment</Text>
-            <Text style={styles.metricValueText}>{paymentMethod}</Text>
+            <Text
+              style={[
+                styles.metricValueText,
+                { color: isCashRide ? "#B45309" : "#1D4ED8" },
+              ]}
+            >
+              {isCashRide ? "Cash" : "Card"}
+            </Text>
           </View>
         </View>
+
+        {!isCashRide && (
+          <View style={styles.cardRideNotice}>
+            <MaterialCommunityIcons name="credit-card-check-outline" size={18} color="#1D4ED8" />
+            <Text style={styles.cardRideNoticeText}>
+              Paid by card. Collect no cash at the end of this trip.
+            </Text>
+          </View>
+        )}
 
         {/* --- RIDE FARE SUMMARY BILLING CARD --- */}
         <View style={styles.modularWhiteCard}>
@@ -500,6 +521,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0F172A",
     marginTop: 2,
+  },
+  cardRideNotice: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#DBEAFE",
+    borderRadius: 14,
+    padding: 12,
+    marginHorizontal: 20,
+    marginBottom: 16,
+  },
+  cardRideNoticeText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#1D4ED8",
+    lineHeight: 18,
   },
   summaryHeaderTitleRow: {
     flexDirection: "row",

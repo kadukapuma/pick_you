@@ -41,6 +41,10 @@ const IncomingRideModal = ({
 }) => {
   const OFFER_SECONDS = 12;
   const customerProfilePicture = rideData?.customerProfilePicture;
+  // Shown before the driver accepts: cash rides they collect and owe commission
+  // on, card rides they collect nothing for and are paid out later.
+  const isCashRide =
+    (rideData?.paymentMode || rideData?.payment_method || "cash").toLowerCase() === "cash";
   const [countdown, setCountdown] = useState(OFFER_SECONDS);
   const soundRef = useRef(null);
   const soundOperationRef = useRef(Promise.resolve());
@@ -240,9 +244,20 @@ const IncomingRideModal = ({
               <View style={styles.fareContainer}>
                 <Text style={styles.fareLabel}>EST. FARE</Text>
                 <Text style={styles.farePriceText}>Rs. {rideData?.price || "850"}</Text>
-                <View style={styles.cashBadge}>
-                  <MaterialCommunityIcons name="cash" size={14} color="#00A859" />
-                  <Text style={styles.cashBadgeText}>Cash</Text>
+                <View style={[styles.cashBadge, !isCashRide && styles.cardBadge]}>
+                  <MaterialCommunityIcons
+                    name={isCashRide ? "cash" : "credit-card-outline"}
+                    size={14}
+                    color={isCashRide ? "#00A859" : "#1D4ED8"}
+                  />
+                  <Text
+                    style={[
+                      styles.cashBadgeText,
+                      !isCashRide && styles.cardBadgeText,
+                    ]}
+                  >
+                    {isCashRide ? "Cash" : "Card"}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -527,6 +542,12 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#00A859",
     marginLeft: 4,
+  },
+  cardBadge: {
+    backgroundColor: "#DBEAFE",
+  },
+  cardBadgeText: {
+    color: "#1D4ED8",
   },
   triMetricsContainer: {
     flexDirection: "row",

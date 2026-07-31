@@ -15,6 +15,7 @@ class Ride extends Model
         'actual_distance_km', 'actual_duration_minutes', 'waiting_minutes',
         'chargeable_waiting_minutes', 'extra_distance_km', 'extra_distance_fare',
         'waiting_fare', 'fare_breakdown', 'estimated_fare', 'final_fare', 'status',
+        'payment_method', 'commission_rate', 'commission_amount', 'driver_earning',
         'fare_calculation_version', 'last_processed_location_sequence',
         'last_processed_location_recorded_at',
         'requested_at', 'accepted_at', 'arrived_at', 'started_at', 'completed_at', 'cancelled_at',
@@ -23,6 +24,11 @@ class Ride extends Model
 
     protected $casts = [
         'fare_breakdown' => 'array',
+        // Without these, decimal scale depends on the database driver: Postgres
+        // returns "60.00" where SQLite returns "60".
+        'commission_rate' => 'decimal:4',
+        'commission_amount' => 'decimal:2',
+        'driver_earning' => 'decimal:2',
         'requested_at' => 'datetime',
         'accepted_at' => 'datetime',
         'arrived_at' => 'datetime',

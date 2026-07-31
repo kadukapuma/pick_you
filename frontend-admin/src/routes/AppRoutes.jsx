@@ -20,6 +20,7 @@ import Vehicles from '../views/Vehicles'
 import Passengers from '../views/Passengers'
 import Settings from '../views/Settings'
 import FareConfigs from '../views/FareConfigs'
+import Finance from '../views/Finance'
 import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
@@ -83,6 +84,7 @@ const AppRoutes = () => {
                     <Route path="vehicles/:vehicleId" element={<VehicleDetail />} />
                     <Route path="customers" element={<Passengers />} />
                     <Route path="fare-configs" element={<FareConfigs />} />
+                    <Route path="finance" element={<Finance />} />
                     <Route path="reports" element={<Reports />} />
                     <Route path="reports/:reportType" element={<ReportDetail />} />
                     <Route

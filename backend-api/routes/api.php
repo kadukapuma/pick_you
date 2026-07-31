@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AdminController;
+use App\Http\Controllers\Api\AdminFinanceController;
 use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AuthController;
@@ -30,6 +31,8 @@ use App\Http\Controllers\Api\SuperAdminNotificationController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
+use App\Http\Controllers\Api\DriverAccountController;
+use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\WalletTransactionController;
 use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
@@ -123,6 +126,15 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/rides/{id}/complete', [RideController::class, 'completeRide'])->middleware('idempotent');
         Route::post('/driver-locations', [DriverLocationController::class, 'store'])
             ->middleware('throttle:60,1');
+        Route::get('/driver/account', [DriverAccountController::class, 'show']);
+        Route::get('/driver/account/transactions', [DriverAccountController::class, 'transactions']);
+        Route::get('/driver/earnings/summary', [DriverAccountController::class, 'earnings']);
+    });
+    Route::middleware('role:passenger')->group(function () {
+        Route::get('/payment-methods', [PassengerPaymentMethodController::class, 'index']);
+        Route::post('/payment-methods', [PassengerPaymentMethodController::class, 'store']);
+        Route::post('/payment-methods/{id}/default', [PassengerPaymentMethodController::class, 'setDefault']);
+        Route::delete('/payment-methods/{id}', [PassengerPaymentMethodController::class, 'destroy']);
     });
     Route::get('/rides/{id}/driver-location', [RideLocationController::class, 'show']);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
@@ -150,6 +162,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
             Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
         });
+
+        // Commission and driver settlement
+        Route::get('/admin/finance/summary', [AdminFinanceController::class, 'summary']);
+        Route::get('/admin/finance/driver-accounts', [AdminFinanceController::class, 'driverAccounts']);
+        Route::get('/admin/finance/drivers/{driverId}/statement', [AdminFinanceController::class, 'driverStatement']);
+        Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
 
         Route::get('/role-permissions', [RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [RolePermissionController::class, 'update'])->middleware('super_admin');
