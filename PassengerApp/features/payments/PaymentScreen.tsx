@@ -56,13 +56,13 @@ export default function PaymentScreen({
               <Ionicons name="chevron-back" size={23} color={paymentTheme.ink} />
             </TouchableOpacity>
           ) : (
-            <View style={styles.back} />
+            <View style={styles.headerSpacer} />
           )}
           <View style={styles.heading}>
             <Text style={styles.title}>{title}</Text>
             {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
           </View>
-          <View style={styles.back} />
+          <View style={styles.headerSpacer} />
         </View>
 
         <ScrollView
@@ -166,6 +166,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(15,35,29,0.08)",
   },
+  headerSpacer: { width: 44, height: 44 },
   heading: { flex: 1, minWidth: 0, alignItems: "center" },
   title: {
     color: paymentTheme.ink,
