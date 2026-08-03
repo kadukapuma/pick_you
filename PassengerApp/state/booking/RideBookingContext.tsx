@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useCallback, useContext, useState } from "react";
 import type { LocationSuggestion } from "../../services/maps/locationSuggestions";
 
 // Re-export for convenience
@@ -121,10 +121,10 @@ export function RideSearchProvider({
     setActiveRideStatus(null);
   };
 
-  const setActiveRide = (rideId: number | null, status: string | null = null) => {
+  const setActiveRide = useCallback((rideId: number | null, status: string | null = null) => {
     setActiveRideId(rideId);
     setActiveRideStatus(status);
-  };
+  }, []);
 
   const value: RideSearchContextType = {
     tripType,
