@@ -8,6 +8,8 @@ use App\Models\PassengerPaymentMethod;
 use App\Models\Payment;
 use App\Models\Ride;
 use App\Models\WalletTransaction;
+use App\Models\PaymentAttempt;
+use App\Models\PaymentEvent;
 use App\Services\Ledger\RideSettlementService;
 use App\Services\Payments\PaymentGateway;
 use App\Traits\ApiResponse;
@@ -61,8 +63,18 @@ class PaymentController extends Controller
         try {
             [$payment, $alreadyProcessed] = $this->createOrFetchPayment($ride->id, $paymentMethod);
 
-            if ($payment->payment_status === 'PENDING' && $paymentMethod === 'card') {
-                $payment = $this->captureCard($payment);
+            // if ($payment->payment_status === 'PENDING' && $paymentMethod === 'card') {
+            //     $payment = $this->captureCard($payment);
+            // }
+            $retryableCardStatuses = ['PENDING', 'FAILED'];
+
+            if (
+                $paymentMethod === 'card'
+                && in_array($payment->payment_status, $retryableCardStatuses, true)
+            ) {
+                $payment = $this->prepareCardRetry($payment);
+                $attempt = $this->createCardAttempt($payment);
+                $payment = $this->captureCard($payment, $attempt);
             }
         } catch (DomainException $exception) {
             return $this->error($exception->getMessage(), 422);
@@ -128,7 +140,7 @@ class PaymentController extends Controller
                 'passenger_id' => $lockedRide->passenger_id,
                 'payment_method' => $paymentMethod,
                 'amount' => $amount,
-                'transaction_id' => 'txn_'.bin2hex(random_bytes(16)),
+                'transaction_id' => 'txn_' . bin2hex(random_bytes(16)),
                 'payment_status' => $paymentMethod === 'cash' ? 'COMPLETED' : 'PENDING',
                 'paid_at' => $paymentMethod === 'cash' ? now() : null,
             ]);
@@ -154,7 +166,7 @@ class PaymentController extends Controller
                     'transaction_type' => 'debit',
                     'amount' => $amount,
                     'balance_after' => $passenger->wallet_balance,
-                    'description' => 'Paid for ride '.$lockedRide->ride_code,
+                    'description' => 'Paid for ride ' . $lockedRide->ride_code,
                 ]);
 
                 $payment->update(['payment_status' => 'COMPLETED', 'paid_at' => now()]);
@@ -173,8 +185,83 @@ class PaymentController extends Controller
      * Capture the card, then record the outcome and settle in a second
      * transaction. This is the same shape a real gateway webhook will take.
      */
-    private function captureCard(Payment $payment): Payment
+
+
+    private function createCardAttempt(Payment $payment): PaymentAttempt
     {
+        return DB::transaction(function () use ($payment) {
+            $lockedPayment = Payment::query()
+                ->lockForUpdate()
+                ->findOrFail($payment->id);
+
+            if ($lockedPayment->payment_status === 'COMPLETED') {
+                throw new DomainException('Payment has already been completed.');
+            }
+
+            $nextAttemptNumber = ((int) $lockedPayment->attempts()->max('attempt_number')) + 1;
+
+            $attempt = $lockedPayment->attempts()->create([
+                'attempt_number' => $nextAttemptNumber,
+                'gateway' => $this->gateway()->name(),
+                'merchant_order_id' => sprintf(
+                    'PKU-R%d-P%d-A%02d',
+                    $lockedPayment->ride_id,
+                    $lockedPayment->id,
+                    $nextAttemptNumber
+                ),
+                'status' => 'PROCESSING',
+                'amount' => $lockedPayment->amount,
+                'currency' => 'LKR',
+                'started_at' => now(),
+            ]);
+
+            $lockedPayment->events()->create([
+                'payment_attempt_id' => $attempt->id,
+                'event_type' => 'ATTEMPT_CREATED',
+                'source' => 'backend',
+                'metadata' => [
+                    'attempt_number' => $nextAttemptNumber,
+                    'merchant_order_id' => $attempt->merchant_order_id,
+                ],
+            ]);
+
+            return $attempt;
+        }, 3);
+    }
+
+
+    private function prepareCardRetry(Payment $payment): Payment
+    {
+        return DB::transaction(function () use ($payment) {
+            $locked = Payment::query()
+                ->lockForUpdate()
+                ->findOrFail($payment->id);
+
+            if ($locked->payment_status === 'COMPLETED') {
+                return $locked;
+            }
+
+            if (! in_array($locked->payment_status, ['PENDING', 'FAILED'], true)) {
+                throw new DomainException(
+                    'This card payment cannot currently be retried.'
+                );
+            }
+
+            $locked->update([
+                'payment_status' => 'PENDING',
+                'failure_reason' => null,
+                'gateway_reference' => null,
+            ]);
+
+            return $locked->refresh();
+        }, 3);
+    }
+
+
+    private function captureCard(
+        Payment $payment,
+        PaymentAttempt $attempt
+    ): Payment {
         $method = PassengerPaymentMethod::query()
             ->where('passenger_id', $payment->passenger_id)
             ->orderByDesc('is_default')
@@ -182,38 +269,85 @@ class PaymentController extends Controller
             ->first();
 
         if (! $method) {
-            throw new DomainException('No saved card for this passenger. Please add a card or pay cash.');
+            throw new DomainException(
+                'No saved card for this passenger. Please add a card or pay cash.'
+            );
         }
 
         $result = $this->gateway()->capture($payment, $method);
 
-        return DB::transaction(function () use ($payment, $result) {
-            $locked = Payment::lockForUpdate()->findOrFail($payment->id);
+        return DB::transaction(function () use ($payment, $attempt, $result) {
+            $lockedPayment = Payment::query()
+                ->lockForUpdate()
+                ->findOrFail($payment->id);
 
-            if ($locked->payment_status === 'COMPLETED') {
-                return $locked;
+            $lockedAttempt = PaymentAttempt::query()
+                ->lockForUpdate()
+                ->findOrFail($attempt->id);
+
+            if ($lockedPayment->payment_status === 'COMPLETED') {
+                return $lockedPayment;
             }
 
             if (! $result->successful) {
-                $locked->update([
+                $lockedAttempt->update([
+                    'status' => 'FAILED',
+                    'gateway_reference' => $result->reference,
+                    'failure_reason' => $result->failureReason,
+                    'completed_at' => now(),
+                ]);
+
+                $lockedPayment->update([
                     'payment_status' => 'FAILED',
                     'gateway' => $result->gateway,
+                    'gateway_reference' => null,
                     'failure_reason' => $result->failureReason,
                 ]);
 
-                return $locked->refresh();
+                PaymentEvent::create([
+                    'payment_id' => $lockedPayment->id,
+                    'payment_attempt_id' => $lockedAttempt->id,
+                    'event_type' => 'PAYMENT_FAILED',
+                    'source' => 'gateway',
+                    'provider_reference' => $result->reference,
+                    'metadata' => [
+                        'reason' => $result->failureReason,
+                    ],
+                ]);
+
+                return $lockedPayment->refresh();
             }
 
-            $locked->update([
+            $lockedAttempt->update([
+                'status' => 'COMPLETED',
+                'gateway_reference' => $result->reference,
+                'completed_at' => now(),
+                'failure_reason' => null,
+            ]);
+
+            $lockedPayment->update([
                 'payment_status' => 'COMPLETED',
                 'paid_at' => now(),
                 'gateway' => $result->gateway,
                 'gateway_reference' => $result->reference,
+                'failure_reason' => null,
             ]);
 
-            $this->settlement->settle($locked->refresh());
+            PaymentEvent::create([
+                'payment_id' => $lockedPayment->id,
+                'payment_attempt_id' => $lockedAttempt->id,
+                'event_type' => 'PAYMENT_COMPLETED',
+                'source' => 'gateway',
+                'provider_reference' => $result->reference,
+                'metadata' => [
+                    'amount' => $lockedPayment->amount,
+                    'currency' => 'LKR',
+                ],
+            ]);
 
-            return $locked->refresh();
+            $this->settlement->settle($lockedPayment->refresh());
+
+            return $lockedPayment->refresh();
         }, 3);
     }
 }

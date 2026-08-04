@@ -6,28 +6,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class Payment extends Model
+class PaymentAttempt extends Model
 {
     protected $guarded = ['id'];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'paid_at' => 'datetime',
+        'started_at' => 'datetime',
+        'completed_at' => 'datetime',
+        'expires_at' => 'datetime',
     ];
 
-    public function ride(): BelongsTo
+    public function payment(): BelongsTo
     {
-        return $this->belongsTo(Ride::class);
-    }
-
-    public function passenger(): BelongsTo
-    {
-        return $this->belongsTo(Passenger::class);
-    }
-
-    public function attempts(): HasMany
-    {
-        return $this->hasMany(PaymentAttempt::class);
+        return $this->belongsTo(Payment::class);
     }
 
     public function events(): HasMany

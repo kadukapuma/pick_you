@@ -7,11 +7,9 @@ return [
     | Payment gateway
     |--------------------------------------------------------------------------
     |
-    | Which gateway implementation to bind. "mock" simulates captures without
-    | contacting anything and is refused outright in production - see
-    | PaymentGatewayServiceProvider and MockPaymentGateway.
+    | Which gateway implementation to bind.
     |
-    | Supported: "mock", "payhere" (not yet implemented)
+    | Supported: "mock", "webxpay"
     |
     */
 
@@ -23,18 +21,68 @@ return [
     |--------------------------------------------------------------------------
     |
     | DANGEROUS. A mock capture posts a real journal entry crediting the driver
-    | their share of money that was never collected. Paying that out moves real
-    | cash out of the company account for revenue it never received, and a
-    | cleared bank transfer cannot be undone.
+    | their share of money that was never collected.
     |
-    | Only enable this to demo the card flow before a real gateway exists, and
-    | only while you are NOT paying drivers out. Every entry it creates is
-    | tagged gateway = 'mock', so they can be found and reversed:
-    |
-    |     select * from journal_entries where gateway = 'mock';
+    | Only enable this for controlled demonstrations where real driver payouts
+    | are disabled.
     |
     */
 
-    'allow_mock_in_production' => env('PAYMENTS_ALLOW_MOCK_IN_PRODUCTION', false),
+    'allow_mock_in_production' => env(
+        'PAYMENTS_ALLOW_MOCK_IN_PRODUCTION',
+        false
+    ),
+
+    /*
+    |--------------------------------------------------------------------------
+    | WEBXPAY Configuration
+    |--------------------------------------------------------------------------
+    */
+
+    'webxpay' => [
+        'enabled' => env('WEBXPAY_ENABLED', false),
+
+        'environment' => env(
+            'WEBXPAY_ENVIRONMENT',
+            'staging'
+        ),
+
+        'checkout_url' => env('WEBXPAY_CHECKOUT_URL'),
+
+        'payment_gateway_id' => env(
+            'WEBXPAY_PAYMENT_GATEWAY_ID',
+            46
+        ),
+
+        'currency' => env(
+            'WEBXPAY_CURRENCY',
+            'LKR'
+        ),
+
+        'public_key_path' => env(
+            'WEBXPAY_PUBLIC_KEY_PATH'
+        ),
+
+        'secret_key' => env(
+            'WEBXPAY_SECRET_KEY'
+        ),
+
+        'api_username' => env(
+            'WEBXPAY_API_USERNAME'
+        ),
+
+        'api_password' => env(
+            'WEBXPAY_API_PASSWORD'
+        ),
+
+        'return_url' => env(
+            'WEBXPAY_RETURN_URL'
+        ),
+
+        'app_result_url' => env(
+            'WEBXPAY_APP_RESULT_URL',
+            'picku://payments/result'
+        ),
+    ],
 
 ];

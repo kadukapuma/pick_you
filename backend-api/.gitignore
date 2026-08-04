@@ -24,3 +24,6 @@ Homestead.yaml
 Thumbs.db
 
 database-backups/
+
+/storage/app/payment-keys/*
+!/storage/app/payment-keys/.gitignore
