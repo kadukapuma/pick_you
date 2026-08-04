@@ -676,4 +676,70 @@ class PassengerCreditAwardTest extends TestCase
         $this->assertSame(1, JournalEntry::count());
         $this->assertLedgerBalances();
     }
+
+    public function test_reservation_uses_only_available_credit(): void
+    {
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        // Start this scenario with no existing test wallet balance.
+        $passenger->update([
+            'wallet_balance' => '0.00',
+            'wallet_reserved_balance' => '0.00',
+        ]);
+
+        $admin = $this->makeUser(
+            User::ROLE_ADMIN,
+            '0770000001'
+        );
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        $creditService = app(PassengerCreditService::class);
+
+        $creditService->award(
+            passenger: $passenger,
+            amount: '500.00',
+            createdBy: $admin,
+            reason: 'System error compensation.',
+            reference: 'partial-reservation-award',
+        );
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'partial-reservation-payment',
+            'payment_status' => 'PENDING',
+        ]);
+
+        // Ask to reserve up to the whole fare. Only 500 is available.
+        $allocation = $creditService->reserve(
+            payment: $payment,
+            amount: '800.00',
+            reference: 'partial-reservation-1',
+        );
+
+        $this->assertNotNull($allocation);
+        $this->assertSame('500.00', $allocation->amount);
+
+        $passenger->refresh();
+
+        $this->assertSame('0.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '500.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertLedgerBalances();
+    }
 }

@@ -123,7 +123,7 @@ class PassengerCreditService
         Payment $payment,
         string $amount,
         string $reference,
-    ): PaymentAllocation {
+    ): ?PaymentAllocation {
         $amount = Money::of($amount);
 
         if (Money::cmp($amount, '0.00') <= 0) {
@@ -193,15 +193,16 @@ class PassengerCreditService
                 );
             }
 
-            if (
-                Money::cmp(
-                    (string) $passenger->wallet_balance,
-                    $amount
-                ) < 0
-            ) {
-                throw new DomainException(
-                    'Insufficient PickU credit balance.'
-                );
+            $availableBalance = Money::of(
+                $passenger->wallet_balance
+            );
+
+            if (Money::isZero($availableBalance)) {
+                return null;
+            }
+
+            if (Money::cmp($availableBalance, $amount) < 0) {
+                $amount = $availableBalance;
             }
 
             $availableAfter = Money::sub(

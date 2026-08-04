@@ -117,7 +117,7 @@ class RideController extends Controller
                     'ride_code' => $ride->ride_code,
                     'status' => $ride->status,
                     'vehicle_type' => $ride->fareConfig?->vehicle_type,
-                    'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? '')),
+                    'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger') . ' ' . ($passengerUser?->last_name ?? '')),
                     'passenger_profile_picture' => $passengerUser?->profile_picture,
                     'pickup_address' => $ride->pickup_address,
                     'pickup_lat' => $ride->pickup_latitude,
@@ -130,6 +130,7 @@ class RideController extends Controller
                     // The driver needs this before accepting: it decides whether
                     // they collect cash at the end or nothing at all.
                     'payment_method' => $ride->payment_method,
+                    'use_wallet_credit' => (bool) $ride->use_wallet_credit,
                     'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
                 ];
             });
@@ -154,6 +155,7 @@ class RideController extends Controller
             'estimated_duration_minutes' => 'nullable|numeric|min:0',
             // Older app builds omit this; default to cash so they keep working.
             'payment_method' => 'sometimes|in:cash,card',
+            'use_wallet_credit' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -203,6 +205,9 @@ class RideController extends Controller
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
             'estimated_fare' => $fareEstimate['estimated_fare'],
             'payment_method' => $request->input('payment_method', 'cash'),
+            'use_wallet_credit' => $request->boolean(
+                'use_wallet_credit'
+            ),
             'fare_breakdown' => [
                 'policy' => 'estimate_plus_extras',
                 'version' => 1,
@@ -260,7 +265,7 @@ class RideController extends Controller
                 'notes' => 'No online drivers available near passenger location.',
             ]);
 
-            return $this->error('No online drivers available for vehicle type '.$request->vehicle_type.'.', 404);
+            return $this->error('No online drivers available for vehicle type ' . $request->vehicle_type . '.', 404);
         }
 
         return $this->success($ride, 'Ride requested successfully', 201);
@@ -350,7 +355,7 @@ class RideController extends Controller
             return $this->error(
                 $account->is_blocked
                     ? ($account->block_reason ?: 'Your account is blocked. Please contact support.')
-                    : 'You owe PickU '.ltrim($account->balance(), '-').'. Please top up to continue accepting rides.',
+                    : 'You owe PickU ' . ltrim($account->balance(), '-') . '. Please top up to continue accepting rides.',
                 403,
             );
         }
