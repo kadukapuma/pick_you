@@ -742,4 +742,149 @@ class PassengerCreditAwardTest extends TestCase
 
         $this->assertLedgerBalances();
     }
+    public function test_passenger_can_view_only_their_credit_balance_and_history(): void
+    {
+        [$passengerUser, $passenger] = $this->makePassenger();
+        [, $otherPassenger] = $this->makePassenger(
+            '0771234568'
+        );
+
+        $passenger->update([
+            'wallet_balance' => '0.00',
+            'wallet_reserved_balance' => '0.00',
+        ]);
+
+        $otherPassenger->update([
+            'wallet_balance' => '0.00',
+            'wallet_reserved_balance' => '0.00',
+        ]);
+
+        $admin = $this->makeUser(
+            User::ROLE_ADMIN,
+            '0770000001'
+        );
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        $service = app(PassengerCreditService::class);
+
+        $service->award(
+            passenger: $passenger,
+            amount: '500.00',
+            createdBy: $admin,
+            reason: 'Credit belonging to this passenger.',
+            reference: 'history-passenger-credit',
+        );
+
+        $service->award(
+            passenger: $otherPassenger,
+            amount: '900.00',
+            createdBy: $admin,
+            reason: 'Credit belonging to another passenger.',
+            reference: 'history-other-credit',
+        );
+
+        Sanctum::actingAs(
+            $passengerUser,
+            ['role:passenger']
+        );
+
+        $this->getJson('/api/passenger/credits')
+            ->assertOk()
+            ->assertJsonPath(
+                'data.available_balance',
+                '500.00'
+            )
+            ->assertJsonPath(
+                'data.reserved_balance',
+                '0.00'
+            )
+            ->assertJsonCount(
+                1,
+                'data.transactions.data'
+            )
+            ->assertJsonPath(
+                'data.transactions.data.0.user_id',
+                $passengerUser->id
+            )
+            ->assertJsonPath(
+                'data.transactions.data.0.amount',
+                '500.00'
+            )
+            ->assertJsonMissing([
+                'description'
+                => 'Credit belonging to another passenger.',
+            ]);
+    }
+
+    public function test_different_requests_cannot_reserve_same_payment_twice(): void
+    {
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $passenger->update([
+            'wallet_balance' => '500.00',
+            'wallet_reserved_balance' => '0.00',
+        ]);
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card',
+            ['use_wallet_credit' => true]
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'duplicate-reservation-payment',
+            'payment_status' => 'PENDING',
+        ]);
+
+        $service = app(PassengerCreditService::class);
+
+        $first = $service->reserve(
+            payment: $payment,
+            amount: '800.00',
+            reference: 'reservation-request-one',
+        );
+
+        $second = $service->reserve(
+            payment: $payment,
+            amount: '800.00',
+            reference: 'reservation-request-two',
+        );
+
+        $passenger->refresh();
+
+        $this->assertNotNull($first);
+        $this->assertNotNull($second);
+        $this->assertSame($first->id, $second->id);
+
+        $this->assertSame('0.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '500.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            1,
+            PaymentAllocation::where(
+                'payment_id',
+                $payment->id
+            )->count()
+        );
+
+        $this->assertSame(
+            1,
+            WalletTransaction::where(
+                'transaction_type',
+                WalletTransaction::TYPE_CREDIT_RESERVATION
+            )->count()
+        );
+    }
 }

@@ -313,7 +313,7 @@ class SplitPaymentSettlementTest extends TestCase
             ['role:passenger']
         );
 
-        $this->postJson(
+        $firstResponse = $this->postJson(
             "/api/payments/{$ride->id}",
             [],
             ['Idempotency-Key' => 'split-card-end-to-end-1']
@@ -321,11 +321,39 @@ class SplitPaymentSettlementTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.amount', '800.00')
             ->assertJsonPath('data.payment_status', 'COMPLETED');
+        $secondResponse = $this->postJson(
+            "/api/payments/{$ride->id}",
+            [],
+            ['Idempotency-Key' => 'split-card-end-to-end-1']
+        )->assertOk();
+
+        $this->assertSame(
+            $firstResponse->json(),
+            $secondResponse->json()
+        );
 
         $payment = Payment::where(
             'ride_id',
             $ride->id
         )->sole();
+
+        $this->assertSame(
+            1,
+            $payment->attempts()->count()
+        );
+
+        $this->assertSame(
+            2,
+            $payment->allocations()->count()
+        );
+
+        $this->assertSame(
+            1,
+            JournalEntry::where(
+                'type',
+                JournalEntry::TYPE_RIDE_SETTLEMENT
+            )->count()
+        );
 
         $this->assertSame('800.00', $payment->amount);
 

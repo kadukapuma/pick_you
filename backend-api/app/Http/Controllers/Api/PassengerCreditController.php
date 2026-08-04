@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Passenger;
+use App\Models\WalletTransaction;
 use App\Services\Payments\PassengerCreditService;
 use App\Traits\ApiResponse;
 use DomainException;
@@ -17,6 +18,30 @@ class PassengerCreditController extends Controller
     public function __construct(
         private readonly PassengerCreditService $credits,
     ) {}
+
+        public function index(Request $request)
+    {
+        $passenger = $request->user()->passenger;
+
+        if (! $passenger) {
+            return $this->error(
+                'Passenger profile not found.',
+                404
+            );
+        }
+
+        $transactions = WalletTransaction::query()
+            ->where('user_id', $request->user()->id)
+            ->latest('id')
+            ->paginate(50);
+
+        return $this->success([
+            'available_balance' => $passenger->wallet_balance,
+            'reserved_balance'
+                => $passenger->wallet_reserved_balance,
+            'transactions' => $transactions,
+        ], 'Passenger credit balance retrieved successfully.');
+    }
 
     public function store(
         Request $request,
@@ -72,7 +97,7 @@ class PassengerCreditController extends Controller
             'passenger_id' => $passenger->id,
             'wallet_balance' => $passenger->wallet_balance,
             'wallet_reserved_balance'
-                => $passenger->wallet_reserved_balance,
+            => $passenger->wallet_reserved_balance,
             'transaction' => $transaction,
         ], 'Passenger credit awarded successfully.', 201);
     }

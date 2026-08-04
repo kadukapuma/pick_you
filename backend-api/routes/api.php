@@ -137,6 +137,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/earnings/summary', [DriverAccountController::class, 'earnings']);
     });
     Route::middleware('role:passenger')->group(function () {
+        Route::get(
+            '/passenger/credits',
+            [PassengerCreditController::class, 'index']
+        );
         Route::get('/payment-methods', [PassengerPaymentMethodController::class, 'index']);
         Route::post('/payment-methods', [PassengerPaymentMethodController::class, 'store']);
         Route::post('/payment-methods/{id}/default', [PassengerPaymentMethodController::class, 'setDefault']);
