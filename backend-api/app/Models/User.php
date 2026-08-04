@@ -246,4 +246,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(OtpVerification::class);
     }
+
+    public function deviceTokens()
+    {
+        return $this->hasMany(DeviceToken::class);
+    }
 }

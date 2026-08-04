@@ -12,7 +12,9 @@
         "EXPO_PUBLIC_WS_HOST": "picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
-        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key"
+        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key",
+        "GOOGLE_MAPS_ANDROID_API_KEY_DRIVER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ",
+        "GOOGLE_MAPS_IOS_API_KEY_DRIVER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ"
       }
     },
     "preview": {
@@ -22,7 +24,9 @@
         "EXPO_PUBLIC_WS_HOST": "picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
-        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key"
+        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key",
+        "GOOGLE_MAPS_ANDROID_API_KEY_DRIVER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ",
+        "GOOGLE_MAPS_IOS_API_KEY_DRIVER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ"
       }
     },
     "production": {
@@ -32,7 +36,9 @@
         "EXPO_PUBLIC_WS_HOST": "picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
-        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key"
+        "EXPO_PUBLIC_REVERB_APP_KEY": "app-key",
+        "GOOGLE_MAPS_ANDROID_API_KEY_DRIVER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ",
+        "GOOGLE_MAPS_IOS_API_KEY_DRIVER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ"
       }
     }
   },

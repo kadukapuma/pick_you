@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\DriverAuthController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverDocumentController;
@@ -147,6 +148,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/promotions/{id}', [PromotionController::class, 'show']);
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/{id}', [NotificationController::class, 'show']);
+    Route::post('/devices/push-token', [DeviceTokenController::class, 'store']);
+    Route::delete('/devices/push-token', [DeviceTokenController::class, 'destroy']);
     Route::put('/notifications/{id}', [NotificationController::class, 'update']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
     Route::get('/support-tickets', [SupportTicketController::class, 'index']);
