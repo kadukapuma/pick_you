@@ -660,6 +660,37 @@ class SplitPaymentSettlementTest extends TestCase
             $ride->id
         )->sole();
 
+        // Simulate the app reopening after losing the gateway response.
+        // The app must recover state from Laravel, not a deep-link value.
+        $this->getJson(
+            "/api/rides/{$ride->id}/payment"
+        )
+            ->assertOk()
+            ->assertJsonPath(
+                'data.payment.payment_status',
+                'UNKNOWN'
+            )
+            ->assertJsonPath(
+                'data.payment.attempts.0.status',
+                'UNKNOWN'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.0.type',
+                'CARD'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.0.status',
+                'RESERVED'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.1.type',
+                'PICKU_CREDIT'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.1.status',
+                'RESERVED'
+            );
+
         $this->assertSame(
             [
                 PaymentAllocation::TYPE_CARD
