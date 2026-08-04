@@ -143,6 +143,30 @@ class PaymentController extends Controller
         );
     }
 
+    public function show(Request $request, Ride $ride)
+    {
+        if ($request->user()->cannot('view', $ride)) {
+            return $this->error(
+                'You are not authorized to view this payment.',
+                403
+            );
+        }
+
+        $payment = $ride->payment()
+            ->with([
+                'attempts' => fn($query) => $query
+                    ->orderByDesc('attempt_number'),
+            ])
+            ->first();
+
+        return $this->success([
+            'ride_id' => $ride->id,
+            'payment_method' => $ride->payment_method,
+            'final_fare' => $ride->final_fare,
+            'payment' => $payment,
+        ]);
+    }
+
     /**
      * Create the payment and, for anything settled instantly, post the ledger
      * entry in the same transaction so money and books commit together.

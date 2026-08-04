@@ -137,8 +137,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::delete('/payment-methods/{id}', [PassengerPaymentMethodController::class, 'destroy']);
     });
     Route::get('/rides/{id}/driver-location', [RideLocationController::class, 'show']);
+    Route::get('/rides/{ride}/payment', [PaymentController::class, 'show']);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
         ->middleware(['role:passenger,driver,admin,super_admin', 'idempotent']);
+
     Route::get('/wallet-transactions', [WalletTransactionController::class, 'index']);
     Route::get('/wallet-transactions/{id}', [WalletTransactionController::class, 'show']);
     Route::post('/ratings', [RatingController::class, 'store'])->middleware('role:passenger');
