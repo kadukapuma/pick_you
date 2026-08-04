@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PaymentAttemptStatus;
+use App\Enums\PaymentStatus;
 use App\Events\RideStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\PassengerPaymentMethod;
@@ -66,11 +68,20 @@ class PaymentController extends Controller
             // if ($payment->payment_status === 'PENDING' && $paymentMethod === 'card') {
             //     $payment = $this->captureCard($payment);
             // }
-            $retryableCardStatuses = ['PENDING', 'FAILED'];
+            $hasNoAttempts = ! $payment->attempts()->exists();
+
+            $canStartFirstAttempt = $hasNoAttempts
+                && $payment->payment_status === PaymentStatus::PENDING->value;
+
+            $canRetry = in_array($payment->payment_status, [
+                PaymentStatus::DECLINED->value,
+                PaymentStatus::FAILED->value,
+                PaymentStatus::CANCELLED->value,
+            ], true);
 
             if (
                 $paymentMethod === 'card'
-                && in_array($payment->payment_status, $retryableCardStatuses, true)
+                && ($canStartFirstAttempt || $canRetry)
             ) {
                 $payment = $this->prepareCardRetry($payment);
                 $attempt = $this->createCardAttempt($payment);
@@ -87,10 +98,31 @@ class PaymentController extends Controller
             return $this->error('Payment processing failed.', 500);
         }
 
-        if ($payment->payment_status === 'FAILED') {
+        if (in_array($payment->payment_status, [
+            PaymentStatus::DECLINED->value,
+            PaymentStatus::FAILED->value,
+        ], true)) {
             return $this->error(
                 $payment->failure_reason ?: 'Card payment failed. Please collect cash or try another card.',
                 402,
+            );
+        }
+
+        if (in_array($payment->payment_status, [
+            PaymentStatus::PENDING->value,
+            PaymentStatus::UNKNOWN->value,
+        ], true)) {
+            return $this->success(
+                $payment,
+                'Payment status is awaiting confirmation.',
+                202,
+            );
+        }
+
+        if ($payment->payment_status === PaymentStatus::CANCELLED->value) {
+            return $this->error(
+                $payment->failure_reason ?: 'Payment was cancelled.',
+                409,
             );
         }
 
@@ -209,7 +241,7 @@ class PaymentController extends Controller
                     $lockedPayment->id,
                     $nextAttemptNumber
                 ),
-                'status' => 'PROCESSING',
+                'status' => PaymentAttemptStatus::PROCESSING->value,
                 'amount' => $lockedPayment->amount,
                 'currency' => 'LKR',
                 'started_at' => now(),
@@ -241,14 +273,19 @@ class PaymentController extends Controller
                 return $locked;
             }
 
-            if (! in_array($locked->payment_status, ['PENDING', 'FAILED'], true)) {
+            if (! in_array($locked->payment_status, [
+                PaymentStatus::PENDING->value,
+                PaymentStatus::DECLINED->value,
+                PaymentStatus::FAILED->value,
+                PaymentStatus::CANCELLED->value,
+            ], true)) {
                 throw new DomainException(
                     'This card payment cannot currently be retried.'
                 );
             }
 
             $locked->update([
-                'payment_status' => 'PENDING',
+                'payment_status' => PaymentStatus::PENDING->value,
                 'failure_reason' => null,
                 'gateway_reference' => null,
             ]);
@@ -291,14 +328,18 @@ class PaymentController extends Controller
 
             if (! $result->successful) {
                 $lockedAttempt->update([
-                    'status' => 'FAILED',
+                    'status' => $result->status->value,
                     'gateway_reference' => $result->reference,
                     'failure_reason' => $result->failureReason,
-                    'completed_at' => now(),
+                    'completed_at' => $result->status === PaymentAttemptStatus::PENDING
+                        ? null
+                        : now(),
                 ]);
 
                 $lockedPayment->update([
-                    'payment_status' => 'FAILED',
+                    'payment_status' => PaymentStatus::from(
+                        $result->status->value
+                    )->value,
                     'gateway' => $result->gateway,
                     'gateway_reference' => null,
                     'failure_reason' => $result->failureReason,
@@ -307,7 +348,7 @@ class PaymentController extends Controller
                 PaymentEvent::create([
                     'payment_id' => $lockedPayment->id,
                     'payment_attempt_id' => $lockedAttempt->id,
-                    'event_type' => 'PAYMENT_FAILED',
+                    'event_type' => 'PAYMENT_' . $result->status->value,
                     'source' => 'gateway',
                     'provider_reference' => $result->reference,
                     'metadata' => [
@@ -319,14 +360,14 @@ class PaymentController extends Controller
             }
 
             $lockedAttempt->update([
-                'status' => 'COMPLETED',
+                'status' => PaymentAttemptStatus::COMPLETED->value,
                 'gateway_reference' => $result->reference,
                 'completed_at' => now(),
                 'failure_reason' => null,
             ]);
 
             $lockedPayment->update([
-                'payment_status' => 'COMPLETED',
+                'payment_status' => PaymentStatus::COMPLETED->value,
                 'paid_at' => now(),
                 'gateway' => $result->gateway,
                 'gateway_reference' => $result->reference,
