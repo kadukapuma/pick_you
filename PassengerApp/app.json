@@ -30,7 +30,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "lk.picku.passenger"
+      "package": "lk.picku.passenger",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -64,7 +65,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "06853f0a-c351-4c8e-a613-4b9bd328203a"
+        "projectId": "40725fe7-33f0-469a-8f1b-5bf7fdc8d804"
       }
     }
   }

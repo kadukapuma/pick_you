@@ -11,6 +11,7 @@ use App\Services\Fares\FareCalculationService;
 use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
 use App\Services\RideMatching\RideMatchingService;
+use App\Services\Notifications\NotificationService;
 use App\Services\Rides\RideStateMachine;
 use App\Services\Rides\RideTransitionService;
 use App\Traits\ApiResponse;
@@ -32,6 +33,7 @@ class RideController extends Controller
         private readonly RideTransitionService $rideTransition,
         private readonly FareCalculationService $fares,
         private readonly GoogleMapsService $maps,
+        private readonly NotificationService $notifications,
     ) {}
 
     /**
@@ -373,6 +375,15 @@ class RideController extends Controller
         $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
+        $driverUser = $ride->driver?->user;
+        $driverName = trim(($driverUser?->first_name ?? 'Your driver').' '.($driverUser?->last_name ?? ''));
+        $this->notifications->notify(
+            $ride->passenger->user,
+            'Ride Booked',
+            "Ride booked with {$driverName} in vehicle {$ride->vehicle->vehicle_number}.",
+            ['ride_id' => $ride->id, 'status' => $ride->status],
+        );
+
         return $this->success($ride, 'Ride accepted successfully');
     }
 
@@ -413,6 +424,13 @@ class RideController extends Controller
 
         $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
+
+        $this->notifications->notify(
+            $ride->passenger->user,
+            'Trip Started',
+            'Trip started. Enjoy your ride!',
+            ['ride_id' => $ride->id, 'status' => $ride->status],
+        );
 
         return $this->success($ride, 'Ride started successfully');
     }
@@ -458,6 +476,13 @@ class RideController extends Controller
 
         $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
+
+        $this->notifications->notify(
+            $ride->passenger->user,
+            'Driver Arrived',
+            'Your driver has arrived. Cancelling the ride now may cost a fee.',
+            ['ride_id' => $ride->id, 'status' => $ride->status],
+        );
 
         return $this->success($ride, 'Driver arrived at pickup');
     }
@@ -511,6 +536,13 @@ class RideController extends Controller
 
         $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
+
+        $this->notifications->notify(
+            $ride->passenger->user,
+            'Trip Completed',
+            "Trip completed. Your total fare is Rs. {$ride->final_fare}.",
+            ['ride_id' => $ride->id, 'status' => $ride->status, 'final_fare' => $ride->final_fare],
+        );
 
         return $this->success($ride, 'Ride completed successfully');
     }
