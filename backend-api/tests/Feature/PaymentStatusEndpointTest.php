@@ -71,6 +71,22 @@ class PaymentStatusEndpointTest extends TestCase
             ->assertJsonPath(
                 'data.payment.attempts.1.status',
                 'DECLINED'
+            )
+            ->assertJsonCount(
+                1,
+                'data.payment.allocations'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.0.type',
+                'CARD'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.0.amount',
+                '2000.00'
+            )
+            ->assertJsonPath(
+                'data.payment.allocations.0.status',
+                'COMPLETED'
             );
     }
 
