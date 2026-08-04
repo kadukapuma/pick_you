@@ -21,6 +21,7 @@ use App\Http\Controllers\Api\PassengerAuthController;
 use App\Http\Controllers\Api\PassengerController;
 use App\Http\Controllers\Api\PassengerProfileController;
 use App\Http\Controllers\Api\PassengerRideHistoryController;
+use App\Http\Controllers\Api\PaymentCapabilityController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RatingController;
@@ -64,6 +65,10 @@ Route::middleware('throttle:auth')->group(function () {
 });
 
 // Protected routes
+Route::get(
+    '/payment-capabilities',
+    [PaymentCapabilityController::class, 'show']
+)->middleware('throttle:60,1');
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request, AuthPayload $payload) {
         $user = $request->user();
