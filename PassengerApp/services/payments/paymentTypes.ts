@@ -8,6 +8,14 @@ export type SavedCard = {
   isDefault: boolean;
 };
 
+export type NewCardInput = {
+  number: string;
+  expMonth: number;
+  expYear: number;
+  cvv: string;
+  isDefault?: boolean;
+};
+
 export type PaymentResultStatus =
   | "processing"
   | "completed"

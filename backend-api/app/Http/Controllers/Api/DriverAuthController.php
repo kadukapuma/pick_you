@@ -58,6 +58,9 @@ class DriverAuthController extends Controller
         if (DriverCredential::where('login_email', $email)->exists()) {
             return $this->error('A driver account already uses this email. Please log in.', 409);
         }
+        if (User::where('email', $email)->exists()) {
+            return $this->error('This email is already associated with another PickU account.', 409);
+        }
 
         try {
             $existingUser = $this->phoneIdentities->resolve($phone);
@@ -150,7 +153,7 @@ class DriverAuthController extends Controller
                     $user = User::create([
                         'first_name' => $locked->first_name,
                         'last_name' => $locked->last_name,
-                        'email' => null,
+                        'email' => $locked->login_email,
                         'phone' => $locked->phone_normalized,
                         'phone_normalized' => $locked->phone_normalized,
                         'password' => null,
@@ -159,7 +162,14 @@ class DriverAuthController extends Controller
                         'is_verified' => true,
                     ]);
                 } else {
-                    $user->update(['phone_normalized' => $locked->phone_normalized, 'is_verified' => true]);
+                    // An existing identity (e.g. already a passenger) keeps its own
+                    // email; only backfill if it never had one, so the driver
+                    // registration email never silently overwrites a verified one.
+                    $user->update([
+                        'phone_normalized' => $locked->phone_normalized,
+                        'is_verified' => true,
+                        'email' => $user->email ?: $locked->login_email,
+                    ]);
                 }
                 if ($user->driver) {
                     throw new InvalidArgumentException('This phone number already has a driver account.');

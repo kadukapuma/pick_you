@@ -127,6 +127,9 @@ class RideController extends Controller
                     'drop_lng' => $ride->drop_longitude,
                     'distance_km' => (float) $ride->distance_km,
                     'estimated_fare' => (float) $ride->estimated_fare,
+                    // The driver needs this before accepting: it decides whether
+                    // they collect cash at the end or nothing at all.
+                    'payment_method' => $ride->payment_method,
                     'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
                 ];
             });
@@ -149,6 +152,8 @@ class RideController extends Controller
             'drop_lng' => 'required|numeric',
             'distance_km' => 'nullable|numeric',
             'estimated_duration_minutes' => 'nullable|numeric|min:0',
+            // Older app builds omit this; default to cash so they keep working.
+            'payment_method' => 'sometimes|in:cash,card',
         ]);
 
         if ($validator->fails()) {
@@ -197,6 +202,7 @@ class RideController extends Controller
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
             'estimated_fare' => $fareEstimate['estimated_fare'],
+            'payment_method' => $request->input('payment_method', 'cash'),
             'fare_breakdown' => [
                 'policy' => 'estimate_plus_extras',
                 'version' => 1,
@@ -336,6 +342,17 @@ class RideController extends Controller
 
         if (! $vehicle) {
             return $this->error('No active vehicle found for driver', 400);
+        }
+
+        $account = \App\Models\DriverAccount::forDriver((int) $driver->id);
+
+        if (! $account->canAcceptRides()) {
+            return $this->error(
+                $account->is_blocked
+                    ? ($account->block_reason ?: 'Your account is blocked. Please contact support.')
+                    : 'You owe PickU '.ltrim($account->balance(), '-').'. Please top up to continue accepting rides.',
+                403,
+            );
         }
 
         try {

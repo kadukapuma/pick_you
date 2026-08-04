@@ -88,6 +88,14 @@ export function normalizeRidePayload(source = {}) {
       source.paymentMode ??
       source.payment_method ??
       source.payment?.payment_method,
+    // Kept in snake_case too: the ride screens show "collect cash" vs "already
+    // paid by card" off this, and getting it wrong double-charges the passenger.
+    payment_method:
+      source.payment_method ??
+      source.paymentMode ??
+      source.payment?.payment_method,
+    commission_amount: source.commission_amount,
+    driver_earning: source.driver_earning,
     time: source.time,
     cancel_reason: source.cancel_reason ?? source.cancelReason,
     cancelled_by: source.cancelled_by ?? source.cancelledBy,

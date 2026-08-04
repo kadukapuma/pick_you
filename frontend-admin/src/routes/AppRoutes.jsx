@@ -8,6 +8,12 @@ import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
 import PrivacyPolicy from '../views/Landing/PrivacyPolicy/PrivacyPolicy'
 import TermsAndConditions from '../views/Landing/TermsAndConditions/TermsAndConditions'
+import {
+    PassengerPayment,
+    PassengerPrivacy,
+    PassengerRefund,
+    PassengerTerms,
+} from '../views/Landing/LegalDocuments/PassengerLegalPages'
 
 // Admin Views
 import AdminLayout from '../views/AdminLayout'
@@ -20,6 +26,7 @@ import Vehicles from '../views/Vehicles'
 import Passengers from '../views/Passengers'
 import Settings from '../views/Settings'
 import FareConfigs from '../views/FareConfigs'
+import Finance from '../views/Finance'
 import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
@@ -63,6 +70,10 @@ const AppRoutes = () => {
                 <Route path="contact" element={<ContactUs />} />
                 <Route path="privacy-policy" element={<PrivacyPolicy />} />
                 <Route path="terms-and-conditions" element={<TermsAndConditions />} />
+                <Route path="passenger/terms-and-conditions" element={<PassengerTerms />} />
+                <Route path="passenger/privacy-policy" element={<PassengerPrivacy />} />
+                <Route path="passenger/payment-policy" element={<PassengerPayment />} />
+                <Route path="passenger/cancellation-refund-policy" element={<PassengerRefund />} />
             </Route>
 
             {/* Hidden Admin Portal */}
@@ -83,6 +94,7 @@ const AppRoutes = () => {
                     <Route path="vehicles/:vehicleId" element={<VehicleDetail />} />
                     <Route path="customers" element={<Passengers />} />
                     <Route path="fare-configs" element={<FareConfigs />} />
+                    <Route path="finance" element={<Finance />} />
                     <Route path="reports" element={<Reports />} />
                     <Route path="reports/:reportType" element={<ReportDetail />} />
                     <Route
