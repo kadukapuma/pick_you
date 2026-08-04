@@ -8,10 +8,17 @@ import { AuthProvider, useAuth } from "../state/auth/AuthContext";
 import { RideSearchProvider } from "../state/booking/RideBookingContext";
 import { ToastProvider } from "../state/toast/ToastContext";
 import RideStatusBanner from "../features/ride-tracking/RideStatusBanner";
+import { registerForPushNotifications } from "../services/notifications/pushRegistration";
 
 function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      registerForPushNotifications();
+    }
+  }, [isAuthenticated]);
 
   // Set navigation ready after a small delay
   useEffect(() => {

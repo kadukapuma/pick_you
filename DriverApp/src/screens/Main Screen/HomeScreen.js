@@ -84,6 +84,8 @@ const HomeScreen = () => {
     () => driverCoord ?? DEFAULT_DRIVER_COORD,
     [driverCoord],
   );
+  const driverLatitude = driverCoord?.latitude;
+  const driverLongitude = driverCoord?.longitude;
 
 
   const [isOnline, setIsOnline] = useState(false);
@@ -100,6 +102,7 @@ const HomeScreen = () => {
   const [activeRide, setActiveRide] = useState(null);
   const [isCheckingActiveRide, setIsCheckingActiveRide] = useState(false);
   const [todayEarnings, setTodayEarnings] = useState(null);
+  const [centerLocationRequest, setCenterLocationRequest] = useState(0);
 
   const homeRouteCoordinates = useMemo(() => [mapOrigin], [mapOrigin]);
   const homeVehicleImage = useMemo(
@@ -111,6 +114,7 @@ const HomeScreen = () => {
   const incomingRideTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
   const handledRideIdRef = useRef(null);
+  const lastCenteredRequestRef = useRef(-1);
 
   const clearIncomingRideTimer = useCallback(() => {
     if (incomingRideTimerRef.current) {
@@ -176,6 +180,10 @@ const HomeScreen = () => {
         lastNotifiedRideIdRef.current = null;
         handledRideIdRef.current = null;
 
+        // Request one fresh camera recenter whenever Home becomes visible.
+        // The effect below waits for a real GPS fix and for the map to mount.
+        setCenterLocationRequest((request) => request + 1);
+
         fetchDriverData();
         fetchOngoingRide();
         fetchTodayEarnings();
@@ -186,6 +194,33 @@ const HomeScreen = () => {
       return () => { };
     }, [clearIncomingRideTimer, fetchOngoingRide, fetchTodayEarnings]),
   );
+
+  useEffect(() => {
+    if (
+      isLoading ||
+      lastCenteredRequestRef.current === centerLocationRequest ||
+      !Number.isFinite(driverLatitude) ||
+      !Number.isFinite(driverLongitude)
+    ) {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => {
+      cameraRef.current?.setCamera({
+        centerCoordinate: [driverLongitude, driverLatitude],
+        zoomLevel: 15,
+        animationDuration: 650,
+      });
+      lastCenteredRequestRef.current = centerLocationRequest;
+    }, 150);
+
+    return () => clearTimeout(timeout);
+  }, [
+    centerLocationRequest,
+    driverLatitude,
+    driverLongitude,
+    isLoading,
+  ]);
 
   const presentIncomingRide = useCallback((ride) => {
     if (!ride?.id) {
