@@ -44,7 +44,7 @@ export default function PaymentSuccessScreen() {
         <Text style={styles.text}>Your ride payment has been securely confirmed.</Text>
       </View>
       <PaymentCard>
-        <Detail label="Payment method" value="Visa •••• 4242" />
+        <Detail label="Payment method" value="Visa •••• 6492" />
         <Divider />
         <Detail label="Ride" value={rideId ? `#${rideId}` : "Current ride"} />
         {reference ? <><Divider /><Detail label="Reference" value={reference} /></> : null}

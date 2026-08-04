@@ -5,7 +5,7 @@ import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import PaymentScreen, { PaymentButton, PaymentCard } from "../../features/payments/PaymentScreen";
 import { StatusOrb } from "../../features/payments/PaymentVisuals";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
-import { paymentService } from "../../services/payments/paymentService";
+import { CARD_PAYMENTS_ENABLED, paymentService } from "../../services/payments/paymentService";
 import type { OutstandingPayment } from "../../services/payments/paymentTypes";
 
 export default function OutstandingPaymentsScreen() {
@@ -44,7 +44,12 @@ export default function OutstandingPaymentsScreen() {
             <View style={styles.divider} />
             <Text style={styles.reason}>{item.reason}</Text>
             <View style={styles.action}>
-              <PaymentButton label="Pay now" icon="lock-closed-outline" onPress={() => router.push({ pathname: "/payments/processing", params: { rideId: item.rideId, amount: String(item.amount) } })} />
+              <PaymentButton
+                label={CARD_PAYMENTS_ENABLED ? "Pay now" : "Card payments unavailable"}
+                icon="lock-closed-outline"
+                onPress={() => router.push({ pathname: "/payments/processing", params: { rideId: item.rideId, amount: String(item.amount) } })}
+                disabled={!CARD_PAYMENTS_ENABLED}
+              />
             </View>
           </PaymentCard>
         ))

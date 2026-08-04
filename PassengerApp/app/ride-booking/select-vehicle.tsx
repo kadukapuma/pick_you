@@ -231,8 +231,9 @@ function RideCard({
   index,
   directions,
 }: RideCardProps) {
-  const scale = useRef(new Animated.Value(selected ? 1 : 0.97)).current;
+  const scale = useRef(new Animated.Value(selected ? 1.02 : 0.98)).current;
   const borderAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
+  const liftAnim = useRef(new Animated.Value(selected ? 1 : 0)).current;
 
   // Staggered entrance
   const entranceY = useRef(new Animated.Value(10)).current;
@@ -260,10 +261,16 @@ function RideCard({
   useEffect(() => {
     Animated.parallel([
       Animated.spring(scale, {
-        toValue: selected ? 1 : 0.97,
+        toValue: selected ? 1.02 : 0.98,
         useNativeDriver: true,
-        damping: 16,
-        stiffness: 200,
+        damping: 14,
+        stiffness: 220,
+      }),
+      Animated.spring(liftAnim, {
+        toValue: selected ? 1 : 0,
+        useNativeDriver: true,
+        damping: 14,
+        stiffness: 220,
       }),
       Animated.timing(borderAnim, {
         toValue: selected ? 1 : 0,
@@ -279,13 +286,39 @@ function RideCard({
     outputRange: ["#E5E7EB", GREEN],
   });
 
+  const cardLiftY = liftAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -4],
+  });
+
+  const shadowOpacity = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.04, 0.12],
+  });
+
+  const shadowRadius = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [3, 7],
+  });
+
+  const elevation = borderAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 4],
+  });
+
   const stars = (ride.price * STARS_PER_LKR).toFixed(1);
 
   return (
     <Animated.View
       style={{
         opacity: entranceOpacity,
-        transform: [{ translateY: entranceY }, { scale }],
+        zIndex: selected ? 4 : 1,
+        elevation: selected ? 4 : 1,
+        transform: [
+          { translateY: entranceY },
+          { translateY: cardLiftY },
+          { scale },
+        ],
       }}
     >
       <Pressable onPress={onSelect} style={{ borderRadius: 16 }}>
@@ -294,6 +327,14 @@ function RideCard({
             styles.rideCard,
             { borderColor },
             selected && { backgroundColor: "#F3F4F6" },
+            Platform.OS === "ios"
+              ? {
+                  shadowColor: "#000",
+                  shadowOffset: { width: 0, height: 3 },
+                  shadowOpacity,
+                  shadowRadius,
+                }
+              : { elevation },
           ]}
         >
           {/* Icon area */}
@@ -900,11 +941,13 @@ const styles = StyleSheet.create({
   // ── Ride cards ──────────────────────────────────────────────────────────────
   cardsScroll: {
     marginHorizontal: -16,
+    overflow: "visible",
   },
 
   cardsRow: {
     paddingHorizontal: 16,
     gap: 10,
+    paddingTop: 16,
     paddingBottom: 4,
   },
 
