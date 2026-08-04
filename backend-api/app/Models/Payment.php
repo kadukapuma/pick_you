@@ -30,6 +30,11 @@ class Payment extends Model
         return $this->hasMany(PaymentAttempt::class);
     }
 
+    public function allocations(): HasMany
+    {
+        return $this->hasMany(PaymentAllocation::class);
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(PaymentEvent::class);
