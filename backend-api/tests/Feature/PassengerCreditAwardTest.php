@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\JournalEntry;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Models\Payment;
+use App\Models\PaymentAllocation;
 use App\Services\Ledger\LedgerService;
 use App\Services\Payments\PassengerCreditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -384,5 +386,294 @@ class PassengerCreditAwardTest extends TestCase
         $this->assertSame('10000.00', $passenger->wallet_balance);
         $this->assertSame(0, WalletTransaction::count());
         $this->assertSame(0, JournalEntry::count());
+    }
+
+    public function test_credit_can_be_reserved_once_for_a_payment(): void
+    {
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $admin = $this->makeUser(
+            User::ROLE_ADMIN,
+            '0770000001'
+        );
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        $creditService = app(PassengerCreditService::class);
+
+        $creditService->award(
+            passenger: $passenger,
+            amount: '500.00',
+            createdBy: $admin,
+            reason: 'System error compensation.',
+            reference: 'reservation-credit-award',
+        );
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'reservation-payment-1',
+            'payment_status' => 'PENDING',
+        ]);
+
+        $allocation = $creditService->reserve(
+            payment: $payment,
+            amount: '500.00',
+            reference: 'payment-credit-reservation-1',
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame('10000.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '500.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            PaymentAllocation::TYPE_PICKU_CREDIT,
+            $allocation->type
+        );
+        $this->assertSame('500.00', $allocation->amount);
+        $this->assertSame(
+            PaymentAllocation::STATUS_RESERVED,
+            $allocation->status
+        );
+
+        $second = $creditService->reserve(
+            payment: $payment,
+            amount: '500.00',
+            reference: 'payment-credit-reservation-1',
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame($allocation->id, $second->id);
+        $this->assertSame('10000.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '500.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            1,
+            PaymentAllocation::where(
+                'payment_id',
+                $payment->id
+            )->count()
+        );
+
+        $this->assertSame(
+            1,
+            WalletTransaction::where(
+                'transaction_type',
+                WalletTransaction::TYPE_CREDIT_RESERVATION
+            )->count()
+        );
+
+        // Reserving credit does not create another accounting entry.
+        $this->assertSame(
+            1,
+            JournalEntry::where(
+                'type',
+                JournalEntry::TYPE_PASSENGER_CREDIT
+            )->count()
+        );
+
+        $this->assertLedgerBalances();
+    }
+
+    public function test_reserved_credit_is_released_once_after_failure(): void
+    {
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $admin = $this->makeUser(
+            User::ROLE_ADMIN,
+            '0770000001'
+        );
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        $creditService = app(PassengerCreditService::class);
+
+        $creditService->award(
+            passenger: $passenger,
+            amount: '500.00',
+            createdBy: $admin,
+            reason: 'System error compensation.',
+            reference: 'release-credit-award',
+        );
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'release-payment-1',
+            'payment_status' => 'PENDING',
+        ]);
+
+        $allocation = $creditService->reserve(
+            payment: $payment,
+            amount: '500.00',
+            reference: 'release-reservation-1',
+        );
+
+        $released = $creditService->release(
+            allocation: $allocation,
+            reference: 'release-reservation-1',
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame('10500.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '0.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            PaymentAllocation::STATUS_RELEASED,
+            $released->status
+        );
+
+        // Replaying the release cannot return the credit twice.
+        $secondRelease = $creditService->release(
+            allocation: $allocation,
+            reference: 'release-reservation-1',
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame($released->id, $secondRelease->id);
+        $this->assertSame('10500.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '0.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            1,
+            WalletTransaction::where(
+                'transaction_type',
+                WalletTransaction::TYPE_CREDIT_RELEASED
+            )->count()
+        );
+
+        // Awarding created one journal entry. Reserve and release add none.
+        $this->assertSame(1, JournalEntry::count());
+        $this->assertLedgerBalances();
+    }
+    public function test_reserved_credit_is_consumed_once_after_success(): void
+    {
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $admin = $this->makeUser(
+            User::ROLE_ADMIN,
+            '0770000001'
+        );
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        $creditService = app(PassengerCreditService::class);
+
+        $creditService->award(
+            passenger: $passenger,
+            amount: '500.00',
+            createdBy: $admin,
+            reason: 'System error compensation.',
+            reference: 'consume-credit-award',
+        );
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'consume-payment-1',
+            'payment_status' => 'PENDING',
+        ]);
+
+        $allocation = $creditService->reserve(
+            payment: $payment,
+            amount: '500.00',
+            reference: 'consume-reservation-1',
+        );
+
+        $consumed = $creditService->consume(
+            allocation: $allocation,
+            reference: 'consume-reservation-1',
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame('10000.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '0.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            PaymentAllocation::STATUS_COMPLETED,
+            $consumed->status
+        );
+
+        // Replaying consumption must not deduct the credit again.
+        $secondConsumption = $creditService->consume(
+            allocation: $allocation,
+            reference: 'consume-reservation-1',
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame(
+            $consumed->id,
+            $secondConsumption->id
+        );
+        $this->assertSame('10000.00', $passenger->wallet_balance);
+        $this->assertSame(
+            '0.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            1,
+            WalletTransaction::where(
+                'transaction_type',
+                WalletTransaction::TYPE_CREDIT_CONSUMED
+            )->count()
+        );
+
+        $this->assertSame(1, JournalEntry::count());
+        $this->assertLedgerBalances();
     }
 }
