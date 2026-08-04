@@ -6,6 +6,11 @@ import type {
   SavedCard,
 } from "./paymentTypes";
 
+// Local mock-card testing only. `__DEV__` guarantees this cannot enable the
+// mock card flow in a production build, even if the environment value is set.
+export const CARD_PAYMENTS_ENABLED =
+  __DEV__ && process.env.EXPO_PUBLIC_ENABLE_MOCK_CARD_PAYMENTS === "true";
+
 /** Backend shape from PassengerPaymentMethodController (token is never exposed). */
 type RawPaymentMethod = {
   id: number | string;
