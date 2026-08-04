@@ -35,6 +35,7 @@ class User extends Authenticatable
         'manage_passengers',
         'manage_fare_configs',
         'manage_notifications',
+        'manage_passenger_credits',
     ];
 
     public const MANAGEABLE_ROLES = [
@@ -152,11 +153,11 @@ class User extends Authenticatable
         }
 
         if (! $token instanceof PersonalAccessToken || ! $token->exists) {
-            return $token->can('role:'.$role);
+            return $token->can('role:' . $role);
         }
 
         $abilities = $token->abilities ?? [];
-        if (in_array('role:'.$role, $abilities, true)) {
+        if (in_array('role:' . $role, $abilities, true)) {
             return true;
         }
 
@@ -229,7 +230,7 @@ class User extends Authenticatable
             return $path;
         }
 
-        return rtrim((string) config('app.url'), '/').'/'.ltrim($path, '/');
+        return rtrim((string) config('app.url'), '/') . '/' . ltrim($path, '/');
     }
 
     public function passenger()

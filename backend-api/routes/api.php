@@ -35,6 +35,7 @@ use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\DriverAccountController;
 use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\WalletTransactionController;
+use App\Http\Controllers\Api\PassengerCreditController;
 use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -160,7 +161,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
     Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show']);
 
+
+    Route::post(
+        '/passengers/{passenger}/credits',
+        [PassengerCreditController::class, 'store']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+        'idempotent',
+    ]);
     // Admin routes
+
     Route::middleware('admin')->group(function () {
         // Admin notification routes require manage_notifications permission
         Route::middleware('permission:manage_notifications')->group(function () {
