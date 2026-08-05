@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PaymentAttempt;
+use App\Services\Payments\WebxpayOutcomeProcessor;
 use App\Services\Payments\WebxpayResponseParser;
 use App\Services\Payments\WebxpayResponseVerifier;
+use DomainException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +17,8 @@ class WebxpayReturnController extends Controller
 {
     public function __construct(
         private readonly WebxpayResponseVerifier $verifier,
-        private readonly WebxpayResponseParser $parser
+        private readonly WebxpayResponseParser $parser,
+        private readonly WebxpayOutcomeProcessor $processor
     ) {}
 
     public function handle(
@@ -73,9 +76,37 @@ class WebxpayReturnController extends Controller
             ], 404);
         }
 
+        try {
+            $payment = $this->processor->process(
+                attempt: $attempt,
+                parsed: $parsed
+            );
+        } catch (DomainException $exception) {
+            Log::warning(
+                'WEBXPAY return could not be processed.',
+                [
+                    'merchant_order_id' => $parsed['merchant_order_id'],
+                    'reason' => $exception->getMessage(),
+                ]
+            );
+
+            return response()->json([
+                'status' => 'error',
+                'message' => $exception->getMessage(),
+            ], 409);
+        }
+
         return response()->json([
-            'status' => 'error',
-            'message' => 'WEBXPAY return processing is not implemented.',
-        ], 501);
+            'status' => 'success',
+            'message' => 'WEBXPAY return processed.',
+            'data' => [
+                'payment_id' => $payment->id,
+                'payment_status' => $payment->payment_status,
+                'merchant_order_id' => $attempt->merchant_order_id,
+                'gateway_reference' => $attempt
+                    ->fresh()
+                    ->gateway_reference,
+            ],
+        ]);
     }
 }
