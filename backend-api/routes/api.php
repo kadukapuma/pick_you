@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DriverAccountController;
 use App\Http\Controllers\Api\DriverAuthController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverDocumentController;
@@ -19,6 +20,8 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
 use App\Http\Controllers\Api\PassengerController;
+use App\Http\Controllers\Api\PassengerCreditController;
+use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\PassengerProfileController;
 use App\Http\Controllers\Api\PassengerRideHistoryController;
 use App\Http\Controllers\Api\PaymentCapabilityController;
@@ -32,10 +35,7 @@ use App\Http\Controllers\Api\SuperAdminNotificationController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
-use App\Http\Controllers\Api\DriverAccountController;
-use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\WalletTransactionController;
-use App\Http\Controllers\Api\PassengerCreditController;
 use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -148,6 +148,13 @@ Route::middleware('auth:sanctum')->group(function () {
     });
     Route::get('/rides/{id}/driver-location', [RideLocationController::class, 'show']);
     Route::get('/rides/{ride}/payment', [PaymentController::class, 'show']);
+    Route::post(
+        '/rides/{ride}/payments/webxpay/checkout',
+        [PaymentController::class, 'createWebxpayCheckout']
+    )->middleware([
+        'role:passenger',
+        'idempotent',
+    ]);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
         ->middleware(['role:passenger,driver,admin,super_admin', 'idempotent']);
 
@@ -164,7 +171,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/support-tickets', [SupportTicketController::class, 'index']);
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
     Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show']);
-
 
     Route::post(
         '/passengers/{passenger}/credits',

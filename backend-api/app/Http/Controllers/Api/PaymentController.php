@@ -7,21 +7,23 @@ use App\Enums\PaymentStatus;
 use App\Events\RideStatusUpdated;
 use App\Http\Controllers\Controller;
 use App\Models\PassengerPaymentMethod;
-use App\Models\PaymentAllocation;
 use App\Models\Payment;
-use App\Models\Ride;
-use App\Models\WalletTransaction;
+use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
 use App\Models\PaymentEvent;
-use App\Services\Ledger\RideSettlementService;
-use App\Services\Payments\PaymentGateway;
+use App\Models\Ride;
+use App\Models\WalletTransaction;
 use App\Services\Ledger\Money;
+use App\Services\Ledger\RideSettlementService;
 use App\Services\Payments\PassengerCreditService;
+use App\Services\Payments\PaymentGateway;
 use App\Traits\ApiResponse;
+use DateTimeInterface;
 use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\URL;
 use Throwable;
 
 class PaymentController extends Controller
@@ -42,6 +44,166 @@ class PaymentController extends Controller
     private function gateway(): PaymentGateway
     {
         return app(PaymentGateway::class);
+    }
+
+    public function createWebxpayCheckout(
+        Request $request,
+        Ride $ride
+    ) {
+        if (! config('payments.webxpay.enabled')) {
+            return $this->error(
+                'WEBXPAY checkout is currently unavailable.',
+                503
+            );
+        }
+        if ($request->user()->cannot('processPayment', $ride)) {
+            return $this->error(
+                'You are not authorized to create checkout for this ride.',
+                403
+            );
+        }
+
+        if ($ride->payment_method !== 'card') {
+            return $this->error(
+                'WEBXPAY checkout requires a card ride.',
+                422
+            );
+        }
+
+        if ($ride->status !== 'COMPLETED') {
+            return $this->error(
+                'Ride must be completed before checkout.',
+                422
+            );
+        }
+        $existingPayment = $ride->payment()->first();
+
+        if (
+            $existingPayment
+            && $existingPayment->payment_status
+            === PaymentStatus::COMPLETED->value
+        ) {
+            return $this->error(
+                'Payment has already been completed.',
+                409
+            );
+        }
+        $hasUnresolvedWebxpayAttempt = $existingPayment
+            ? $existingPayment->attempts()
+                ->where('gateway', 'webxpay')
+                ->whereIn('status', [
+                    PaymentAttemptStatus::PROCESSING->value,
+                    PaymentAttemptStatus::PENDING->value,
+                    PaymentAttemptStatus::UNKNOWN->value,
+                ])
+                ->exists()
+            : false;
+
+        if ($hasUnresolvedWebxpayAttempt) {
+            return $this->error(
+                'A WEBXPAY payment attempt is already awaiting confirmation.',
+                409
+            );
+        }
+
+        try {
+            [$payment, $alreadyProcessed] = $this->createOrFetchPayment(
+                $ride->id,
+                'card'
+            );
+
+            if ($alreadyProcessed) {
+                return $this->error(
+                    'Payment has already been completed.',
+                    409
+                );
+            }
+
+            $creditAllocation = $this->reserveSelectedCredit(
+                $request,
+                $ride,
+                $payment
+            );
+
+            $remainingAmount = $this->remainingAmount(
+                $payment,
+                $creditAllocation
+            );
+
+            if (Money::isZero($remainingAmount)) {
+                $payment = $this->completeCreditOnlyPayment(
+                    $payment,
+                    $creditAllocation
+                );
+
+                return $this->success(
+                    [
+                        'payment_id' => $payment->id,
+                        'attempt_id' => null,
+                        'amount' => '0.00',
+                        'currency' => 'LKR',
+                        'checkout_url' => null,
+                        'expires_at' => null,
+                    ],
+                    'Payment completed using PickU credits.'
+                );
+            }
+
+            $payment = $this->prepareCardRetry(
+                $payment
+            );
+
+            $this->prepareCardAllocation(
+                $payment,
+                $remainingAmount
+            );
+
+            $expiresAt = now()->addMinutes(15);
+
+            $attempt = $this->createCardAttempt(
+                payment: $payment,
+                amount: $remainingAmount,
+                gateway: 'webxpay',
+                expiresAt: $expiresAt
+            );
+
+            $checkoutUrl = URL::temporarySignedRoute(
+                'webxpay.checkout',
+                $expiresAt,
+                [
+                    'attempt' => $attempt->id,
+                ]
+            );
+
+            return $this->success(
+                [
+                    'payment_id' => $payment->id,
+                    'attempt_id' => $attempt->id,
+                    'merchant_order_id' => $attempt->merchant_order_id,
+                    'amount' => $attempt->amount,
+                    'currency' => $attempt->currency,
+                    'checkout_url' => $checkoutUrl,
+                    'expires_at' => $attempt->expires_at?->toIso8601String(),
+                ],
+                'WEBXPAY checkout prepared.',
+                201
+            );
+        } catch (DomainException $exception) {
+            return $this->error(
+                $exception->getMessage(),
+                422
+            );
+        } catch (Throwable $exception) {
+            Log::error('WEBXPAY checkout preparation failed.', [
+                'ride_id' => $ride->id,
+                'error' => $exception->getMessage(),
+            ]);
+
+            return $this->error(
+                'WEBXPAY checkout preparation failed.',
+                500
+            );
+        }
     }
 
     public function processPayment(Request $request, $ride_id)
@@ -206,9 +368,9 @@ class PaymentController extends Controller
 
         $payment = $ride->payment()
             ->with([
-                'attempts' => fn($query) => $query
+                'attempts' => fn ($query) => $query
                     ->orderByDesc('attempt_number'),
-                'allocations' => fn($query) => $query
+                'allocations' => fn ($query) => $query
                     ->orderBy('type'),
             ])
             ->first();
@@ -253,7 +415,7 @@ class PaymentController extends Controller
                 'passenger_id' => $lockedRide->passenger_id,
                 'payment_method' => $paymentMethod,
                 'amount' => $amount,
-                'transaction_id' => 'txn_' . bin2hex(random_bytes(16)),
+                'transaction_id' => 'txn_'.bin2hex(random_bytes(16)),
                 'payment_status' => $cashSettlesImmediately
                     ? PaymentStatus::COMPLETED->value
                     : PaymentStatus::PENDING->value,
@@ -281,7 +443,7 @@ class PaymentController extends Controller
                     'transaction_type' => 'debit',
                     'amount' => $amount,
                     'balance_after' => $passenger->wallet_balance,
-                    'description' => 'Paid for ride ' . $lockedRide->ride_code,
+                    'description' => 'Paid for ride '.$lockedRide->ride_code,
                 ]);
 
                 $payment->update(['payment_status' => 'COMPLETED', 'paid_at' => now()]);
@@ -300,13 +462,18 @@ class PaymentController extends Controller
      * Capture the card, then record the outcome and settle in a second
      * transaction. This is the same shape a real gateway webhook will take.
      */
-
-
     private function createCardAttempt(
         Payment $payment,
-        string $amount
+        string $amount,
+        ?string $gateway = null,
+        ?DateTimeInterface $expiresAt = null
     ): PaymentAttempt {
-        return DB::transaction(function () use ($payment, $amount) {
+        return DB::transaction(function () use (
+            $payment,
+            $amount,
+            $gateway,
+            $expiresAt
+        ) {
             $lockedPayment = Payment::query()
                 ->lockForUpdate()
                 ->findOrFail($payment->id);
@@ -319,7 +486,7 @@ class PaymentController extends Controller
 
             $attempt = $lockedPayment->attempts()->create([
                 'attempt_number' => $nextAttemptNumber,
-                'gateway' => $this->gateway()->name(),
+                'gateway' => $gateway ?? $this->gateway()->name(),
                 'merchant_order_id' => sprintf(
                     'PKU-R%d-P%d-A%02d',
                     $lockedPayment->ride_id,
@@ -330,6 +497,7 @@ class PaymentController extends Controller
                 'amount' => $amount,
                 'currency' => 'LKR',
                 'started_at' => now(),
+                'expires_at' => $expiresAt,
             ]);
 
             $lockedPayment->events()->create([
@@ -497,8 +665,7 @@ class PaymentController extends Controller
                     ],
                     [
                         'amount' => $cashAmount,
-                        'status'
-                        => PaymentAllocation::STATUS_COMPLETED,
+                        'status' => PaymentAllocation::STATUS_COMPLETED,
                         'reference' => sprintf(
                             'payment:%d:cash',
                             $lockedPayment->id
@@ -520,8 +687,7 @@ class PaymentController extends Controller
             }
 
             $lockedPayment->update([
-                'payment_status'
-                => PaymentStatus::COMPLETED->value,
+                'payment_status' => PaymentStatus::COMPLETED->value,
                 'paid_at' => now(),
                 'failure_reason' => null,
             ]);
@@ -562,8 +728,7 @@ class PaymentController extends Controller
             );
 
             $lockedPayment->update([
-                'payment_status'
-                => PaymentStatus::COMPLETED->value,
+                'payment_status' => PaymentStatus::COMPLETED->value,
                 'paid_at' => now(),
                 'gateway' => null,
                 'gateway_reference' => null,
@@ -621,7 +786,6 @@ class PaymentController extends Controller
             return $locked->refresh();
         }, 3);
     }
-
 
     private function captureCard(
         Payment $payment,
@@ -688,7 +852,7 @@ class PaymentController extends Controller
                 PaymentEvent::create([
                     'payment_id' => $lockedPayment->id,
                     'payment_attempt_id' => $lockedAttempt->id,
-                    'event_type' => 'PAYMENT_' . $result->status->value,
+                    'event_type' => 'PAYMENT_'.$result->status->value,
                     'source' => 'gateway',
                     'provider_reference' => $result->reference,
                     'metadata' => [
