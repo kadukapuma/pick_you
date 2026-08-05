@@ -6,6 +6,8 @@ use App\Services\Payments\MockPaymentGateway;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\WebxpayCheckoutRequest;
 use App\Services\Payments\WebxpayRequestPayload;
+use App\Services\Payments\WebxpayResponseParser;
+use App\Services\Payments\WebxpayResponseVerifier;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -22,6 +24,28 @@ class PaymentGatewayServiceProvider extends ServiceProvider
 
                 return new WebxpayRequestPayload(
                     base_path($configuredPath)
+                );
+            }
+        );
+        $this->app->singleton(
+            WebxpayResponseVerifier::class,
+            function () {
+                $configuredPath = (string) config(
+                    'payments.webxpay.public_key_path'
+                );
+
+                return new WebxpayResponseVerifier(
+                    base_path($configuredPath)
+                );
+            }
+        );
+        $this->app->singleton(
+            WebxpayResponseParser::class,
+            function () {
+                return new WebxpayResponseParser(
+                    expectedGatewayId: (string) config(
+                        'payments.webxpay.payment_gateway_id'
+                    )
                 );
             }
         );

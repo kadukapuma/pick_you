@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Services\Payments\WebxpayCheckoutRequest;
 use App\Services\Payments\WebxpayRequestPayload;
+use App\Services\Payments\WebxpayResponseParser;
+use App\Services\Payments\WebxpayResponseVerifier;
 use Tests\TestCase;
 
 class WebxpayConfigurationTest extends TestCase
@@ -26,22 +28,66 @@ class WebxpayConfigurationTest extends TestCase
             WebxpayCheckoutRequest::class
         );
 
-        $first = $this->app->make(
+        $this->app->forgetInstance(
+            WebxpayResponseVerifier::class
+        );
+
+        $this->app->forgetInstance(
+            WebxpayResponseParser::class
+        );
+
+        $firstRequest = $this->app->make(
             WebxpayCheckoutRequest::class
         );
 
-        $second = $this->app->make(
+        $secondRequest = $this->app->make(
             WebxpayCheckoutRequest::class
+        );
+
+        $firstVerifier = $this->app->make(
+            WebxpayResponseVerifier::class
+        );
+
+        $secondVerifier = $this->app->make(
+            WebxpayResponseVerifier::class
+        );
+
+        $firstParser = $this->app->make(
+            WebxpayResponseParser::class
+        );
+
+        $secondParser = $this->app->make(
+            WebxpayResponseParser::class
         );
 
         $this->assertInstanceOf(
             WebxpayCheckoutRequest::class,
-            $first
+            $firstRequest
         );
 
         $this->assertSame(
-            $first,
-            $second
+            $firstRequest,
+            $secondRequest
+        );
+
+        $this->assertInstanceOf(
+            WebxpayResponseVerifier::class,
+            $firstVerifier
+        );
+
+        $this->assertSame(
+            $firstVerifier,
+            $secondVerifier
+        );
+
+        $this->assertInstanceOf(
+            WebxpayResponseParser::class,
+            $firstParser
+        );
+
+        $this->assertSame(
+            $firstParser,
+            $secondParser
         );
     }
 }
