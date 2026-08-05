@@ -5,6 +5,8 @@ namespace Tests\Feature;
 use App\Models\JournalEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
+use App\Models\User;
+use App\Services\Payments\PassengerCreditService;
 use App\Services\Payments\WebxpayOutcomeProcessor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\Concerns\BuildsLedgerScenarios;
@@ -397,6 +399,208 @@ class WebxpayOutcomeProcessorTest extends TestCase
         $this->assertSame(
             0,
             JournalEntry::query()->count()
+        );
+
+        $resolved = app(
+            WebxpayOutcomeProcessor::class
+        )->process(
+            attempt: $attempt,
+            parsed: [
+                'merchant_order_id' => 'PKU-UNKNOWN-A01',
+                'provider_reference' => 'WXP-UNKNOWN-1',
+                'transaction_time' => '2026-08-05 12:35:00',
+                'gateway' => '46',
+                'status_code' => '00',
+                'comment' => 'Approved after reconciliation',
+            ]
+        );
+
+        $this->assertSame(
+            'COMPLETED',
+            $resolved->payment_status
+        );
+
+        $attempt->refresh();
+        $allocation->refresh();
+
+        $this->assertSame(
+            'COMPLETED',
+            $attempt->status
+        );
+
+        $this->assertSame(
+            PaymentAllocation::STATUS_COMPLETED,
+            $allocation->status
+        );
+
+        $this->assertSame(
+            1,
+            JournalEntry::query()
+                ->where(
+                    'type',
+                    JournalEntry::TYPE_RIDE_SETTLEMENT
+                )
+                ->count()
+        );
+
+        $this->assertSame(
+            1,
+            $payment->events()
+                ->where('event_type', 'PAYMENT_UNKNOWN')
+                ->count()
+        );
+
+        $this->assertSame(
+            1,
+            $payment->events()
+                ->where('event_type', 'PAYMENT_COMPLETED')
+                ->count()
+        );
+
+        $this->assertLedgerBalances();
+    }
+
+    public function test_verified_approval_consumes_credit_and_charges_only_card_remainder(): void
+    {
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $passenger->update([
+            'wallet_balance' => '0.00',
+            'wallet_reserved_balance' => '0.00',
+        ]);
+
+        $admin = $this->makeUser(
+            User::ROLE_ADMIN,
+            '0770000098'
+        );
+
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        $creditService = app(
+            PassengerCreditService::class
+        );
+
+        $creditService->award(
+            passenger: $passenger,
+            amount: '500.00',
+            createdBy: $admin,
+            reason: 'System error compensation.',
+            reference: 'webxpay-split-credit-award-1',
+        );
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card',
+            ['use_wallet_credit' => true]
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'webxpay-split-payment-1',
+            'payment_status' => 'PENDING',
+            'gateway' => 'webxpay',
+        ]);
+
+        $creditAllocation = $creditService->reserve(
+            payment: $payment,
+            amount: '500.00',
+            reference: 'webxpay-split-credit-reservation-1',
+        );
+
+        $this->assertNotNull($creditAllocation);
+
+        $cardAllocation = $payment->allocations()->create([
+            'type' => PaymentAllocation::TYPE_CARD,
+            'amount' => '300.00',
+            'status' => PaymentAllocation::STATUS_RESERVED,
+            'reference' => "payment:{$payment->id}:card",
+            'reserved_at' => now(),
+        ]);
+
+        $attempt = $payment->attempts()->create([
+            'attempt_number' => 1,
+            'gateway' => 'webxpay',
+            'merchant_order_id' => 'PKU-SPLIT-WXP-A01',
+            'status' => 'PROCESSING',
+            'amount' => '300.00',
+            'currency' => 'LKR',
+            'started_at' => now(),
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        $result = app(
+            WebxpayOutcomeProcessor::class
+        )->process(
+            attempt: $attempt,
+            parsed: [
+                'merchant_order_id' => 'PKU-SPLIT-WXP-A01',
+                'provider_reference' => 'WXP-SPLIT-APPROVED-1',
+                'transaction_time' => '2026-08-05 12:30:00',
+                'gateway' => '46',
+                'status_code' => '00',
+                'comment' => 'Approved',
+            ]
+        );
+
+        $this->assertSame(
+            'COMPLETED',
+            $result->payment_status
+        );
+
+        $this->assertSame(
+            '300.00',
+            $attempt->refresh()->amount
+        );
+
+        $this->assertSame(
+            PaymentAllocation::STATUS_COMPLETED,
+            $cardAllocation->refresh()->status
+        );
+
+        $this->assertSame(
+            PaymentAllocation::STATUS_COMPLETED,
+            $creditAllocation->refresh()->status
+        );
+
+        $passenger->refresh();
+
+        $this->assertSame(
+            '0.00',
+            $passenger->wallet_balance
+        );
+
+        $this->assertSame(
+            '0.00',
+            $passenger->wallet_reserved_balance
+        );
+
+        $this->assertSame(
+            [
+                PaymentAllocation::TYPE_CARD => '300.00',
+                PaymentAllocation::TYPE_PICKU_CREDIT => '500.00',
+            ],
+            $payment->allocations()
+                ->orderBy('type')
+                ->pluck('amount', 'type')
+                ->all()
+        );
+
+        $this->assertSame(
+            1,
+            JournalEntry::query()
+                ->where(
+                    'type',
+                    JournalEntry::TYPE_RIDE_SETTLEMENT
+                )
+                ->count()
         );
 
         $this->assertLedgerBalances();
