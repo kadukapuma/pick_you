@@ -58,6 +58,10 @@ return [
             'WEBXPAY_CURRENCY',
             'LKR'
         ),
+        'encryption_method' => env(
+            'WEBXPAY_ENCRYPTION_METHOD',
+            'JCs3J+6oSz4V0LgE0zi/Bg=='
+        ),
 
         'public_key_path' => env(
             'WEBXPAY_PUBLIC_KEY_PATH'
