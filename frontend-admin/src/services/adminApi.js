@@ -312,6 +312,13 @@ const updatePassword = (token, passwords) =>
     body: passwords,
   })
 
+const sendBulkNotification = (token, payload) =>
+  apiFetch('/admin/notifications/send-bulk', {
+    method: 'POST',
+    token,
+    body: payload,
+  })
+
 const fetchAdminNotifications = async (token, limit = 20) => {
   const payload = await apiFetch(`/admin/notifications?limit=${limit}`, { token })
   return { notifications: payload.data || [] }
@@ -496,4 +503,5 @@ export {
   fetchDriverAccounts,
   fetchDriverStatement,
   fetchTrialBalance,
+  sendBulkNotification,
 }

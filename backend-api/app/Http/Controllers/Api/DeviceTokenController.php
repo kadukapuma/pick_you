@@ -20,10 +20,20 @@ class DeviceTokenController extends Controller
         $validator = Validator::make($request->all(), [
             'token' => 'required|string',
             'platform' => 'nullable|string|in:ios,android,web',
+            'app' => 'nullable|string|in:driver,passenger',
         ]);
 
         if ($validator->fails()) {
             return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        $app = $request->input('app');
+        if (!$app) {
+            $app = 'passenger';
+            $accessToken = $request->user()->currentAccessToken();
+            if ($accessToken && in_array('role:driver', $accessToken->abilities ?? [])) {
+                $app = 'driver';
+            }
         }
 
         $deviceToken = DeviceToken::updateOrCreate(
@@ -33,6 +43,7 @@ class DeviceTokenController extends Controller
             ],
             [
                 'platform' => $request->input('platform'),
+                'app' => $app,
             ],
         );
 

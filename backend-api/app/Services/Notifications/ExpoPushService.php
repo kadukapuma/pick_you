@@ -36,7 +36,7 @@ class ExpoPushService
             'to' => $token->token,
             'title' => $title,
             'body' => $body,
-            'data' => $data,
+            'data' => empty($data) ? (object) [] : $data,
             'sound' => 'default',
             'priority' => 'high',
         ])->values()->all();
@@ -50,6 +50,39 @@ class ExpoPushService
             $response = Http::withHeaders($headers)->post(self::PUSH_URL, $messages);
 
             if (! $response->successful()) {
+                $bodyContent = $response->json();
+                $errors = $bodyContent['errors'] ?? [];
+
+                $hasExperienceIdError = false;
+                $details = [];
+                foreach ($errors as $err) {
+                    if (($err['code'] ?? null) === 'PUSH_TOO_MANY_EXPERIENCE_IDS') {
+                        $hasExperienceIdError = true;
+                        $details = $err['details'] ?? [];
+                        break;
+                    }
+                }
+
+                if ($hasExperienceIdError && !empty($details)) {
+                    Log::info('Expo push detected multiple experience IDs. Splitting and re-sending...');
+
+                    $chunkByToken = $chunk->keyBy('token');
+
+                    foreach ($details as $experienceId => $tokenStrings) {
+                        $subChunk = collect();
+                        foreach ($tokenStrings as $tString) {
+                            if ($devToken = $chunkByToken->get($tString)) {
+                                $subChunk->push($devToken);
+                            }
+                        }
+
+                        if ($subChunk->isNotEmpty()) {
+                            $this->sendChunk($subChunk, $title, $body, $data);
+                        }
+                    }
+                    return;
+                }
+
                 Log::warning('Expo push send failed.', ['status' => $response->status(), 'body' => $response->body()]);
 
                 return;

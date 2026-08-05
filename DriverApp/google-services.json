@@ -1,21 +1,21 @@
 {
   "project_info": {
-    "project_number": "707581615879",
-    "project_id": "picku-noftication",
-    "storage_bucket": "picku-noftication.firebasestorage.app"
+    "project_number": "645836455370",
+    "project_id": "picku-notifications",
+    "storage_bucket": "picku-notifications.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:707581615879:android:c2ed54122e9650c9f7afa2",
+        "mobilesdk_app_id": "1:645836455370:android:623899431144bc520ea333",
         "android_client_info": {
-          "package_name": "com.picku.Driverapp"
+          "package_name": "com.picku.DriverApp"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDsKfpSmG5xKTtsKw7Arjs5fE46JvpWGDE"
+          "current_key": "AIzaSyCtXstdaqmG_JObMcp-WHwTbuQUD1zdim0"
         }
       ],
       "services": {
@@ -26,7 +26,7 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:707581615879:android:dc4d46498b7d4554f7afa2",
+        "mobilesdk_app_id": "1:645836455370:android:128135d86770ac850ea333",
         "android_client_info": {
           "package_name": "lk.picku.passenger"
         }
@@ -34,7 +34,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDsKfpSmG5xKTtsKw7Arjs5fE46JvpWGDE"
+          "current_key": "AIzaSyCtXstdaqmG_JObMcp-WHwTbuQUD1zdim0"
         }
       ],
       "services": {

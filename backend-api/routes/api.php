@@ -164,6 +164,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/admin/notifications/read', [AdminNotificationController::class, 'markAllRead']);
             Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
             Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
+            Route::post('/admin/notifications/send-bulk', [AdminNotificationController::class, 'sendBulk']);
         });
 
         // Commission and driver settlement
