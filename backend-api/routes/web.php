@@ -11,5 +11,5 @@ Route::get(
     '/payments/webxpay/checkout/{attempt}',
     [WebxpayCheckoutController::class, 'show']
 )
-    ->middleware('signed')
+    ->middleware('signed:relative')
     ->name('webxpay.checkout');

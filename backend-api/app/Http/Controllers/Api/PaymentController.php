@@ -167,12 +167,21 @@ class PaymentController extends Controller
                 expiresAt: $expiresAt
             );
 
-            $checkoutUrl = URL::temporarySignedRoute(
+            $signedCheckoutPath = URL::temporarySignedRoute(
                 'webxpay.checkout',
                 $expiresAt,
                 [
                     'attempt' => $attempt->id,
-                ]
+                ],
+                absolute: false
+            );
+
+            $checkoutUrl = rtrim(
+                (string) config('app.url'),
+                '/'
+            ).'/'.ltrim(
+                $signedCheckoutPath,
+                '/'
             );
 
             return $this->success(
