@@ -156,17 +156,20 @@ class BulkNotificationTest extends TestCase
         $job->handle();
 
         // 4. Verify DB Notifications
-        // Driver should have an in-app notification
+        // Single global notification should be stored targeting drivers
         $this->assertDatabaseHas('notifications', [
-            'user_id' => $driverUser->id,
+            'user_id' => null,
+            'target' => 'driver',
             'title' => 'Driver Alert',
             'message' => 'Important news for drivers!',
         ]);
 
-        // Passenger should NOT have an in-app notification
+        // Ensure no per-user notifications were created
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $driverUser->id,
+        ]);
         $this->assertDatabaseMissing('notifications', [
             'user_id' => $passengerUser->id,
-            'title' => 'Driver Alert',
         ]);
 
         // 5. Verify push notification chunk jobs
@@ -232,12 +235,18 @@ class BulkNotificationTest extends TestCase
 
         // 4. Verify DB Notifications
         $this->assertDatabaseHas('notifications', [
-            'user_id' => $driverUser->id,
+            'user_id' => null,
+            'target' => 'all',
             'title' => 'System Update',
+            'message' => 'Scheduled maintenance tonight.',
         ]);
-        $this->assertDatabaseHas('notifications', [
+
+        // Ensure no per-user notifications were created
+        $this->assertDatabaseMissing('notifications', [
+            'user_id' => $driverUser->id,
+        ]);
+        $this->assertDatabaseMissing('notifications', [
             'user_id' => $passengerUser->id,
-            'title' => 'System Update',
         ]);
 
         // 5. Verify push notification chunk jobs

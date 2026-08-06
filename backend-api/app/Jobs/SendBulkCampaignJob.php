@@ -51,28 +51,18 @@ class SendBulkCampaignJob implements ShouldQueue
             });
         }
 
-        // 2. Process users in chunks to avoid memory issues and SQL timeouts
+        // 1. Create a single global notification record for this campaign
+        Notification::create([
+            'user_id' => null,
+            'target' => $this->target,
+            'title' => $this->title,
+            'message' => $this->body,
+            'is_read' => true,
+        ]);
+
+        // 2. Process users in chunks to dispatch push notifications
         $userQuery->chunk(500, function ($users) {
-            $now = now();
-            $notificationRecords = [];
-
-            foreach ($users as $user) {
-                $notificationRecords[] = [
-                    'user_id' => $user->id,
-                    'title' => $this->title,
-                    'message' => $this->body,
-                    'is_read' => false,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ];
-            }
-
-            // Bulk insert in-app notifications
-            if (!empty($notificationRecords)) {
-                Notification::insert($notificationRecords);
-            }
-
-            // 3. Fetch device tokens for the current chunk of users
+            // Fetch device tokens for the current chunk of users
             $userIds = $users->pluck('id');
             $deviceTokenQuery = DeviceToken::whereIn('user_id', $userIds);
 

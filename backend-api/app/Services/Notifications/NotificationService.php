@@ -11,14 +11,17 @@ class NotificationService
     /**
      * Persist an in-app notification for the user and dispatch a push send in the background.
      */
-    public function notify(User $user, string $title, string $message, array $data = []): Notification
+    public function notify(User $user, string $title, string $message, array $data = [], bool $saveToDb = false): ?Notification
     {
-        $notification = Notification::create([
-            'user_id' => $user->id,
-            'title' => $title,
-            'message' => $message,
-            'is_read' => false,
-        ]);
+        $notification = null;
+        if ($saveToDb) {
+            $notification = Notification::create([
+                'user_id' => $user->id,
+                'title' => $title,
+                'message' => $message,
+                'is_read' => false,
+            ]);
+        }
 
         SendExpoPushNotification::dispatch($user->id, $title, $message, $data);
 
