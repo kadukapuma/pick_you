@@ -72,7 +72,7 @@ class WebxpayReturnEndpointTest extends TestCase
             'PKU-UNKNOWN-A01',
             'WXP-REFERENCE-UNKNOWN',
             '2026-08-05 12:30:00',
-            '46',
+            '40',
             '00',
             'Approved',
         ]);
@@ -155,7 +155,7 @@ class WebxpayReturnEndpointTest extends TestCase
             'PKU-RETURN-A01',
             'WXP-RETURN-APPROVED-1',
             '2026-08-05 12:30:00',
-            '46',
+            '40',
             '00',
             'Approved',
         ]);

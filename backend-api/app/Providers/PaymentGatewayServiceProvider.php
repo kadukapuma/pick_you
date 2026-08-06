@@ -44,7 +44,7 @@ class PaymentGatewayServiceProvider extends ServiceProvider
             function () {
                 return new WebxpayResponseParser(
                     expectedGatewayId: (string) config(
-                        'payments.webxpay.payment_gateway_id'
+                        'payments.webxpay.response_gateway_id'
                     )
                 );
             }

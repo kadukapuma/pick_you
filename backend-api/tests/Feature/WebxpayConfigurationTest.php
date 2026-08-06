@@ -15,7 +15,8 @@ class WebxpayConfigurationTest extends TestCase
         config()->set([
             'payments.webxpay.public_key_path' => 'storage/app/payment-keys/test.pem',
             'payments.webxpay.secret_key' => 'test-secret',
-            'payments.webxpay.payment_gateway_id' => 46,
+            'payments.webxpay.payment_gateway_id' => '',
+            'payments.webxpay.response_gateway_id' => '40',
             'payments.webxpay.currency' => 'LKR',
             'payments.webxpay.encryption_method' => 'test-encryption-method',
         ]);

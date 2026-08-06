@@ -223,27 +223,49 @@ class WebxpayCheckoutRequestTest extends TestCase
         );
     }
 
-    public function test_it_rejects_an_empty_gateway_id(): void
+    public function test_it_sends_an_empty_gateway_id_like_the_official_sample(): void
     {
         $payload = $this->createMock(
             WebxpayRequestPayload::class
         );
 
         $payload
-            ->expects($this->never())
-            ->method('encrypt');
+            ->expects($this->once())
+            ->method('encrypt')
+            ->with(
+                'PKU-R-123-A-1',
+                '300.00'
+            )
+            ->willReturn('encrypted-payment');
 
-        $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage(
-            'WEBXPAY gateway ID is not configured.'
-        );
-
-        new WebxpayCheckoutRequest(
+        $request = new WebxpayCheckoutRequest(
             payload: $payload,
             secretKey: 'sandbox-secret',
             gatewayId: '',
             currency: 'LKR',
             encryptionMethod: 'JCs3J+6oSz4V0LgE0zi/Bg=='
+        );
+
+        $fields = $request->build(
+            customer: [
+                'first_name' => 'Test',
+                'last_name' => 'Passenger',
+                'email' => 'passenger@example.com',
+                'contact_number' => '0771234567',
+                'address_line_one' => '123 Test Road',
+            ],
+            merchantOrderId: 'PKU-R-123-A-1',
+            amount: '300.00'
+        );
+
+        $this->assertArrayHasKey(
+            'payment_gateway_id',
+            $fields
+        );
+
+        $this->assertSame(
+            '',
+            $fields['payment_gateway_id']
         );
     }
 

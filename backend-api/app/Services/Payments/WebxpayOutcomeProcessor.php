@@ -21,14 +21,7 @@ class WebxpayOutcomeProcessor
     ) {}
 
     /**
-     * @param  array{
-     *     merchant_order_id: string,
-     *     provider_reference: string,
-     *     transaction_time: string,
-     *     gateway: string,
-     *     status_code: string,
-     *     comment: string
-     * }  $parsed
+     * @param  array<string, string>  $parsed
      */
     public function process(
         PaymentAttempt $attempt,
@@ -58,6 +51,34 @@ class WebxpayOutcomeProcessor
                 throw new DomainException(
                     'WEBXPAY response does not match the payment attempt.'
                 );
+            }
+
+            $hasTransactionAmount = array_key_exists(
+                'transaction_amount',
+                $parsed
+            );
+
+            $hasRequestedAmount = array_key_exists(
+                'requested_amount',
+                $parsed
+            );
+
+            if (
+                $hasTransactionAmount
+                || $hasRequestedAmount
+            ) {
+                if (
+                    ! $hasTransactionAmount
+                    || ! $hasRequestedAmount
+                    || Money::of($parsed['transaction_amount'])
+                    !== Money::of($lockedAttempt->amount)
+                    || Money::of($parsed['requested_amount'])
+                    !== Money::of($lockedAttempt->amount)
+                ) {
+                    throw new DomainException(
+                        'WEBXPAY response amount does not match the payment attempt.'
+                    );
+                }
             }
 
             $mappedStatus = $this->statusMapper->map(
@@ -238,7 +259,7 @@ class WebxpayOutcomeProcessor
                 $this->credits->consume(
                     allocation: $creditAllocation,
                     reference: 'webxpay:'
-                      .$parsed['provider_reference']
+                        .$parsed['provider_reference']
                 );
             }
 

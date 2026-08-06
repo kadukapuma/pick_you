@@ -19,12 +19,6 @@ class WebxpayCheckoutRequest
             );
         }
 
-        if (trim($this->gatewayId) === '') {
-            throw new RuntimeException(
-                'WEBXPAY gateway ID is not configured.'
-            );
-        }
-
         if ($this->currency !== 'LKR') {
             throw new RuntimeException(
                 'WEBXPAY currency must be LKR.'

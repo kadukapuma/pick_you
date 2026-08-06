@@ -51,7 +51,12 @@ return [
 
         'payment_gateway_id' => env(
             'WEBXPAY_PAYMENT_GATEWAY_ID',
-            46
+            ''
+        ),
+
+        'response_gateway_id' => env(
+            'WEBXPAY_RESPONSE_GATEWAY_ID',
+            '40'
         ),
 
         'currency' => env(

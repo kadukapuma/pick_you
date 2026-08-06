@@ -113,4 +113,64 @@ class WebxpayResponseParserTest extends TestCase
             ])
         );
     }
+
+    public function test_it_parses_the_eight_field_staging_response(): void
+    {
+        $parser = new WebxpayResponseParser(
+            expectedGatewayId: '40'
+        );
+
+        $parsed = $parser->parse(
+            implode('|', [
+                'PKU-R-27-P-16-A-03',
+                'T103282026I06',
+                '2026-08-06 12:07:15',
+                '00',
+                '00 - Approved',
+                '40',
+                '100.00',
+                '100.00',
+            ])
+        );
+
+        $this->assertSame(
+            [
+                'merchant_order_id' => 'PKU-R-27-P-16-A-03',
+                'provider_reference' => 'T103282026I06',
+                'transaction_time' => '2026-08-06 12:07:15',
+                'gateway' => '40',
+                'status_code' => '00',
+                'comment' => '00 - Approved',
+                'transaction_amount' => '100.00',
+                'requested_amount' => '100.00',
+            ],
+            $parsed
+        );
+    }
+
+    public function test_it_rejects_mismatched_staging_amounts(): void
+    {
+        $parser = new WebxpayResponseParser(
+            expectedGatewayId: '40'
+        );
+
+        $this->expectException(RuntimeException::class);
+
+        $this->expectExceptionMessage(
+            'WEBXPAY payment response amounts do not match.'
+        );
+
+        $parser->parse(
+            implode('|', [
+                'PKU-R-27-P-16-A-03',
+                'T103282026I06',
+                '2026-08-06 12:07:15',
+                '00',
+                '00 - Approved',
+                '40',
+                '99.00',
+                '100.00',
+            ])
+        );
+    }
 }

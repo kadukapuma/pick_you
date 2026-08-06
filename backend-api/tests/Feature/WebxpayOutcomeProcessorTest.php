@@ -71,6 +71,8 @@ class WebxpayOutcomeProcessorTest extends TestCase
                 'gateway' => '46',
                 'status_code' => '00',
                 'comment' => 'Approved',
+                'transaction_amount' => '800.00',
+                'requested_amount' => '800.00',
             ]
         );
 

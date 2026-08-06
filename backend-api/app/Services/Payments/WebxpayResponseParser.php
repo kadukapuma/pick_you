@@ -17,14 +17,7 @@ class WebxpayResponseParser
     }
 
     /**
-     * @return array{
-     *     merchant_order_id: string,
-     *     provider_reference: string,
-     *     transaction_time: string,
-     *     gateway: string,
-     *     status_code: string,
-     *     comment: string
-     * }
+     * @return array<string, string>
      */
     public function parse(
         string $verifiedPayment
@@ -34,50 +27,29 @@ class WebxpayResponseParser
             explode('|', $verifiedPayment)
         );
 
-        if (count($segments) !== 6) {
-            throw new RuntimeException(
-                'WEBXPAY payment response format is invalid.'
-            );
-        }
+        if (count($segments) === 8) {
+            if (
+                ! hash_equals(
+                    $this->expectedGatewayId,
+                    $segments[5]
+                )
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY payment response gateway is invalid.'
+                );
+            }
 
-        $sampleOrderMatches = hash_equals(
-            $this->expectedGatewayId,
-            $segments[3]
-        );
+            if (
+                ! hash_equals(
+                    $segments[6],
+                    $segments[7]
+                )
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY payment response amounts do not match.'
+                );
+            }
 
-        $guideOrderMatches = hash_equals(
-            $this->expectedGatewayId,
-            $segments[5]
-        );
-
-        if (
-            ! $sampleOrderMatches
-            && ! $guideOrderMatches
-        ) {
-            throw new RuntimeException(
-                'WEBXPAY payment response gateway is invalid.'
-            );
-        }
-
-        if (
-            $sampleOrderMatches
-            && $guideOrderMatches
-        ) {
-            throw new RuntimeException(
-                'WEBXPAY payment response format is ambiguous.'
-            );
-        }
-
-        if ($sampleOrderMatches) {
-            $parsed = [
-                'merchant_order_id' => $segments[0],
-                'provider_reference' => $segments[1],
-                'transaction_time' => $segments[2],
-                'gateway' => $segments[3],
-                'status_code' => $segments[4],
-                'comment' => $segments[5],
-            ];
-        } else {
             $parsed = [
                 'merchant_order_id' => $segments[0],
                 'provider_reference' => $segments[1],
@@ -85,7 +57,61 @@ class WebxpayResponseParser
                 'gateway' => $segments[5],
                 'status_code' => $segments[3],
                 'comment' => $segments[4],
+                'transaction_amount' => $segments[6],
+                'requested_amount' => $segments[7],
             ];
+        } elseif (count($segments) === 6) {
+            $sampleOrderMatches = hash_equals(
+                $this->expectedGatewayId,
+                $segments[3]
+            );
+
+            $guideOrderMatches = hash_equals(
+                $this->expectedGatewayId,
+                $segments[5]
+            );
+
+            if (
+                ! $sampleOrderMatches
+                && ! $guideOrderMatches
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY payment response gateway is invalid.'
+                );
+            }
+
+            if (
+                $sampleOrderMatches
+                && $guideOrderMatches
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY payment response format is ambiguous.'
+                );
+            }
+
+            if ($sampleOrderMatches) {
+                $parsed = [
+                    'merchant_order_id' => $segments[0],
+                    'provider_reference' => $segments[1],
+                    'transaction_time' => $segments[2],
+                    'gateway' => $segments[3],
+                    'status_code' => $segments[4],
+                    'comment' => $segments[5],
+                ];
+            } else {
+                $parsed = [
+                    'merchant_order_id' => $segments[0],
+                    'provider_reference' => $segments[1],
+                    'transaction_time' => $segments[2],
+                    'gateway' => $segments[5],
+                    'status_code' => $segments[3],
+                    'comment' => $segments[4],
+                ];
+            }
+        } else {
+            throw new RuntimeException(
+                'WEBXPAY payment response format is invalid.'
+            );
         }
 
         foreach (
