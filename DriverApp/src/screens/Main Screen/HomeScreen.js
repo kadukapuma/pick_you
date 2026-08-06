@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
   Platform,
   StatusBar,
   StyleSheet,
@@ -17,7 +19,9 @@ import {
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import * as Location from "expo-location";
 import IncomingRideModal from "../../components/IncomingRideModel";
+import BackgroundLocationDisclosureModal from "../../components/BackgroundLocationDisclosureModal";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
 import api from "../../services/api";
@@ -79,7 +83,7 @@ const HomeScreen = () => {
     location: driverCoord,
     loading: isLocationLoading,
     error: locationError,
-  } = useDriverLocation();
+  } = useDriverLocation(isOnline);
   const mapOrigin = useMemo(
     () => driverCoord ?? DEFAULT_DRIVER_COORD,
     [driverCoord],
@@ -93,6 +97,7 @@ const HomeScreen = () => {
   const [wsConnected, setWsConnected] = useState(false);
   const [realtimeStatus, setRealtimeStatus] = useState("disconnected");
   const [showRideModal, setShowRideModal] = useState(false);
+  const [showDisclosureModal, setShowDisclosureModal] = useState(false);
   const [rideData, setRideData] = useState(null);
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
@@ -191,8 +196,7 @@ const HomeScreen = () => {
         console.error("❌ useFocusEffect error:", err);
         setScreenError("Failed to initialize home screen");
       }
-      return () => { };
-    }, [clearIncomingRideTimer, fetchOngoingRide, fetchTodayEarnings]),
+    }, [clearIncomingRideTimer, fetchDriverData, fetchOngoingRide, fetchTodayEarnings]),
   );
 
   useEffect(() => {
@@ -340,7 +344,7 @@ const HomeScreen = () => {
     return "Connecting to live trips...";
   };
 
-  const fetchDriverData = async () => {
+  const fetchDriverData = useCallback(async () => {
     try {
       console.log("🔵 Fetching driver data...");
       const response = await api.get("/user");
@@ -358,7 +362,35 @@ const HomeScreen = () => {
         driverObj?.availability === true ||
         driverObj?.availability === "1"
       );
-      setIsOnline(isAvailable);
+
+      // Google Play Policy Compliance: Check location permissions on startup.
+      // If the backend has them marked as online but permissions are missing,
+      // toggle availability to offline on the server and set isOnline to false.
+      // This prevents background location tracking from automatically starting
+      // on startup/mount without proper consent or system prompting.
+      if (isAvailable) {
+        const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
+        const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+        const hasPermissions = fgStatus === "granted" && bgStatus === "granted";
+        if (!hasPermissions) {
+          try {
+            await api.put("/driver/availability", { is_active: false });
+          } catch (availabilityErr) {
+            console.log("Failed to set availability to offline on startup permission failure:", availabilityErr);
+          }
+          setIsOnline(false);
+          showCustomToast(
+            "info",
+            "Please go online to enable location permissions and receive trips.",
+            15000
+          );
+        } else {
+          setIsOnline(true);
+        }
+      } else {
+        setIsOnline(false);
+      }
+
       setDriverId(driverObj?.id || null);
       setDriverVehicleType(getActiveVehicleType(driverObj));
       setScreenError(null);
@@ -369,7 +401,7 @@ const HomeScreen = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const handleAcceptRide = async () => {
     if (!rideData?.id || isAcceptingRide) return;
@@ -429,9 +461,7 @@ const HomeScreen = () => {
     }
   };
 
-  const handleToggleAvailability = async (newValue) => {
-    if (IS_AVAILABILITY_TOGGLE_DISABLED) return;
-
+  const proceedToGoOnline = async (newValue) => {
     setIsToggling(true);
     try {
       await api.put("/driver/availability", {
@@ -457,6 +487,75 @@ const HomeScreen = () => {
     } finally {
       setIsToggling(false);
     }
+  };
+
+  const handleToggleAvailability = async (newValue) => {
+    if (IS_AVAILABILITY_TOGGLE_DISABLED) return;
+
+    if (newValue) {
+      // Google Play Compliance: When going online, check location permissions first.
+      // This is the user-triggered interaction before we ask for background location.
+      const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
+      const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+
+      if (fgStatus === "granted" && bgStatus === "granted") {
+        // Already have permissions, go online directly.
+        await proceedToGoOnline(true);
+      } else {
+        // Missing foreground and/or background location permissions.
+        // Show prominent disclosure modal first.
+        setShowDisclosureModal(true);
+      }
+    } else {
+      // Going offline, proceed directly.
+      await proceedToGoOnline(false);
+    }
+  };
+
+  const handleDisclosureContinue = async () => {
+    setShowDisclosureModal(false);
+    setIsToggling(true);
+    try {
+      // Google Play Compliance: Request foreground location permission first.
+      const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
+      if (fgStatus !== "granted") {
+        showCustomToast("error", "Foreground location permission is required to receive trips.");
+        setIsToggling(false);
+        return;
+      }
+
+      // Google Play Compliance: Add a delay of 1000ms to allow the app to fully
+      // regain focus after the foreground permission system dialog is dismissed.
+      // This prevents the subsequent background location request from failing silently on Android.
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Google Play Compliance: Request background location permission second.
+      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+      if (bgStatus !== "granted") {
+        setIsToggling(false);
+        Alert.alert(
+          "Background Location Required",
+          "PickU Driver collects your location even when the app is running in the background to share your live location with passengers during active rides. Please go to Settings > Permissions > Location and select 'Allow all the time'.",
+          [
+            { text: "Cancel", style: "cancel" },
+            { text: "Open Settings", onPress: () => Linking.openSettings() }
+          ]
+        );
+        return;
+      }
+
+      // Both permissions granted successfully, proceed to go online!
+      await proceedToGoOnline(true);
+    } catch (err) {
+      console.error("Error requesting location permissions:", err);
+      showCustomToast("error", "Failed to obtain required permissions.");
+      setIsToggling(false);
+    }
+  };
+
+  const handleDisclosureCancel = () => {
+    setShowDisclosureModal(false);
+    showCustomToast("info", "Background location permission was not granted. Cannot go online.");
   };
 
   // Center Map Viewport cleanly over Driver Coordinates
@@ -698,6 +797,13 @@ const HomeScreen = () => {
             onAccept={handleAcceptRide}
             onReject={handleRejectRide}
             isAccepting={isAcceptingRide}
+          />
+
+          {/* --- GOOGLE PLAY COMPLIANT BACKGROUND LOCATION PROMINENT DISCLOSURE --- */}
+          <BackgroundLocationDisclosureModal
+            visible={showDisclosureModal}
+            onContinue={handleDisclosureContinue}
+            onCancel={handleDisclosureCancel}
           />
         </>
       )}

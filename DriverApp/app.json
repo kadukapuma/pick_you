@@ -2,7 +2,7 @@
   "expo": {
     "name": "PickU Driver",
     "slug": "DriverApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./src/assets/icon-1.png",
     "scheme": "driverapp",
@@ -74,7 +74,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4badf947-580a-4d8b-a22a-52a5ac569ef8"
+        "projectId": "19185e93-09e4-4ac7-bd1f-1df08ed4add0"
       }
     }
   }

@@ -57,4 +57,23 @@ class AdminNotificationController extends Controller
         $deleted = AdminNotificationLog::where('is_read', true)->delete();
         return $this->success(['deleted' => $deleted], 'Read notifications cleared.');
     }
+
+    public function sendBulk(Request $request)
+    {
+        $validated = $request->validate([
+            'target' => 'required|in:all,driver,passenger',
+            'title' => 'required|string|max:255',
+            'body' => 'required|string',
+            'data' => 'nullable|array',
+        ]);
+
+        \App\Jobs\SendBulkCampaignJob::dispatch(
+            $validated['target'],
+            $validated['title'],
+            $validated['body'],
+            $validated['data'] ?? []
+        );
+
+        return $this->success(null, 'Bulk notification campaign scheduled successfully.');
+    }
 }
