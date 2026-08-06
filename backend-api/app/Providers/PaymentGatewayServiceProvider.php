@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\Payments\MockPaymentGateway;
 use App\Services\Payments\PaymentGateway;
+use App\Services\Payments\WebxpayAppResultUrl;
 use App\Services\Payments\WebxpayCheckoutRequest;
 use App\Services\Payments\WebxpayRequestPayload;
 use App\Services\Payments\WebxpayResponseParser;
@@ -45,6 +46,17 @@ class PaymentGatewayServiceProvider extends ServiceProvider
                 return new WebxpayResponseParser(
                     expectedGatewayId: (string) config(
                         'payments.webxpay.response_gateway_id'
+                    )
+                );
+            }
+        );
+
+        $this->app->singleton(
+            WebxpayAppResultUrl::class,
+            function () {
+                return new WebxpayAppResultUrl(
+                    (string) config(
+                        'payments.webxpay.app_result_url'
                     )
                 );
             }

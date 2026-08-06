@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\Payments\WebxpayAppResultUrl;
 use App\Services\Payments\WebxpayCheckoutRequest;
 use App\Services\Payments\WebxpayRequestPayload;
 use App\Services\Payments\WebxpayResponseParser;
@@ -89,6 +90,34 @@ class WebxpayConfigurationTest extends TestCase
         $this->assertSame(
             $firstParser,
             $secondParser
+        );
+    }
+
+    public function test_laravel_resolves_the_webxpay_app_result_url(): void
+    {
+        config()->set(
+            'payments.webxpay.app_result_url',
+            'picku://payments/result'
+        );
+
+        $this->app->forgetInstance(
+            WebxpayAppResultUrl::class
+        );
+
+        $resultUrl = $this->app->make(
+            WebxpayAppResultUrl::class
+        );
+
+        $this->assertSame(
+            'picku://payments/result'
+                .'?ride_id=28'
+                .'&payment_id=17'
+                .'&status=COMPLETED',
+            $resultUrl->forPayment(
+                rideId: 28,
+                paymentId: 17,
+                status: 'COMPLETED'
+            )
         );
     }
 }

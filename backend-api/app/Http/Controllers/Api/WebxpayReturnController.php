@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\PaymentAttempt;
+use App\Services\Payments\WebxpayAppResultUrl;
 use App\Services\Payments\WebxpayOutcomeProcessor;
 use App\Services\Payments\WebxpayResponseParser;
 use App\Services\Payments\WebxpayResponseVerifier;
 use DomainException;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
@@ -18,12 +20,13 @@ class WebxpayReturnController extends Controller
     public function __construct(
         private readonly WebxpayResponseVerifier $verifier,
         private readonly WebxpayResponseParser $parser,
-        private readonly WebxpayOutcomeProcessor $processor
+        private readonly WebxpayOutcomeProcessor $processor,
+        private readonly WebxpayAppResultUrl $appResultUrl
     ) {}
 
     public function handle(
         Request $request
-    ): JsonResponse {
+    ): JsonResponse|RedirectResponse {
         $validated = $request->validate([
             'payment' => [
                 'required',
@@ -94,6 +97,16 @@ class WebxpayReturnController extends Controller
                 'status' => 'error',
                 'message' => $exception->getMessage(),
             ], 409);
+        }
+
+        if (! $request->expectsJson()) {
+            return redirect()->away(
+                $this->appResultUrl->forPayment(
+                    rideId: (int) $payment->ride_id,
+                    paymentId: (int) $payment->id,
+                    status: (string) $payment->payment_status
+                )
+            );
         }
 
         return response()->json([

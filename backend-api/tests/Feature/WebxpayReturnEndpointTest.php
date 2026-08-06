@@ -165,7 +165,7 @@ class WebxpayReturnEndpointTest extends TestCase
         );
 
         $verifier
-            ->expects($this->once())
+            ->expects($this->exactly(2))
             ->method('verify')
             ->willReturn([
                 'payment' => $rawPayment,
@@ -194,6 +194,21 @@ class WebxpayReturnEndpointTest extends TestCase
                 'data.merchant_order_id',
                 'PKU-RETURN-A01'
             );
+        $this->post(
+            '/api/payments/webxpay/return',
+            [
+                'payment' => 'encoded-payment',
+                'signature' => 'encoded-signature',
+            ],
+            [
+                'Accept' => 'text/html',
+            ]
+        )->assertRedirect(
+            'picku://payments/result'
+                .'?ride_id='.$ride->id
+                .'&payment_id='.$payment->id
+                .'&status=COMPLETED'
+        );
 
         $this->assertSame(
             'COMPLETED',
