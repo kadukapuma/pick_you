@@ -30,7 +30,8 @@
         "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "lk.picku.passenger"
+      "package": "lk.picku.passenger",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",

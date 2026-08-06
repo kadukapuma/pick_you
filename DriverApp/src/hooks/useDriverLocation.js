@@ -4,8 +4,15 @@ import * as Location from "expo-location";
 /**
  * Driver's current GPS position for map routing.
  * Stabilised: only triggers a state update when lat/lng change meaningfully.
+ * 
+ * Google Play Policy Compliance:
+ * We modified this hook to avoid calling Location.requestForegroundPermissionsAsync()
+ * on initialization or inside useEffect automatically. Instead, it checks status using
+ * Location.getForegroundPermissionsAsync(). We added `permissionGrantedTrigger` to the 
+ * useEffect dependency array so that once permission is granted (via the user-triggered
+ * disclosure modal), tracking begins automatically without prompt spamming.
  */
-export function useDriverLocation() {
+export function useDriverLocation(permissionGrantedTrigger = null) {
   const [location, setLocation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -17,7 +24,9 @@ export function useDriverLocation() {
 
     const load = async () => {
       try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
+        // Query current permission status without prompting the user.
+        // This ensures no location dialog appears automatically on app startup.
+        const { status } = await Location.getForegroundPermissionsAsync();
         if (status !== "granted") {
           if (!cancelled) {
             setError("Location permission denied");
@@ -100,7 +109,7 @@ export function useDriverLocation() {
       cancelled = true;
       locationSubscription?.remove();
     };
-  }, []);
+  }, [permissionGrantedTrigger]);
 
   return { location, loading, error };
 }

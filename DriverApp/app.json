@@ -2,7 +2,7 @@
   "expo": {
     "name": "PickU Driver",
     "slug": "DriverApp",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./src/assets/icon-1.png",
     "scheme": "driverapp",
@@ -27,7 +27,8 @@
       "usesCleartextTraffic": true,
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.picku.Driverapp",
+      "package": "com.picku.DriverApp",
+      "googleServicesFile": "./google-services.json",
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION",

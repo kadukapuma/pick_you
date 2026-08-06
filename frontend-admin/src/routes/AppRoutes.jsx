@@ -31,6 +31,7 @@ import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
 import LandingPage from '../views/Landing/LandingPage/LandingPage'
+import Broadcasts from '../views/Broadcasts'
 
 import SuperDashboard from '../views/SuperDashboard'
 import Admins from '../views/Admins'
@@ -102,6 +103,7 @@ const AppRoutes = () => {
                         element={canManageVehicleTypes ? <VehicleTypes /> : <Navigate to="/admin-portal" replace />}
                     />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="broadcasts" element={<Broadcasts />} />
                     <Route
                         path="operators"
                         element={canManageOperators ? <Operators /> : <Navigate to="/admin-portal" replace />}

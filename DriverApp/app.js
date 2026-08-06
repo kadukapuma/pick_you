@@ -4,6 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./src/services/api";
+import { registerForPushNotifications } from "./src/services/pushRegistration";
 
 import AppNavigator from "./src/navigation/AppNavigator";
 
@@ -69,6 +70,12 @@ export default function App() {
   useEffect(() => {
     checkLoginStatus();
   }, []);
+
+  useEffect(() => {
+    if (isLoggedIn) {
+      registerForPushNotifications();
+    }
+  }, [isLoggedIn]);
 
   // While checking database parameters, keep user on a clean, solid background color
   if (!isReady) {

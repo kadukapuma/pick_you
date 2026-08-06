@@ -42,4 +42,8 @@ return [
         'sender_id' => env('NOTIFYLK_SENDER_ID'),
     ],
 
+    'expo' => [
+        'access_token' => env('EXPO_ACCESS_TOKEN'),
+    ],
+
 ];
