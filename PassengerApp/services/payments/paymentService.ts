@@ -2,8 +2,10 @@ import { apiClient } from "../api/client";
 import type {
   NewCardInput,
   OutstandingPayment,
+  PaymentCapabilities,
   PaymentResult,
   SavedCard,
+  WebxpayCheckout,
 } from "./paymentTypes";
 
 // Local mock-card testing only. `__DEV__` guarantees this cannot enable the
@@ -12,14 +14,21 @@ export const CARD_PAYMENTS_ENABLED =
   __DEV__ && process.env.EXPO_PUBLIC_ENABLE_MOCK_CARD_PAYMENTS === "true";
 
 /** Backend shape from PassengerPaymentMethodController (token is never exposed). */
-type RawPaymentMethod = {
-  id: number | string;
-  gateway: string;
-  brand: string | null;
-  last4: string;
-  exp_month: number;
-  exp_year: number;
-  is_default: boolean;
+type RawWebxpayCheckout = {
+  payment_id: number;
+  attempt_id: number | null;
+  merchant_order_id?: string;
+  amount: string;
+  currency: string;
+  checkout_url: string | null;
+  expires_at: string | null;
+};
+
+type RawTrustedPaymentStatus = {
+  ride_id: number;
+  payment_method: string;
+  final_fare: string;
+  payment: RawPayment | null;
 };
 
 type RawPayment = {
@@ -51,13 +60,16 @@ function toSavedCard(raw: RawPaymentMethod): SavedCard {
   };
 }
 
-function toPaymentResult(raw: RawPayment | undefined, fallbackMessage: string): PaymentResult {
+function toPaymentResult(
+  raw: RawPayment | undefined,
+  fallbackMessage: string,
+): PaymentResult {
   const status = String(raw?.payment_status || raw?.status || "").toUpperCase();
 
   if (status === "COMPLETED") {
     return { status: "completed", reference: raw?.gateway_reference };
   }
-  if (status === "FAILED") {
+  if (["FAILED", "DECLINED", "CANCELLED"].includes(status)) {
     return {
       status: "failed",
       message: raw?.failure_reason || "Card payment failed.",
@@ -75,8 +87,61 @@ function toPaymentResult(raw: RawPayment | undefined, fallbackMessage: string): 
  * entry ledger stays the single source of truth for what was actually paid.
  */
 export const paymentService = {
+  async getCapabilities(): Promise<PaymentCapabilities> {
+    const response = await apiClient.get<PaymentCapabilities>(
+      "/payment-capabilities",
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        cash: true,
+        card: false,
+        wallet: false,
+        gateway: "unavailable",
+        environment: "unknown",
+      };
+    }
+
+    return response.data;
+  },
+
+  async prepareWebxpayCheckout(rideId: string): Promise<{
+    success: boolean;
+    message?: string;
+    checkout?: WebxpayCheckout;
+  }> {
+    const response = await apiClient.post<RawWebxpayCheckout>(
+      `/rides/${rideId}/payments/webxpay/checkout`,
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        message:
+          response.message || "Could not prepare the secure WEBXPAY checkout.",
+      };
+    }
+
+    const raw = response.data;
+
+    return {
+      success: true,
+      message: response.message,
+      checkout: {
+        paymentId: raw.payment_id,
+        attemptId: raw.attempt_id,
+        merchantOrderId: raw.merchant_order_id,
+        amount: raw.amount,
+        currency: "LKR",
+        checkoutUrl: raw.checkout_url,
+        expiresAt: raw.expires_at,
+      },
+    };
+  },
+
   async listCards(): Promise<SavedCard[]> {
-    const response = await apiClient.get<RawPaymentMethod[]>("/payment-methods");
+    const response =
+      await apiClient.get<RawPaymentMethod[]>("/payment-methods");
     if (!response.success || !response.data) return [];
     return response.data.map(toSavedCard);
   },
@@ -89,18 +154,26 @@ export const paymentService = {
    * never sends the PAN to us at all); it exists so the card ledger path can
    * be exercised without a live gateway.
    */
-  async saveCard(input: NewCardInput): Promise<{ success: boolean; message?: string; card?: SavedCard }> {
-    const response = await apiClient.post<RawPaymentMethod>("/payment-methods", {
-      number: input.number.replace(/\s/g, ""),
-      exp_month: input.expMonth,
-      exp_year: input.expYear,
-      cvv: input.cvv,
-      brand: detectBrand(input.number),
-      is_default: input.isDefault,
-    });
+  async saveCard(
+    input: NewCardInput,
+  ): Promise<{ success: boolean; message?: string; card?: SavedCard }> {
+    const response = await apiClient.post<RawPaymentMethod>(
+      "/payment-methods",
+      {
+        number: input.number.replace(/\s/g, ""),
+        exp_month: input.expMonth,
+        exp_year: input.expYear,
+        cvv: input.cvv,
+        brand: detectBrand(input.number),
+        is_default: input.isDefault,
+      },
+    );
 
     if (!response.success || !response.data) {
-      return { success: false, message: response.message || "Could not save this card." };
+      return {
+        success: false,
+        message: response.message || "Could not save this card.",
+      };
     }
 
     return { success: true, card: toSavedCard(response.data) };
@@ -121,7 +194,10 @@ export const paymentService = {
    * app already triggered it (POST /payments/{ride} returns the existing
    * payment instead of charging twice).
    */
-  async beginRidePayment(rideId: string, _amount: number): Promise<PaymentResult> {
+  async beginRidePayment(
+    rideId: string,
+    _amount: number,
+  ): Promise<PaymentResult> {
     const response = await apiClient.post<RawPayment>(`/payments/${rideId}`);
 
     if (!response.success) {
@@ -136,11 +212,21 @@ export const paymentService = {
   },
 
   async getPaymentResult(rideId: string): Promise<PaymentResult> {
-    const response = await apiClient.get<{ payment?: RawPayment }>(`/rides/${rideId}`);
+    const response = await apiClient.get<RawTrustedPaymentStatus>(
+      `/rides/${rideId}/payment`,
+    );
+
     if (!response.success) {
-      return { status: "processing", message: "Waiting for secure payment confirmation." };
+      return {
+        status: "processing",
+        message: "Waiting for secure payment confirmation.",
+      };
     }
-    return toPaymentResult(response.data?.payment, "Waiting for secure payment confirmation.");
+
+    return toPaymentResult(
+      response.data?.payment || undefined,
+      "Waiting for secure payment confirmation.",
+    );
   },
 
   async listOutstandingPayments(): Promise<OutstandingPayment[]> {
