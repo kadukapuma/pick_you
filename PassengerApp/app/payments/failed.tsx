@@ -6,6 +6,7 @@ import PaymentScreen, {
 } from "../../features/payments/PaymentScreen";
 import { StatusOrb } from "../../features/payments/PaymentVisuals";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
+import { CARD_PAYMENTS_ENABLED } from "../../services/payments/paymentService";
 
 export default function PaymentFailedScreen() {
   const { rideId = "", amount = "0", message } = useLocalSearchParams<{
@@ -33,7 +34,12 @@ export default function PaymentFailedScreen() {
           <Text style={styles.infoText}>You will not be charged twice for a confirmed payment.</Text>
         </View>
       </PaymentCard>
-      <PaymentButton label="Retry this card" icon="refresh-outline" onPress={() => router.replace({ pathname: "/payments/processing", params: params })} />
+      <PaymentButton
+        label={CARD_PAYMENTS_ENABLED ? "Retry this card" : "Card payments unavailable"}
+        icon={CARD_PAYMENTS_ENABLED ? "refresh-outline" : "lock-closed-outline"}
+        onPress={() => router.replace({ pathname: "/payments/processing", params: params })}
+        disabled={!CARD_PAYMENTS_ENABLED}
+      />
       <PaymentButton label="Use another card" icon="card-outline" variant="secondary" onPress={() => router.push({ pathname: "/payments/cards", params: { mode: "retry", ...params } })} />
       <PaymentButton label="View other payment options" icon="wallet-outline" variant="secondary" onPress={() => router.push({ pathname: "/ride-booking/payment-method", params })} />
       <Text style={styles.support}>Need help? Open the ride receipt and choose “Help with this ride.”</Text>

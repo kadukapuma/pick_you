@@ -23,6 +23,9 @@ const defaultForm = {
     per_minute_rate: '0',
     cancellation_fee: '0',
     is_active: false,
+    // Blank means "use the platform default commission rate" - entered here
+    // as a percentage (e.g. "8") and converted to a fraction (0.08) on save.
+    commission_rate: '',
 }
 
 const numericFields = [
@@ -36,6 +39,15 @@ const formatMoney = (value) => {
     const amount = Number(value)
     if (Number.isNaN(amount)) return '0.00'
     return amount.toFixed(2)
+}
+
+const FARE_CONFIG_GRID = '1.2fr 0.85fr 0.85fr 0.85fr 0.85fr 0.85fr 0.7fr 0.9fr'
+
+const formatCommissionRate = (value) => {
+    if (value === null || value === undefined || value === '') return 'Default'
+    const percent = Number(value) * 100
+    if (Number.isNaN(percent)) return 'Default'
+    return `${percent.toFixed(2)}%`
 }
 
 const FareConfigs = () => {
@@ -139,6 +151,13 @@ const FareConfigs = () => {
             }
         }
 
+        if (form.commission_rate.trim() !== '') {
+            const percent = Number(form.commission_rate)
+            if (Number.isNaN(percent) || percent < 0 || percent > 100) {
+                return 'Commission rate must be a percentage between 0 and 100, or left blank to use the platform default.'
+            }
+        }
+
         return null
     }
 
@@ -166,6 +185,10 @@ const FareConfigs = () => {
         per_minute_rate: Number(form.per_minute_rate),
         cancellation_fee: Number(form.cancellation_fee),
         is_active: form.is_active,
+        commission_rate:
+            form.commission_rate.trim() === ''
+                ? null
+                : Number(form.commission_rate) / 100,
     })
 
     const handleSubmit = async (event) => {
@@ -208,6 +231,10 @@ const FareConfigs = () => {
             per_minute_rate: String(item.per_minute_rate ?? '0'),
             cancellation_fee: String(item.cancellation_fee ?? '0'),
             is_active: Boolean(item.is_active),
+            commission_rate:
+                item.commission_rate === null || item.commission_rate === undefined
+                    ? ''
+                    : String(Number(item.commission_rate) * 100),
         })
         setModalOpen(true)
     }
@@ -240,17 +267,17 @@ const FareConfigs = () => {
             </div>
 
             <DataTable
-                headers={['Vehicle Type', 'Base', 'Per KM', 'Per Min', 'Cancel Fee', 'Status', 'Action']}
-                gridTemplate="1.2fr 0.9fr 0.9fr 0.9fr 0.9fr 0.8fr 0.9fr"
+                headers={['Vehicle Type', 'Base', 'Per KM', 'Per Min', 'Cancel Fee', 'Commission', 'Status', 'Action']}
+                gridTemplate={FARE_CONFIG_GRID}
             >
                 {loading ? (
-                    <div className="table-row" style={{ gridTemplateColumns: '1.2fr 0.9fr 0.9fr 0.9fr 0.9fr 0.8fr 0.9fr' }}>
+                    <div className="table-row" style={{ gridTemplateColumns: FARE_CONFIG_GRID }}>
                         <span className="muted" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
                             Loading fare configurations...
                         </span>
                     </div>
                 ) : filteredFareConfigs.length === 0 ? (
-                    <div className="table-row" style={{ gridTemplateColumns: '1.2fr 0.9fr 0.9fr 0.9fr 0.9fr 0.8fr 0.9fr' }}>
+                    <div className="table-row" style={{ gridTemplateColumns: FARE_CONFIG_GRID }}>
                         <span className="muted" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
                             No fare configurations found.
                         </span>
@@ -260,7 +287,7 @@ const FareConfigs = () => {
                         <div
                             className="table-row"
                             key={item.id}
-                            style={{ gridTemplateColumns: '1.2fr 0.9fr 0.9fr 0.9fr 0.9fr 0.8fr 0.9fr' }}
+                            style={{ gridTemplateColumns: FARE_CONFIG_GRID }}
                         >
                             <div className="fare-config-vehicle-type">
                                 <VehicleTypeIcon type={item.vehicle_type} showLabel />
@@ -269,6 +296,11 @@ const FareConfigs = () => {
                             <div>LKR {formatMoney(item.per_km_rate)}</div>
                             <div>LKR {formatMoney(item.per_minute_rate)}</div>
                             <div>LKR {formatMoney(item.cancellation_fee)}</div>
+                            <div>
+                                <span className={item.commission_rate ? 'fare-config-commission' : 'muted'}>
+                                    {formatCommissionRate(item.commission_rate)}
+                                </span>
+                            </div>
                             <div>
                                 <span className={`badge-status ${item.is_active ? 'active' : 'pending'}`}>
                                     {item.is_active ? 'Active' : 'Inactive'}
@@ -386,6 +418,25 @@ const FareConfigs = () => {
                             step="0.01"
                             min="0"
                         />
+                    </div>
+
+                    <div>
+                        <FormInput
+                            label="Commission Rate (%)"
+                            name="commission_rate"
+                            type="number"
+                            placeholder="Platform default"
+                            value={form.commission_rate}
+                            onChange={handleFormChange}
+                            disabled={saving}
+                            step="0.01"
+                            min="0"
+                            max="100"
+                        />
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                            What PickU keeps from every ride of this vehicle type. Leave blank
+                            to use the platform-wide commission rate instead.
+                        </p>
                     </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '8px' }}>
