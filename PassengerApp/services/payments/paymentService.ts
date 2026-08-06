@@ -13,6 +13,16 @@ import type {
 export const CARD_PAYMENTS_ENABLED =
   __DEV__ && process.env.EXPO_PUBLIC_ENABLE_MOCK_CARD_PAYMENTS === "true";
 
+type RawPaymentMethod = {
+  id: number | string;
+  gateway: string;
+  brand: string | null;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+  is_default: boolean;
+};
+
 /** Backend shape from PassengerPaymentMethodController (token is never exposed). */
 type RawWebxpayCheckout = {
   payment_id: number;
@@ -146,6 +156,12 @@ export const paymentService = {
     return response.data.map(toSavedCard);
   },
 
+  async getCard(cardId: string): Promise<SavedCard | null> {
+    const cards = await this.listCards();
+
+    return cards.find((card) => card.id === cardId) || null;
+  },
+
   /**
    * TEST-MODE card entry. This posts the raw number to our backend, which
    * tokenizes it (via the mock gateway right now) and discards everything
@@ -187,6 +203,10 @@ export const paymentService = {
   async deleteCard(cardId: string): Promise<boolean> {
     const response = await apiClient.delete(`/payment-methods/${cardId}`);
     return response.success;
+  },
+
+  async removeCard(cardId: string): Promise<boolean> {
+    return this.deleteCard(cardId);
   },
 
   /**
