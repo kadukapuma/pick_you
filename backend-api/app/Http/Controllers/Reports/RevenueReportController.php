@@ -1,0 +1,111 @@
+<?php
+
+namespace App\Http\Controllers\Reports;
+
+use App\Http\Controllers\Controller;
+use App\Models\Ride;
+use App\Services\Ledger\Money;
+use App\Traits\ApiResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class RevenueReportController extends Controller
+{
+    use ApiResponse;
+
+    /** Day-by-day revenue breakdown (defaults to the last 30 days). */
+    public function daily(Request $request)
+    {
+        $validated = $request->validate([
+            'start' => 'sometimes|date',
+            'end' => 'sometimes|date',
+        ]);
+
+        $end = isset($validated['end']) ? now()->parse($validated['end'])->endOfDay() : now()->endOfDay();
+        $start = isset($validated['start']) ? now()->parse($validated['start'])->startOfDay() : $end->copy()->subDays(29)->startOfDay();
+
+        $rows = $this->aggregateBy(DB::raw('DATE(completed_at)'), 'date', $start, $end);
+
+        return $this->success([
+            'start' => $start->toDateString(),
+            'end' => $end->toDateString(),
+            'rows' => $rows,
+        ], 'Daily revenue report retrieved successfully.');
+    }
+
+    /** Month-by-month revenue breakdown (defaults to the last 12 months). */
+    public function monthly(Request $request)
+    {
+        $validated = $request->validate([
+            'start' => 'sometimes|date',
+            'end' => 'sometimes|date',
+        ]);
+
+        $end = isset($validated['end']) ? now()->parse($validated['end'])->endOfMonth() : now()->endOfMonth();
+        $start = isset($validated['start']) ? now()->parse($validated['start'])->startOfMonth() : $end->copy()->subMonths(11)->startOfMonth();
+
+        $rows = $this->aggregateBy(DB::raw("TO_CHAR(completed_at, 'YYYY-MM')"), 'month', $start, $end);
+
+        return $this->success([
+            'start' => $start->toDateString(),
+            'end' => $end->toDateString(),
+            'rows' => $rows,
+        ], 'Monthly revenue report retrieved successfully.');
+    }
+
+    /**
+     * Shared aggregation: completed rides grouped by an arbitrary date bucket.
+     *
+     * @param  \Illuminate\Contracts\Database\Query\Expression|string  $bucket
+     */
+    private function aggregateBy($bucket, string $bucketAlias, \Illuminate\Support\Carbon $start, \Illuminate\Support\Carbon $end): array
+    {
+        $discounts = $this->discountsByBucket($bucket, $bucketAlias, $start, $end);
+
+        return Ride::query()
+            ->where('status', 'COMPLETED')
+            ->whereBetween('completed_at', [$start, $end])
+            ->selectRaw(
+                "{$bucket} as {$bucketAlias},".
+                'COUNT(*) as ride_count, '.
+                'SUM(COALESCE(NULLIF(final_fare, 0), estimated_fare, 0)) as gross_fares, '.
+                'SUM(COALESCE(commission_amount, 0)) as commission_revenue, '.
+                'SUM(COALESCE(driver_earning, NULLIF(final_fare, 0), estimated_fare, 0)) as driver_earnings'
+            )
+            ->groupBy($bucketAlias)
+            ->orderBy($bucketAlias)
+            ->get()
+            ->map(function ($row) use ($discounts, $bucketAlias) {
+                $commission = Money::of($row->commission_revenue);
+                $discount = Money::of($discounts[$row->{$bucketAlias}] ?? '0');
+
+                return [
+                    $bucketAlias => $row->{$bucketAlias},
+                    'ride_count' => (int) $row->ride_count,
+                    'gross_fares' => Money::of($row->gross_fares),
+                    'commission_revenue' => $commission,
+                    'driver_earnings' => Money::of($row->driver_earnings),
+                    // No refund is ever recorded anywhere in the system today (the
+                    // payment gateway exposes a refund() method but nothing calls
+                    // it or persists a refunded status/amount) - N/A rather than
+                    // a fabricated 0.
+                    'refunds' => 'N/A',
+                    'promotions' => $discount,
+                    'net_profit' => Money::sub($commission, $discount),
+                ];
+            })->all();
+    }
+
+    /** Promotional discounts applied to completed rides, grouped by the same date bucket. */
+    private function discountsByBucket($bucket, string $bucketAlias, \Illuminate\Support\Carbon $start, \Illuminate\Support\Carbon $end): array
+    {
+        return DB::table('ride_promotions')
+            ->join('rides', 'rides.id', '=', 'ride_promotions.ride_id')
+            ->where('rides.status', 'COMPLETED')
+            ->whereBetween('rides.completed_at', [$start, $end])
+            ->selectRaw("{$bucket} as {$bucketAlias}, SUM(ride_promotions.discount_applied) as discounts")
+            ->groupBy($bucketAlias)
+            ->pluck('discounts', $bucketAlias)
+            ->all();
+    }
+}

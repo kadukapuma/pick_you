@@ -434,6 +434,72 @@ const fetchTrialBalance = async (token) => {
   return payload.data || {}
 }
 
+// Reports
+const fetchReportsOverview = async (token, period = 'week') => {
+  const payload = await apiFetch(`/admin/reports/overview?period=${period}`, { token })
+  return payload.data || {}
+}
+
+const fetchVehicleSummary = async (token, { vehicleType = '' } = {}) => {
+  const params = new URLSearchParams()
+  if (vehicleType) params.set('vehicle_type', vehicleType)
+  const payload = await apiFetch(`/admin/reports/vehicle-summary?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchRideStatistics = async (token, { period = 'week', vehicleType = '' } = {}) => {
+  const params = new URLSearchParams({ period })
+  if (vehicleType) params.set('vehicle_type', vehicleType)
+  const payload = await apiFetch(`/admin/reports/ride-statistics?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchPaymentBreakdown = async (token, { period = 'week', status = 'all' } = {}) => {
+  const params = new URLSearchParams({ period, status })
+  const payload = await apiFetch(`/admin/reports/payment-breakdown?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchRevenueDailyReport = async (token, { start, end } = {}) => {
+  const params = new URLSearchParams()
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  const payload = await apiFetch(`/admin/reports/revenue/daily?${params}`, { token })
+  return payload.data || { rows: [] }
+}
+
+const fetchRevenueMonthlyReport = async (token, { start, end } = {}) => {
+  const params = new URLSearchParams()
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  const payload = await apiFetch(`/admin/reports/revenue/monthly?${params}`, { token })
+  return payload.data || { rows: [] }
+}
+
+const fetchDriverPerformanceReport = async (token, { period = 'month', search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ period, page: String(page) })
+  if (search) params.set('search', search)
+  const payload = await apiFetch(`/admin/reports/drivers/performance?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const fetchDriverEarningsReport = async (token, { period = 'month', search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ period, page: String(page) })
+  if (search) params.set('search', search)
+  const payload = await apiFetch(`/admin/reports/drivers/earnings?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const fetchTransactionsReport = async (token, { type = '', search = '', start = '', end = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ page: String(page) })
+  if (type) params.set('type', type)
+  if (search) params.set('search', search)
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  const payload = await apiFetch(`/admin/reports/transactions?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
 // App Settings
 const fetchAppSettings = async (token) => {
   const payload = await apiFetch('/app-settings', { token })
@@ -499,6 +565,15 @@ export {
   updateRolePermissions,
   fetchAppSettings,
   updateAppSetting,
+  fetchReportsOverview,
+  fetchVehicleSummary,
+  fetchRideStatistics,
+  fetchPaymentBreakdown,
+  fetchRevenueDailyReport,
+  fetchRevenueMonthlyReport,
+  fetchDriverPerformanceReport,
+  fetchDriverEarningsReport,
+  fetchTransactionsReport,
   fetchFinanceSummary,
   fetchDriverAccounts,
   fetchDriverStatement,
