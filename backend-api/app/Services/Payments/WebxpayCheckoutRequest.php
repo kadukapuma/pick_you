@@ -74,7 +74,7 @@ class WebxpayCheckoutRequest
 
         if (
             ! preg_match(
-                '/^0[0-9]{9}$/',
+                '/^\+?[0-9]{9,20}$/',
                 $customer['contact_number']
             )
         ) {

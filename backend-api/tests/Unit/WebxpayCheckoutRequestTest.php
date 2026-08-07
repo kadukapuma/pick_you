@@ -251,7 +251,7 @@ class WebxpayCheckoutRequestTest extends TestCase
                 'first_name' => 'Test',
                 'last_name' => 'Passenger',
                 'email' => 'passenger@example.com',
-                'contact_number' => '0771234567',
+                'contact_number' => '94761838473',
                 'address_line_one' => '123 Test Road',
             ],
             merchantOrderId: 'PKU-R-123-A-1',
