@@ -1,13 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 import PaymentScreen, {
   PaymentButton,
 } from "../../features/payments/PaymentScreen";
 import { paymentTheme } from "../../features/payments/paymentTheme";
-import { CARD_PAYMENTS_ENABLED } from "../../services/payments/paymentService";
+import {
+  CARD_PAYMENTS_ENABLED,
+  paymentService,
+} from "../../services/payments/paymentService";
 import {
   PaymentMethod,
   useRideSearch,
@@ -43,15 +46,47 @@ const methods: {
 
 export default function PaymentMethodScreen() {
   const { paymentMethod, setPaymentMethod } = useRideSearch();
+  const [cardAvailable, setCardAvailable] = useState(CARD_PAYMENTS_ENABLED);
+  const [cardGateway, setCardGateway] = useState("");
 
   useEffect(() => {
-    if (!CARD_PAYMENTS_ENABLED && paymentMethod === "card") {
-      setPaymentMethod("cash");
+    let cancelled = false;
+
+    async function loadCapabilities() {
+      const capabilities = await paymentService.getCapabilities();
+
+      if (cancelled) {
+        return;
+      }
+
+      const available = capabilities.card || CARD_PAYMENTS_ENABLED;
+
+      setCardAvailable(available);
+      setCardGateway(capabilities.gateway.toLowerCase());
+
+      if (!available && paymentMethod === "card") {
+        setPaymentMethod("cash");
+      }
     }
+
+    void loadCapabilities();
+
+    return () => {
+      cancelled = true;
+    };
   }, [paymentMethod, setPaymentMethod]);
 
   const chooseMethod = (method: PaymentMethod) => {
     if (method === "card") {
+      if (!cardAvailable) {
+        return;
+      }
+
+      if (cardGateway === "webxpay") {
+        setPaymentMethod("card");
+        return;
+      }
+
       router.push({
         pathname: "/payments/cards",
         params: { mode: "booking" },
@@ -116,8 +151,8 @@ export default function PaymentMethodScreen() {
                   <View style={styles.methodTitleLine}>
                     <Text style={styles.methodTitle}>{method.title}</Text>
 
-                    {method.id === "card" && !CARD_PAYMENTS_ENABLED ? (
-                      <Text style={styles.setupPill}>SANDBOX SETUP</Text>
+                    {method.id === "card" && !cardAvailable ? (
+                      <Text style={styles.setupPill}>UNAVAILABLE</Text>
                     ) : null}
                   </View>
 
@@ -131,7 +166,7 @@ export default function PaymentMethodScreen() {
               </View>
 
               {/* Selected saved card */}
-              {method.id === "card" && selected ? (
+              {method.id === "card" && selected && cardGateway !== "webxpay" ? (
                 <View style={styles.savedCardLine}>
                   <View style={styles.visaMini}>
                     <Text style={styles.visaText}>VISA</Text>
@@ -170,9 +205,11 @@ export default function PaymentMethodScreen() {
 
         <Text style={styles.noteText}>
           {paymentMethod === "card"
-            ? CARD_PAYMENTS_ENABLED
-              ? "Your card is charged only after the final fare is ready."
-              : "Card selection is available for review; live payment is currently disabled."
+            ? cardGateway === "webxpay"
+              ? "After the ride, WEBXPAY will securely collect your card details on its hosted checkout."
+              : cardAvailable
+                ? "Your card is charged only after the final fare is ready."
+                : "Card payments are currently unavailable."
             : "Pay the final amount directly to your driver."}
         </Text>
       </View>
