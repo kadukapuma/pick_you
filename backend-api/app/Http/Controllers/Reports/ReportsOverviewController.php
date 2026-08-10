@@ -81,28 +81,38 @@ class ReportsOverviewController extends Controller
 
         $period = $validated['period'] ?? 'week';
         $since = $this->sincePeriod($period);
+        $vehicleTypeId = $validated['vehicle_type'] ?? null;
 
-        $query = Ride::query();
+        // Each status is filtered by the timestamp that actually falls in "this
+        // period" for that status - a ride requested last month but cancelled
+        // today belongs in today's cancelled count, not last month's, so a
+        // single blanket requested_at filter across all statuses (the previous
+        // approach) misattributes cancellations to the wrong period.
+        $countFor = function (string $status, string $dateColumn) use ($since, $vehicleTypeId) {
+            $query = Ride::query()->where('status', $status);
 
-        if ($since) {
-            $query->where('requested_at', '>=', $since);
-        }
+            if ($since) {
+                $query->where($dateColumn, '>=', $since);
+            }
 
-        if (! empty($validated['vehicle_type'])) {
-            $query->whereHas('vehicle', fn ($q) => $q->where('vehicle_type_id', $validated['vehicle_type']));
-        }
+            if ($vehicleTypeId) {
+                $query->whereHas('vehicle', fn ($q) => $q->where('vehicle_type_id', $vehicleTypeId));
+            }
 
-        $counts = $query
-            ->select('status', DB::raw('COUNT(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status');
+            return $query->count();
+        };
+
+        $ongoing = collect(['ACCEPTED', 'ARRIVED', 'STARTED'])
+            ->sum(fn ($status) => $countFor($status, 'requested_at'));
 
         return $this->success([
             'period' => $period,
-            'completed' => (int) ($counts['COMPLETED'] ?? 0),
-            'cancelled' => (int) ($counts['CANCELLED'] ?? 0),
-            'ongoing' => (int) (($counts['ACCEPTED'] ?? 0) + ($counts['ARRIVED'] ?? 0) + ($counts['STARTED'] ?? 0)),
-            'requested' => (int) ($counts['REQUESTED'] ?? 0),
+            'completed' => $countFor('COMPLETED', 'completed_at'),
+            'cancelled' => $countFor('CANCELLED', 'cancelled_at'),
+            // ACCEPTED/ARRIVED/STARTED have no terminal timestamp yet, so
+            // requested_at is the only meaningful date column for them.
+            'ongoing' => $ongoing,
+            'requested' => $countFor('REQUESTED', 'requested_at'),
         ], 'Ride statistics retrieved successfully.');
     }
 
