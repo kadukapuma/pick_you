@@ -392,7 +392,7 @@ function RideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { tripType, outboundTrip, paymentMethod, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
+  const { tripType, outboundTrip, paymentMethod, usePickuCredit, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
     useRideSearch();
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
@@ -754,15 +754,15 @@ export default function SelectRideScreen() {
             onPress={() => router.push("/ride-booking/payment-method")}
             activeOpacity={0.82}
             accessibilityRole="button"
-            accessibilityLabel={`Change payment method. Currently ${paymentMethod}`}
+            accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
           >
             <Ionicons
-              name={paymentMethod === "card" ? "card-outline" : paymentMethod === "wallet" ? "wallet-outline" : "cash-outline"}
+              name={usePickuCredit ? "wallet-outline" : paymentMethod === "card" ? "card-outline" : "cash-outline"}
               size={16}
               color={GREEN}
             />
             <Text style={styles.optionChipText}>
-              {paymentMethod === "card" ? "Card" : paymentMethod === "wallet" ? "Wallet" : "Cash"}
+              {usePickuCredit ? `Credit + ${paymentMethod === "card" ? "card" : "cash"}` : paymentMethod === "card" ? "Card" : "Cash"}
             </Text>
             <Ionicons name="chevron-down" size={13} color={GREEN} />
           </TouchableOpacity>

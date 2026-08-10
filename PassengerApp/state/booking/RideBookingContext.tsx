@@ -14,7 +14,7 @@ export interface RideOption {
 }
 
 export type TripType = "oneway" | "return";
-export type PaymentMethod = "cash" | "wallet" | "card";
+export type PaymentMethod = "cash" | "card";
 
 interface Trip {
   pickup: LocationSuggestion | null;
@@ -42,6 +42,8 @@ interface RideSearchContextType {
   // Booking preferences
   paymentMethod: PaymentMethod;
   setPaymentMethod: (method: PaymentMethod) => void;
+  usePickuCredit: boolean;
+  setUsePickuCredit: (value: boolean) => void;
   promoCode: string | null;
   setPromoCode: (code: string | null) => void;
   scheduledAt: string | null;
@@ -80,6 +82,7 @@ export function RideSearchProvider({
   });
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [usePickuCredit, setUsePickuCredit] = useState(false);
   const [promoCode, setPromoCode] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
   const [activeRideId, setActiveRideId] = useState<number | null>(null);
@@ -115,6 +118,7 @@ export function RideSearchProvider({
     setReturnTrip({ pickup: null, dropoff: null, selectedRide: null });
     setIsSearchingForDriver(false);
     setPaymentMethod("cash");
+    setUsePickuCredit(false);
     setPromoCode(null);
     setScheduledAt(null);
     setActiveRideId(null);
@@ -139,6 +143,8 @@ export function RideSearchProvider({
     setReturnRide,
     paymentMethod,
     setPaymentMethod,
+    usePickuCredit,
+    setUsePickuCredit,
     promoCode,
     setPromoCode,
     scheduledAt,
