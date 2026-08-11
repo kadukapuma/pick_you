@@ -54,3 +54,9 @@ export type WebxpayCheckout = {
   checkoutUrl: string | null;
   expiresAt: string | null;
 };
+
+export type WebxpayCardSetup = {
+  operationId: string;
+  setupUrl: string;
+  expiresAt: string;
+};

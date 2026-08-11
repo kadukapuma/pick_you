@@ -6,6 +6,7 @@ import type {
   PaymentResult,
   SavedCard,
   WebxpayCheckout,
+  WebxpayCardSetup,
 } from "./paymentTypes";
 
 // Local mock-card testing only. `__DEV__` guarantees this cannot enable the
@@ -32,6 +33,12 @@ type RawWebxpayCheckout = {
   currency: string;
   checkout_url: string | null;
   expires_at: string | null;
+};
+
+type RawWebxpayCardSetup = {
+  operation_id: string;
+  setup_url: string;
+  expires_at: string;
 };
 
 type RawTrustedPaymentStatus = {
@@ -150,10 +157,55 @@ export const paymentService = {
   },
 
   async listCards(): Promise<SavedCard[]> {
-    const response =
-      await apiClient.get<RawPaymentMethod[]>("/payment-methods");
+    const webxpay = await apiClient.get<RawPaymentMethod[]>(
+      "/payment-methods/webxpay",
+    );
+
+    if (webxpay.success && webxpay.data) {
+      return webxpay.data.map(toSavedCard);
+    }
+
+    const legacy = await apiClient.get<RawPaymentMethod[]>("/payment-methods");
+    if (!legacy.success || !legacy.data) return [];
+
+    return legacy.data.map(toSavedCard);
+  },
+
+  async listWebxpayCards(): Promise<SavedCard[]> {
+    const response = await apiClient.get<RawPaymentMethod[]>(
+      "/payment-methods/webxpay",
+    );
+
     if (!response.success || !response.data) return [];
+
     return response.data.map(toSavedCard);
+  },
+
+  async prepareWebxpayCardSetup(): Promise<{
+    success: boolean;
+    message?: string;
+    setup?: WebxpayCardSetup;
+  }> {
+    const response = await apiClient.post<RawWebxpayCardSetup>(
+      "/payment-methods/webxpay/setup",
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        message: response.message || "Could not prepare secure card setup.",
+      };
+    }
+
+    return {
+      success: true,
+      message: response.message,
+      setup: {
+        operationId: response.data.operation_id,
+        setupUrl: response.data.setup_url,
+        expiresAt: response.data.expires_at,
+      },
+    };
   },
 
   async getCard(cardId: string): Promise<SavedCard | null> {

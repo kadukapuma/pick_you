@@ -14,15 +14,17 @@ const BRAND_LABELS: Record<string, string> = {
 };
 
 export default function CardSetupCompleteScreen() {
-  const { mode, brand, last4 } = useLocalSearchParams<{
+  const { mode, provider, brand, last4 } = useLocalSearchParams<{
     mode?: string;
+    provider?: string;
     brand?: string;
     last4?: string;
   }>();
   const { setPaymentMethod } = useRideSearch();
+  const cardWasSaved = provider === "webxpay" || CARD_PAYMENTS_ENABLED;
 
   const done = () => {
-    if (CARD_PAYMENTS_ENABLED) setPaymentMethod("card");
+    if (cardWasSaved && CARD_PAYMENTS_ENABLED) setPaymentMethod("card");
     if (mode === "booking") router.replace("/ride-booking/payment-method");
     else router.replace("/payments/cards");
   };
@@ -33,19 +35,19 @@ export default function CardSetupCompleteScreen() {
 
   return (
     <PaymentScreen
-      title={CARD_PAYMENTS_ENABLED ? "Card ready" : "Preview complete"}
+      title={cardWasSaved ? "Card ready" : "Preview complete"}
       canGoBack={false}
-      footer={<PaymentButton label={CARD_PAYMENTS_ENABLED && mode === "booking" ? "Use for this ride" : "Return to cards"} icon={CARD_PAYMENTS_ENABLED ? "checkmark" : "arrow-back-outline"} onPress={done} />}
+      footer={<PaymentButton label={CARD_PAYMENTS_ENABLED && mode === "booking" ? "Use for this ride" : "Return to cards"} icon={cardWasSaved ? "checkmark" : "arrow-back-outline"} onPress={done} />}
     >
       <View style={styles.hero}>
         <StatusOrb kind="success" />
-        <Text style={styles.title}>{CARD_PAYMENTS_ENABLED ? "Secure setup complete" : "Preview complete"}</Text>
-        <Text style={styles.text}>{CARD_PAYMENTS_ENABLED ? "Your card is ready for supported PickU payments." : "No real card was added during this sandbox preview."}</Text>
+        <Text style={styles.title}>{cardWasSaved ? "Secure setup complete" : "Preview complete"}</Text>
+        <Text style={styles.text}>{cardWasSaved ? "Your card was securely tokenized and saved. Saved-card payments will be available when that payment flow is enabled." : "No real card was added during this sandbox preview."}</Text>
       </View>
       <PaymentCard>
         <View style={styles.row}><Text style={styles.label}>Card</Text><Text style={styles.value}>{cardLabel}</Text></View>
         <View style={styles.divider} />
-        <View style={styles.row}><Text style={styles.label}>Status</Text><Text style={styles.success}>{CARD_PAYMENTS_ENABLED ? "Ready" : "Test data"}</Text></View>
+        <View style={styles.row}><Text style={styles.label}>Status</Text><Text style={styles.success}>{cardWasSaved ? "Saved" : "Test data"}</Text></View>
       </PaymentCard>
     </PaymentScreen>
   );
