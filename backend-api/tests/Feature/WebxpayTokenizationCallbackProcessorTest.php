@@ -64,6 +64,57 @@ class WebxpayTokenizationCallbackProcessorTest extends TestCase
         );
     }
 
+    public function test_verified_success_retries_temporary_card_reconciliation_delay(): void
+    {
+        [$user, $passenger] = $this->makePassenger();
+        [$operation, $token] = $this->operation(
+            $passenger->id,
+            $user->email
+        );
+        $method = PassengerPaymentMethod::create([
+            'passenger_id' => $passenger->id,
+            'gateway' => 'webxpay',
+            'token' => 'provider-card-id',
+            'brand' => 'visa',
+            'last4' => '1111',
+            'exp_month' => 12,
+            'exp_year' => 2030,
+            'is_default' => true,
+        ]);
+        $attempt = 0;
+
+        $this->mock(
+            WebxpaySavedCardSynchronizer::class,
+            function (MockInterface $mock) use ($method, &$attempt) {
+                $mock->shouldReceive('sync')
+                    ->twice()
+                    ->andReturnUsing(function () use ($method, &$attempt) {
+                        $attempt++;
+
+                        return $attempt === 1
+                            ? new Collection
+                            : new Collection([$method]);
+                    });
+            }
+        );
+
+        $status = app(WebxpayTokenizationCallbackProcessor::class)
+            ->process(
+                $operation,
+                $token,
+                $this->successfulResult(
+                    $operation,
+                    'provider-card-id'
+                )
+            );
+
+        $this->assertSame(
+            WebxpayTokenizationOperation::STATUS_COMPLETED,
+            $status
+        );
+        $this->assertSame(2, $attempt);
+    }
+
     public function test_invalid_callback_token_is_rejected_before_sync(): void
     {
         [$user, $passenger] = $this->makePassenger();

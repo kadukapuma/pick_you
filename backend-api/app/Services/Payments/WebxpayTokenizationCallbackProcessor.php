@@ -62,19 +62,29 @@ class WebxpayTokenizationCallbackProcessor
         }
 
         $operation->loadMissing('passenger');
-        $methods = $this->synchronizer->sync($operation->passenger);
-        $cardExists = $methods->contains(
-            fn ($method) => hash_equals(
-                (string) $method->getRawOriginal('token'),
-                (string) $result->providerCardId
-            )
-        );
 
-        if (! $cardExists) {
-            throw new RuntimeException(
-                'WEBXPAY saved card could not be reconciled.'
-            );
-        }
+        retry(
+            4,
+            function () use ($operation, $result): void {
+                $methods = $this->synchronizer->sync(
+                    $operation->passenger
+                );
+                $cardExists = $methods->contains(
+                    fn ($method) => hash_equals(
+                        (string) $method->getRawOriginal('token'),
+                        (string) $result->providerCardId
+                    )
+                );
+
+                if (! $cardExists) {
+                    throw new RuntimeException(
+                        'WEBXPAY saved card could not be reconciled.'
+                    );
+                }
+            },
+            app()->environment('testing') ? 0 : 500,
+            fn (\Throwable $exception) => $exception instanceof RuntimeException
+        );
 
         DB::transaction(function () use ($operation) {
             $locked = WebxpayTokenizationOperation::query()
