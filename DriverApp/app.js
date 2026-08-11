@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { AppState, View, ActivityIndicator, StyleSheet } from "react-native";
+import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./src/services/api";
 import { registerForPushNotifications } from "./src/services/pushRegistration";
+import { checkDriverAppUpdate, isDriverUpdateRequired } from "./src/services/appUpdate";
+import RequiredUpdateScreen from "./src/screens/RequiredUpdateScreen";
 
 import AppNavigator from "./src/navigation/AppNavigator";
 
@@ -15,6 +18,25 @@ export default function App() {
   const [driver, setDriver] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [verificationUser, setVerificationUser] = useState(null); // Added to handle unverified users
+  const [updatePolicy, setUpdatePolicy] = useState(null);
+  const [updateChecked, setUpdateChecked] = useState(false);
+
+  useEffect(() => {
+    const check = async () => {
+      const policy = await checkDriverAppUpdate();
+      setUpdatePolicy(policy);
+      setUpdateChecked(true);
+    };
+    check();
+    const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
+    const notification = Notifications.addNotificationResponseReceivedListener(response => {
+      if (response.notification.request.content.data?.action === "app_update") check();
+    });
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response?.notification.request.content.data?.action === "app_update") check();
+    });
+    return () => { appState.remove(); notification.remove(); };
+  }, []);
 
   const checkLoginStatus = async () => {
     try {
@@ -78,12 +100,16 @@ export default function App() {
   }, [isLoggedIn]);
 
   // While checking database parameters, keep user on a clean, solid background color
-  if (!isReady) {
+  if (!isReady || !updateChecked) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00A859" />
       </View>
     );
+  }
+
+  if (isDriverUpdateRequired(updatePolicy)) {
+    return <RequiredUpdateScreen policy={updatePolicy} />;
   }
 
   return (

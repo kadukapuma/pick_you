@@ -319,6 +319,36 @@ const sendBulkNotification = (token, payload) =>
     body: payload,
   })
 
+const publishAppUpdate = async (token, app, policy) => {
+  const payload = await apiFetch(`/admin/app-updates/${app}/publish`, {
+    method: 'POST',
+    token,
+    body: policy,
+  })
+  return payload.data || {}
+}
+
+const fetchAppRelease = async (token, app) => {
+  const payload = await apiFetch(`/admin/app-updates/${app}/release`, { token })
+  return payload.data || null
+}
+
+const uploadAppApk = async (token, app, version, file) => {
+  const form = new FormData()
+  form.append('version', version)
+  form.append('apk', file)
+  const response = await fetch(`${API_BASE}/admin/app-updates/${app}/apk`, {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: form,
+  })
+  const payload = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(payload?.message || payload?.errors?.apk?.[0] || `Upload failed with status ${response.status}`)
+  return payload.data
+}
 const fetchBroadcastNotifications = async (token, { page = 1, perPage = 10, target = '', search = '' } = {}) => {
   const params = new URLSearchParams()
   params.set('page', String(page))
@@ -614,6 +644,9 @@ export {
   fetchDriverStatement,
   fetchTrialBalance,
   sendBulkNotification,
+  publishAppUpdate,
+  fetchAppRelease,
+  uploadAppApk,
   fetchBroadcastNotifications,
   deleteBroadcastNotification,
   clearBroadcastNotifications,

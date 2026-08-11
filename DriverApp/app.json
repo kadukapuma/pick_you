@@ -2,7 +2,7 @@
   "expo": {
     "name": "PickU Driver",
     "slug": "DriverApp",
-    "version": "1.0.1",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon-1.png",
     "scheme": "driverapp",
@@ -20,6 +20,7 @@
       "bundleIdentifier": "com.picku.DriverApp"
     },
     "android": {
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/icon-1.png",
         "backgroundColor": "#0B1220"

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminFinanceController;
 use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
+use App\Http\Controllers\Api\AppUpdateController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeviceTokenController;
@@ -59,6 +60,11 @@ Route::prefix('passenger/auth')->middleware('throttle:auth')->group(function () 
 Route::middleware('auth:sanctum')->post('/passenger/auth/logout', [PassengerAuthController::class, 'logout']);
 
 // Public routes
+Route::get('/app-updates/{app}', [AppUpdateController::class, 'show'])->middleware('throttle:60,1');
+Route::get('/app-downloads', [AppUpdateController::class, 'downloads'])->middleware('throttle:60,1');
+Route::get('/app-downloads/{app}/download', [AppUpdateController::class, 'download'])
+    ->middleware('throttle:30,1')->name('app-downloads.download');
+
 Route::middleware('throttle:auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
@@ -169,6 +175,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
             Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
             Route::post('/admin/notifications/send-bulk', [AdminNotificationController::class, 'sendBulk']);
+            Route::post('/admin/app-updates/{app}/publish', [AppUpdateController::class, 'publish']);
+            Route::get('/admin/app-updates/{app}/release', [AppUpdateController::class, 'current']);
+            Route::post('/admin/app-updates/{app}/apk', [AppUpdateController::class, 'upload']);
             Route::get('/admin/notifications/broadcasts', [AdminNotificationController::class, 'broadcasts']);
             Route::delete('/admin/notifications/broadcasts/{id}', [AdminNotificationController::class, 'deleteBroadcast']);
             Route::delete('/admin/notifications/broadcasts', [AdminNotificationController::class, 'clearBroadcasts']);

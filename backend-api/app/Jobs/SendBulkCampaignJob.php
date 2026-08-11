@@ -57,6 +57,7 @@ class SendBulkCampaignJob implements ShouldQueue
             'target' => $this->target,
             'title' => $this->title,
             'message' => $this->body,
+            'data' => $this->data,
             'is_read' => true,
         ]);
 
