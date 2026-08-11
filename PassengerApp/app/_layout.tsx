@@ -1,8 +1,8 @@
 import "../global.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppState, View } from "react-native";
 import * as Notifications from "expo-notifications";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DelayedLoader from "../components/ui/DelayedLoader";
 import { AuthProvider, useAuth } from "../state/auth/AuthContext";
@@ -17,16 +17,39 @@ function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [updatePolicy, setUpdatePolicy] = useState<AppUpdatePolicy | null>(null);
+  const isNavigationReadyRef = useRef(false);
+  const pendingUpdateNav = useRef(false);
+
+  useEffect(() => {
+    isNavigationReadyRef.current = isNavigationReady;
+    if (isNavigationReady && pendingUpdateNav.current) {
+      pendingUpdateNav.current = false;
+      router.push("/update");
+    }
+  }, [isNavigationReady]);
 
   useEffect(() => {
     const check = () => checkPassengerAppUpdate().then(setUpdatePolicy).catch(() => {});
+    const openUpdateScreen = () => {
+      if (isNavigationReadyRef.current) {
+        router.push("/update");
+      } else {
+        pendingUpdateNav.current = true;
+      }
+    };
     check();
     const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
     const notification = Notifications.addNotificationResponseReceivedListener(response => {
-      if (response.notification.request.content.data?.action === "app_update") check();
+      if (response.notification.request.content.data?.action === "app_update") {
+        check();
+        openUpdateScreen();
+      }
     });
     Notifications.getLastNotificationResponseAsync().then(response => {
-      if (response?.notification.request.content.data?.action === "app_update") check();
+      if (response?.notification.request.content.data?.action === "app_update") {
+        check();
+        openUpdateScreen();
+      }
     });
     return () => { appState.remove(); notification.remove(); };
   }, []);
@@ -88,6 +111,15 @@ function RootLayoutContent() {
           animation: "fade",
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="update"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
         }}
       />
     </Stack>
