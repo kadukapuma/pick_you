@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\WebxpayCheckoutController;
 use App\Http\Controllers\WebxpayTokenizationPageController;
+use App\Http\Controllers\WebxpayTokenPaymentReturnController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -33,3 +34,8 @@ Route::get(
     '/payments/webxpay/cards/{operation}/return',
     [WebxpayTokenizationPageController::class, 'handleReturn']
 )->name('webxpay.tokenization.return');
+
+Route::get(
+    '/payments/webxpay/token/{attempt}/return',
+    [WebxpayTokenPaymentReturnController::class, 'handle']
+)->name('webxpay.token-payment.return');
