@@ -152,6 +152,10 @@ Route::middleware('auth:sanctum')->group(function () {
             '/payment-methods/webxpay',
             [WebxpaySavedCardController::class, 'index']
         );
+        Route::post(
+            '/payment-methods/webxpay/setup',
+            [WebxpaySavedCardController::class, 'storeSetup']
+        )->middleware('throttle:10,1');
         Route::post('/payment-methods', [PassengerPaymentMethodController::class, 'store']);
         Route::post('/payment-methods/{id}/default', [PassengerPaymentMethodController::class, 'setDefault']);
         Route::delete('/payment-methods/{id}', [PassengerPaymentMethodController::class, 'destroy']);

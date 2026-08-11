@@ -116,8 +116,20 @@ return [
                 'WEBXPAY_TOKENIZATION_SESSION_VERSION',
                 '63'
             ),
+            'hosted_session_script_base_url' => env(
+                'WEBXPAY_TOKENIZATION_SESSION_SCRIPT_BASE_URL',
+                'https://cbcmpgs.gateway.mastercard.com/form'
+            ),
+            'operation_ttl_minutes' => env(
+                'WEBXPAY_TOKENIZATION_OPERATION_TTL_MINUTES',
+                15
+            ),
             'result_url' => env(
                 'WEBXPAY_TOKENIZATION_RESULT_URL'
+            ),
+            'app_result_url' => env(
+                'WEBXPAY_TOKENIZATION_APP_RESULT_URL',
+                'picku://payments/card-result'
             ),
             'token_cache_seconds' => env(
                 'WEBXPAY_TOKENIZATION_TOKEN_CACHE_SECONDS',

@@ -187,6 +187,128 @@ class WebxpayTokenizationClientTest extends TestCase
         );
     }
 
+    public function test_it_submits_a_hosted_session_and_maps_the_3ds_redirect(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/save3ds' => Http::response([
+                'error' => true,
+                'type' => '3ds',
+                'html3ds_url' => 'https://tokenize.test/3ds/challenge-id',
+            ]),
+        ]);
+
+        $result = $this->client()->saveCard(
+            sessionId: 'SESSION0002407982678H6120461N79',
+            bankMid: 'TESTWEBXPATOKLKR',
+            threeDsResponseUrl: 'https://api.picku.test/cards/return',
+            customer: $this->customer()
+        );
+
+        $this->assertFalse($result->completed);
+        $this->assertTrue($result->requiresThreeDs());
+        $this->assertSame(
+            'https://tokenize.test/3ds/challenge-id',
+            $result->threeDsUrl
+        );
+
+        Http::assertSent(fn ($request) => $request->url() === 'https://tokenize.test/api/cards/save3ds'
+            && $request->hasHeader(
+                'Authorization',
+                'Bearer header.payload.signature'
+            )
+            && $request['session'] === 'SESSION0002407982678H6120461N79'
+            && $request['currency'] === 'LKR'
+            && $request['bankMID'] === 'TESTWEBXPATOKLKR'
+            && $request['secure3dResponseURL'] === 'https://api.picku.test/cards/return'
+            && $request['customer']['id'] === 'picku-passenger-9'
+        );
+    }
+
+    public function test_it_maps_an_immediately_completed_card_save(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/save3ds' => Http::response([
+                'success' => true,
+            ]),
+        ]);
+
+        $result = $this->client()->saveCard(
+            sessionId: 'SESSION0002407982678H6120461N79',
+            bankMid: 'TESTWEBXPATOKLKR',
+            threeDsResponseUrl: 'https://api.picku.test/cards/return',
+            customer: $this->customer()
+        );
+
+        $this->assertTrue($result->completed);
+        $this->assertFalse($result->requiresThreeDs());
+        $this->assertNull($result->threeDsUrl);
+    }
+
+    public function test_it_rejects_an_untrusted_3ds_redirect_url(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/save3ds' => Http::response([
+                'error' => true,
+                'type' => '3ds',
+                'html3ds_url' => 'https://attacker.test/fake-challenge',
+            ]),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage(
+            'WEBXPAY returned an invalid 3DS redirect URL.'
+        );
+
+        $this->client()->saveCard(
+            sessionId: 'SESSION0002407982678H6120461N79',
+            bankMid: 'TESTWEBXPATOKLKR',
+            threeDsResponseUrl: 'https://api.picku.test/cards/return',
+            customer: $this->customer()
+        );
+    }
+
+    public function test_it_rejects_a_provider_card_save_error_safely(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/save3ds' => Http::response([
+                'error' => true,
+                'type' => 'invalid_mid',
+                'explanation' => 'Sensitive provider explanation',
+            ]),
+        ]);
+
+        try {
+            $this->client()->saveCard(
+                sessionId: 'SESSION0002407982678H6120461N79',
+                bankMid: 'TESTWEBXPATOKLKR',
+                threeDsResponseUrl: 'https://api.picku.test/cards/return',
+                customer: $this->customer()
+            );
+            $this->fail('Expected the provider rejection to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertSame(
+                'WEBXPAY card save request was rejected.',
+                $exception->getMessage()
+            );
+            $this->assertStringNotContainsString(
+                'Sensitive provider explanation',
+                $exception->getMessage()
+            );
+        }
+    }
+
     private function client(
         string $baseUrl = 'https://tokenize.test'
     ): WebxpayTokenizationClient {
@@ -197,5 +319,23 @@ class WebxpayTokenizationClientTest extends TestCase
             password: 'merchant-password',
             tokenCacheSeconds: 3300
         );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    private function customer(): array
+    {
+        return [
+            'id' => 'picku-passenger-9',
+            'email' => 'passenger@example.test',
+            'firstName' => 'Test',
+            'lastName' => 'Passenger',
+            'contactNumber' => '0771234567',
+            'addressLineOne' => 'Kandy',
+            'city' => 'Kandy',
+            'postalCode' => '20000',
+            'country' => 'Sri Lanka',
+        ];
     }
 }
