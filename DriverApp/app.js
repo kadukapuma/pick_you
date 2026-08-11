@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import React, { useState, useEffect, useRef } from "react";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
 import { AppState, View, ActivityIndicator, StyleSheet } from "react-native";
 import * as Notifications from "expo-notifications";
@@ -11,6 +12,9 @@ import RequiredUpdateScreen from "./src/screens/RequiredUpdateScreen";
 
 import AppNavigator from "./src/navigation/AppNavigator";
 
+const RootStack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
+
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isNewUser, setIsNewUser] = useState(false);
@@ -20,6 +24,7 @@ export default function App() {
   const [verificationUser, setVerificationUser] = useState(null); // Added to handle unverified users
   const [updatePolicy, setUpdatePolicy] = useState(null);
   const [updateChecked, setUpdateChecked] = useState(false);
+  const pendingUpdateNav = useRef(false);
 
   useEffect(() => {
     const check = async () => {
@@ -27,13 +32,26 @@ export default function App() {
       setUpdatePolicy(policy);
       setUpdateChecked(true);
     };
+    const openUpdateScreen = () => {
+      if (navigationRef.isReady()) {
+        navigationRef.navigate("AppUpdate");
+      } else {
+        pendingUpdateNav.current = true;
+      }
+    };
     check();
     const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
     const notification = Notifications.addNotificationResponseReceivedListener(response => {
-      if (response.notification.request.content.data?.action === "app_update") check();
+      if (response.notification.request.content.data?.action === "app_update") {
+        check();
+        openUpdateScreen();
+      }
     });
     Notifications.getLastNotificationResponseAsync().then(response => {
-      if (response?.notification.request.content.data?.action === "app_update") check();
+      if (response?.notification.request.content.data?.action === "app_update") {
+        check();
+        openUpdateScreen();
+      }
     });
     return () => { appState.remove(); notification.remove(); };
   }, []);
@@ -113,20 +131,46 @@ export default function App() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        if (pendingUpdateNav.current) {
+          pendingUpdateNav.current = false;
+          navigationRef.navigate("AppUpdate");
+        }
+      }}
+    >
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      <AppNavigator
-        isLoggedIn={isLoggedIn}
-        setIsLoggedIn={setIsLoggedIn}
-        isNewUser={isNewUser}
-        setIsNewUser={setIsNewUser}
-        driverStatus={driverStatus}
-        setDriverStatus={setDriverStatus}
-        driver={driver}
-        setDriver={setDriver}
-        verificationUser={verificationUser}
-        setVerificationUser={setVerificationUser}
-      />
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Root">
+          {() => (
+            <AppNavigator
+              isLoggedIn={isLoggedIn}
+              setIsLoggedIn={setIsLoggedIn}
+              isNewUser={isNewUser}
+              setIsNewUser={setIsNewUser}
+              driverStatus={driverStatus}
+              setDriverStatus={setDriverStatus}
+              driver={driver}
+              setDriver={setDriver}
+              verificationUser={verificationUser}
+              setVerificationUser={setVerificationUser}
+            />
+          )}
+        </RootStack.Screen>
+        <RootStack.Screen
+          name="AppUpdate"
+          options={{ presentation: "modal", animation: "slide_from_bottom" }}
+        >
+          {({ navigation }) => (
+            <RequiredUpdateScreen
+              policy={updatePolicy}
+              dismissible
+              onClose={() => navigation.goBack()}
+            />
+          )}
+        </RootStack.Screen>
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }
