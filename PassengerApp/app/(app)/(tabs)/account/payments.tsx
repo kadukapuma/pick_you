@@ -109,6 +109,22 @@ export default function PaymentsScreen() {
             </View>
             <Ionicons name="chevron-forward" size={18} color="#94A39E" />
           </TouchableOpacity>
+          <View style={styles.divider} />
+          <TouchableOpacity
+            style={styles.groupRow}
+            onPress={() => router.push("/payments/outstanding" as any)}
+          >
+            <View style={styles.rowIcon}>
+              <Ionicons name="receipt-outline" size={22} color="#067A50" />
+            </View>
+            <View style={styles.rowCopy}>
+              <Text style={styles.rowTitle}>Outstanding payments</Text>
+              <Text style={styles.rowSubtitle}>
+                Review and resolve incomplete ride payments
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color="#94A39E" />
+          </TouchableOpacity>
         </View>
         <View style={styles.security}>
           <Ionicons name="shield-checkmark-outline" size={22} color="#067A50" />

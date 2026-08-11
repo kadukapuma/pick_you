@@ -59,6 +59,25 @@ type RawTrustedPaymentStatus = {
   payment: RawPayment | null;
 };
 
+type RawOutstandingRide = {
+  id: number;
+  ride_code?: string | null;
+  final_fare?: number | string | null;
+  completed_at?: string | null;
+  updated_at?: string | null;
+  payment_method?: string | null;
+  payment?: {
+    amount?: number | string | null;
+    payment_method?: string | null;
+    payment_status?: string | null;
+    failure_reason?: string | null;
+  } | null;
+};
+
+type RawRideHistoryPage = {
+  data: RawOutstandingRide[];
+};
+
 type RawPayment = {
   payment_status?: string;
   status?: string;
@@ -356,6 +375,47 @@ export const paymentService = {
   },
 
   async listOutstandingPayments(): Promise<OutstandingPayment[]> {
-    return [];
+    const response = await apiClient.get<RawRideHistoryPage>(
+      "/rides?status=COMPLETED&page=1&per_page=50",
+    );
+
+    if (!response.success || !response.data) {
+      throw new Error(
+        response.message || "Could not retrieve outstanding payments.",
+      );
+    }
+
+    return response.data.data
+      .filter((ride) => {
+        const method = (
+          ride.payment?.payment_method || ride.payment_method || ""
+        ).toLowerCase();
+        const status = (
+          ride.payment?.payment_status || "PENDING"
+        ).toUpperCase();
+
+        return method === "card" && status !== "COMPLETED";
+      })
+      .map((ride) => {
+        const createdAt = ride.completed_at || ride.updated_at;
+        const status = ride.payment?.payment_status?.toUpperCase();
+
+        return {
+          rideId: String(ride.id),
+          rideCode: ride.ride_code || String(ride.id),
+          amount: Number(
+            ride.payment?.amount ?? ride.final_fare ?? 0,
+          ),
+          currency: "LKR" as const,
+          reason:
+            ride.payment?.failure_reason ||
+            (status === "PENDING" || !status
+              ? "This card payment is awaiting completion."
+              : "This card payment was not completed."),
+          createdAtLabel: createdAt
+            ? new Date(createdAt).toLocaleDateString()
+            : "Completed ride",
+        };
+      });
   },
 };
