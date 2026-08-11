@@ -178,6 +178,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/admin/app-updates/{app}/publish', [AppUpdateController::class, 'publish']);
             Route::get('/admin/app-updates/{app}/release', [AppUpdateController::class, 'current']);
             Route::post('/admin/app-updates/{app}/apk', [AppUpdateController::class, 'upload']);
+            Route::get('/admin/notifications/broadcasts', [AdminNotificationController::class, 'broadcasts']);
+            Route::delete('/admin/notifications/broadcasts/{id}', [AdminNotificationController::class, 'deleteBroadcast']);
+            Route::delete('/admin/notifications/broadcasts', [AdminNotificationController::class, 'clearBroadcasts']);
         });
 
         // Commission and driver settlement

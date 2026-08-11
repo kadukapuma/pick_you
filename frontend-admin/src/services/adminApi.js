@@ -349,6 +349,40 @@ const uploadAppApk = async (token, app, version, file) => {
   if (!response.ok) throw new Error(payload?.message || payload?.errors?.apk?.[0] || `Upload failed with status ${response.status}`)
   return payload.data
 }
+const fetchBroadcastNotifications = async (token, { page = 1, perPage = 10, target = '', search = '' } = {}) => {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('per_page', String(perPage))
+  if (target) {
+    params.set('target', target)
+  }
+  if (search) {
+    params.set('search', search)
+  }
+  const payload = await apiFetch(`/admin/notifications/broadcasts?${params.toString()}`, { token })
+  const data = payload.data || {}
+  return {
+    broadcasts: data.broadcasts || [],
+    pagination: data.pagination || {
+      page,
+      perPage,
+      total: 0,
+      totalPages: 1,
+    },
+  }
+}
+
+const deleteBroadcastNotification = (token, id) =>
+  apiFetch(`/admin/notifications/broadcasts/${id}`, {
+    method: 'DELETE',
+    token,
+  })
+
+const clearBroadcastNotifications = (token) =>
+  apiFetch('/admin/notifications/broadcasts', {
+    method: 'DELETE',
+    token,
+  })
 
 const fetchAdminNotifications = async (token, limit = 20) => {
   const payload = await apiFetch(`/admin/notifications?limit=${limit}`, { token })
@@ -613,4 +647,7 @@ export {
   publishAppUpdate,
   fetchAppRelease,
   uploadAppApk,
+  fetchBroadcastNotifications,
+  deleteBroadcastNotification,
+  clearBroadcastNotifications,
 }
