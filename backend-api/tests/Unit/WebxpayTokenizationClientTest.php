@@ -309,6 +309,55 @@ class WebxpayTokenizationClientTest extends TestCase
         }
     }
 
+    public function test_it_deletes_a_saved_card_using_server_side_identity(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards' => Http::response([
+                'success' => true,
+            ]),
+        ]);
+
+        $this->client()->deleteCard(
+            cardId: '4111111111',
+            customerId: 'picku-passenger-9',
+            customerEmail: 'passenger@example.test'
+        );
+
+        Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+            && $request->url() === 'https://tokenize.test/api/cards'
+            && $request['cardId'] === '4111111111'
+            && $request['customerId'] === 'picku-passenger-9'
+            && $request['customerEmail'] === 'passenger@example.test'
+            && $request->hasHeader('Authorization'));
+    }
+
+    public function test_it_rejects_a_provider_card_removal_failure(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards' => Http::response([
+                'error' => true,
+                'explanation' => 'Sensitive provider detail',
+            ]),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage(
+            'WEBXPAY card removal request failed.'
+        );
+
+        $this->client()->deleteCard(
+            cardId: '4111111111',
+            customerId: 'picku-passenger-9',
+            customerEmail: 'passenger@example.test'
+        );
+    }
+
     private function client(
         string $baseUrl = 'https://tokenize.test'
     ): WebxpayTokenizationClient {

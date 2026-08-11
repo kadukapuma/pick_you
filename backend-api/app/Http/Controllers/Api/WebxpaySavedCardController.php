@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\PassengerPaymentMethod;
+use App\Services\Payments\WebxpaySavedCardRemover;
 use App\Services\Payments\WebxpaySavedCardSynchronizer;
 use App\Services\Payments\WebxpayTokenizationSetup;
 use App\Traits\ApiResponse;
@@ -85,6 +87,52 @@ class WebxpaySavedCardController extends Controller
         return $this->success(
             $methods,
             'WEBXPAY saved cards retrieved successfully.'
+        );
+    }
+
+    public function destroy(Request $request, int $paymentMethod)
+    {
+        if (! config('payments.webxpay.tokenization.enabled')) {
+            return $this->error(
+                'WEBXPAY saved cards are unavailable.',
+                503
+            );
+        }
+
+        $passenger = $request->user()->passenger;
+
+        if (! $passenger) {
+            return $this->error('Passenger not found', 404);
+        }
+
+        $method = PassengerPaymentMethod::query()
+            ->where('passenger_id', $passenger->id)
+            ->where('gateway', 'webxpay')
+            ->find($paymentMethod);
+
+        if (! $method) {
+            return $this->error('WEBXPAY payment method not found.', 404);
+        }
+
+        try {
+            app(WebxpaySavedCardRemover::class)
+                ->remove($passenger, $method);
+        } catch (Throwable $exception) {
+            Log::error('WEBXPAY saved card removal failed.', [
+                'passenger_id' => $passenger->id,
+                'payment_method_id' => $method->id,
+                'exception' => $exception::class,
+            ]);
+
+            return $this->error(
+                'Card could not be removed. Please try again shortly.',
+                503
+            );
+        }
+
+        return $this->success(
+            null,
+            'WEBXPAY payment method removed successfully.'
         );
     }
 }

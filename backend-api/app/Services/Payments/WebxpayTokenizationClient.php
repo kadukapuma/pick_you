@@ -98,6 +98,50 @@ class WebxpayTokenizationClient
         );
     }
 
+    public function deleteCard(
+        string $cardId,
+        string $customerId,
+        string $customerEmail
+    ): void {
+        if (trim($cardId) === '' || trim($customerId) === '') {
+            throw new RuntimeException(
+                'WEBXPAY card removal identifiers are invalid.'
+            );
+        }
+
+        if (filter_var($customerEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException(
+                'WEBXPAY card removal customer email is invalid.'
+            );
+        }
+
+        $response = $this->http
+            ->acceptJson()
+            ->asJson()
+            ->withToken($this->accessToken())
+            ->timeout(15)
+            ->delete(
+                rtrim($this->baseUrl, '/').'/api/cards',
+                [
+                    'cardId' => $cardId,
+                    'customerId' => $customerId,
+                    'customerEmail' => $customerEmail,
+                ]
+            );
+
+        $payload = $response->json();
+        $explicitFailure = is_array($payload)
+            && (($payload['error'] ?? false) === true
+                || ($payload['success'] ?? true) === false
+                || ($payload['status'] ?? null) === 0);
+
+        if (! $response->successful() || $explicitFailure) {
+            throw new RuntimeException(
+                'WEBXPAY card removal request failed.'
+            );
+        }
+    }
+
     /**
      * @param array{
      *     id: string,

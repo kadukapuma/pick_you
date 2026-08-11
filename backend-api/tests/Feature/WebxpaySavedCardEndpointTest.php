@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Passenger;
 use App\Models\PassengerPaymentMethod;
 use App\Services\Payments\WebxpaySavedCardSynchronizer;
+use App\Services\Payments\WebxpayTokenizationClient;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -98,5 +99,112 @@ class WebxpaySavedCardEndpointTest extends TestCase
             'provider-card-secret',
             $response->getContent()
         );
+    }
+
+    public function test_passenger_can_remove_own_webxpay_card_at_provider(): void
+    {
+        [$user, $passenger] = $this->makePassenger();
+        Sanctum::actingAs($user, ['role:passenger']);
+        config()->set('payments.webxpay.tokenization.enabled', true);
+
+        $method = PassengerPaymentMethod::create([
+            'passenger_id' => $passenger->id,
+            'gateway' => 'webxpay',
+            'token' => 'provider-card-secret',
+            'brand' => 'visa',
+            'last4' => '1111',
+            'exp_month' => 12,
+            'exp_year' => 2030,
+            'is_default' => true,
+        ]);
+
+        $this->mock(
+            WebxpayTokenizationClient::class,
+            fn (MockInterface $mock) => $mock->shouldReceive('deleteCard')
+                ->once()
+                ->with(
+                    'provider-card-secret',
+                    'picku-passenger-'.$passenger->id,
+                    $user->email
+                )
+        );
+
+        $this->deleteJson(
+            '/api/payment-methods/webxpay/'.$method->id
+        )->assertOk()
+            ->assertJsonPath(
+                'message',
+                'WEBXPAY payment method removed successfully.'
+            );
+
+        $this->assertDatabaseMissing('passenger_payment_methods', [
+            'id' => $method->id,
+        ]);
+    }
+
+    public function test_passenger_cannot_remove_another_passengers_card(): void
+    {
+        [$user] = $this->makePassenger();
+        [, $otherPassenger] = $this->makePassenger('0771234568');
+        Sanctum::actingAs($user, ['role:passenger']);
+        config()->set('payments.webxpay.tokenization.enabled', true);
+
+        $method = PassengerPaymentMethod::create([
+            'passenger_id' => $otherPassenger->id,
+            'gateway' => 'webxpay',
+            'token' => 'other-provider-card',
+            'brand' => 'visa',
+            'last4' => '9999',
+            'exp_month' => 12,
+            'exp_year' => 2030,
+            'is_default' => true,
+        ]);
+
+        $this->mock(
+            WebxpayTokenizationClient::class,
+            fn (MockInterface $mock) => $mock
+                ->shouldNotReceive('deleteCard')
+        );
+
+        $this->deleteJson(
+            '/api/payment-methods/webxpay/'.$method->id
+        )->assertNotFound();
+
+        $this->assertDatabaseHas('passenger_payment_methods', [
+            'id' => $method->id,
+        ]);
+    }
+
+    public function test_provider_failure_keeps_local_card(): void
+    {
+        [$user, $passenger] = $this->makePassenger();
+        Sanctum::actingAs($user, ['role:passenger']);
+        config()->set('payments.webxpay.tokenization.enabled', true);
+
+        $method = PassengerPaymentMethod::create([
+            'passenger_id' => $passenger->id,
+            'gateway' => 'webxpay',
+            'token' => 'provider-card-secret',
+            'brand' => 'visa',
+            'last4' => '1111',
+            'exp_month' => 12,
+            'exp_year' => 2030,
+            'is_default' => true,
+        ]);
+
+        $this->mock(
+            WebxpayTokenizationClient::class,
+            fn (MockInterface $mock) => $mock->shouldReceive('deleteCard')
+                ->once()
+                ->andThrow(new \RuntimeException('Provider unavailable.'))
+        );
+
+        $this->deleteJson(
+            '/api/payment-methods/webxpay/'.$method->id
+        )->assertStatus(503);
+
+        $this->assertDatabaseHas('passenger_payment_methods', [
+            'id' => $method->id,
+        ]);
     }
 }
