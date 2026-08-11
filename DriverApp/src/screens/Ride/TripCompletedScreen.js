@@ -45,6 +45,12 @@ const TripCompletedScreen = ({ navigation, route }) => {
   // the driver collects cash for a fare the gateway also charges.
   const paymentMethod = (ride?.payment_method || "cash").toLowerCase();
   const isCash = paymentMethod === "cash";
+  const paymentStatus = String(
+    ride?.payment?.payment_status || ride?.payment_status || "PENDING",
+  ).toUpperCase();
+  const isCardPaid = !isCash && paymentStatus === "COMPLETED";
+  const isCardFailed =
+    !isCash && ["FAILED", "DECLINED", "CANCELLED", "EXPIRED"].includes(paymentStatus);
 
   const commissionAmount = Number(ride?.commission_amount || 0);
   const driverEarning = Number(ride?.driver_earning || 0);
@@ -60,6 +66,14 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
   const handleCashCollected = async () => {
     if (!ride?.id || isProcessingCash) return;
+
+    if (!isCash) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs" }],
+      });
+      return;
+    }
 
     setIsProcessingCash(true);
     try {
@@ -232,7 +246,11 @@ const TripCompletedScreen = ({ navigation, route }) => {
             <View style={styles.cardNoticeBanner}>
               <MaterialCommunityIcons name="information" size={18} color="#1D4ED8" />
               <Text style={styles.cardNoticeText}>
-                Already paid by card. Do not collect any cash from the passenger.
+                {isCardPaid
+                  ? "Paid by card. Do not collect any cash from the passenger."
+                  : isCardFailed
+                    ? "Card payment was not completed. The passenger must retry or choose another payment option."
+                    : "Waiting for the passenger to complete the card payment. Do not collect cash unless the payment method is changed."}
               </Text>
             </View>
           )}
@@ -242,7 +260,11 @@ const TripCompletedScreen = ({ navigation, route }) => {
               ? "Updating your account..."
               : isCash
                 ? `Collect ${formattedFare} cash from passenger`
-                : "Nothing to collect"}
+                : isCardPaid
+                  ? "Nothing to collect"
+                  : isCardFailed
+                    ? "Card payment needs passenger attention"
+                    : "Card payment is pending"}
           </Text>
 
           <TouchableOpacity
@@ -260,7 +282,9 @@ const TripCompletedScreen = ({ navigation, route }) => {
                 ? "Updating Earnings..."
                 : isCash
                   ? "Cash Collected"
-                  : "Finish Trip"}
+                  : isCardPaid
+                    ? "Finish Trip"
+                    : "Return to Home"}
             </Text>
             <View style={styles.actionButtonIconFrame}>
               <MaterialCommunityIcons
