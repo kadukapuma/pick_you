@@ -153,6 +153,12 @@
 .apk-upload-panel input[type="file"] { background: #fff; }
 .apk-upload-btn { min-height: 46px; padding: 0 1.25rem; border: 0; border-radius: 8px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
 .apk-upload-btn:disabled { opacity: .55; cursor: not-allowed; }
+.apk-upload-progress { margin-top: .6rem; }
+.apk-upload-progress-bar { width: 100%; height: 8px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+.apk-upload-progress-fill { height: 100%; background: #0f766e; border-radius: 999px; transition: width .2s ease; }
+.apk-upload-progress-meta { display: flex; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .35rem; flex-wrap: wrap; }
+.apk-upload-progress-text { font-size: .8rem; font-weight: 600; color: #0f766e; }
+.apk-upload-progress-sub { font-size: .75rem; font-weight: 500; color: #6b7280; }
 .release-status { display: flex; flex-direction: column; gap: .3rem; padding: .9rem 1rem; border-radius: 8px; background: #fef2f2; color: #991b1b; }
 .release-status.ready { background: #ecfdf5; color: #065f46; }
 .release-status span { font-size: .82rem; }

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
-import { useAdmin } from '../../context/AdminContext';
-import { fetchAppRelease, publishAppUpdate, sendBulkNotification, uploadAppApk } from '../../services/adminApi';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAdmin } from '../../context/AdminContext';
 import {
+    fetchAppRelease,
+    publishAppUpdate,
+    uploadAppApk,
     sendBulkNotification,
     fetchBroadcastNotifications,
     deleteBroadcastNotification,
@@ -27,6 +27,22 @@ const formatDateTime = (isoString) => {
     } catch {
         return isoString;
     }
+};
+
+const formatBytes = (bytes) => {
+    if (!bytes && bytes !== 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / 1048576).toFixed(1)} MB`;
+};
+
+const formatDuration = (seconds) => {
+    if (!Number.isFinite(seconds) || seconds < 0) return '...';
+    if (seconds < 1) return '< 1s';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const minutes = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${minutes}m ${secs}s`;
 };
 
 const formatTimeAgo = (isoString) => {
@@ -55,7 +71,9 @@ const Broadcasts = () => {
     const [loadingPassenger, setLoadingPassenger] = useState(false);
     const [loadingUpdate, setLoadingUpdate] = useState(false);
     const [loadingApk, setLoadingApk] = useState(false);
+    const [apkUploadStats, setApkUploadStats] = useState({ percent: 0, loaded: 0, total: 0, speedBps: 0, etaSeconds: null });
     const [apkFile, setApkFile] = useState(null);
+    const uploadStartRef = useRef(null);
     const [activeRelease, setActiveRelease] = useState(null);
     const [updateForm, setUpdateForm] = useState({
         app: 'passenger',
@@ -162,8 +180,23 @@ const Broadcasts = () => {
             return;
         }
         setLoadingApk(true);
+        uploadStartRef.current = Date.now();
+        setApkUploadStats({ percent: 0, loaded: 0, total: apkFile.size, speedBps: 0, etaSeconds: null });
         try {
-            const release = await uploadAppApk(token, updateForm.app, updateForm.latest_version, apkFile);
+            const handleProgress = ({ loaded, total }) => {
+                const elapsedSeconds = (Date.now() - uploadStartRef.current) / 1000;
+                const speedBps = elapsedSeconds > 0 ? loaded / elapsedSeconds : 0;
+                const remaining = total - loaded;
+                const etaSeconds = speedBps > 0 ? remaining / speedBps : null;
+                setApkUploadStats({
+                    percent: total > 0 ? Math.round((loaded / total) * 100) : 0,
+                    loaded,
+                    total,
+                    speedBps,
+                    etaSeconds,
+                });
+            };
+            const release = await uploadAppApk(token, updateForm.app, updateForm.latest_version, apkFile, handleProgress);
             setActiveRelease(release);
             setApkFile(null);
             await Swal.fire({ icon: 'success', title: 'APK Uploaded', text: `${release.original_name} is now the active ${updateForm.app} download.` });
@@ -171,6 +204,8 @@ const Broadcasts = () => {
             Swal.fire({ icon: 'error', title: 'Upload Failed', text: error.message || 'The APK could not be uploaded.' });
         } finally {
             setLoadingApk(false);
+            setApkUploadStats({ percent: 0, loaded: 0, total: 0, speedBps: 0, etaSeconds: null });
+            uploadStartRef.current = null;
         }
     };
 
@@ -551,7 +586,21 @@ const Broadcasts = () => {
                         <div className="form-group update-wide"><label>Notification title</label><input name="title" maxLength="100" value={updateForm.title} onChange={handleUpdateChange} required /></div>
                         <div className="form-group update-wide"><label>Message</label><textarea name="message" rows="3" maxLength="500" value={updateForm.message} onChange={handleUpdateChange} required /></div>
                         <div className="apk-upload-panel update-wide">
-                            <div className="form-group"><label>Signed Android APK (maximum 250 MB)</label><input type="file" accept=".apk,application/vnd.android.package-archive" onChange={event => setApkFile(event.target.files?.[0] || null)} /></div>
+                            <div className="form-group">
+                                <label>Signed Android APK (maximum 250 MB)</label>
+                                <input type="file" accept=".apk,application/vnd.android.package-archive" onChange={event => setApkFile(event.target.files?.[0] || null)} />
+                                {loadingApk && (
+                                    <div className="apk-upload-progress">
+                                        <div className="apk-upload-progress-bar">
+                                            <div className="apk-upload-progress-fill" style={{ width: `${apkUploadStats.percent}%` }}></div>
+                                        </div>
+                                        <div className="apk-upload-progress-meta">
+                                            <span className="apk-upload-progress-text">{apkUploadStats.percent}% &middot; {formatBytes(apkUploadStats.loaded)} of {formatBytes(apkUploadStats.total)}</span>
+                                            <span className="apk-upload-progress-sub">{formatBytes(apkUploadStats.speedBps)}/s &middot; {apkUploadStats.etaSeconds != null ? `${formatDuration(apkUploadStats.etaSeconds)} remaining` : 'Estimating...'}</span>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                             <button type="button" className="apk-upload-btn" onClick={handleUploadApk} disabled={loadingApk || !apkFile}>{loadingApk ? 'Uploading...' : 'Upload APK'}</button>
                         </div>
                         <div className={`release-status update-wide ${activeRelease ? 'ready' : ''}`}>
