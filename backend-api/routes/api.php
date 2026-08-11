@@ -38,6 +38,7 @@ use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\WalletTransactionController;
 use App\Http\Controllers\Api\WebxpayReturnController;
 use App\Http\Controllers\Api\WebxpaySavedCardController;
+use App\Http\Controllers\Api\WebxpaySavedCardPaymentController;
 use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -172,6 +173,14 @@ Route::middleware('auth:sanctum')->group(function () {
     )->middleware([
         'role:passenger',
         'idempotent',
+    ]);
+    Route::post(
+        '/rides/{ride}/payments/webxpay/attempts/{attempt}/saved-card',
+        [WebxpaySavedCardPaymentController::class, 'store']
+    )->middleware([
+        'role:passenger',
+        'idempotent',
+        'throttle:10,1',
     ]);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
         ->middleware(['role:passenger,driver,admin,super_admin', 'idempotent']);
