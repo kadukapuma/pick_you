@@ -28,6 +28,10 @@ use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\RideController;
 use App\Http\Controllers\Api\RideLocationController;
 use App\Http\Controllers\Api\RolePermissionController;
+use App\Http\Controllers\Reports\DriverPerformanceReportController;
+use App\Http\Controllers\Reports\ReportsOverviewController;
+use App\Http\Controllers\Reports\RevenueReportController;
+use App\Http\Controllers\Reports\TransactionReportController;
 use App\Http\Controllers\Api\SuperAdminNotificationController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
@@ -165,6 +169,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
             Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
             Route::post('/admin/notifications/send-bulk', [AdminNotificationController::class, 'sendBulk']);
+            Route::get('/admin/notifications/broadcasts', [AdminNotificationController::class, 'broadcasts']);
+            Route::delete('/admin/notifications/broadcasts/{id}', [AdminNotificationController::class, 'deleteBroadcast']);
+            Route::delete('/admin/notifications/broadcasts', [AdminNotificationController::class, 'clearBroadcasts']);
         });
 
         // Commission and driver settlement
@@ -172,6 +179,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/finance/driver-accounts', [AdminFinanceController::class, 'driverAccounts']);
         Route::get('/admin/finance/drivers/{driverId}/statement', [AdminFinanceController::class, 'driverStatement']);
         Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
+
+        // Reports
+        Route::get('/admin/reports/overview', [ReportsOverviewController::class, 'index']);
+        Route::get('/admin/reports/vehicle-summary', [ReportsOverviewController::class, 'vehicleSummary']);
+        Route::get('/admin/reports/ride-statistics', [ReportsOverviewController::class, 'rideStatistics']);
+        Route::get('/admin/reports/payment-breakdown', [ReportsOverviewController::class, 'paymentBreakdown']);
+        Route::get('/admin/reports/revenue/daily', [RevenueReportController::class, 'daily']);
+        Route::get('/admin/reports/revenue/monthly', [RevenueReportController::class, 'monthly']);
+        Route::get('/admin/reports/drivers/performance', [DriverPerformanceReportController::class, 'index']);
+        Route::get('/admin/reports/drivers/earnings', [DriverPerformanceReportController::class, 'earnings']);
+        Route::get('/admin/reports/transactions', [TransactionReportController::class, 'index']);
 
         Route::get('/role-permissions', [RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [RolePermissionController::class, 'update'])->middleware('super_admin');

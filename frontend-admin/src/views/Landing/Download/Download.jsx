@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import "./Download.css";
 import { FaStar, FaWallet, FaCheckCircle, FaMapMarkerAlt } from "react-icons/fa";
-import passengerAppImg from "../../../assets/passengermobile.png";
+import passengerAppImg from "../../../assets/photo-removebg-preview.png";
 import appStore from "../../../assets/appleicon.png";
 import googlePlay from "../../../assets/playstore.png";
 

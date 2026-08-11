@@ -303,4 +303,198 @@ class BulkNotificationTest extends TestCase
             return in_array($passengerToken->id, $job->deviceTokenIds, true);
         });
     }
+
+    public function test_admin_can_fetch_broadcast_notifications(): void
+    {
+        $admin = User::create([
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin_broadcasts@example.com',
+            'phone' => '0771234569',
+            'password' => 'password',
+            'role' => User::ROLE_ADMIN,
+            'is_active' => true,
+        ]);
+        $admin->rolePermissions()->create(['permission' => 'manage_notifications']);
+
+        // Create broadcast notifications (user_id is null)
+        Notification::create([
+            'user_id' => null,
+            'target' => 'driver',
+            'title' => 'Driver Broadcast 1',
+            'message' => 'Message to drivers',
+            'is_read' => true,
+        ]);
+
+        Notification::create([
+            'user_id' => null,
+            'target' => 'passenger',
+            'title' => 'Passenger Broadcast 1',
+            'message' => 'Message to passengers',
+            'is_read' => true,
+        ]);
+
+        // Create individual notification (should NOT appear in broadcast list)
+        Notification::create([
+            'user_id' => $admin->id,
+            'target' => null,
+            'title' => 'Personal alert',
+            'message' => 'Personal message',
+            'is_read' => false,
+        ]);
+
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $response = $this->getJson('/api/admin/notifications/broadcasts')
+            ->assertOk()
+            ->assertJsonPath('status', 'success');
+
+        $this->assertCount(2, $response->json('data.broadcasts'));
+        $this->assertEquals(2, $response->json('data.pagination.total'));
+    }
+
+    public function test_admin_can_filter_and_search_broadcast_notifications(): void
+    {
+        $admin = User::create([
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin_search@example.com',
+            'phone' => '0771234570',
+            'password' => 'password',
+            'role' => User::ROLE_ADMIN,
+            'is_active' => true,
+        ]);
+        $admin->rolePermissions()->create(['permission' => 'manage_notifications']);
+
+        Notification::create([
+            'user_id' => null,
+            'target' => 'driver',
+            'title' => 'Fuel Discount Alert',
+            'message' => 'Save on petrol this weekend',
+            'is_read' => true,
+        ]);
+
+        Notification::create([
+            'user_id' => null,
+            'target' => 'passenger',
+            'title' => 'Holiday Promo 50% Off',
+            'message' => 'Get half off on your next trip',
+            'is_read' => true,
+        ]);
+
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        // Filter by target=driver
+        $responseDriver = $this->getJson('/api/admin/notifications/broadcasts?target=driver')
+            ->assertOk();
+        $this->assertCount(1, $responseDriver->json('data.broadcasts'));
+        $this->assertEquals('Fuel Discount Alert', $responseDriver->json('data.broadcasts.0.title'));
+
+        // Search by query
+        $responseSearch = $this->getJson('/api/admin/notifications/broadcasts?search=Promo')
+            ->assertOk();
+        $this->assertCount(1, $responseSearch->json('data.broadcasts'));
+        $this->assertEquals('Holiday Promo 50% Off', $responseSearch->json('data.broadcasts.0.title'));
+    }
+
+    public function test_admin_can_delete_broadcast_notification(): void
+    {
+        $admin = User::create([
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin_delete@example.com',
+            'phone' => '0771234571',
+            'password' => 'password',
+            'role' => User::ROLE_ADMIN,
+            'is_active' => true,
+        ]);
+        $admin->rolePermissions()->create(['permission' => 'manage_notifications']);
+
+        $broadcast = Notification::create([
+            'user_id' => null,
+            'target' => 'driver',
+            'title' => 'Temporary Traffic Alert',
+            'message' => 'Heavy traffic on main road',
+            'is_read' => true,
+        ]);
+
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $this->deleteJson("/api/admin/notifications/broadcasts/{$broadcast->id}")
+            ->assertOk()
+            ->assertJsonPath('message', 'Broadcast notification deleted successfully.');
+
+        $this->assertDatabaseMissing('notifications', ['id' => $broadcast->id]);
+
+        // Deleting non-existent should 404
+        $this->deleteJson('/api/admin/notifications/broadcasts/999999')
+            ->assertStatus(404);
+    }
+
+    public function test_admin_can_clear_all_broadcast_notifications(): void
+    {
+        $admin = User::create([
+            'first_name' => 'Admin',
+            'last_name' => 'User',
+            'email' => 'admin_clear@example.com',
+            'phone' => '0771234572',
+            'password' => 'password',
+            'role' => User::ROLE_ADMIN,
+            'is_active' => true,
+        ]);
+        $admin->rolePermissions()->create(['permission' => 'manage_notifications']);
+
+        Notification::create([
+            'user_id' => null,
+            'target' => 'driver',
+            'title' => 'Broadcast 1',
+            'message' => 'Msg 1',
+            'is_read' => true,
+        ]);
+
+        Notification::create([
+            'user_id' => null,
+            'target' => 'passenger',
+            'title' => 'Broadcast 2',
+            'message' => 'Msg 2',
+            'is_read' => true,
+        ]);
+
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $this->deleteJson('/api/admin/notifications/broadcasts')
+            ->assertOk()
+            ->assertJsonPath('data.deleted', 2);
+
+        $this->assertEquals(0, Notification::whereNull('user_id')->count());
+    }
+
+    public function test_non_admin_cannot_access_or_delete_broadcast_notifications(): void
+    {
+        $passenger = User::create([
+            'first_name' => 'Passenger',
+            'last_name' => 'User',
+            'email' => 'passenger_unauth@example.com',
+            'phone' => '0771234573',
+            'password' => 'password',
+            'role' => User::ROLE_PASSENGER,
+            'is_active' => true,
+        ]);
+
+        $broadcast = Notification::create([
+            'user_id' => null,
+            'target' => 'all',
+            'title' => 'System Broadcast',
+            'message' => 'Msg',
+            'is_read' => true,
+        ]);
+
+        Sanctum::actingAs($passenger, ['role:passenger']);
+
+        $this->getJson('/api/admin/notifications/broadcasts')
+            ->assertStatus(403);
+
+        $this->deleteJson("/api/admin/notifications/broadcasts/{$broadcast->id}")
+            ->assertStatus(403);
+    }
 }
