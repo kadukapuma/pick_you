@@ -333,21 +333,45 @@ const fetchAppRelease = async (token, app) => {
   return payload.data || null
 }
 
-const uploadAppApk = async (token, app, version, file) => {
+const uploadAppApk = (token, app, version, file, onProgress) => {
   const form = new FormData()
   form.append('version', version)
   form.append('apk', file)
-  const response = await fetch(`${API_BASE}/admin/app-updates/${app}/apk`, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: form,
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE}/admin/app-updates/${app}/apk`)
+    xhr.setRequestHeader('Accept', 'application/json')
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          onProgress({ loaded: event.loaded, total: event.total })
+        }
+      }
+    }
+
+    xhr.onload = () => {
+      let payload = {}
+      try {
+        payload = xhr.responseText ? JSON.parse(xhr.responseText) : {}
+      } catch {
+        payload = {}
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload.data)
+      } else {
+        reject(new Error(payload?.message || payload?.errors?.apk?.[0] || `Upload failed with status ${xhr.status}`))
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('Upload failed. Please check your connection.'))
+
+    xhr.send(form)
   })
-  const payload = await response.json().catch(() => ({}))
-  if (!response.ok) throw new Error(payload?.message || payload?.errors?.apk?.[0] || `Upload failed with status ${response.status}`)
-  return payload.data
 }
 const fetchBroadcastNotifications = async (token, { page = 1, perPage = 10, target = '', search = '' } = {}) => {
   const params = new URLSearchParams()
