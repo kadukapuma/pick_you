@@ -65,6 +65,24 @@ class WebxpayTokenPaymentOperationTest extends TestCase
         $this->assertNotNull($operation->completed_at);
     }
 
+    public function test_completed_operation_survives_saved_card_removal(): void
+    {
+        [$operation, $method] = $this->makeOperation();
+        $operation->markCompleted();
+
+        $method->delete();
+
+        $this->assertDatabaseMissing('passenger_payment_methods', [
+            'id' => $method->id,
+        ]);
+        $this->assertDatabaseHas('webxpay_token_payment_operations', [
+            'id' => $operation->id,
+            'passenger_payment_method_id' => null,
+            'status' => WebxpayTokenPaymentOperation::STATUS_COMPLETED,
+        ]);
+        $this->assertNull($operation->fresh()->paymentMethod);
+    }
+
     private function makeOperation($expiresAt = null): array
     {
         [, $passenger] = $this->makePassenger();
