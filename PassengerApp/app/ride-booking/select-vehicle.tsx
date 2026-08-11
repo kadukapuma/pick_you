@@ -21,7 +21,10 @@ import {
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
-import { useRideSearch, type RideOption } from "../../state/booking/RideBookingContext";
+import {
+  useRideSearch,
+  type RideOption,
+} from "../../state/booking/RideBookingContext";
 import { apiClient } from "../../services/api/client";
 import GoogleRideMap from "../../features/ride-booking/map/GoogleRideMap";
 import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
@@ -202,9 +205,9 @@ function mapDBVehicleToOption(
   } else {
     price = 150 + (distanceMeters / 1000) * 60;
   }
-  
+
   const safeName = normaliseVehicleKey(vt.name ?? "car");
-  
+
   return {
     id: vt.name, // Keep original for backend queries
     name: vt.display_name,
@@ -392,8 +395,16 @@ function RideCard({
 export default function SelectRideScreen() {
   const params = useLocalSearchParams();
   const router = useRouter();
-  const { tripType, outboundTrip, paymentMethod, usePickuCredit, setOutboundRide, setOutboundPickup, setOutboundDropoff } =
-    useRideSearch();
+  const {
+    tripType,
+    outboundTrip,
+    paymentMethod,
+    selectedPaymentCard,
+    usePickuCredit,
+    setOutboundRide,
+    setOutboundPickup,
+    setOutboundDropoff,
+  } = useRideSearch();
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
@@ -405,8 +416,12 @@ export default function SelectRideScreen() {
     destination: any;
   } | null>(null);
 
-  const pickupParam = Array.isArray(params.pickup) ? params.pickup[0] : params.pickup;
-  const destinationParam = Array.isArray(params.destination) ? params.destination[0] : params.destination;
+  const pickupParam = Array.isArray(params.pickup)
+    ? params.pickup[0]
+    : params.pickup;
+  const destinationParam = Array.isArray(params.destination)
+    ? params.destination[0]
+    : params.destination;
   const pickupFromParams = React.useMemo(
     () => parseLocationParam(pickupParam),
     [pickupParam],
@@ -420,7 +435,11 @@ export default function SelectRideScreen() {
     [outboundTrip.pickup, pickupFromParams, savedRoute?.pickup],
   );
   const destination = React.useMemo(
-    () => destinationFromParams || outboundTrip.dropoff || savedRoute?.destination || null,
+    () =>
+      destinationFromParams ||
+      outboundTrip.dropoff ||
+      savedRoute?.destination ||
+      null,
     [destinationFromParams, outboundTrip.dropoff, savedRoute?.destination],
   );
   const pickupLatitude = pickup?.latitude;
@@ -507,7 +526,12 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, [destinationLatitude, destinationLongitude, pickupLatitude, pickupLongitude]);
+  }, [
+    destinationLatitude,
+    destinationLongitude,
+    pickupLatitude,
+    pickupLongitude,
+  ]);
 
   // Fetch vehicles
   useEffect(() => {
@@ -549,7 +573,8 @@ export default function SelectRideScreen() {
       !Number.isFinite(Number(pickupLongitude)) ||
       !Number.isFinite(Number(destinationLatitude)) ||
       !Number.isFinite(Number(destinationLongitude))
-    ) return;
+    )
+      return;
 
     let cancelled = false;
     const fallbackOptions = _rawVehicles.map((vehicle) =>
@@ -563,7 +588,9 @@ export default function SelectRideScreen() {
     const loadBackendEstimates = async () => {
       for (const vehicle of _rawVehicles) {
         if (cancelled) return;
-        const fallback = fallbackOptions.find((option) => option.id === vehicle.name);
+        const fallback = fallbackOptions.find(
+          (option) => option.id === vehicle.name,
+        );
         if (!fallback) continue;
 
         try {
@@ -607,9 +634,17 @@ export default function SelectRideScreen() {
     return () => {
       cancelled = true;
     };
-  }, [destinationLatitude, destinationLongitude, directions, pickupLatitude, pickupLongitude, _rawVehicles]);
+  }, [
+    destinationLatitude,
+    destinationLongitude,
+    directions,
+    pickupLatitude,
+    pickupLongitude,
+    _rawVehicles,
+  ]);
   const handleBookNow = useCallback(() => {
-    if (!pickup || !destination || !selectedRide || rideOptions.length === 0) return;
+    if (!pickup || !destination || !selectedRide || rideOptions.length === 0)
+      return;
     const opt = rideOptions.find((r) => r.id === selectedRide);
     if (!opt) return;
     setOutboundPickup(pickup);
@@ -620,9 +655,21 @@ export default function SelectRideScreen() {
         ? "/ride-booking/return-location"
         : "/ride-booking/confirm",
     );
-  }, [destination, pickup, rideOptions, router, selectedRide, setOutboundDropoff, setOutboundPickup, setOutboundRide, tripType]);
+  }, [
+    destination,
+    pickup,
+    rideOptions,
+    router,
+    selectedRide,
+    setOutboundDropoff,
+    setOutboundPickup,
+    setOutboundRide,
+    tripType,
+  ]);
 
-  const hasPendingFareSetup = Boolean(directions && _rawVehicles.length > 0 && rideOptions.length === 0);
+  const hasPendingFareSetup = Boolean(
+    directions && _rawVehicles.length > 0 && rideOptions.length === 0,
+  );
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
   const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
 
@@ -757,12 +804,24 @@ export default function SelectRideScreen() {
             accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
           >
             <Ionicons
-              name={usePickuCredit ? "wallet-outline" : paymentMethod === "card" ? "card-outline" : "cash-outline"}
+              name={
+                usePickuCredit
+                  ? "wallet-outline"
+                  : paymentMethod === "card"
+                    ? "card-outline"
+                    : "cash-outline"
+              }
               size={16}
               color={GREEN}
             />
             <Text style={styles.optionChipText}>
-              {usePickuCredit ? `Credit + ${paymentMethod === "card" ? "card" : "cash"}` : paymentMethod === "card" ? "Card" : "Cash"}
+              {usePickuCredit
+                ? `Credit + ${paymentMethod === "card" ? "card" : "cash"}`
+                : paymentMethod === "card" && selectedPaymentCard
+                  ? `•••• ${selectedPaymentCard.last4}`
+                  : paymentMethod === "card"
+                    ? "Card"
+                    : "Cash"}
             </Text>
             <Ionicons name="chevron-down" size={13} color={GREEN} />
           </TouchableOpacity>
@@ -1078,11 +1137,3 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 });
-
-
-
-
-
-
-
-

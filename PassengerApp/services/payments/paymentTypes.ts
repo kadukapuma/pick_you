@@ -60,3 +60,13 @@ export type WebxpayCardSetup = {
   setupUrl: string;
   expiresAt: string;
 };
+
+export type WebxpaySavedCardPayment = {
+  rideId: number;
+  paymentId: number;
+  attemptId: number;
+  operationId: number;
+  paymentStatus: string;
+  requiresThreeDs: boolean;
+  threeDsUrl: string | null;
+};

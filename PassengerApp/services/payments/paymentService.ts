@@ -7,6 +7,7 @@ import type {
   SavedCard,
   WebxpayCheckout,
   WebxpayCardSetup,
+  WebxpaySavedCardPayment,
 } from "./paymentTypes";
 
 // Local mock-card testing only. `__DEV__` guarantees this cannot enable the
@@ -39,6 +40,16 @@ type RawWebxpayCardSetup = {
   operation_id: string;
   setup_url: string;
   expires_at: string;
+};
+
+type RawWebxpaySavedCardPayment = {
+  ride_id: number;
+  payment_id: number;
+  attempt_id: number;
+  operation_id: number;
+  payment_status: string;
+  requires_3ds: boolean;
+  three_ds_url: string | null;
 };
 
 type RawTrustedPaymentStatus = {
@@ -169,6 +180,47 @@ export const paymentService = {
     if (!legacy.success || !legacy.data) return [];
 
     return legacy.data.map(toSavedCard);
+  },
+
+  async startWebxpaySavedCardPayment(
+    rideId: string,
+    attemptId: number,
+    cardId: string,
+  ): Promise<{
+    success: boolean;
+    message?: string;
+    payment?: WebxpaySavedCardPayment;
+  }> {
+    const response = await apiClient.post<RawWebxpaySavedCardPayment>(
+      `/rides/${rideId}/payments/webxpay/attempts/${attemptId}/saved-card`,
+      { payment_method_id: Number(cardId) },
+      {
+        headers: {
+          "Idempotency-Key": `webxpay-token-attempt-${attemptId}-card-${cardId}`,
+        },
+      },
+    );
+
+    if (!response.success || !response.data) {
+      return {
+        success: false,
+        message: response.message || "Could not start saved-card payment.",
+      };
+    }
+
+    return {
+      success: true,
+      message: response.message,
+      payment: {
+        rideId: response.data.ride_id,
+        paymentId: response.data.payment_id,
+        attemptId: response.data.attempt_id,
+        operationId: response.data.operation_id,
+        paymentStatus: response.data.payment_status,
+        requiresThreeDs: response.data.requires_3ds,
+        threeDsUrl: response.data.three_ds_url,
+      },
+    };
   },
 
   async listWebxpayCards(): Promise<SavedCard[]> {

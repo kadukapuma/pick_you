@@ -12,10 +12,7 @@ import PaymentScreen, {
   PaymentButton,
 } from "../../features/payments/PaymentScreen";
 import { paymentTheme } from "../../features/payments/paymentTheme";
-import {
-  CARD_PAYMENTS_ENABLED,
-  paymentService,
-} from "../../services/payments/paymentService";
+import { paymentService } from "../../services/payments/paymentService";
 import type { SavedCard } from "../../services/payments/paymentTypes";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 
@@ -54,29 +51,33 @@ export default function CardsScreen() {
     rideId?: string;
     amount?: string;
   }>();
-  const { setPaymentMethod } = useRideSearch();
+  const { setPaymentMethod, setSelectedPaymentCard } = useRideSearch();
   const [cards, setCards] = useState<SavedCard[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    setLoading(true);
-    paymentService.listCards().then((items) => {
-      if (!active) return;
-      setCards(items);
-      setSelectedId(
-        items.find((item) => item.isDefault)?.id || items[0]?.id || null,
-      );
-      setLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, []));
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      setLoading(true);
+      paymentService.listCards().then((items) => {
+        if (!active) return;
+        setCards(items);
+        setSelectedId(
+          items.find((item) => item.isDefault)?.id || items[0]?.id || null,
+        );
+        setLoading(false);
+      });
+      return () => {
+        active = false;
+      };
+    }, []),
+  );
 
   const useCard = () => {
-    if (!selectedId || !CARD_PAYMENTS_ENABLED) return;
+    const selectedCard = cards.find((card) => card.id === selectedId);
+    if (!selectedCard) return;
+    setSelectedPaymentCard(selectedCard);
     setPaymentMethod("card");
     if (mode === "retry") {
       router.replace({
@@ -119,16 +120,10 @@ export default function CardsScreen() {
             </TouchableOpacity>
 
             <PaymentButton
-              label={
-                CARD_PAYMENTS_ENABLED
-                  ? mode === "retry"
-                    ? "Retry payment"
-                    : "Use selected card"
-                  : "Saved-card payments coming next"
-              }
-              icon={CARD_PAYMENTS_ENABLED ? "checkmark" : "lock-closed-outline"}
+              label={mode === "retry" ? "Retry payment" : "Use selected card"}
+              icon="checkmark"
               onPress={useCard}
-              disabled={!selectedId || !CARD_PAYMENTS_ENABLED}
+              disabled={!selectedId}
             />
           </View>
         ) : (
@@ -140,18 +135,15 @@ export default function CardsScreen() {
         )
       }
     >
-      {!CARD_PAYMENTS_ENABLED ? (
-        <View style={styles.previewBanner}>
-          <Ionicons name="shield-checkmark-outline" size={18} color="#176B52" />
-          <View style={styles.previewCopy}>
-            <Text style={styles.previewTitle}>WEBXPAY saved cards</Text>
-            <Text style={styles.previewText}>
-              Cards are securely tokenized. Paying a ride with a selected saved
-              card is the next integration step.
-            </Text>
-          </View>
+      <View style={styles.previewBanner}>
+        <Ionicons name="shield-checkmark-outline" size={18} color="#176B52" />
+        <View style={styles.previewCopy}>
+          <Text style={styles.previewTitle}>WEBXPAY saved cards</Text>
+          <Text style={styles.previewText}>
+            Select a tokenized card to pay securely after your ride.
+          </Text>
         </View>
-      ) : null}
+      </View>
 
       {loading ? (
         <View style={styles.loading}>
@@ -163,9 +155,7 @@ export default function CardsScreen() {
             <Text style={styles.sectionLabel}>
               SAVED CARDS · {cards.length}
             </Text>
-            {!CARD_PAYMENTS_ENABLED ? (
-              <Text style={styles.testPill}>WEBXPAY</Text>
-            ) : null}
+            <Text style={styles.testPill}>WEBXPAY</Text>
           </View>
 
           {cards.length === 0 ? (

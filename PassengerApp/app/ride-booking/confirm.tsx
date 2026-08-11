@@ -51,6 +51,7 @@ export default function ConfirmationScreen() {
     setIsSearchingForDriver,
     setActiveRide,
     paymentMethod,
+    selectedPaymentCard,
     usePickuCredit,
   } = useRideSearch();
   const nearbySelectedVehicles = useNearbyVehicles(
@@ -418,14 +419,26 @@ export default function ConfirmationScreen() {
             >
               <View style={styles.paymentLabelWrap}>
                 <Ionicons
-                  name={usePickuCredit ? "wallet-outline" : paymentMethod === "card" ? "card-outline" : "cash-outline"}
+                  name={
+                    usePickuCredit
+                      ? "wallet-outline"
+                      : paymentMethod === "card"
+                        ? "card-outline"
+                        : "cash-outline"
+                  }
                   size={19}
                   color="#159A5B"
                 />
                 <Text style={styles.detailLabel}>Payment method</Text>
               </View>
               <View style={styles.paymentValueWrap}>
-                <Text style={styles.detailValue}>{usePickuCredit ? `CREDIT + ${paymentMethod.toUpperCase()}` : paymentMethod.toUpperCase()}</Text>
+                <Text style={styles.detailValue}>
+                  {usePickuCredit
+                    ? `CREDIT + ${paymentMethod.toUpperCase()}`
+                    : paymentMethod === "card" && selectedPaymentCard
+                      ? `${selectedPaymentCard.brand.toUpperCase()} •••• ${selectedPaymentCard.last4}`
+                      : paymentMethod.toUpperCase()}
+                </Text>
                 <Ionicons name="chevron-forward" size={17} color="#64748B" />
               </View>
             </TouchableOpacity>

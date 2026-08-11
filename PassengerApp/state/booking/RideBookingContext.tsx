@@ -1,5 +1,6 @@
 import React, { createContext, useCallback, useContext, useState } from "react";
 import type { LocationSuggestion } from "../../services/maps/locationSuggestions";
+import type { SavedCard } from "../../services/payments/paymentTypes";
 
 // Re-export for convenience
 export type { LocationSuggestion };
@@ -42,6 +43,8 @@ interface RideSearchContextType {
   // Booking preferences
   paymentMethod: PaymentMethod;
   setPaymentMethod: (method: PaymentMethod) => void;
+  selectedPaymentCard: SavedCard | null;
+  setSelectedPaymentCard: (card: SavedCard | null) => void;
   usePickuCredit: boolean;
   setUsePickuCredit: (value: boolean) => void;
   promoCode: string | null;
@@ -82,6 +85,8 @@ export function RideSearchProvider({
   });
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [selectedPaymentCard, setSelectedPaymentCard] =
+    useState<SavedCard | null>(null);
   const [usePickuCredit, setUsePickuCredit] = useState(false);
   const [promoCode, setPromoCode] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
@@ -118,6 +123,7 @@ export function RideSearchProvider({
     setReturnTrip({ pickup: null, dropoff: null, selectedRide: null });
     setIsSearchingForDriver(false);
     setPaymentMethod("cash");
+    setSelectedPaymentCard(null);
     setUsePickuCredit(false);
     setPromoCode(null);
     setScheduledAt(null);
@@ -125,10 +131,13 @@ export function RideSearchProvider({
     setActiveRideStatus(null);
   };
 
-  const setActiveRide = useCallback((rideId: number | null, status: string | null = null) => {
-    setActiveRideId(rideId);
-    setActiveRideStatus(status);
-  }, []);
+  const setActiveRide = useCallback(
+    (rideId: number | null, status: string | null = null) => {
+      setActiveRideId(rideId);
+      setActiveRideStatus(status);
+    },
+    [],
+  );
 
   const value: RideSearchContextType = {
     tripType,
@@ -143,6 +152,8 @@ export function RideSearchProvider({
     setReturnRide,
     paymentMethod,
     setPaymentMethod,
+    selectedPaymentCard,
+    setSelectedPaymentCard,
     usePickuCredit,
     setUsePickuCredit,
     promoCode,

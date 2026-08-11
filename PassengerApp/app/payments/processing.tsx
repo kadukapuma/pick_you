@@ -10,8 +10,10 @@ import PaymentScreen, {
 } from "../../features/payments/PaymentScreen";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
 import * as WebBrowser from "expo-web-browser";
+import { useRideSearch } from "../../state/booking/RideBookingContext";
 
 export default function PaymentProcessingScreen() {
+  const { selectedPaymentCard } = useRideSearch();
   const {
     rideId = "",
     amount = "0",
@@ -92,6 +94,48 @@ export default function PaymentProcessingScreen() {
 
                 if (!prepared.checkout.checkoutUrl) {
                   routeToTrustedResult();
+                  return;
+                }
+
+                if (selectedPaymentCard && prepared.checkout.attemptId) {
+                  const tokenPayment =
+                    await paymentService.startWebxpaySavedCardPayment(
+                      rideId,
+                      prepared.checkout.attemptId,
+                      selectedPaymentCard.id,
+                    );
+
+                  if (cancelled) {
+                    return;
+                  }
+
+                  if (!tokenPayment.success || !tokenPayment.payment) {
+                    router.replace({
+                      pathname: "/payments/failed",
+                      params: {
+                        rideId,
+                        amount,
+                        message:
+                          tokenPayment.message ||
+                          "Could not start the saved-card payment.",
+                      },
+                    });
+                    return;
+                  }
+
+                  if (
+                    tokenPayment.payment.requiresThreeDs &&
+                    tokenPayment.payment.threeDsUrl
+                  ) {
+                    await WebBrowser.openAuthSessionAsync(
+                      tokenPayment.payment.threeDsUrl,
+                      "picku://payments/result",
+                    );
+                  }
+
+                  if (!cancelled) {
+                    routeToTrustedResult();
+                  }
                   return;
                 }
 
@@ -186,7 +230,7 @@ export default function PaymentProcessingScreen() {
         clearTimeout(timer);
       }
     };
-  }, [amount, documentPreview, preview, rideId, spin]);
+  }, [amount, documentPreview, preview, rideId, selectedPaymentCard, spin]);
 
   return (
     <PaymentScreen title="Confirming payment" canGoBack={false}>
@@ -219,7 +263,11 @@ export default function PaymentProcessingScreen() {
       <PaymentCard>
         <View style={styles.row}>
           <Text style={styles.label}>Payment method</Text>
-          <Text style={styles.value}>Visa •••• 6492</Text>
+          <Text style={styles.value}>
+            {selectedPaymentCard
+              ? `${selectedPaymentCard.brand.toUpperCase()} •••• ${selectedPaymentCard.last4}`
+              : "WEBXPAY secure checkout"}
+          </Text>
         </View>
         <View style={styles.divider} />
         <View style={styles.row}>
