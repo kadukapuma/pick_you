@@ -309,6 +309,89 @@ class WebxpayTokenizationClientTest extends TestCase
         }
     }
 
+    public function test_it_pays_with_a_saved_card_and_maps_immediate_success(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/pay/token3ds' => Http::response([
+                'success' => true,
+                'receipt' => '622301099052',
+                'merchantProvidedOrderNumber' => 'PKU-R29-P18-A01',
+                'webxOrderReference' => 'T104982026I11',
+            ]),
+        ]);
+
+        $result = $this->client()->payWithToken(
+            cardId: '4111111111',
+            amount: '100.00',
+            orderNumber: 'PKU-R29-P18-A01',
+            bankMid: 'TESTWEBXPATOKLKR',
+            threeDsResponseUrl: 'https://api.picku.test/token-payment/return',
+            customerId: 'picku-passenger-9',
+            customerEmail: 'passenger@example.test',
+        );
+
+        $this->assertTrue($result->completed);
+        $this->assertFalse($result->requiresThreeDs());
+        $this->assertSame(
+            'T104982026I11',
+            $result->gatewayReference
+        );
+        $this->assertNull($result->threeDsUrl);
+
+        Http::assertSent(fn ($request) => $request->url()
+                === 'https://tokenize.test/api/cards/pay/token3ds'
+            && $request->hasHeader(
+                'Authorization',
+                'Bearer header.payload.signature'
+            )
+            && $request['cardId'] === '4111111111'
+            && $request['amount'] === '100.00'
+            && $request['orderNumber'] === 'PKU-R29-P18-A01'
+            && $request['currency'] === 'LKR'
+            && $request['bankMID'] === 'TESTWEBXPATOKLKR'
+            && $request['secure3dResponseURL']
+                === 'https://api.picku.test/token-payment/return'
+            && $request['customer']['id'] === 'picku-passenger-9'
+            && $request['customer']['email']
+                === 'passenger@example.test'
+        );
+    }
+
+    public function test_it_maps_a_saved_card_payment_3ds_redirect(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/pay/token3ds' => Http::response([
+                'error' => true,
+                'type' => '3ds',
+                'html3ds_url' => 'https://tokenize.test/3ds/payment-challenge',
+            ]),
+        ]);
+
+        $result = $this->client()->payWithToken(
+            cardId: '4111111111',
+            amount: '100.00',
+            orderNumber: 'PKU-R29-P18-A01',
+            bankMid: 'TESTWEBXPATOKLKR',
+            threeDsResponseUrl: 'https://api.picku.test/token-payment/return',
+            customerId: 'picku-passenger-9',
+            customerEmail: 'passenger@example.test',
+        );
+
+        $this->assertFalse($result->completed);
+        $this->assertTrue($result->requiresThreeDs());
+        $this->assertNull($result->gatewayReference);
+        $this->assertSame(
+            'https://tokenize.test/3ds/payment-challenge',
+            $result->threeDsUrl
+        );
+    }
+
     public function test_it_deletes_a_saved_card_using_server_side_identity(): void
     {
         Http::fake([

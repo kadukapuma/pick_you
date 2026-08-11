@@ -142,6 +142,125 @@ class WebxpayTokenizationClient
         }
     }
 
+    public function payWithToken(
+        string $cardId,
+        string $amount,
+        string $orderNumber,
+        string $bankMid,
+        string $threeDsResponseUrl,
+        string $customerId,
+        string $customerEmail
+    ): WebxpayTokenPaymentResult {
+        if (trim($cardId) === '' || trim($customerId) === '') {
+            throw new RuntimeException(
+                'WEBXPAY saved card payment identifiers are invalid.'
+            );
+        }
+
+        if (preg_match('/^[0-9]+\.[0-9]{2}$/', $amount) !== 1
+            || (float) $amount < 1
+        ) {
+            throw new RuntimeException(
+                'WEBXPAY saved card payment amount is invalid.'
+            );
+        }
+
+        if (preg_match('/^[A-Za-z0-9_-]+$/', $orderNumber) !== 1) {
+            throw new RuntimeException(
+                'WEBXPAY saved card payment order number is invalid.'
+            );
+        }
+
+        if (preg_match('/^[A-Za-z0-9_-]+$/', $bankMid) !== 1) {
+            throw new RuntimeException(
+                'WEBXPAY tokenization bank MID is invalid.'
+            );
+        }
+
+        if (! $this->isHttpsUrl($threeDsResponseUrl)) {
+            throw new RuntimeException(
+                'WEBXPAY 3DS response URL must be a valid HTTPS URL.'
+            );
+        }
+
+        if (filter_var($customerEmail, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException(
+                'WEBXPAY saved card payment customer email is invalid.'
+            );
+        }
+
+        $response = $this->http
+            ->acceptJson()
+            ->asJson()
+            ->withToken($this->accessToken())
+            ->timeout(20)
+            ->post(
+                rtrim($this->baseUrl, '/').'/api/cards/pay/token3ds',
+                [
+                    'cardId' => $cardId,
+                    'amount' => $amount,
+                    'orderNumber' => $orderNumber,
+                    'currency' => 'LKR',
+                    'bankMID' => $bankMid,
+                    'secure3dResponseURL' => $threeDsResponseUrl,
+                    'customer' => [
+                        'id' => $customerId,
+                        'email' => $customerEmail,
+                    ],
+                ]
+            );
+
+        if (! $response->successful()) {
+            throw new RuntimeException(
+                'WEBXPAY saved card payment request failed.'
+            );
+        }
+
+        $payload = $response->json();
+
+        if (! is_array($payload)) {
+            throw new RuntimeException(
+                'WEBXPAY saved card payment response is invalid.'
+            );
+        }
+
+        if (($payload['success'] ?? false) === true) {
+            $gatewayReference = $payload['webxOrderReference'] ?? null;
+
+            if (! is_string($gatewayReference)
+                || trim($gatewayReference) === ''
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY saved card payment response is invalid.'
+                );
+            }
+
+            return WebxpayTokenPaymentResult::completed(
+                trim($gatewayReference)
+            );
+        }
+
+        if (($payload['type'] ?? null) === '3ds') {
+            $threeDsUrl = $payload['html3ds_url'] ?? null;
+
+            if (! is_string($threeDsUrl)
+                || ! $this->isTrustedThreeDsUrl($threeDsUrl)
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY returned an invalid 3DS redirect URL.'
+                );
+            }
+
+            return WebxpayTokenPaymentResult::threeDsRequired(
+                $threeDsUrl
+            );
+        }
+
+        throw new RuntimeException(
+            'WEBXPAY saved card payment request was rejected.'
+        );
+    }
+
     /**
      * @param array{
      *     id: string,
