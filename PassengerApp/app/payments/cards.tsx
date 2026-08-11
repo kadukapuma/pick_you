@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { router, useLocalSearchParams } from "expo-router";
-import { useEffect, useState } from "react";
+import { router, useFocusEffect, useLocalSearchParams } from "expo-router";
+import { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   StyleSheet,
@@ -59,8 +59,9 @@ export default function CardsScreen() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let active = true;
+    setLoading(true);
     paymentService.listCards().then((items) => {
       if (!active) return;
       setCards(items);
@@ -72,7 +73,7 @@ export default function CardsScreen() {
     return () => {
       active = false;
     };
-  }, []);
+  }, []));
 
   const useCard = () => {
     if (!selectedId || !CARD_PAYMENTS_ENABLED) return;
@@ -123,7 +124,7 @@ export default function CardsScreen() {
                   ? mode === "retry"
                     ? "Retry payment"
                     : "Use selected card"
-                  : "Available after sandbox setup"
+                  : "Saved-card payments coming next"
               }
               icon={CARD_PAYMENTS_ENABLED ? "checkmark" : "lock-closed-outline"}
               onPress={useCard}
@@ -141,12 +142,12 @@ export default function CardsScreen() {
     >
       {!CARD_PAYMENTS_ENABLED ? (
         <View style={styles.previewBanner}>
-          <Ionicons name="flask-outline" size={18} color="#8A5A00" />
+          <Ionicons name="shield-checkmark-outline" size={18} color="#176B52" />
           <View style={styles.previewCopy}>
-            <Text style={styles.previewTitle}>Test cards for UI preview</Text>
+            <Text style={styles.previewTitle}>WEBXPAY saved cards</Text>
             <Text style={styles.previewText}>
-              Card payments stay disabled until the secure sandbox connection is
-              ready.
+              Cards are securely tokenized. Paying a ride with a selected saved
+              card is the next integration step.
             </Text>
           </View>
         </View>
@@ -163,7 +164,7 @@ export default function CardsScreen() {
               SAVED CARDS · {cards.length}
             </Text>
             {!CARD_PAYMENTS_ENABLED ? (
-              <Text style={styles.testPill}>TEST DATA</Text>
+              <Text style={styles.testPill}>WEBXPAY</Text>
             ) : null}
           </View>
 

@@ -253,7 +253,9 @@ export const paymentService = {
   },
 
   async deleteCard(cardId: string): Promise<boolean> {
-    const response = await apiClient.delete(`/payment-methods/${cardId}`);
+    const response = await apiClient.delete(
+      `/payment-methods/webxpay/${cardId}`,
+    );
     return response.success;
   },
 

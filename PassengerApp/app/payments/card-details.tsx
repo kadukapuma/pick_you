@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert, ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import PaymentScreen, { PaymentButton, PaymentCard } from "../../features/payments/PaymentScreen";
 import { paymentTheme } from "../../features/payments/paymentTheme";
-import { CARD_PAYMENTS_ENABLED, paymentService } from "../../services/payments/paymentService";
+import { paymentService } from "../../services/payments/paymentService";
 import type { SavedCard } from "../../services/payments/paymentTypes";
 
 export default function CardDetailsScreen() {
@@ -39,8 +39,18 @@ export default function CardDetailsScreen() {
         style: "destructive",
         onPress: async () => {
           setBusy(true);
-          await paymentService.removeCard(card.id);
-          router.back();
+          const removed = await paymentService.removeCard(card.id);
+
+          if (removed) {
+            router.back();
+            return;
+          }
+
+          setBusy(false);
+          Alert.alert(
+            "Could not remove card",
+            "The card is still saved. Please try again shortly.",
+          );
         },
       },
     ]);
@@ -54,15 +64,6 @@ export default function CardDetailsScreen() {
         <PaymentCard style={styles.loading}><Text style={styles.muted}>Card is unavailable.</Text></PaymentCard>
       ) : (
         <>
-          {!CARD_PAYMENTS_ENABLED ? (
-            <View style={styles.previewBanner}>
-              <Ionicons name="flask-outline" size={18} color="#8A5A00" />
-              <View style={styles.previewCopy}>
-                <Text style={styles.previewTitle}>Test card details</Text>
-                <Text style={styles.previewText}>Changes are disabled until sandbox card management is connected.</Text>
-              </View>
-            </View>
-          ) : null}
           <View style={styles.card}>
             <View style={styles.cardTop}>
               <View style={styles.chip} />
@@ -80,8 +81,8 @@ export default function CardDetailsScreen() {
               <View style={styles.statusCopy}><Text style={styles.statusTitle}>Secure payment reference</Text><Text style={styles.muted}>Only masked card details are stored in PickU.</Text></View>
             </View>
           </PaymentCard>
-          {!isDefault ? <PaymentButton label="Set as default" icon="star-outline" onPress={setDefault} disabled={busy || !CARD_PAYMENTS_ENABLED} /> : null}
-          <PaymentButton label="Remove card" icon="trash-outline" variant="danger" onPress={confirmRemove} disabled={busy || !CARD_PAYMENTS_ENABLED} />
+          {!isDefault ? <PaymentButton label="Set as default" icon="star-outline" onPress={setDefault} disabled={busy} /> : null}
+          <PaymentButton label="Remove card" icon="trash-outline" variant="danger" onPress={confirmRemove} disabled={busy} />
         </>
       )}
     </PaymentScreen>
@@ -89,10 +90,6 @@ export default function CardDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  previewBanner: { flexDirection: "row", alignItems: "center", gap: 10, borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: "#FFF8E6", borderWidth: 1, borderColor: "#F4D58D" },
-  previewCopy: { flex: 1 },
-  previewTitle: { color: "#6B4600", fontSize: 12, fontWeight: "900" },
-  previewText: { color: "#8A681F", fontSize: 11, lineHeight: 16, marginTop: 2 },
   loading: { minHeight: 180, alignItems: "center", justifyContent: "center" },
   muted: { color: paymentTheme.muted, fontSize: 12, lineHeight: 18 },
   card: { minHeight: 190, borderRadius: 24, padding: 22, justifyContent: "space-between", backgroundColor: paymentTheme.deepGreen },
