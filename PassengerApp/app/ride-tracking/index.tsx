@@ -44,7 +44,7 @@ const mergeRideData = (previous: any, next: any) => ({
 
 export default function LiveTrackerPage() {
     const params = useLocalSearchParams();
-    const { paymentMethod, resetTrip, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
+    const { paymentMethod, resetTrip, selectedPaymentCard, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;
     const initialEventStatus = Array.isArray(params.eventStatus)
         ? params.eventStatus[0]
@@ -291,6 +291,19 @@ export default function LiveTrackerPage() {
                     // automatically. See processing.tsx for what happens after.
                     if (awaitingCardPayment) {
                         setEventStatus(null);
+
+                        if (!selectedPaymentCard) {
+                            router.push({
+                                pathname: "/payments/cards",
+                                params: {
+                                    mode: "retry",
+                                    rideId: String(rideId),
+                                    amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
+                                },
+                            });
+                            return;
+                        }
+
                         router.push({
                             pathname: "/payments/processing",
                             params: {
