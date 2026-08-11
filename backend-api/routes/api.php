@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\WalletTransactionController;
 use App\Http\Controllers\Api\WebxpayReturnController;
+use App\Http\Controllers\Api\WebxpaySavedCardController;
 use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -147,6 +148,10 @@ Route::middleware('auth:sanctum')->group(function () {
             [PassengerCreditController::class, 'index']
         );
         Route::get('/payment-methods', [PassengerPaymentMethodController::class, 'index']);
+        Route::get(
+            '/payment-methods/webxpay',
+            [WebxpaySavedCardController::class, 'index']
+        );
         Route::post('/payment-methods', [PassengerPaymentMethodController::class, 'store']);
         Route::post('/payment-methods/{id}/default', [PassengerPaymentMethodController::class, 'setDefault']);
         Route::delete('/payment-methods/{id}', [PassengerPaymentMethodController::class, 'destroy']);

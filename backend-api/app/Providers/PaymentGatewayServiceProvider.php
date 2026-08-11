@@ -9,6 +9,8 @@ use App\Services\Payments\WebxpayCheckoutRequest;
 use App\Services\Payments\WebxpayRequestPayload;
 use App\Services\Payments\WebxpayResponseParser;
 use App\Services\Payments\WebxpayResponseVerifier;
+use App\Services\Payments\WebxpayTokenizationClient;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
 use RuntimeException;
 
@@ -80,6 +82,28 @@ class PaymentGatewayServiceProvider extends ServiceProvider
                     ),
                     encryptionMethod: (string) config(
                         'payments.webxpay.encryption_method'
+                    )
+                );
+            }
+        );
+
+        $this->app->singleton(
+            WebxpayTokenizationClient::class,
+            function ($app) {
+                return new WebxpayTokenizationClient(
+                    http: $app->make(HttpFactory::class),
+                    baseUrl: (string) config(
+                        'payments.webxpay.tokenization.base_url'
+                    ),
+                    username: (string) config(
+                        'payments.webxpay.tokenization.username'
+                    ),
+                    password: (string) config(
+                        'payments.webxpay.tokenization.password'
+                    ),
+                    tokenCacheSeconds: (int) config(
+                        'payments.webxpay.tokenization.token_cache_seconds',
+                        3300
                     )
                 );
             }

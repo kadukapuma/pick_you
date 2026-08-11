@@ -7,6 +7,7 @@ use App\Services\Payments\WebxpayCheckoutRequest;
 use App\Services\Payments\WebxpayRequestPayload;
 use App\Services\Payments\WebxpayResponseParser;
 use App\Services\Payments\WebxpayResponseVerifier;
+use App\Services\Payments\WebxpayTokenizationClient;
 use Tests\TestCase;
 
 class WebxpayConfigurationTest extends TestCase
@@ -118,6 +119,36 @@ class WebxpayConfigurationTest extends TestCase
                 paymentId: 17,
                 status: 'COMPLETED'
             )
+        );
+    }
+
+    public function test_laravel_resolves_the_webxpay_tokenization_client(): void
+    {
+        config()->set([
+            'payments.webxpay.tokenization.base_url' => 'https://tokenize.test',
+            'payments.webxpay.tokenization.username' => 'merchant-user',
+            'payments.webxpay.tokenization.password' => 'merchant-password',
+            'payments.webxpay.tokenization.token_cache_seconds' => 3300,
+        ]);
+
+        $this->app->forgetInstance(
+            WebxpayTokenizationClient::class
+        );
+
+        $firstClient = $this->app->make(
+            WebxpayTokenizationClient::class
+        );
+        $secondClient = $this->app->make(
+            WebxpayTokenizationClient::class
+        );
+
+        $this->assertInstanceOf(
+            WebxpayTokenizationClient::class,
+            $firstClient
+        );
+        $this->assertSame(
+            $firstClient,
+            $secondClient
         );
     }
 }

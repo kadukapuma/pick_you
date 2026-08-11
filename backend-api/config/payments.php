@@ -92,6 +92,38 @@ return [
             'WEBXPAY_APP_RESULT_URL',
             'picku://payments/result'
         ),
+
+        'tokenization' => [
+            'enabled' => env(
+                'WEBXPAY_TOKENIZATION_ENABLED',
+                false
+            ),
+            'base_url' => env(
+                'WEBXPAY_TOKENIZATION_URL',
+                'https://tokenize.stagingxpay.info'
+            ),
+            'username' => env(
+                'WEBXPAY_TOKENIZATION_USERNAME'
+            ),
+            'password' => env(
+                'WEBXPAY_TOKENIZATION_PASSWORD'
+            ),
+            'bank_mid' => env(
+                'WEBXPAY_TOKENIZATION_BANK_MID',
+                'TESTWEBXPATOKLKR'
+            ),
+            'hosted_session_version' => env(
+                'WEBXPAY_TOKENIZATION_SESSION_VERSION',
+                '63'
+            ),
+            'result_url' => env(
+                'WEBXPAY_TOKENIZATION_RESULT_URL'
+            ),
+            'token_cache_seconds' => env(
+                'WEBXPAY_TOKENIZATION_TOKEN_CACHE_SECONDS',
+                3300
+            ),
+        ],
     ],
 
 ];
