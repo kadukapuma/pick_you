@@ -1,6 +1,7 @@
 import "../global.css";
 import { useEffect, useState } from "react";
-import { View } from "react-native";
+import { AppState, View } from "react-native";
+import * as Notifications from "expo-notifications";
 import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DelayedLoader from "../components/ui/DelayedLoader";
@@ -9,10 +10,26 @@ import { RideSearchProvider } from "../state/booking/RideBookingContext";
 import { ToastProvider } from "../state/toast/ToastContext";
 import RideStatusBanner from "../features/ride-tracking/RideStatusBanner";
 import { registerForPushNotifications } from "../services/notifications/pushRegistration";
+import { AppUpdatePolicy, checkPassengerAppUpdate, isPassengerUpdateRequired } from "../services/notifications/appUpdate";
+import RequiredUpdateScreen from "../components/update/RequiredUpdateScreen";
 
 function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
+  const [updatePolicy, setUpdatePolicy] = useState<AppUpdatePolicy | null>(null);
+
+  useEffect(() => {
+    const check = () => checkPassengerAppUpdate().then(setUpdatePolicy).catch(() => {});
+    check();
+    const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
+    const notification = Notifications.addNotificationResponseReceivedListener(response => {
+      if (response.notification.request.content.data?.action === "app_update") check();
+    });
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response?.notification.request.content.data?.action === "app_update") check();
+    });
+    return () => { appState.remove(); notification.remove(); };
+  }, []);
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -41,6 +58,10 @@ function RootLayoutContent() {
 
   if (isLoading || !isNavigationReady) {
     return <DelayedLoader label="Starting PickU" variant="screen" backgroundColor="#F2FBF8" />;
+  }
+
+  if (isPassengerUpdateRequired(updatePolicy)) {
+    return <RequiredUpdateScreen policy={updatePolicy!} />;
   }
 
   return (

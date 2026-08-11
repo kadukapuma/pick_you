@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { sendBulkNotification } from '../../services/adminApi';
+import { fetchAppRelease, publishAppUpdate, sendBulkNotification, uploadAppApk } from '../../services/adminApi';
 import Swal from 'sweetalert2';
 import './Broadcasts.css';
 
@@ -8,6 +8,21 @@ const Broadcasts = () => {
     const { token } = useAdmin();
     const [loadingDriver, setLoadingDriver] = useState(false);
     const [loadingPassenger, setLoadingPassenger] = useState(false);
+    const [loadingUpdate, setLoadingUpdate] = useState(false);
+    const [loadingApk, setLoadingApk] = useState(false);
+    const [apkFile, setApkFile] = useState(null);
+    const [activeRelease, setActiveRelease] = useState(null);
+    const [updateForm, setUpdateForm] = useState({
+        app: 'passenger',
+        latest_version: '1.1.0',
+        minimum_version: '1.1.0',
+        title: 'Update',
+        message: 'Download the new updated app from our website.',
+    });
+
+    useEffect(() => {
+        fetchAppRelease(token, updateForm.app).then(setActiveRelease).catch(() => setActiveRelease(null));
+    }, [token, updateForm.app]);
 
     const [driverForm, setDriverForm] = useState({
         title: '',
@@ -31,6 +46,56 @@ const Broadcasts = () => {
             ...passengerForm,
             [e.target.name]: e.target.value
         });
+    };
+
+    const handleUpdateChange = (e) => {
+        const next = { ...updateForm, [e.target.name]: e.target.value };
+        if (e.target.name === 'app') {
+            setActiveRelease(null);
+            setApkFile(null);
+        }
+        setUpdateForm(next);
+    };
+
+    const handleUploadApk = async () => {
+        if (!apkFile) {
+            Swal.fire({ icon: 'warning', title: 'Select an APK', text: 'Choose the signed Android APK before uploading.' });
+            return;
+        }
+        setLoadingApk(true);
+        try {
+            const release = await uploadAppApk(token, updateForm.app, updateForm.latest_version, apkFile);
+            setActiveRelease(release);
+            setApkFile(null);
+            await Swal.fire({ icon: 'success', title: 'APK Uploaded', text: `${release.original_name} is now the active ${updateForm.app} download.` });
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'Upload Failed', text: error.message || 'The APK could not be uploaded.' });
+        } finally {
+            setLoadingApk(false);
+        }
+    };
+
+    const handlePublishUpdate = async (e) => {
+        e.preventDefault();
+        const confirm = await Swal.fire({
+            title: `Require ${updateForm.app} app update?`,
+            text: `Users below version ${updateForm.minimum_version} will be blocked until they open the download page and install the update.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e67e22',
+            confirmButtonText: 'Publish required update',
+        });
+        if (!confirm.isConfirmed) return;
+
+        setLoadingUpdate(true);
+        try {
+            await publishAppUpdate(token, updateForm.app, { ...updateForm, required: true });
+            await Swal.fire({ icon: 'success', title: 'Update Published', text: 'The version policy is active and the push campaign has been scheduled.' });
+        } catch (error) {
+            Swal.fire({ icon: 'error', title: 'Publish Failed', text: error.message || 'Failed to publish the app update.' });
+        } finally {
+            setLoadingUpdate(false);
+        }
     };
 
     const handleSendDrivers = async (e) => {
@@ -250,6 +315,31 @@ const Broadcasts = () => {
                             </button>
                         </form>
                     </div>
+                </div>
+            </div>
+
+            <div className="broadcast-card update-campaign-card">
+                <div className="card-header-accent update-header">
+                    <span className="material-icons">system_update</span>
+                    <div><h3>Publish Required App Update</h3><small>Upload the signed APK to the website before publishing.</small></div>
+                </div>
+                <div className="card-body">
+                    <form onSubmit={handlePublishUpdate} className="broadcast-form update-form-grid">
+                        <div className="form-group"><label>App</label><select name="app" value={updateForm.app} onChange={handleUpdateChange}><option value="passenger">Passenger App</option><option value="driver">Driver App</option></select></div>
+                        <div className="form-group"><label>Latest version</label><input name="latest_version" value={updateForm.latest_version} onChange={handleUpdateChange} pattern="\d+\.\d+\.\d+" placeholder="1.1.0" required /></div>
+                        <div className="form-group"><label>Minimum required version</label><input name="minimum_version" value={updateForm.minimum_version} onChange={handleUpdateChange} pattern="\d+\.\d+\.\d+" placeholder="1.1.0" required /></div>
+                        <div className="form-group update-wide"><label>Notification title</label><input name="title" maxLength="100" value={updateForm.title} onChange={handleUpdateChange} required /></div>
+                        <div className="form-group update-wide"><label>Message</label><textarea name="message" rows="3" maxLength="500" value={updateForm.message} onChange={handleUpdateChange} required /></div>
+                        <div className="apk-upload-panel update-wide">
+                            <div className="form-group"><label>Signed Android APK (maximum 250 MB)</label><input type="file" accept=".apk,application/vnd.android.package-archive" onChange={event => setApkFile(event.target.files?.[0] || null)} /></div>
+                            <button type="button" className="apk-upload-btn" onClick={handleUploadApk} disabled={loadingApk || !apkFile}>{loadingApk ? 'Uploading...' : 'Upload APK'}</button>
+                        </div>
+                        <div className={`release-status update-wide ${activeRelease ? 'ready' : ''}`}>
+                            {activeRelease ? <><strong>Active APK: {activeRelease.version}</strong><span>{activeRelease.original_name} · {(activeRelease.size / 1048576).toFixed(1)} MB · Uploaded {new Date(activeRelease.uploaded_at).toLocaleString()}</span></> : <><strong>No APK uploaded</strong><span>Upload an APK before publishing this update.</span></>}
+                        </div>
+                        <div className="update-warning update-wide">The notification opens https://picku.lk/get-app. Publishing blocks older app versions.</div>
+                        <button type="submit" className="broadcast-send-btn update-send-btn update-wide" disabled={loadingUpdate || !activeRelease || activeRelease.version !== updateForm.latest_version}><span className="material-icons">publish</span>{loadingUpdate ? 'Publishing...' : 'Publish & Notify Users'}</button>
+                    </form>
                 </div>
             </div>
         </div>

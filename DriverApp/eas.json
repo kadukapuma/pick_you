@@ -31,6 +31,9 @@
     },
     "production": {
       "autoIncrement": true,
+      "android": {
+        "buildType": "apk"
+      },
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "https://picku.lk/api",
         "EXPO_PUBLIC_WS_HOST": "picku.lk",

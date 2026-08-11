@@ -1,7 +1,5 @@
-import React from "react";
 import { Link } from "react-router-dom";
 import "./Download.css";
-import { FaStar, FaWallet, FaCheckCircle, FaMapMarkerAlt } from "react-icons/fa";
 import passengerAppImg from "../../../assets/photo-removebg-preview.png";
 import appStore from "../../../assets/appleicon.png";
 import googlePlay from "../../../assets/playstore.png";
@@ -59,13 +57,13 @@ export default function Download() {
                 <strong>App Store</strong>
               </div>
             </button>
-            <button className="app-btn">
-              <img src={googlePlay} alt="Google Play" className="store-img" />
+            <Link className="app-btn" to="/get-app">
+              <img src={googlePlay} alt="Android" className="store-img" />
               <div className="store-text">
-                <small className="store-subtitletext">Get it on</small>
-                <strong>Google Play</strong>
+                <small className="store-subtitletext">Get the Android</small>
+                <strong>Download APK</strong>
               </div>
-            </button>
+            </Link>
           </div>
 
           <div className="cross-app-cta enhanced">

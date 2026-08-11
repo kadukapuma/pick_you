@@ -6,6 +6,7 @@ import LandingLayout from '../views/Landing/LandingLayout'
 import AboutUs from '../views/Landing/AboutUs'
 import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
+import GetApp from '../views/Landing/GetApp/GetApp'
 import PrivacyPolicy from '../views/Landing/PrivacyPolicy/PrivacyPolicy'
 import TermsAndConditions from '../views/Landing/TermsAndConditions/TermsAndConditions'
 import {
@@ -66,6 +67,7 @@ const AppRoutes = () => {
             <Route path="/" element={<LandingLayout />}>
                 <Route index element={<LandingPage />} />
                 <Route path="for-drivers" element={<ForDrivers />} />
+                <Route path="get-app" element={<GetApp />} />
                 {/* <Route index element={<Home />} /> */}
                 <Route path="about" element={<AboutUs />} />
                 <Route path="contact" element={<ContactUs />} />

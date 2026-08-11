@@ -127,7 +127,8 @@
 }
 
 .form-group input,
-.form-group textarea {
+.form-group textarea,
+.form-group select {
     padding: 0.75rem 1rem;
     border: 1px solid var(--border-dark);
     border-radius: 8px;
@@ -136,6 +137,24 @@
     background-color: #ffffff;
     color: var(--text-dark);
 }
+
+.update-campaign-card { margin-top: 2rem; }
+.update-header { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.update-header > div { display: flex; flex-direction: column; gap: .2rem; }
+.update-header small { color: rgba(255,255,255,.85); }
+.update-form-grid { display: grid; grid-template-columns: repeat(3, 1fr); height: auto; }
+.update-wide { grid-column: 1 / -1; }
+.update-warning { padding: .85rem 1rem; border-radius: 8px; background: #fff7ed; color: #9a3412; font-size: .9rem; }
+.update-send-btn { background: #e67e22; }
+.update-send-btn:hover:not(:disabled) { background: #c96712; }
+.apk-upload-panel { display: flex; align-items: end; gap: 1rem; padding: 1rem; border: 1px dashed #f59e0b; border-radius: 10px; background: #fffbeb; }
+.apk-upload-panel .form-group { flex: 1; }
+.apk-upload-panel input[type="file"] { background: #fff; }
+.apk-upload-btn { min-height: 46px; padding: 0 1.25rem; border: 0; border-radius: 8px; background: #0f766e; color: #fff; font-weight: 700; cursor: pointer; }
+.apk-upload-btn:disabled { opacity: .55; cursor: not-allowed; }
+.release-status { display: flex; flex-direction: column; gap: .3rem; padding: .9rem 1rem; border-radius: 8px; background: #fef2f2; color: #991b1b; }
+.release-status.ready { background: #ecfdf5; color: #065f46; }
+.release-status span { font-size: .82rem; }
 
 .form-group input::placeholder,
 .form-group textarea::placeholder {
@@ -227,4 +246,8 @@
     .broadcasts-container {
         padding: 1.5rem;
     }
+
+    .update-form-grid { grid-template-columns: 1fr; }
+    .update-wide { grid-column: 1; }
+    .apk-upload-panel { align-items: stretch; flex-direction: column; }
 }
