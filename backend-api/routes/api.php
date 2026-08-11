@@ -180,7 +180,7 @@ Route::middleware('auth:sanctum')->group(function () {
     )->middleware([
         'role:passenger',
         'idempotent',
-        'throttle:10,1',
+        'throttle:webxpay-saved-card-payment',
     ]);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
         ->middleware(['role:passenger,driver,admin,super_admin', 'idempotent']);

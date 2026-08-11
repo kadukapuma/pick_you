@@ -75,6 +75,25 @@ class EnsureIdempotentRequestTest extends TestCase
         $this->assertSame(422, $response->getStatusCode());
     }
 
+    public function test_does_not_cache_a_transient_rate_limit_response(): void
+    {
+        $middleware = new EnsureIdempotentRequest(new RequestFingerprint);
+        $executions = 0;
+        $next = function () use (&$executions) {
+            $executions++;
+
+            return response()->json(['message' => 'Too Many Attempts.'], 429);
+        };
+
+        $first = $middleware->handle($this->request(['amount' => 10]), $next);
+        $second = $middleware->handle($this->request(['amount' => 10]), $next);
+
+        $this->assertSame(2, $executions);
+        $this->assertSame(429, $first->getStatusCode());
+        $this->assertSame(429, $second->getStatusCode());
+        $this->assertDatabaseCount('idempotency_records', 0);
+    }
+
     private function request(array $payload): Request
     {
         $request = Request::create('/api/test-mutation', 'POST', $payload, server: [
