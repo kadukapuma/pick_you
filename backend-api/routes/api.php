@@ -217,6 +217,14 @@ Route::middleware('auth:sanctum')->group(function () {
         'permission:manage_passenger_credits',
         'idempotent',
     ]);
+
+    Route::get(
+        '/payments/{payment}/credit-refunds',
+        [PaymentCreditRefundController::class, 'show']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+    ]);
     // Admin routes
 
     Route::middleware('admin')->group(function () {

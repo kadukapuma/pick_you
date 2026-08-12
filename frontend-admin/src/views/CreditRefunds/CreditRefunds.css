@@ -1,0 +1,22 @@
+.credit-refunds-page { padding: 28px; color: #17221f; }
+.credit-refunds-header h1 { margin: 0; font-size: 28px; }
+.credit-refunds-header p { margin: 6px 0 24px; color: #6b7773; }
+.refund-lookup { display: flex; align-items: end; gap: 12px; padding: 18px; background: #fff; border: 1px solid #e2e8e5; border-radius: 14px; }
+.refund-lookup label, .refund-form label { display: grid; gap: 7px; flex: 1; font-weight: 700; font-size: 13px; }
+.refund-lookup input, .refund-form input, .refund-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #ced8d4; border-radius: 9px; padding: 11px 12px; font: inherit; background: #fff; }
+.refund-lookup button, .refund-form button { border: 0; border-radius: 9px; padding: 12px 18px; background: #087f5b; color: #fff; font-weight: 800; cursor: pointer; }
+.refund-lookup button:disabled, .refund-form button:disabled { opacity: .55; cursor: not-allowed; }
+.refund-workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
+.refund-summary, .refund-form, .refund-history { padding: 20px; background: #fff; border: 1px solid #e2e8e5; border-radius: 14px; }
+.refund-summary h2, .refund-form h2, .refund-history h2 { margin: 0 0 16px; font-size: 18px; }
+.refund-summary dl { margin: 0; }
+.refund-summary dl div { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid #eef2f0; }
+.refund-summary dt { color: #6b7773; }.refund-summary dd { margin: 0; font-weight: 800; text-align: right; }
+.refund-summary .refundable { color: #087f5b; font-size: 16px; border-bottom: 0; }
+.refund-form { display: grid; gap: 15px; align-content: start; }
+.refund-notice { padding: 12px; border-radius: 9px; background: #fff8db; color: #6d5500; font-size: 13px; line-height: 1.5; }
+.refund-history { grid-column: 1 / -1; }
+.refund-history article { padding: 13px 0; border-top: 1px solid #eef2f0; }
+.refund-history article div { display: flex; justify-content: space-between; }.refund-history article span { color: #087f5b; font-weight: 800; font-size: 12px; }
+.refund-history article p { margin: 6px 0; }.refund-history article small, .empty-refunds { color: #79837f; }
+@media (max-width: 800px) { .refund-workspace { grid-template-columns: 1fr; }.refund-history { grid-column: auto; }.refund-lookup { align-items: stretch; flex-direction: column; } }

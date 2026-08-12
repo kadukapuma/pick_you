@@ -27,6 +27,7 @@ import Passengers from '../views/Passengers'
 import Settings from '../views/Settings'
 import FareConfigs from '../views/FareConfigs'
 import Finance from '../views/Finance'
+import CreditRefunds from '../views/CreditRefunds'
 import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
@@ -58,6 +59,9 @@ const AppRoutes = () => {
     const canManageVehicleTypes =
         admin?.role === 'super_admin' ||
         admin?.permissions?.includes('manage_vehicle_types')
+    const canManageCredits =
+        admin?.role === 'super_admin' ||
+        admin?.permissions?.includes('manage_passenger_credits')
 
     return (
         <Routes>
@@ -95,6 +99,10 @@ const AppRoutes = () => {
                     <Route path="customers" element={<Passengers />} />
                     <Route path="fare-configs" element={<FareConfigs />} />
                     <Route path="finance" element={<Finance />} />
+                    <Route
+                        path="credit-refunds"
+                        element={canManageCredits ? <CreditRefunds /> : <Navigate to="/admin-portal" replace />}
+                    />
                     <Route path="reports" element={<Reports />} />
                     <Route path="reports/:reportType" element={<ReportDetail />} />
                     <Route

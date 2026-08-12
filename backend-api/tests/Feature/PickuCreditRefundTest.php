@@ -176,6 +176,31 @@ class PickuCreditRefundTest extends TestCase
         $this->assertArrayNotHasKey('wallet_transaction_id', $payload);
     }
 
+    public function test_authorized_admin_can_review_refundable_payment_balance(): void
+    {
+        [$payment, , $admin] = $this->makePayment('500.00');
+        RolePermission::create([
+            'role' => User::ROLE_ADMIN,
+            'permission' => 'manage_passenger_credits',
+        ]);
+        app(PickuCreditRefundService::class)->refund(
+            $payment,
+            '125.00',
+            $admin,
+            'Partial refund.',
+            'refund-summary-test',
+        );
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $this->getJson("/api/payments/{$payment->id}/credit-refunds")
+            ->assertOk()
+            ->assertJsonPath('data.payment.id', $payment->id)
+            ->assertJsonPath('data.payment.payment_status', PaymentStatus::COMPLETED->value)
+            ->assertJsonPath('data.refunded_amount', '125.00')
+            ->assertJsonPath('data.refundable_amount', '375.00')
+            ->assertJsonPath('data.refunds.0.reason', 'Partial refund.');
+    }
+
     /** @return array{Payment, Passenger, User} */
     private function makePayment(string $amount): array
     {

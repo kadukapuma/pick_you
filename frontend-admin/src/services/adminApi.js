@@ -5,13 +5,14 @@ const TOKEN_KEY = 'admin_token'
 
 const statusOptions = ['pending', 'approved', 'suspended', 'updated', 'rejected']
 
-const apiFetch = async (path, { method = 'GET', body, token } = {}) => {
+const apiFetch = async (path, { method = 'GET', body, token, headers = {} } = {}) => {
   const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...headers,
     },
     body: body ? JSON.stringify(body) : undefined,
   })
@@ -427,6 +428,21 @@ const fetchTrialBalance = async (token) => {
   return payload.data || {}
 }
 
+const fetchPaymentCreditRefunds = async (token, paymentId) => {
+  const payload = await apiFetch(`/payments/${paymentId}/credit-refunds`, { token })
+  return payload.data || {}
+}
+
+const createPaymentCreditRefund = async (token, paymentId, refund) => {
+  const payload = await apiFetch(`/payments/${paymentId}/credit-refunds`, {
+    method: 'POST',
+    token,
+    body: { amount: refund.amount, reason: refund.reason },
+    headers: { 'Idempotency-Key': refund.idempotencyKey },
+  })
+  return payload.data || {}
+}
+
 // App Settings
 const fetchAppSettings = async (token) => {
   const payload = await apiFetch('/app-settings', { token })
@@ -496,4 +512,6 @@ export {
   fetchDriverAccounts,
   fetchDriverStatement,
   fetchTrialBalance,
+  fetchPaymentCreditRefunds,
+  createPaymentCreditRefund,
 }
