@@ -107,7 +107,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1,
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets?.length) {
@@ -128,9 +128,10 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
 
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        cameraType: ImagePicker.CameraType.front,
         allowsEditing: true,
         aspect: [1, 1],
-        quality: 1,
+        quality: 0.8,
       });
 
       if (!result.canceled && result.assets?.length) {
@@ -198,19 +199,16 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
         message: "Profile picture uploaded successfully.",
       });
     } catch (error) {
-      // TEMPORARY LOGS ADDED
       console.log(
-        "FULL ERROR:",
+        "Profile picture upload failed:",
+        error.response?.status,
         JSON.stringify(error.response?.data || error.message, null, 2)
       );
-      console.log(
-        "STATUS:",
-        error.response?.status
-      );
 
+      const serverMessage = error.response?.data?.errors?.profile_picture?.[0];
       setNotice({
         type: "error",
-        message: "Unable to upload profile picture. Please try again.",
+        message: serverMessage || "Unable to upload profile picture. Please try again.",
       });
     } finally {
       setIsUploadingPhoto(false);

@@ -16,6 +16,7 @@ import {
 } from "react-native";
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { useKeepAwake } from "expo-keep-awake";
 import { useFocusEffect } from "@react-navigation/native";
 import {
     SafeAreaView,
@@ -78,6 +79,7 @@ const splitDurationText = (durationText) => {
 };
 
 const TripInProgressScreen = ({ navigation, route }) => {
+  useKeepAwake();
   const insets = useSafeAreaInsets();
 
   const ride = route?.params?.ride || {};
