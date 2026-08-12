@@ -13,6 +13,20 @@ const money = (value) => `LKR ${Number(value || 0).toLocaleString('en-LK', {
     maximumFractionDigits: 2,
 })}`
 
+const createIdempotencyKey = () => {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+        return globalThis.crypto.randomUUID()
+    }
+
+    if (typeof globalThis.crypto?.getRandomValues === 'function') {
+        const values = new Uint32Array(4)
+        globalThis.crypto.getRandomValues(values)
+        return `refund-${Array.from(values, (value) => value.toString(16).padStart(8, '0')).join('')}`
+    }
+
+    return `refund-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+}
+
 const CreditRefunds = () => {
     const { token } = useAdmin()
     const [search, setSearch] = useState('')
@@ -90,7 +104,7 @@ const CreditRefunds = () => {
             await createPaymentCreditRefund(token, details.payment.id, {
                 amount: value.toFixed(2),
                 reason: reason.trim(),
-                idempotencyKey: crypto.randomUUID(),
+                idempotencyKey: createIdempotencyKey(),
             })
             const refreshed = await fetchPaymentCreditRefunds(token, details.payment.id)
             setDetails(refreshed)
