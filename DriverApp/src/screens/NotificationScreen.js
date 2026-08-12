@@ -67,6 +67,15 @@ const NotificationScreen = () => {
     }
   };
 
+  const handlePressNotification = (item) => {
+    handleMarkRead(item);
+    if (item.data?.action === "app_update") {
+      navigation.navigate("AppUpdate");
+    } else {
+      navigation.navigate("NotificationDetail", { title: item.title, message: item.message });
+    }
+  };
+
   const handleMarkAllRead = async () => {
     const unread = notifications.filter((n) => !n.is_read);
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
@@ -81,7 +90,7 @@ const NotificationScreen = () => {
     <TouchableOpacity
       style={styles.notificationItem}
       activeOpacity={0.7}
-      onPress={() => handleMarkRead(item)}
+      onPress={() => handlePressNotification(item)}
     >
       <View
         style={[

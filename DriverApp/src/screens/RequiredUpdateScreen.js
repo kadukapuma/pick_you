@@ -99,7 +99,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, paddingRight: 16 },
   eyebrow: { fontSize: 13, fontWeight: "700", color: "#00A859", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 6 },
   title: { fontSize: 32, fontWeight: "900", color: "#0F172A" },
-  logo: { width: 52, height: 52, borderRadius: 14 },
+  logo: { width: 72, height: 72, borderRadius: 18 },
   message: { fontSize: 15, lineHeight: 22, color: "#52635D", marginTop: 18 },
   versionPill: {
     flexDirection: "row", alignItems: "center", gap: 6, alignSelf: "flex-start",
