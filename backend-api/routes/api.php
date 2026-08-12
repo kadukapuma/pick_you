@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\PassengerProfileController;
 use App\Http\Controllers\Api\PassengerRideHistoryController;
 use App\Http\Controllers\Api\PaymentCapabilityController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PaymentCreditRefundController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\RideController;
@@ -202,6 +203,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post(
         '/passengers/{passenger}/credits',
         [PassengerCreditController::class, 'store']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+        'idempotent',
+    ]);
+
+    Route::post(
+        '/payments/{payment}/credit-refunds',
+        [PaymentCreditRefundController::class, 'store']
     )->middleware([
         'role:admin,super_admin,operator',
         'permission:manage_passenger_credits',
