@@ -18,38 +18,44 @@ function RootLayoutContent() {
   const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [updatePolicy, setUpdatePolicy] = useState<AppUpdatePolicy | null>(null);
   const isNavigationReadyRef = useRef(false);
-  const pendingUpdateNav = useRef(false);
+  const pendingNav = useRef<{ pathname: string; params?: Record<string, string> } | null>(null);
 
   useEffect(() => {
     isNavigationReadyRef.current = isNavigationReady;
-    if (isNavigationReady && pendingUpdateNav.current) {
-      pendingUpdateNav.current = false;
-      router.push("/update");
+    if (isNavigationReady && pendingNav.current) {
+      const { pathname, params } = pendingNav.current;
+      pendingNav.current = null;
+      router.push({ pathname, params } as any);
     }
   }, [isNavigationReady]);
 
   useEffect(() => {
     const check = () => checkPassengerAppUpdate().then(setUpdatePolicy).catch(() => {});
-    const openUpdateScreen = () => {
+    const navigateWhenReady = (pathname: string, params?: Record<string, string>) => {
       if (isNavigationReadyRef.current) {
-        router.push("/update");
+        router.push({ pathname, params } as any);
       } else {
-        pendingUpdateNav.current = true;
+        pendingNav.current = { pathname, params };
+      }
+    };
+    const handleNotificationTap = (response: Notifications.NotificationResponse) => {
+      const content = response.notification.request.content;
+      const action = content.data?.action;
+      if (action === "app_update") {
+        check();
+        navigateWhenReady("/update");
+      } else if (action === "broadcast_message") {
+        navigateWhenReady("/notification", {
+          title: content.title ?? "",
+          message: content.body ?? "",
+        });
       }
     };
     check();
     const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
-    const notification = Notifications.addNotificationResponseReceivedListener(response => {
-      if (response.notification.request.content.data?.action === "app_update") {
-        check();
-        openUpdateScreen();
-      }
-    });
+    const notification = Notifications.addNotificationResponseReceivedListener(handleNotificationTap);
     Notifications.getLastNotificationResponseAsync().then(response => {
-      if (response?.notification.request.content.data?.action === "app_update") {
-        check();
-        openUpdateScreen();
-      }
+      if (response) handleNotificationTap(response);
     });
     return () => { appState.remove(); notification.remove(); };
   }, []);
@@ -116,6 +122,15 @@ function RootLayoutContent() {
 
       <Stack.Screen
         name="update"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="notification"
         options={{
           presentation: "modal",
           animation: "slide_from_bottom",

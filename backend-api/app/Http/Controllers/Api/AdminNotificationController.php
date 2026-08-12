@@ -68,11 +68,16 @@ class AdminNotificationController extends Controller
             'data' => 'nullable|array',
         ]);
 
+        $data = $validated['data'] ?? [];
+        if (! isset($data['action'])) {
+            $data['action'] = 'broadcast_message';
+        }
+
         \App\Jobs\SendBulkCampaignJob::dispatch(
             $validated['target'],
             $validated['title'],
             $validated['body'],
-            $validated['data'] ?? []
+            $data
         );
 
         return $this->success(null, 'Bulk notification campaign scheduled successfully.');
