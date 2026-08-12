@@ -201,6 +201,23 @@ class PickuCreditRefundTest extends TestCase
             ->assertJsonPath('data.refunds.0.reason', 'Partial refund.');
     }
 
+    public function test_authorized_admin_can_find_payment_by_passenger_identity(): void
+    {
+        [$payment, $passenger, $admin] = $this->makePayment('500.00');
+        RolePermission::create([
+            'role' => User::ROLE_ADMIN,
+            'permission' => 'manage_passenger_credits',
+        ]);
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $this->getJson('/api/payment-credit-refunds?query='.urlencode($passenger->user->email))
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.payment_id', $payment->id)
+            ->assertJsonPath('data.0.passenger_id', $passenger->id)
+            ->assertJsonPath('data.0.refundable_amount', '500.00');
+    }
+
     /** @return array{Payment, Passenger, User} */
     private function makePayment(string $amount): array
     {

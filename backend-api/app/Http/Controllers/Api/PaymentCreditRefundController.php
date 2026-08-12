@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PaymentStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Payment;
 use App\Models\PaymentRefund;
@@ -87,5 +88,69 @@ class PaymentCreditRefundController extends Controller
                 : '0.00',
             'refunds' => $payment->refunds,
         ], 'Payment refund details retrieved successfully.');
+    }
+
+    public function index(Request $request)
+    {
+        $validated = $request->validate([
+            'query' => ['required', 'string', 'max:100'],
+        ]);
+        $search = trim($validated['query']);
+
+        if ($search === '') {
+            return $this->error('A payment, ride, or passenger search value is required.', 422);
+        }
+
+        $numericId = ctype_digit($search) ? (int) $search : null;
+        $searchPattern = '%'.mb_strtolower($search).'%';
+        $payments = Payment::query()
+            ->with([
+                'ride:id,ride_code,status,final_fare',
+                'passenger.user:id,first_name,last_name,email,phone',
+            ])
+            ->withSum([
+                'refunds as refunded_amount' => fn ($query) => $query
+                    ->where('status', PaymentRefund::STATUS_COMPLETED),
+            ], 'amount')
+            ->where('payment_status', PaymentStatus::COMPLETED->value)
+            ->where(function ($query) use ($searchPattern, $numericId) {
+                if ($numericId !== null) {
+                    $query->where('id', $numericId)
+                        ->orWhere('ride_id', $numericId)
+                        ->orWhere('passenger_id', $numericId);
+                }
+
+                $query->orWhereHas('ride', fn ($ride) => $ride
+                    ->whereRaw('LOWER(ride_code) LIKE ?', [$searchPattern]))
+                    ->orWhereHas('passenger.user', fn ($user) => $user
+                        ->whereRaw('LOWER(email) LIKE ?', [$searchPattern])
+                        ->orWhereRaw('LOWER(phone) LIKE ?', [$searchPattern]));
+            })
+            ->latest('id')
+            ->limit(20)
+            ->get()
+            ->map(function (Payment $payment) {
+                $refunded = Money::of($payment->refunded_amount ?? '0.00');
+
+                return [
+                    'payment_id' => $payment->id,
+                    'payment_amount' => $payment->amount,
+                    'refundable_amount' => Money::cmp((string) $payment->amount, $refunded) >= 0
+                        ? Money::sub((string) $payment->amount, $refunded)
+                        : '0.00',
+                    'ride_id' => $payment->ride_id,
+                    'ride_code' => $payment->ride?->ride_code,
+                    'passenger_id' => $payment->passenger_id,
+                    'passenger_name' => trim(implode(' ', array_filter([
+                        $payment->passenger?->user?->first_name,
+                        $payment->passenger?->user?->last_name,
+                    ]))),
+                    'passenger_email' => $payment->passenger?->user?->email,
+                    'passenger_phone' => $payment->passenger?->user?->phone,
+                    'paid_at' => $payment->paid_at,
+                ];
+            });
+
+        return $this->success($payments, 'Refundable payments retrieved successfully.');
     }
 }

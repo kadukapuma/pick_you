@@ -4,6 +4,7 @@ import { useAdmin } from '../../context/AdminContext'
 import {
     createPaymentCreditRefund,
     fetchPaymentCreditRefunds,
+    searchRefundablePayments,
 } from '../../services/adminApi'
 import './CreditRefunds.css'
 
@@ -14,7 +15,8 @@ const money = (value) => `LKR ${Number(value || 0).toLocaleString('en-LK', {
 
 const CreditRefunds = () => {
     const { token } = useAdmin()
-    const [paymentId, setPaymentId] = useState('')
+    const [search, setSearch] = useState('')
+    const [results, setResults] = useState([])
     const [details, setDetails] = useState(null)
     const [amount, setAmount] = useState('')
     const [reason, setReason] = useState('')
@@ -23,19 +25,36 @@ const CreditRefunds = () => {
 
     const findPayment = async (event) => {
         event?.preventDefault()
-        if (!/^\d+$/.test(paymentId.trim())) {
-            Swal.fire('Invalid payment ID', 'Enter a numeric payment ID.', 'warning')
+        if (!search.trim()) {
+            Swal.fire('Search required', 'Enter payment, ride, or passenger information.', 'warning')
             return
         }
 
         try {
             setLoading(true)
-            const result = await fetchPaymentCreditRefunds(token, paymentId.trim())
+            const matches = await searchRefundablePayments(token, search.trim())
+            setResults(matches)
+            setDetails(null)
+            if (matches.length === 0) {
+                Swal.fire('No completed payments', 'No completed payment matched that search.', 'info')
+            }
+        } catch (error) {
+            setResults([])
+            setDetails(null)
+            Swal.fire('Search failed', error.message || 'Could not search payments.', 'error')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    const selectPayment = async (id) => {
+        try {
+            setLoading(true)
+            const result = await fetchPaymentCreditRefunds(token, id)
             setDetails(result)
             setAmount(result.refundable_amount || '')
             setReason('')
         } catch (error) {
-            setDetails(null)
             Swal.fire('Payment not available', error.message || 'Could not load this payment.', 'error')
         } finally {
             setLoading(false)
@@ -93,17 +112,38 @@ const CreditRefunds = () => {
             <header className="credit-refunds-header">
                 <div>
                     <h1>PickU credit refunds</h1>
-                    <p>Issue audited service refunds as PickU credit only.</p>
+                    <p>Find a completed payment, verify its passenger, then issue PickU credit.</p>
                 </div>
             </header>
 
             <form className="refund-lookup" onSubmit={findPayment}>
                 <label>
-                    <span>Payment ID</span>
-                    <input value={paymentId} onChange={(event) => setPaymentId(event.target.value)} placeholder="Example: 32" inputMode="numeric" />
+                    <span>Find passenger payment</span>
+                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Payment ID, ride ID/code, passenger ID, email or phone" />
                 </label>
-                <button type="submit" disabled={loading}>{loading ? 'Loading…' : 'Find payment'}</button>
+                <button type="submit" disabled={loading}>{loading ? 'Searching…' : 'Search payments'}</button>
             </form>
+
+            {results.length > 0 && (
+                <div className="refund-results">
+                    <div className="refund-results-heading">
+                        <h2>Matching completed payments</h2>
+                        <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
+                    </div>
+                    {results.map((result) => (
+                        <button type="button" key={result.payment_id} onClick={() => selectPayment(result.payment_id)}>
+                            <div>
+                                <strong>{result.passenger_name || `Passenger #${result.passenger_id}`}</strong>
+                                <span>{result.passenger_phone || result.passenger_email || `Passenger #${result.passenger_id}`}</span>
+                            </div>
+                            <div><span>Ride</span><strong>{result.ride_code || `#${result.ride_id}`}</strong></div>
+                            <div><span>Payment</span><strong>#{result.payment_id}</strong></div>
+                            <div><span>Refundable</span><strong>{money(result.refundable_amount)}</strong></div>
+                            <span className="material-icons">chevron_right</span>
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {details && (
                 <div className="refund-workspace">
@@ -111,6 +151,8 @@ const CreditRefunds = () => {
                         <h2>Payment #{details.payment.id}</h2>
                         <dl>
                             <div><dt>Passenger</dt><dd>{details.passenger.name || `#${details.passenger.id}`}</dd></div>
+                            <div><dt>Passenger ID</dt><dd>#{details.passenger.id}</dd></div>
+                            <div><dt>Contact</dt><dd>{details.passenger.phone || details.passenger.email || 'Not available'}</dd></div>
                             <div><dt>Ride</dt><dd>{details.ride?.ride_code || `#${details.ride?.id}`}</dd></div>
                             <div><dt>Status</dt><dd>{details.payment.payment_status}</dd></div>
                             <div><dt>Original payment</dt><dd>{money(details.payment.amount)}</dd></div>

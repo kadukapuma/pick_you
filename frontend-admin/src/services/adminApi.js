@@ -433,6 +433,12 @@ const fetchPaymentCreditRefunds = async (token, paymentId) => {
   return payload.data || {}
 }
 
+const searchRefundablePayments = async (token, query) => {
+  const params = new URLSearchParams({ query })
+  const payload = await apiFetch(`/payment-credit-refunds?${params}`, { token })
+  return payload.data || []
+}
+
 const createPaymentCreditRefund = async (token, paymentId, refund) => {
   const payload = await apiFetch(`/payments/${paymentId}/credit-refunds`, {
     method: 'POST',
@@ -513,5 +519,6 @@ export {
   fetchDriverStatement,
   fetchTrialBalance,
   fetchPaymentCreditRefunds,
+  searchRefundablePayments,
   createPaymentCreditRefund,
 }
