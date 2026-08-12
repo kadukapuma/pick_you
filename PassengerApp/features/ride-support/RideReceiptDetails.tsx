@@ -211,6 +211,15 @@ export default function RideReceiptDetails({ ride, initialTab = "receipt" }: Pro
         ),
       )
     : [];
+  const completedRefunds = Array.isArray(ride?.payment?.refunds)
+    ? ride.payment.refunds.filter(
+        (refund: any) => String(refund?.status || "").toUpperCase() === "COMPLETED",
+      )
+    : [];
+  const refundedCreditTotal = completedRefunds.reduce(
+    (total: number, refund: any) => total + Number(refund?.amount || 0),
+    0,
+  );
   const vehicleType = getVehicleType(ride);
   const vehicleModel = getVehicleModel(ride);
   const helpRideId = String(ride?.id || "");
@@ -354,6 +363,29 @@ export default function RideReceiptDetails({ ride, initialTab = "receipt" }: Pro
               </View>
               <Text style={styles.totalValue}>{formatLkr(receipt.totalFare)}</Text>
             </View>
+            {refundedCreditTotal > 0 ? (
+              <View style={styles.refundBox}>
+                <View style={styles.refundHeading}>
+                  <MaterialCommunityIcons
+                    name="wallet-plus-outline"
+                    size={22}
+                    color={rideTheme.darkGreen}
+                  />
+                  <View style={styles.refundCopy}>
+                    <Text style={styles.refundTitle}>Refunded as PickU credit</Text>
+                    <Text style={styles.refundDescription}>
+                      Added to your PickU credit balance
+                    </Text>
+                  </View>
+                  <Text style={styles.refundAmount}>{formatLkr(refundedCreditTotal)}</Text>
+                </View>
+                {completedRefunds.map((refund: any) => (
+                  <Text style={styles.refundReason} key={refund.id}>
+                    {refund.reason || "Payment refund"}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
             {paymentAllocations.length > 0 ? paymentAllocations.map((allocation: any) => {
               const type = String(allocation.type || "").toUpperCase();
               const isPickuCredit = ["CREDIT", "PICKU_CREDIT"].includes(type);
@@ -571,6 +603,20 @@ const styles = StyleSheet.create({
   totalLabel: { color: rideTheme.darkGreen, fontSize: 14, lineHeight: 19, fontWeight: "900" },
   paidLabel: { color: rideTheme.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", marginTop: 2 },
   totalValue: { color: rideTheme.darkGreen, fontSize: 17, lineHeight: 22, fontWeight: "900", textAlign: "right" },
+  refundBox: {
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#A7DCC8",
+    backgroundColor: "#F0FBF7",
+    padding: 13,
+  },
+  refundHeading: { flexDirection: "row", alignItems: "center", gap: 9 },
+  refundCopy: { flex: 1, minWidth: 0 },
+  refundTitle: { color: rideTheme.darkGreen, fontSize: 14, lineHeight: 19, fontWeight: "900" },
+  refundDescription: { color: rideTheme.muted, fontSize: 11, lineHeight: 16, fontWeight: "700", marginTop: 1 },
+  refundAmount: { color: rideTheme.darkGreen, fontSize: 14, lineHeight: 19, fontWeight: "900" },
+  refundReason: { color: rideTheme.muted, fontSize: 12, lineHeight: 17, fontWeight: "700", marginTop: 9 },
   paymentRow: {
     minHeight: 54,
     borderRadius: 16,

@@ -147,6 +147,35 @@ class PickuCreditRefundTest extends TestCase
         $this->assertSame(0, PaymentRefund::count());
     }
 
+    public function test_passenger_ride_receipt_exposes_only_safe_refund_history(): void
+    {
+        [$payment, $passenger, $admin] = $this->makePayment('500.00');
+        $refund = app(PickuCreditRefundService::class)->refund(
+            $payment,
+            '80.00',
+            $admin,
+            'Pickup delay.',
+            'receipt-refund-safe',
+        );
+        Sanctum::actingAs($passenger->user, ['role:passenger']);
+
+        $response = $this->getJson("/api/rides/{$payment->ride_id}")
+            ->assertOk()
+            ->assertJsonPath('data.payment.refunds.0.id', $refund->id)
+            ->assertJsonPath('data.payment.refunds.0.amount', '80.00')
+            ->assertJsonPath(
+                'data.payment.refunds.0.destination',
+                PaymentRefund::DESTINATION_PICKU_CREDIT
+            )
+            ->assertJsonPath('data.payment.refunds.0.reason', 'Pickup delay.');
+
+        $payload = $response->json('data.payment.refunds.0');
+        $this->assertArrayNotHasKey('idempotency_key', $payload);
+        $this->assertArrayNotHasKey('requested_by', $payload);
+        $this->assertArrayNotHasKey('failure_reason', $payload);
+        $this->assertArrayNotHasKey('wallet_transaction_id', $payload);
+    }
+
     /** @return array{Payment, Passenger, User} */
     private function makePayment(string $amount): array
     {

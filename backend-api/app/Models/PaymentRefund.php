@@ -17,6 +17,17 @@ class PaymentRefund extends Model
 
     protected $guarded = ['id'];
 
+    protected $hidden = [
+        'payment_id',
+        'passenger_id',
+        'requested_by',
+        'wallet_transaction_id',
+        'idempotency_key',
+        'failure_reason',
+        'created_at',
+        'updated_at',
+    ];
+
     protected $casts = [
         'amount' => 'decimal:2',
         'completed_at' => 'datetime',

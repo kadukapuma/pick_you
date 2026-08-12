@@ -41,7 +41,15 @@ class RideController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $ride = Ride::with(['statuses', 'passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment.allocations'])->find($id);
+        $ride = Ride::with([
+            'statuses',
+            'passenger.user',
+            'driver.user',
+            'vehicle',
+            'fareConfig',
+            'payment.allocations',
+            'payment.refunds',
+        ])->find($id);
 
         if (! $ride) {
             return $this->error('Ride not found', 404);
