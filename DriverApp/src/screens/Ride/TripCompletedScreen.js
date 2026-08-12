@@ -66,6 +66,8 @@ const TripCompletedScreen = ({ navigation, route }) => {
   const isCardPaid = !isCash && paymentStatus === "COMPLETED";
   const isCardFailed =
     !isCash && ["FAILED", "DECLINED", "CANCELLED", "EXPIRED"].includes(paymentStatus);
+  const isCardPending = !isCash && !isCardPaid && !isCardFailed;
+  const isPaymentPending = waitingForSplit || isCardPending;
   const paymentLabel = hasSplitBreakdown
     ? cashAmount > 0
       ? "PickU credit + Cash"
@@ -95,7 +97,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    if (!ride?.id || !usesPickuCredit || paymentStatus === "COMPLETED") return;
+    if (!ride?.id || !isPaymentPending) return;
 
     let cancelled = false;
     const refreshPayment = async () => {
@@ -106,7 +108,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
           setRide((current) => ({ ...current, ...refreshedRide }));
         }
       } catch (error) {
-        console.log("Could not refresh split payment:", error.response?.data || error);
+        console.log("Could not refresh completed ride payment:", error.response?.data || error);
       }
     };
 
@@ -117,12 +119,12 @@ const TripCompletedScreen = ({ navigation, route }) => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [paymentStatus, ride?.id, usesPickuCredit]);
+  }, [isPaymentPending, ride?.id]);
 
   const handleCashCollected = async () => {
     if (!ride?.id || isProcessingCash) return;
 
-    if (waitingForSplit) return;
+    if (isPaymentPending) return;
 
     if (hasSplitBreakdown) {
       navigation.reset({
@@ -369,17 +371,17 @@ const TripCompletedScreen = ({ navigation, route }) => {
           <TouchableOpacity
             style={[
               styles.primaryActionButton,
-              (isProcessingCash || waitingForSplit) && styles.buttonDisabledState
+              (isProcessingCash || isPaymentPending) && styles.buttonDisabledState
             ]}
             onPress={handleCashCollected}
-            disabled={isProcessingCash || waitingForSplit}
+            disabled={isProcessingCash || isPaymentPending}
             activeOpacity={0.85}
           >
             <View style={{ width: 24 }} />
             <Text style={styles.primaryActionLabel}>
               {isProcessingCash
                 ? "Updating Earnings..."
-                : waitingForSplit
+                : isPaymentPending
                   ? "Waiting for payment"
                   : hasSplitBreakdown
                     ? cashToCollect > 0
