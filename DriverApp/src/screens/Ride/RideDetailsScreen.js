@@ -36,6 +36,7 @@ const RideDetailsScreen = ({ navigation, route }) => {
   const estimatedTime = ride?.time || "18 min";
   const paymentMethod = (ride?.paymentMode || ride?.payment_method || "cash").toLowerCase();
   const isCashRide = paymentMethod === "cash";
+  const usesPickuCredit = Boolean(ride?.use_wallet_credit);
   const totalFare = ride?.price || 850;
   const customerPhone = ride?.customerPhone;
 
@@ -207,7 +208,7 @@ const RideDetailsScreen = ({ navigation, route }) => {
           <View style={styles.smallMetricCard}>
             <View style={styles.iconCircleBg}>
               <Ionicons
-                name={isCashRide ? "cash-outline" : "card-outline"}
+                name={usesPickuCredit ? "wallet-outline" : isCashRide ? "cash-outline" : "card-outline"}
                 size={16}
                 color="#00A859"
               />
@@ -216,15 +217,24 @@ const RideDetailsScreen = ({ navigation, route }) => {
             <Text
               style={[
                 styles.metricValueText,
-                { color: isCashRide ? "#B45309" : "#1D4ED8" },
+                { color: usesPickuCredit ? "#047857" : isCashRide ? "#B45309" : "#1D4ED8" },
               ]}
             >
-              {isCashRide ? "Cash" : "Card"}
+              {usesPickuCredit
+                ? `Credit + ${isCashRide ? "Cash" : "Card"}`
+                : isCashRide ? "Cash" : "Card"}
             </Text>
           </View>
         </View>
 
-        {!isCashRide && (
+        {usesPickuCredit ? (
+          <View style={styles.cardRideNotice}>
+            <MaterialCommunityIcons name="wallet-outline" size={18} color="#047857" />
+            <Text style={styles.cardRideNoticeText}>
+              PickU credit applies first. Collect only the confirmed cash remainder after the trip.
+            </Text>
+          </View>
+        ) : !isCashRide && (
           <View style={styles.cardRideNotice}>
             <MaterialCommunityIcons name="credit-card-check-outline" size={18} color="#1D4ED8" />
             <Text style={styles.cardRideNoticeText}>

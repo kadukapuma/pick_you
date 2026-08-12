@@ -11,6 +11,7 @@ class PaymentCapabilityTest extends TestCase
         config([
             'payments.driver' => 'mock',
             'payments.webxpay.enabled' => false,
+            'payments.picku_credit.enabled' => false,
         ]);
 
         $this->getJson('/api/payment-capabilities')
@@ -42,13 +43,25 @@ class PaymentCapabilityTest extends TestCase
         config([
             'payments.driver' => 'webxpay',
             'payments.webxpay.enabled' => true,
+            'payments.picku_credit.enabled' => true,
         ]);
 
         $this->getJson('/api/payment-capabilities')
             ->assertOk()
             ->assertJsonPath('cash', true)
             ->assertJsonPath('card', true)
-            ->assertJsonPath('wallet', false)
+            ->assertJsonPath('wallet', true)
             ->assertJsonPath('gateway', 'webxpay');
+    }
+
+    public function test_disabled_picku_credit_does_not_advertise_wallet_payments(): void
+    {
+        config([
+            'payments.picku_credit.enabled' => false,
+        ]);
+
+        $this->getJson('/api/payment-capabilities')
+            ->assertOk()
+            ->assertJsonPath('wallet', false);
     }
 }

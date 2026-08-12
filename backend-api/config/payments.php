@@ -35,6 +35,23 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | PickU credit payments
+    |--------------------------------------------------------------------------
+    |
+    | Controls whether PassengerApp may apply available PickU credit to a ride.
+    | Balance and transaction history remain readable when this is disabled.
+    |
+    */
+
+    'picku_credit' => [
+        'enabled' => env(
+            'PICKU_CREDIT_PAYMENTS_ENABLED',
+            false
+        ),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | WEBXPAY Configuration
     |--------------------------------------------------------------------------
     */

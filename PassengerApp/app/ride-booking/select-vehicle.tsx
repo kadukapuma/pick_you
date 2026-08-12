@@ -786,7 +786,10 @@ export default function SelectRideScreen() {
                 key={ride.id}
                 ride={ride}
                 selected={selectedRide === ride.id}
-                onSelect={() => setSelectedRide(ride.id)}
+                onSelect={() => {
+                  setSelectedRide(ride.id);
+                  setOutboundRide(ride);
+                }}
                 index={i}
                 directions={directions}
               />
@@ -798,7 +801,15 @@ export default function SelectRideScreen() {
         <View style={styles.optionsRow}>
           <TouchableOpacity
             style={styles.optionChip}
-            onPress={() => router.push("/ride-booking/payment-method")}
+            onPress={() => {
+              const currentRide = rideOptions.find(
+                (ride) => ride.id === selectedRide,
+              );
+              if (currentRide) {
+                setOutboundRide(currentRide);
+              }
+              router.push("/ride-booking/payment-method");
+            }}
             activeOpacity={0.82}
             accessibilityRole="button"
             accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}

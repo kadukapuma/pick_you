@@ -17,7 +17,9 @@ class PaymentCapabilityController extends Controller
         return response()->json([
             'cash' => true,
             'card' => $cardEnabled,
-            'wallet' => false,
+            'wallet' => (bool) config(
+                'payments.picku_credit.enabled'
+            ),
             'gateway' => $gateway,
             'environment' => app()->environment(),
         ]);

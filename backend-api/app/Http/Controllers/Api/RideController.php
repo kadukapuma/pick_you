@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Events\RideStatusUpdated;
 use App\Exceptions\GoogleMapsException;
 use App\Http\Controllers\Controller;
+use App\Models\DriverAccount;
 use App\Models\FareConfig;
 use App\Models\Ride;
+use App\Models\User;
 use App\Services\Fares\FareCalculationService;
 use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
@@ -39,7 +41,7 @@ class RideController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $ride = Ride::with(['statuses', 'passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment'])->find($id);
+        $ride = Ride::with(['statuses', 'passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment.allocations'])->find($id);
 
         if (! $ride) {
             return $this->error('Ride not found', 404);
@@ -117,7 +119,8 @@ class RideController extends Controller
                     'ride_code' => $ride->ride_code,
                     'status' => $ride->status,
                     'vehicle_type' => $ride->fareConfig?->vehicle_type,
-                    'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger') . ' ' . ($passengerUser?->last_name ?? '')),
+                    'use_wallet_credit' => (bool) $ride->use_wallet_credit,
+                    'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? '')),
                     'passenger_profile_picture' => $passengerUser?->profile_picture,
                     'pickup_address' => $ride->pickup_address,
                     'pickup_lat' => $ride->pickup_latitude,
@@ -265,7 +268,7 @@ class RideController extends Controller
                 'notes' => 'No online drivers available near passenger location.',
             ]);
 
-            return $this->error('No online drivers available for vehicle type ' . $request->vehicle_type . '.', 404);
+            return $this->error('No online drivers available for vehicle type '.$request->vehicle_type.'.', 404);
         }
 
         return $this->success($ride, 'Ride requested successfully', 201);
@@ -349,13 +352,13 @@ class RideController extends Controller
             return $this->error('No active vehicle found for driver', 400);
         }
 
-        $account = \App\Models\DriverAccount::forDriver((int) $driver->id);
+        $account = DriverAccount::forDriver((int) $driver->id);
 
         if (! $account->canAcceptRides()) {
             return $this->error(
                 $account->is_blocked
                     ? ($account->block_reason ?: 'Your account is blocked. Please contact support.')
-                    : 'You owe PickU ' . ltrim($account->balance(), '-') . '. Please top up to continue accepting rides.',
+                    : 'You owe PickU '.ltrim($account->balance(), '-').'. Please top up to continue accepting rides.',
                 403,
             );
         }
@@ -540,7 +543,7 @@ class RideController extends Controller
 
         $user = $request->user();
         $cancelledBy = 'passenger';
-        if ($user->canActAs(\App\Models\User::ROLE_DRIVER) && $user->driver && $ride->driver_id !== null && (int)$user->driver->id === (int)$ride->driver_id) {
+        if ($user->canActAs(User::ROLE_DRIVER) && $user->driver && $ride->driver_id !== null && (int) $user->driver->id === (int) $ride->driver_id) {
             $cancelledBy = 'driver';
         }
 

@@ -204,6 +204,13 @@ export default function RideReceiptDetails({ ride, initialTab = "receipt" }: Pro
   const driverPhoto = getDriverProfilePicture(ride);
   const driverRating = Number(ride?.driver?.rating || ride?.driver_rating || 0);
   const paymentMethod = paymentLabel(ride?.payment?.payment_method || ride?.payment_method);
+  const paymentAllocations = Array.isArray(ride?.payment?.allocations)
+    ? ride.payment.allocations.filter((allocation: any) =>
+        ["COMPLETED", "RESERVED"].includes(
+          String(allocation?.status || "").toUpperCase(),
+        ),
+      )
+    : [];
   const vehicleType = getVehicleType(ride);
   const vehicleModel = getVehicleModel(ride);
   const helpRideId = String(ride?.id || "");
@@ -347,13 +354,36 @@ export default function RideReceiptDetails({ ride, initialTab = "receipt" }: Pro
               </View>
               <Text style={styles.totalValue}>{formatLkr(receipt.totalFare)}</Text>
             </View>
-            <View style={styles.paymentRow}>
-              <View style={styles.paymentMethod}>
-                <MaterialCommunityIcons name="cash" size={24} color={rideTheme.green} />
-                <Text style={styles.paymentMethodText}>{paymentMethod}</Text>
+            {paymentAllocations.length > 0 ? paymentAllocations.map((allocation: any) => {
+              const type = String(allocation.type || "").toUpperCase();
+              const isPickuCredit = ["CREDIT", "PICKU_CREDIT"].includes(type);
+              const label = isPickuCredit ? "PickU credit" : paymentLabel(type);
+              const icon = isPickuCredit
+                ? "wallet-outline"
+                : type === "CARD"
+                  ? "credit-card-outline"
+                  : "cash";
+
+              return (
+                <View style={styles.paymentRow} key={allocation.id || `${type}-${allocation.amount}`}>
+                  <View style={styles.paymentMethod}>
+                    <MaterialCommunityIcons name={icon} size={24} color={rideTheme.green} />
+                    <Text style={styles.paymentMethodText}>{label}</Text>
+                  </View>
+                  <Text style={styles.paymentAmount}>
+                    {formatLkr(Number(allocation.amount || 0))}
+                  </Text>
+                </View>
+              );
+            }) : (
+              <View style={styles.paymentRow}>
+                <View style={styles.paymentMethod}>
+                  <MaterialCommunityIcons name="cash" size={24} color={rideTheme.green} />
+                  <Text style={styles.paymentMethodText}>{paymentMethod}</Text>
+                </View>
+                <Text style={styles.paymentAmount}>{formatLkr(receipt.paidAmount)}</Text>
               </View>
-              <Text style={styles.paymentAmount}>{formatLkr(receipt.paidAmount)}</Text>
-            </View>
+            )}
           </View>
         ) : (
           <View style={styles.card}>

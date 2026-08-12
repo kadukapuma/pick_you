@@ -6,12 +6,12 @@ use App\Models\JournalEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\User;
-use App\Services\Payments\MockPaymentGateway;
-use App\Services\Payments\PassengerCreditService;
-use Laravel\Sanctum\Sanctum;
 use App\Services\Ledger\LedgerService;
 use App\Services\Ledger\RideSettlementService;
+use App\Services\Payments\MockPaymentGateway;
+use App\Services\Payments\PassengerCreditService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\BuildsLedgerScenarios;
 use Tests\TestCase;
 
@@ -19,6 +19,13 @@ class SplitPaymentSettlementTest extends TestCase
 {
     use BuildsLedgerScenarios;
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['payments.driver' => 'mock']);
+    }
 
     public function test_credit_and_card_allocations_settle_together(): void
     {
@@ -101,12 +108,13 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertLedgerBalances();
     }
+
     public function test_credit_and_cash_allocations_settle_together(): void
     {
         [, $passenger] = $this->makePassenger(
             '0771234568'
         );
-        [, $driver] = $this->makeDriver(
+        [$driverUser, $driver] = $this->makeDriver(
             '0777654322'
         );
         $fare = $this->makeFareConfig();
@@ -182,6 +190,18 @@ class SplitPaymentSettlementTest extends TestCase
             )->count()
         );
 
+        Sanctum::actingAs(
+            $driverUser,
+            ['role:driver']
+        );
+
+        $this->getJson(
+            '/api/driver/earnings/summary?period=day'
+        )
+            ->assertOk()
+            ->assertJsonPath('data.gross', '800.00')
+            ->assertJsonPath('data.cash_collected', '300.00');
+
         $this->assertLedgerBalances();
     }
 
@@ -211,8 +231,7 @@ class SplitPaymentSettlementTest extends TestCase
             'transaction_id' => 'split-idempotent-payment-1',
             'payment_status' => 'COMPLETED',
             'gateway' => 'mock',
-            'gateway_reference'
-            => 'split-idempotent-reference-1',
+            'gateway_reference' => 'split-idempotent-reference-1',
             'paid_at' => now(),
         ]);
 
@@ -269,6 +288,7 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertLedgerBalances();
     }
+
     public function test_payment_endpoint_combines_credit_and_card(): void
     {
         [$passengerUser, $passenger] = $this->makePassenger();
@@ -375,10 +395,8 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertSame(
             [
-                PaymentAllocation::TYPE_CARD
-                => PaymentAllocation::STATUS_COMPLETED,
-                PaymentAllocation::TYPE_PICKU_CREDIT
-                => PaymentAllocation::STATUS_COMPLETED,
+                PaymentAllocation::TYPE_CARD => PaymentAllocation::STATUS_COMPLETED,
+                PaymentAllocation::TYPE_PICKU_CREDIT => PaymentAllocation::STATUS_COMPLETED,
             ],
             $payment->allocations()
                 ->orderBy('type')
@@ -416,6 +434,7 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertLedgerBalances();
     }
+
     public function test_card_decline_releases_reserved_credit(): void
     {
         [$passengerUser, $passenger] = $this->makePassenger();
@@ -479,10 +498,8 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertSame(
             [
-                PaymentAllocation::TYPE_CARD
-                => PaymentAllocation::STATUS_RELEASED,
-                PaymentAllocation::TYPE_PICKU_CREDIT
-                => PaymentAllocation::STATUS_RELEASED,
+                PaymentAllocation::TYPE_CARD => PaymentAllocation::STATUS_RELEASED,
+                PaymentAllocation::TYPE_PICKU_CREDIT => PaymentAllocation::STATUS_RELEASED,
             ],
             $payment->allocations()
                 ->orderBy('type')
@@ -558,10 +575,8 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertSame(
             [
-                PaymentAllocation::TYPE_CARD
-                => PaymentAllocation::STATUS_COMPLETED,
-                PaymentAllocation::TYPE_PICKU_CREDIT
-                => PaymentAllocation::STATUS_COMPLETED,
+                PaymentAllocation::TYPE_CARD => PaymentAllocation::STATUS_COMPLETED,
+                PaymentAllocation::TYPE_PICKU_CREDIT => PaymentAllocation::STATUS_COMPLETED,
             ],
             $payment->allocations()
                 ->orderBy('type')
@@ -693,10 +708,8 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertSame(
             [
-                PaymentAllocation::TYPE_CARD
-                => PaymentAllocation::STATUS_RESERVED,
-                PaymentAllocation::TYPE_PICKU_CREDIT
-                => PaymentAllocation::STATUS_RESERVED,
+                PaymentAllocation::TYPE_CARD => PaymentAllocation::STATUS_RESERVED,
+                PaymentAllocation::TYPE_PICKU_CREDIT => PaymentAllocation::STATUS_RESERVED,
             ],
             $payment->allocations()
                 ->orderBy('type')
@@ -722,6 +735,7 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertLedgerBalances();
     }
+
     public function test_payment_endpoint_combines_credit_and_cash(): void
     {
         [$passengerUser, $passenger] = $this->makePassenger();
@@ -790,10 +804,8 @@ class SplitPaymentSettlementTest extends TestCase
 
         $this->assertSame(
             [
-                PaymentAllocation::TYPE_CASH
-                => PaymentAllocation::STATUS_COMPLETED,
-                PaymentAllocation::TYPE_PICKU_CREDIT
-                => PaymentAllocation::STATUS_COMPLETED,
+                PaymentAllocation::TYPE_CASH => PaymentAllocation::STATUS_COMPLETED,
+                PaymentAllocation::TYPE_PICKU_CREDIT => PaymentAllocation::STATUS_COMPLETED,
             ],
             $payment->allocations()
                 ->orderBy('type')
