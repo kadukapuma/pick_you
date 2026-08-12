@@ -102,7 +102,7 @@ const NotificationScreen = () => {
       </View>
       <View style={styles.textContainer}>
         <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.message}>{item.message}</Text>
+        <Text style={styles.message} numberOfLines={2} ellipsizeMode="tail">{item.message}</Text>
         <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
       </View>
     </TouchableOpacity>

@@ -81,7 +81,7 @@ export default function NotificationScreen() {
       {!item.is_read && <View style={styles.unreadDot} />}
       <View style={styles.itemText}>
         <Text style={styles.itemTitle}>{item.title}</Text>
-        <Text style={styles.itemMessage}>{item.message}</Text>
+        <Text style={styles.itemMessage} numberOfLines={2} ellipsizeMode="tail">{item.message}</Text>
         <Text style={styles.itemTime}>
           {new Date(item.created_at).toLocaleString()}
         </Text>

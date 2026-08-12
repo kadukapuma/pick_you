@@ -30,7 +30,9 @@ export default function NotificationDetailScreen({ title, message, onClose }: Pr
         </View>
 
         <ScrollView contentContainerStyle={styles.body} showsVerticalScrollIndicator={false}>
+          <Text style={styles.eyebrow}>Message</Text>
           <Text style={styles.message}>{message}</Text>
+          <Text style={styles.signature}>— PickU Admin</Text>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -58,6 +60,13 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1, paddingRight: 16, fontSize: 26, fontWeight: "900", color: "#18231F" },
   logo: { width: 60, height: 60, borderRadius: 16 },
-  body: { flexGrow: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 24 },
-  message: { fontSize: 17, lineHeight: 26, color: "#334037", textAlign: "center" },
+  body: { paddingHorizontal: 28, paddingTop: 40, paddingBottom: 24 },
+  eyebrow: {
+    fontSize: 12, fontWeight: "800", color: "#20B768", textTransform: "uppercase",
+    letterSpacing: 1, marginBottom: 10,
+  },
+  message: { fontSize: 19, lineHeight: 30, color: "#1F2B26", textAlign: "left" },
+  signature: {
+    marginTop: 20, fontSize: 13, fontWeight: "600", color: "#82908B", fontStyle: "italic",
+  },
 });
