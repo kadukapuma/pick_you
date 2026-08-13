@@ -1,8 +1,8 @@
 import "../global.css";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AppState, View } from "react-native";
 import * as Notifications from "expo-notifications";
-import { Stack } from "expo-router";
+import { router, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DelayedLoader from "../components/ui/DelayedLoader";
 import { AuthProvider, useAuth } from "../state/auth/AuthContext";
@@ -17,16 +17,45 @@ function RootLayoutContent() {
   const { isAuthenticated, isLoading } = useAuth();
   const [isNavigationReady, setIsNavigationReady] = useState(false);
   const [updatePolicy, setUpdatePolicy] = useState<AppUpdatePolicy | null>(null);
+  const isNavigationReadyRef = useRef(false);
+  const pendingNav = useRef<{ pathname: string; params?: Record<string, string> } | null>(null);
+
+  useEffect(() => {
+    isNavigationReadyRef.current = isNavigationReady;
+    if (isNavigationReady && pendingNav.current) {
+      const { pathname, params } = pendingNav.current;
+      pendingNav.current = null;
+      router.push({ pathname, params } as any);
+    }
+  }, [isNavigationReady]);
 
   useEffect(() => {
     const check = () => checkPassengerAppUpdate().then(setUpdatePolicy).catch(() => {});
+    const navigateWhenReady = (pathname: string, params?: Record<string, string>) => {
+      if (isNavigationReadyRef.current) {
+        router.push({ pathname, params } as any);
+      } else {
+        pendingNav.current = { pathname, params };
+      }
+    };
+    const handleNotificationTap = (response: Notifications.NotificationResponse) => {
+      const content = response.notification.request.content;
+      const action = content.data?.action;
+      if (action === "app_update") {
+        check();
+        navigateWhenReady("/update");
+      } else if (action === "broadcast_message") {
+        navigateWhenReady("/notification", {
+          title: content.title ?? "",
+          message: content.body ?? "",
+        });
+      }
+    };
     check();
     const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
-    const notification = Notifications.addNotificationResponseReceivedListener(response => {
-      if (response.notification.request.content.data?.action === "app_update") check();
-    });
+    const notification = Notifications.addNotificationResponseReceivedListener(handleNotificationTap);
     Notifications.getLastNotificationResponseAsync().then(response => {
-      if (response?.notification.request.content.data?.action === "app_update") check();
+      if (response) handleNotificationTap(response);
     });
     return () => { appState.remove(); notification.remove(); };
   }, []);
@@ -88,6 +117,24 @@ function RootLayoutContent() {
           animation: "fade",
           gestureEnabled: true,
           fullScreenGestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="update"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
+        }}
+      />
+
+      <Stack.Screen
+        name="notification"
+        options={{
+          presentation: "modal",
+          animation: "slide_from_bottom",
+          gestureEnabled: true,
         }}
       />
     </Stack>

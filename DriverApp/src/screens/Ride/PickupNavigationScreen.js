@@ -1,4 +1,5 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
 import LottieView from "lottie-react-native";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -29,6 +30,7 @@ import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 const DEFAULT_COORD = { latitude: 6.9271, longitude: 79.8612 };
 
 const PickupNavigationScreen = ({ navigation, route }) => {
+  useKeepAwake();
   const ride = route?.params?.ride || {};
   const pickupLat = ride?.pickupLat;
   const pickupLng = ride?.pickupLng;

@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
 import { apiClient } from "../../../services/api/client";
 
 interface NotificationItem {
@@ -17,6 +18,7 @@ interface NotificationItem {
   message: string;
   is_read: boolean;
   created_at: string;
+  data?: { action?: string; app?: string } | null;
 }
 
 export default function NotificationScreen() {
@@ -58,16 +60,28 @@ export default function NotificationScreen() {
     await apiClient.put(`/notifications/${item.id}`, { is_read: true });
   };
 
+  const handlePressNotification = (item: NotificationItem) => {
+    handleMarkRead(item);
+    if (item.data?.action === "app_update") {
+      router.push("/update");
+    } else {
+      router.push({
+        pathname: "/notification",
+        params: { title: item.title, message: item.message },
+      } as any);
+    }
+  };
+
   const renderItem = ({ item }: { item: NotificationItem }) => (
     <TouchableOpacity
       style={[styles.item, !item.is_read && styles.itemUnread]}
       activeOpacity={0.7}
-      onPress={() => handleMarkRead(item)}
+      onPress={() => handlePressNotification(item)}
     >
       {!item.is_read && <View style={styles.unreadDot} />}
       <View style={styles.itemText}>
         <Text style={styles.itemTitle}>{item.title}</Text>
-        <Text style={styles.itemMessage}>{item.message}</Text>
+        <Text style={styles.itemMessage} numberOfLines={2} ellipsizeMode="tail">{item.message}</Text>
         <Text style={styles.itemTime}>
           {new Date(item.created_at).toLocaleString()}
         </Text>
