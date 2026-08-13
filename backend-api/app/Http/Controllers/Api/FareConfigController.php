@@ -51,6 +51,8 @@ class FareConfigController extends Controller
         $payload = $request->validate([
             'vehicle_type' => ['required', 'string', 'max:255'],
             'base_fare' => ['required', 'numeric', 'min:0'],
+            // Distance (km) covered by base_fare before per_km_rate starts billing.
+            'included_km' => ['required', 'numeric', 'min:0'],
             'per_km_rate' => ['required', 'numeric', 'min:0'],
             'per_minute_rate' => ['required', 'numeric', 'min:0'],
             'cancellation_fee' => ['required', 'numeric', 'min:0'],

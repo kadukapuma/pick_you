@@ -313,6 +313,102 @@ const updatePassword = (token, passwords) =>
     body: passwords,
   })
 
+const sendBulkNotification = (token, payload) =>
+  apiFetch('/admin/notifications/send-bulk', {
+    method: 'POST',
+    token,
+    body: payload,
+  })
+
+const publishAppUpdate = async (token, app, policy) => {
+  const payload = await apiFetch(`/admin/app-updates/${app}/publish`, {
+    method: 'POST',
+    token,
+    body: policy,
+  })
+  return payload.data || {}
+}
+
+const fetchAppRelease = async (token, app) => {
+  const payload = await apiFetch(`/admin/app-updates/${app}/release`, { token })
+  return payload.data || null
+}
+
+const uploadAppApk = (token, app, version, file, onProgress) => {
+  const form = new FormData()
+  form.append('version', version)
+  form.append('apk', file)
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    xhr.open('POST', `${API_BASE}/admin/app-updates/${app}/apk`)
+    xhr.setRequestHeader('Accept', 'application/json')
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`)
+    }
+
+    if (xhr.upload && onProgress) {
+      xhr.upload.onprogress = (event) => {
+        if (event.lengthComputable) {
+          onProgress({ loaded: event.loaded, total: event.total })
+        }
+      }
+    }
+
+    xhr.onload = () => {
+      let payload = {}
+      try {
+        payload = xhr.responseText ? JSON.parse(xhr.responseText) : {}
+      } catch {
+        payload = {}
+      }
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(payload.data)
+      } else {
+        reject(new Error(payload?.message || payload?.errors?.apk?.[0] || `Upload failed with status ${xhr.status}`))
+      }
+    }
+
+    xhr.onerror = () => reject(new Error('Upload failed. Please check your connection.'))
+
+    xhr.send(form)
+  })
+}
+const fetchBroadcastNotifications = async (token, { page = 1, perPage = 10, target = '', search = '' } = {}) => {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('per_page', String(perPage))
+  if (target) {
+    params.set('target', target)
+  }
+  if (search) {
+    params.set('search', search)
+  }
+  const payload = await apiFetch(`/admin/notifications/broadcasts?${params.toString()}`, { token })
+  const data = payload.data || {}
+  return {
+    broadcasts: data.broadcasts || [],
+    pagination: data.pagination || {
+      page,
+      perPage,
+      total: 0,
+      totalPages: 1,
+    },
+  }
+}
+
+const deleteBroadcastNotification = (token, id) =>
+  apiFetch(`/admin/notifications/broadcasts/${id}`, {
+    method: 'DELETE',
+    token,
+  })
+
+const clearBroadcastNotifications = (token) =>
+  apiFetch('/admin/notifications/broadcasts', {
+    method: 'DELETE',
+    token,
+  })
+
 const fetchAdminNotifications = async (token, limit = 20) => {
   const payload = await apiFetch(`/admin/notifications?limit=${limit}`, { token })
   return { notifications: payload.data || [] }
@@ -428,6 +524,72 @@ const fetchTrialBalance = async (token) => {
   return payload.data || {}
 }
 
+// Reports
+const fetchReportsOverview = async (token, period = 'week') => {
+  const payload = await apiFetch(`/admin/reports/overview?period=${period}`, { token })
+  return payload.data || {}
+}
+
+const fetchVehicleSummary = async (token, { vehicleType = '' } = {}) => {
+  const params = new URLSearchParams()
+  if (vehicleType) params.set('vehicle_type', vehicleType)
+  const payload = await apiFetch(`/admin/reports/vehicle-summary?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchRideStatistics = async (token, { period = 'week', vehicleType = '' } = {}) => {
+  const params = new URLSearchParams({ period })
+  if (vehicleType) params.set('vehicle_type', vehicleType)
+  const payload = await apiFetch(`/admin/reports/ride-statistics?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchPaymentBreakdown = async (token, { period = 'week', status = 'all' } = {}) => {
+  const params = new URLSearchParams({ period, status })
+  const payload = await apiFetch(`/admin/reports/payment-breakdown?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchRevenueDailyReport = async (token, { start, end } = {}) => {
+  const params = new URLSearchParams()
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  const payload = await apiFetch(`/admin/reports/revenue/daily?${params}`, { token })
+  return payload.data || { rows: [] }
+}
+
+const fetchRevenueMonthlyReport = async (token, { start, end } = {}) => {
+  const params = new URLSearchParams()
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  const payload = await apiFetch(`/admin/reports/revenue/monthly?${params}`, { token })
+  return payload.data || { rows: [] }
+}
+
+const fetchDriverPerformanceReport = async (token, { period = 'month', search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ period, page: String(page) })
+  if (search) params.set('search', search)
+  const payload = await apiFetch(`/admin/reports/drivers/performance?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const fetchDriverEarningsReport = async (token, { period = 'month', search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ period, page: String(page) })
+  if (search) params.set('search', search)
+  const payload = await apiFetch(`/admin/reports/drivers/earnings?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const fetchTransactionsReport = async (token, { type = '', search = '', start = '', end = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ page: String(page) })
+  if (type) params.set('type', type)
+  if (search) params.set('search', search)
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  const payload = await apiFetch(`/admin/reports/transactions?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
 const fetchPaymentCreditRefunds = async (token, paymentId) => {
   const payload = await apiFetch(`/payments/${paymentId}/credit-refunds`, { token })
   return payload.data || {}
@@ -514,10 +676,26 @@ export {
   updateRolePermissions,
   fetchAppSettings,
   updateAppSetting,
+  fetchReportsOverview,
+  fetchVehicleSummary,
+  fetchRideStatistics,
+  fetchPaymentBreakdown,
+  fetchRevenueDailyReport,
+  fetchRevenueMonthlyReport,
+  fetchDriverPerformanceReport,
+  fetchDriverEarningsReport,
+  fetchTransactionsReport,
   fetchFinanceSummary,
   fetchDriverAccounts,
   fetchDriverStatement,
   fetchTrialBalance,
+  sendBulkNotification,
+  publishAppUpdate,
+  fetchAppRelease,
+  uploadAppApk,
+  fetchBroadcastNotifications,
+  deleteBroadcastNotification,
+  clearBroadcastNotifications,
   fetchPaymentCreditRefunds,
   searchRefundablePayments,
   createPaymentCreditRefund,

@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "645836455370",
+    "project_id": "picku-notifications",
+    "storage_bucket": "picku-notifications.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:645836455370:android:623899431144bc520ea333",
+        "android_client_info": {
+          "package_name": "com.picku.DriverApp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtXstdaqmG_JObMcp-WHwTbuQUD1zdim0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:645836455370:android:128135d86770ac850ea333",
+        "android_client_info": {
+          "package_name": "lk.picku.passenger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtXstdaqmG_JObMcp-WHwTbuQUD1zdim0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

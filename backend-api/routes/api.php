@@ -4,8 +4,10 @@ use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminFinanceController;
 use App\Http\Controllers\Api\AdminNotificationController;
 use App\Http\Controllers\Api\AppSettingsController;
+use App\Http\Controllers\Api\AppUpdateController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
+use App\Http\Controllers\Api\DeviceTokenController;
 use App\Http\Controllers\Api\DriverAccountController;
 use App\Http\Controllers\Api\DriverAuthController;
 use App\Http\Controllers\Api\DriverController;
@@ -32,6 +34,10 @@ use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\RideController;
 use App\Http\Controllers\Api\RideLocationController;
 use App\Http\Controllers\Api\RolePermissionController;
+use App\Http\Controllers\Reports\DriverPerformanceReportController;
+use App\Http\Controllers\Reports\ReportsOverviewController;
+use App\Http\Controllers\Reports\RevenueReportController;
+use App\Http\Controllers\Reports\TransactionReportController;
 use App\Http\Controllers\Api\SuperAdminNotificationController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
@@ -60,6 +66,11 @@ Route::prefix('passenger/auth')->middleware('throttle:auth')->group(function () 
 Route::middleware('auth:sanctum')->post('/passenger/auth/logout', [PassengerAuthController::class, 'logout']);
 
 // Public routes
+Route::get('/app-updates/{app}', [AppUpdateController::class, 'show'])->middleware('throttle:60,1');
+Route::get('/app-downloads', [AppUpdateController::class, 'downloads'])->middleware('throttle:60,1');
+Route::get('/app-downloads/{app}/download', [AppUpdateController::class, 'download'])
+    ->middleware('throttle:30,1')->name('app-downloads.download');
+
 Route::middleware('throttle:auth')->group(function () {
     Route::post('/register', [AuthController::class, 'register']);
     Route::post('/login', [AuthController::class, 'login']);
@@ -194,6 +205,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/promotions/{id}', [PromotionController::class, 'show']);
     Route::get('/notifications', [NotificationController::class, 'index']);
     Route::get('/notifications/{id}', [NotificationController::class, 'show']);
+    Route::post('/devices/push-token', [DeviceTokenController::class, 'store']);
+    Route::delete('/devices/push-token', [DeviceTokenController::class, 'destroy']);
     Route::put('/notifications/{id}', [NotificationController::class, 'update']);
     Route::delete('/notifications/{id}', [NotificationController::class, 'destroy']);
     Route::get('/support-tickets', [SupportTicketController::class, 'index']);
@@ -242,6 +255,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::put('/admin/notifications/read', [AdminNotificationController::class, 'markAllRead']);
             Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
             Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
+            Route::post('/admin/notifications/send-bulk', [AdminNotificationController::class, 'sendBulk']);
+            Route::post('/admin/app-updates/{app}/publish', [AppUpdateController::class, 'publish']);
+            Route::get('/admin/app-updates/{app}/release', [AppUpdateController::class, 'current']);
+            Route::post('/admin/app-updates/{app}/apk', [AppUpdateController::class, 'upload']);
+            Route::get('/admin/notifications/broadcasts', [AdminNotificationController::class, 'broadcasts']);
+            Route::delete('/admin/notifications/broadcasts/{id}', [AdminNotificationController::class, 'deleteBroadcast']);
+            Route::delete('/admin/notifications/broadcasts', [AdminNotificationController::class, 'clearBroadcasts']);
         });
 
         // Commission and driver settlement
@@ -249,6 +269,17 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/finance/driver-accounts', [AdminFinanceController::class, 'driverAccounts']);
         Route::get('/admin/finance/drivers/{driverId}/statement', [AdminFinanceController::class, 'driverStatement']);
         Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
+
+        // Reports
+        Route::get('/admin/reports/overview', [ReportsOverviewController::class, 'index']);
+        Route::get('/admin/reports/vehicle-summary', [ReportsOverviewController::class, 'vehicleSummary']);
+        Route::get('/admin/reports/ride-statistics', [ReportsOverviewController::class, 'rideStatistics']);
+        Route::get('/admin/reports/payment-breakdown', [ReportsOverviewController::class, 'paymentBreakdown']);
+        Route::get('/admin/reports/revenue/daily', [RevenueReportController::class, 'daily']);
+        Route::get('/admin/reports/revenue/monthly', [RevenueReportController::class, 'monthly']);
+        Route::get('/admin/reports/drivers/performance', [DriverPerformanceReportController::class, 'index']);
+        Route::get('/admin/reports/drivers/earnings', [DriverPerformanceReportController::class, 'earnings']);
+        Route::get('/admin/reports/transactions', [TransactionReportController::class, 'index']);
 
         Route::get('/role-permissions', [RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [RolePermissionController::class, 'update'])->middleware('super_admin');

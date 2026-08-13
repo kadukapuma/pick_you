@@ -6,6 +6,7 @@ import LandingLayout from '../views/Landing/LandingLayout'
 import AboutUs from '../views/Landing/AboutUs'
 import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
+import GetApp from '../views/Landing/GetApp/GetApp'
 import PrivacyPolicy from '../views/Landing/PrivacyPolicy/PrivacyPolicy'
 import TermsAndConditions from '../views/Landing/TermsAndConditions/TermsAndConditions'
 import {
@@ -32,6 +33,7 @@ import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
 import LandingPage from '../views/Landing/LandingPage/LandingPage'
+import Broadcasts from '../views/Broadcasts'
 
 import SuperDashboard from '../views/SuperDashboard'
 import Admins from '../views/Admins'
@@ -69,6 +71,7 @@ const AppRoutes = () => {
             <Route path="/" element={<LandingLayout />}>
                 <Route index element={<LandingPage />} />
                 <Route path="for-drivers" element={<ForDrivers />} />
+                <Route path="get-app" element={<GetApp />} />
                 {/* <Route index element={<Home />} /> */}
                 <Route path="about" element={<AboutUs />} />
                 <Route path="contact" element={<ContactUs />} />
@@ -110,6 +113,7 @@ const AppRoutes = () => {
                         element={canManageVehicleTypes ? <VehicleTypes /> : <Navigate to="/admin-portal" replace />}
                     />
                     <Route path="settings" element={<Settings />} />
+                    <Route path="broadcasts" element={<Broadcasts />} />
                     <Route
                         path="operators"
                         element={canManageOperators ? <Operators /> : <Navigate to="/admin-portal" replace />}

@@ -1,5 +1,6 @@
 import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import { useKeepAwake } from "expo-keep-awake";
 import { useCallback, useEffect } from "react";
 import {
   Alert,
@@ -20,6 +21,7 @@ import { setActiveRideLocationSync } from "../../services/driverLocationSync";
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 const RideDetailsScreen = ({ navigation, route }) => {
+  useKeepAwake();
   // Safe extraction of params passed down from home dashboard context
   const ride = route?.params?.ride || {};
 

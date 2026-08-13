@@ -15,6 +15,7 @@ const Sidebar = ({ admin, isCollapsed }) => {
     const canManageVehicleTypes = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_vehicle_types')
     const canManagePassengers = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_passengers')
     const canManageFare = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_fare_configs')
+    const canManageNotifications = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_notifications')
     const canManageCredits = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_passenger_credits')
 
     return (
@@ -84,6 +85,12 @@ const Sidebar = ({ admin, isCollapsed }) => {
                     <span className="material-icons">analytics</span>
                     <span>Reports</span>
                 </NavLink>
+                {canManageNotifications && (
+                    <NavLink to="/admin-portal/broadcasts">
+                        <span className="material-icons">campaign</span>
+                        <span>Broadcasts</span>
+                    </NavLink>
+                )}
                 {admin?.role === 'super_admin' && (
                     <NavLink to="/admin-portal/admins">
                         <span className="material-icons">manage_accounts</span>

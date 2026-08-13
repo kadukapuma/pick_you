@@ -1,11 +1,20 @@
-import React, { useState, useEffect } from "react";
-import { NavigationContainer } from "@react-navigation/native";
+import React, { useState, useEffect, useRef } from "react";
+import { NavigationContainer, createNavigationContainerRef } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { StatusBar } from "expo-status-bar";
-import { View, ActivityIndicator, StyleSheet } from "react-native";
+import { AppState, View, ActivityIndicator, StyleSheet } from "react-native";
+import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./src/services/api";
+import { registerForPushNotifications } from "./src/services/pushRegistration";
+import { checkDriverAppUpdate, isDriverUpdateRequired } from "./src/services/appUpdate";
+import RequiredUpdateScreen from "./src/screens/RequiredUpdateScreen";
+import NotificationDetailScreen from "./src/screens/NotificationDetailScreen";
 
 import AppNavigator from "./src/navigation/AppNavigator";
+
+const RootStack = createNativeStackNavigator();
+const navigationRef = createNavigationContainerRef();
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -14,6 +23,41 @@ export default function App() {
   const [driver, setDriver] = useState(null);
   const [isReady, setIsReady] = useState(false);
   const [verificationUser, setVerificationUser] = useState(null); // Added to handle unverified users
+  const [updatePolicy, setUpdatePolicy] = useState(null);
+  const [updateChecked, setUpdateChecked] = useState(false);
+  const pendingNav = useRef(null);
+
+  useEffect(() => {
+    const check = async () => {
+      const policy = await checkDriverAppUpdate();
+      setUpdatePolicy(policy);
+      setUpdateChecked(true);
+    };
+    const navigateWhenReady = (name, params) => {
+      if (navigationRef.isReady()) {
+        navigationRef.navigate(name, params);
+      } else {
+        pendingNav.current = { name, params };
+      }
+    };
+    const handleNotificationTap = (response) => {
+      const content = response?.notification?.request?.content;
+      const action = content?.data?.action;
+      if (action === "app_update") {
+        check();
+        navigateWhenReady("AppUpdate");
+      } else if (action === "broadcast_message") {
+        navigateWhenReady("NotificationDetail", { title: content.title, message: content.body });
+      }
+    };
+    check();
+    const appState = AppState.addEventListener("change", state => { if (state === "active") check(); });
+    const notification = Notifications.addNotificationResponseReceivedListener(handleNotificationTap);
+    Notifications.getLastNotificationResponseAsync().then(response => {
+      if (response) handleNotificationTap(response);
+    });
+    return () => { appState.remove(); notification.remove(); };
+  }, []);
 
   const checkLoginStatus = async () => {
     try {
@@ -70,8 +114,14 @@ export default function App() {
     checkLoginStatus();
   }, []);
 
+  useEffect(() => {
+    if (isLoggedIn) {
+      registerForPushNotifications();
+    }
+  }, [isLoggedIn]);
+
   // While checking database parameters, keep user on a clean, solid background color
-  if (!isReady) {
+  if (!isReady || !updateChecked) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#00A859" />
@@ -79,21 +129,64 @@ export default function App() {
     );
   }
 
+  if (isDriverUpdateRequired(updatePolicy)) {
+    return <RequiredUpdateScreen policy={updatePolicy} />;
+  }
+
   return (
-    <NavigationContainer>
+    <NavigationContainer
+      ref={navigationRef}
+      onReady={() => {
+        if (pendingNav.current) {
+          const { name, params } = pendingNav.current;
+          pendingNav.current = null;
+          navigationRef.navigate(name, params);
+        }
+      }}
+    >
       <StatusBar style="dark" translucent backgroundColor="transparent" />
-      <AppNavigator
-        isLoggedIn={isLoggedIn}
-        setIsLoggedIn={setIsLoggedIn}
-        isNewUser={isNewUser}
-        setIsNewUser={setIsNewUser}
-        driverStatus={driverStatus}
-        setDriverStatus={setDriverStatus}
-        driver={driver}
-        setDriver={setDriver}
-        verificationUser={verificationUser}
-        setVerificationUser={setVerificationUser}
-      />
+      <RootStack.Navigator screenOptions={{ headerShown: false }}>
+        <RootStack.Screen name="Root">
+          {() => (
+            <AppNavigator
+              isLoggedIn={isLoggedIn}
+              setIsLoggedIn={setIsLoggedIn}
+              isNewUser={isNewUser}
+              setIsNewUser={setIsNewUser}
+              driverStatus={driverStatus}
+              setDriverStatus={setDriverStatus}
+              driver={driver}
+              setDriver={setDriver}
+              verificationUser={verificationUser}
+              setVerificationUser={setVerificationUser}
+            />
+          )}
+        </RootStack.Screen>
+        <RootStack.Screen
+          name="AppUpdate"
+          options={{ presentation: "modal", animation: "slide_from_bottom" }}
+        >
+          {({ navigation }) => (
+            <RequiredUpdateScreen
+              policy={updatePolicy}
+              dismissible
+              onClose={() => navigation.goBack()}
+            />
+          )}
+        </RootStack.Screen>
+        <RootStack.Screen
+          name="NotificationDetail"
+          options={{ presentation: "modal", animation: "slide_from_bottom" }}
+        >
+          {({ navigation, route }) => (
+            <NotificationDetailScreen
+              title={route.params?.title}
+              message={route.params?.message}
+              onClose={() => navigation.goBack()}
+            />
+          )}
+        </RootStack.Screen>
+      </RootStack.Navigator>
     </NavigationContainer>
   );
 }

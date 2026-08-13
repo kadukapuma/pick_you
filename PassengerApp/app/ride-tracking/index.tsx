@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -44,6 +45,7 @@ const mergeRideData = (previous: any, next: any) => ({
 });
 
 export default function LiveTrackerPage() {
+    useKeepAwake();
     const params = useLocalSearchParams();
     const { paymentMethod, resetTrip, selectedPaymentCard, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;

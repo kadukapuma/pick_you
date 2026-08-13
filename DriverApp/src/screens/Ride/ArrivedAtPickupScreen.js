@@ -1,4 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
@@ -50,6 +51,7 @@ const WaitingTimer = memo(function WaitingTimer() {
 });
 
 const ArrivedAtPickupScreen = ({ navigation, route }) => {
+  useKeepAwake();
   const ride = route?.params?.ride || {};
   const pickupLat = ride?.pickupLat;
   const pickupLng = ride?.pickupLng;
