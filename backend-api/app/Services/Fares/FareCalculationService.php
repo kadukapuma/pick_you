@@ -22,9 +22,13 @@ class FareCalculationService
         $distanceKm = round(max(0, $reportedDistanceKm, $minimumDistanceKm), 2);
         $durationMinutes = round(max(0, $estimatedDurationMinutes), 2);
 
-        $distanceFare = $distanceKm * (float) $fareConfig->per_km_rate;
-        $durationFare = $durationMinutes * (float) $fareConfig->per_minute_rate;
-        $estimatedFare = round((float) $fareConfig->base_fare + $distanceFare + $durationFare, 2);
+        // base_fare covers the first included_km; per_km_rate only bills distance
+        // beyond that. The estimated duration itself is never charged - only a
+        // later overage against it is (see completionBreakdown()).
+        $includedKm = (float) $fareConfig->included_km;
+        $billableDistanceKm = round(max(0, $distanceKm - $includedKm), 2);
+        $distanceFare = round($billableDistanceKm * (float) $fareConfig->per_km_rate, 2);
+        $estimatedFare = round((float) $fareConfig->base_fare + $distanceFare, 2);
 
         return [
             'distance_km' => $distanceKm,
@@ -32,8 +36,10 @@ class FareCalculationService
             'estimated_fare' => $estimatedFare,
             'breakdown' => [
                 'base_fare' => round((float) $fareConfig->base_fare, 2),
-                'distance_fare' => round($distanceFare, 2),
-                'duration_fare' => round($durationFare, 2),
+                'included_km' => round($includedKm, 2),
+                'billable_distance_km' => $billableDistanceKm,
+                'distance_fare' => $distanceFare,
+                'duration_fare' => 0.0,
                 'per_km_rate' => round((float) $fareConfig->per_km_rate, 2),
                 'per_minute_rate' => round((float) $fareConfig->per_minute_rate, 2),
             ],
@@ -43,21 +49,36 @@ class FareCalculationService
     public function completionBreakdown(Ride $ride): array
     {
         $ride->loadMissing('fareConfig');
+        $fareConfig = $ride->fareConfig;
 
         $estimatedDistanceKm = (float) ($ride->estimated_distance_km ?: $ride->distance_km);
         $actualDistanceKm = $this->actualDistanceKm($ride, $estimatedDistanceKm);
+        $estimatedDurationMinutes = round(max(0, (float) $ride->estimated_duration_minutes), 2);
         $actualDurationMinutes = $this->minutesBetween($ride->started_at, $ride->completed_at);
         $waitingMinutes = $this->minutesBetween($ride->arrived_at, $ride->started_at);
         $chargeableWaitingMinutes = round(max(
             0,
             $waitingMinutes - (float) config('ride.waiting_grace_minutes', 5)
         ), 2);
+        $waitingFare = round($chargeableWaitingMinutes * (float) $fareConfig->per_minute_rate, 2);
 
-        $extraDistanceKm = round(max(0, $actualDistanceKm - $estimatedDistanceKm), 2);
-        $extraDistanceFare = round($extraDistanceKm * (float) $ride->fareConfig->per_km_rate, 2);
-        $waitingFare = round($chargeableWaitingMinutes * (float) $ride->fareConfig->per_minute_rate, 2);
+        // Recompute distance fare from the actual distance using the same
+        // included_km allowance as the estimate, rather than billing
+        // "actual - estimated" on top of the estimate - that double-charged
+        // the included distance.
+        $includedKm = (float) $fareConfig->included_km;
+        $billableDistanceKm = round(max(0, $actualDistanceKm - $includedKm), 2);
+        $distanceFare = round($billableDistanceKm * (float) $fareConfig->per_km_rate, 2);
+
+        // Estimated duration was never charged; only time beyond it is,
+        // separately from waiting_fare (waiting is before the trip starts,
+        // this is the trip itself running long).
+        $durationOverageMinutes = round(max(0, $actualDurationMinutes - $estimatedDurationMinutes), 2);
+        $durationOverageFare = round($durationOverageMinutes * (float) $fareConfig->per_minute_rate, 2);
+
         $estimatedFare = round((float) $ride->estimated_fare, 2);
-        $finalFare = round(max($estimatedFare, $estimatedFare + $extraDistanceFare + $waitingFare), 2);
+        $recomputedFare = round((float) $fareConfig->base_fare + $distanceFare + $durationOverageFare + $waitingFare, 2);
+        $finalFare = round(max($estimatedFare, $recomputedFare), 2);
 
         return [
             'estimated_distance_km' => round($estimatedDistanceKm, 2),
@@ -65,24 +86,32 @@ class FareCalculationService
             'actual_duration_minutes' => $actualDurationMinutes,
             'waiting_minutes' => $waitingMinutes,
             'chargeable_waiting_minutes' => $chargeableWaitingMinutes,
-            'extra_distance_km' => $extraDistanceKm,
-            'extra_distance_fare' => $extraDistanceFare,
+            'extra_distance_km' => $billableDistanceKm,
+            'extra_distance_fare' => $distanceFare,
             'waiting_fare' => $waitingFare,
+            'duration_overage_minutes' => $durationOverageMinutes,
+            'duration_overage_fare' => $durationOverageFare,
             'final_fare' => $finalFare,
             'fare_breakdown' => [
-                'policy' => 'estimate_plus_extras',
-                'version' => 1,
+                'policy' => 'included_km_plus_overages',
+                'version' => 2,
                 'estimated_fare' => $estimatedFare,
                 'estimated_distance_km' => round($estimatedDistanceKm, 2),
+                'estimated_duration_minutes' => $estimatedDurationMinutes,
                 'actual_distance_km' => $actualDistanceKm,
-                'extra_distance_km' => $extraDistanceKm,
-                'extra_distance_fare' => $extraDistanceFare,
+                'actual_duration_minutes' => $actualDurationMinutes,
+                'included_km' => round($includedKm, 2),
+                'billable_distance_km' => $billableDistanceKm,
+                'extra_distance_km' => $billableDistanceKm,
+                'extra_distance_fare' => $distanceFare,
+                'duration_overage_minutes' => $durationOverageMinutes,
+                'duration_overage_fare' => $durationOverageFare,
                 'waiting_minutes' => $waitingMinutes,
                 'waiting_grace_minutes' => (float) config('ride.waiting_grace_minutes', 5),
                 'chargeable_waiting_minutes' => $chargeableWaitingMinutes,
                 'waiting_fare' => $waitingFare,
-                'per_km_rate' => round((float) $ride->fareConfig->per_km_rate, 2),
-                'per_minute_rate' => round((float) $ride->fareConfig->per_minute_rate, 2),
+                'per_km_rate' => round((float) $fareConfig->per_km_rate, 2),
+                'per_minute_rate' => round((float) $fareConfig->per_minute_rate, 2),
                 'final_fare' => $finalFare,
             ],
         ];
