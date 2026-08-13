@@ -37,3 +37,36 @@ export type OutstandingPayment = {
   createdAtLabel: string;
 };
 
+export type PaymentCapabilities = {
+  cash: boolean;
+  card: boolean;
+  wallet: boolean;
+  gateway: string;
+  environment: string;
+};
+
+export type WebxpayCheckout = {
+  paymentId: number;
+  attemptId: number | null;
+  merchantOrderId?: string;
+  amount: string;
+  currency: "LKR";
+  checkoutUrl: string | null;
+  expiresAt: string | null;
+};
+
+export type WebxpayCardSetup = {
+  operationId: string;
+  setupUrl: string;
+  expiresAt: string;
+};
+
+export type WebxpaySavedCardPayment = {
+  rideId: number;
+  paymentId: number;
+  attemptId: number;
+  operationId: number;
+  paymentStatus: string;
+  requiresThreeDs: boolean;
+  threeDsUrl: string | null;
+};

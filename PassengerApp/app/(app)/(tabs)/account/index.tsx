@@ -27,7 +27,8 @@ const accountSections: { title: string; items: MenuItem[] }[] = [
   {
     title: "Preferences",
     items: [
-      { title: "Payments", subtitle: "Cash, card and wallet settings", icon: "card-outline", route: "/(app)/(tabs)/account/payments" },
+      { title: "Payments", subtitle: "Default method and payment security", icon: "card-outline", route: "/(app)/(tabs)/account/payments" },
+      { title: "PickU credit", subtitle: "Balance, reserved credit and activity", icon: "wallet-outline", route: "/(app)/(tabs)/account/wallet" },
       { title: "Voucher redeem", subtitle: "Apply voucher and promo codes", icon: "ticket-outline", route: "/(app)/(tabs)/account/vouchers" },
       { title: "Help & support", subtitle: "Ride help and safety support", icon: "help-circle-outline", route: "/(app)/(tabs)/account/help-support" },
       { title: "About PickU", subtitle: "App information and terms", icon: "information-circle-outline", route: "/(app)/(tabs)/account/about" },

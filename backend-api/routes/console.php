@@ -12,3 +12,6 @@ Schedule::command('otp:prune-expired')->hourly();
 Schedule::command('idempotency:prune-expired')->hourly();
 Schedule::command('drivers:prune-stale-online')->everyFiveMinutes();
 Schedule::command('notifications:prune-invalid-tokens')->hourly();
+Schedule::command('payments:webxpay:recover-expired --limit=100')
+    ->everyMinute()
+    ->withoutOverlapping();

@@ -1,4 +1,8 @@
 *
 !private/
 !public/
+!payment-keys/
 !.gitignore
+
+payment-keys/*
+!payment-keys/.gitignore

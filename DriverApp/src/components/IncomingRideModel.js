@@ -45,6 +45,7 @@ const IncomingRideModal = ({
   // on, card rides they collect nothing for and are paid out later.
   const isCashRide =
     (rideData?.paymentMode || rideData?.payment_method || "cash").toLowerCase() === "cash";
+  const usesPickuCredit = Boolean(rideData?.use_wallet_credit);
   const [countdown, setCountdown] = useState(OFFER_SECONDS);
   const soundRef = useRef(null);
   const soundOperationRef = useRef(Promise.resolve());
@@ -244,19 +245,21 @@ const IncomingRideModal = ({
               <View style={styles.fareContainer}>
                 <Text style={styles.fareLabel}>EST. FARE</Text>
                 <Text style={styles.farePriceText}>Rs. {rideData?.price || "850"}</Text>
-                <View style={[styles.cashBadge, !isCashRide && styles.cardBadge]}>
+                <View style={[styles.cashBadge, (!isCashRide || usesPickuCredit) && styles.cardBadge]}>
                   <MaterialCommunityIcons
-                    name={isCashRide ? "cash" : "credit-card-outline"}
+                    name={usesPickuCredit ? "wallet-outline" : isCashRide ? "cash" : "credit-card-outline"}
                     size={14}
-                    color={isCashRide ? "#00A859" : "#1D4ED8"}
+                    color={usesPickuCredit ? "#047857" : isCashRide ? "#00A859" : "#1D4ED8"}
                   />
                   <Text
                     style={[
                       styles.cashBadgeText,
-                      !isCashRide && styles.cardBadgeText,
+                      (!isCashRide || usesPickuCredit) && styles.cardBadgeText,
                     ]}
                   >
-                    {isCashRide ? "Cash" : "Card"}
+                    {usesPickuCredit
+                      ? `Credit + ${isCashRide ? "Cash" : "Card"}`
+                      : isCashRide ? "Cash" : "Card"}
                   </Text>
                 </View>
               </View>

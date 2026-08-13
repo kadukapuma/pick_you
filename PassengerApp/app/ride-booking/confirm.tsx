@@ -51,6 +51,8 @@ export default function ConfirmationScreen() {
     setIsSearchingForDriver,
     setActiveRide,
     paymentMethod,
+    selectedPaymentCard,
+    usePickuCredit,
   } = useRideSearch();
   const nearbySelectedVehicles = useNearbyVehicles(
     outboundTrip.pickup,
@@ -191,11 +193,8 @@ export default function ConfirmationScreen() {
         drop_address: outboundTrip.dropoff!.address || "Unknown Drop",
         drop_lat: outboundTrip.dropoff!.latitude,
         drop_lng: outboundTrip.dropoff!.longitude,
-        // The server is what decides how the ride settles - without this the
-        // ride is created (and later paid) as cash no matter what was picked
-        // on the payment-method screen. Backend only accepts cash|card; wallet
-        // stays hidden in the UI until its backend flow exists.
-        payment_method: paymentMethod === "card" ? "card" : "cash",
+        payment_method: paymentMethod,
+        use_wallet_credit: usePickuCredit,
       };
 
       if (__DEV__) {
@@ -233,6 +232,7 @@ export default function ConfirmationScreen() {
               ...response.data,
               vehicle_type: payload.vehicle_type,
               selected_payment_method: paymentMethod,
+              use_wallet_credit: usePickuCredit,
             }),
           },
         });
@@ -415,18 +415,30 @@ export default function ConfirmationScreen() {
               onPress={() => router.push("/ride-booking/payment-method")}
               activeOpacity={0.82}
               accessibilityRole="button"
-              accessibilityLabel={`Change payment method. Currently ${paymentMethod}`}
+              accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
             >
               <View style={styles.paymentLabelWrap}>
                 <Ionicons
-                  name={paymentMethod === "card" ? "card-outline" : paymentMethod === "wallet" ? "wallet-outline" : "cash-outline"}
+                  name={
+                    usePickuCredit
+                      ? "wallet-outline"
+                      : paymentMethod === "card"
+                        ? "card-outline"
+                        : "cash-outline"
+                  }
                   size={19}
                   color="#159A5B"
                 />
                 <Text style={styles.detailLabel}>Payment method</Text>
               </View>
               <View style={styles.paymentValueWrap}>
-                <Text style={styles.detailValue}>{paymentMethod.toUpperCase()}</Text>
+                <Text style={styles.detailValue}>
+                  {usePickuCredit
+                    ? `CREDIT + ${paymentMethod.toUpperCase()}`
+                    : paymentMethod === "card" && selectedPaymentCard
+                      ? `${selectedPaymentCard.brand.toUpperCase()} •••• ${selectedPaymentCard.last4}`
+                      : paymentMethod.toUpperCase()}
+                </Text>
                 <Ionicons name="chevron-forward" size={17} color="#64748B" />
               </View>
             </TouchableOpacity>

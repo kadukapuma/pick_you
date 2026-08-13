@@ -94,6 +94,8 @@ export function normalizeRidePayload(source = {}) {
       source.payment_method ??
       source.paymentMode ??
       source.payment?.payment_method,
+    use_wallet_credit: Boolean(source.use_wallet_credit),
+    payment: source.payment ?? null,
     commission_amount: source.commission_amount,
     driver_earning: source.driver_earning,
     time: source.time,
