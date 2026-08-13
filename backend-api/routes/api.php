@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\AppUpdateController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\DeviceTokenController;
+use App\Http\Controllers\Api\DriverAccountController;
 use App\Http\Controllers\Api\DriverAuthController;
 use App\Http\Controllers\Api\DriverController;
 use App\Http\Controllers\Api\DriverDocumentController;
@@ -21,9 +22,13 @@ use App\Http\Controllers\Api\NotificationController;
 use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
 use App\Http\Controllers\Api\PassengerController;
+use App\Http\Controllers\Api\PassengerCreditController;
+use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\PassengerProfileController;
 use App\Http\Controllers\Api\PassengerRideHistoryController;
+use App\Http\Controllers\Api\PaymentCapabilityController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\PaymentCreditRefundController;
 use App\Http\Controllers\Api\PromotionController;
 use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\RideController;
@@ -37,9 +42,10 @@ use App\Http\Controllers\Api\SuperAdminNotificationController;
 use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
-use App\Http\Controllers\Api\DriverAccountController;
-use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\WalletTransactionController;
+use App\Http\Controllers\Api\WebxpayReturnController;
+use App\Http\Controllers\Api\WebxpaySavedCardController;
+use App\Http\Controllers\Api\WebxpaySavedCardPaymentController;
 use App\Services\Auth\AuthPayload;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -75,6 +81,14 @@ Route::middleware('throttle:auth')->group(function () {
 });
 
 // Protected routes
+Route::get(
+    '/payment-capabilities',
+    [PaymentCapabilityController::class, 'show']
+)->middleware('throttle:60,1');
+Route::post(
+    '/payments/webxpay/return',
+    [WebxpayReturnController::class, 'handle']
+)->name('webxpay.return');
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request, AuthPayload $payload) {
         $user = $request->user();
@@ -142,14 +156,47 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/earnings/summary', [DriverAccountController::class, 'earnings']);
     });
     Route::middleware('role:passenger')->group(function () {
+        Route::get(
+            '/passenger/credits',
+            [PassengerCreditController::class, 'index']
+        );
         Route::get('/payment-methods', [PassengerPaymentMethodController::class, 'index']);
+        Route::get(
+            '/payment-methods/webxpay',
+            [WebxpaySavedCardController::class, 'index']
+        );
+        Route::post(
+            '/payment-methods/webxpay/setup',
+            [WebxpaySavedCardController::class, 'storeSetup']
+        )->middleware('throttle:10,1');
+        Route::delete(
+            '/payment-methods/webxpay/{paymentMethod}',
+            [WebxpaySavedCardController::class, 'destroy']
+        )->whereNumber('paymentMethod')->middleware('throttle:10,1');
         Route::post('/payment-methods', [PassengerPaymentMethodController::class, 'store']);
         Route::post('/payment-methods/{id}/default', [PassengerPaymentMethodController::class, 'setDefault']);
         Route::delete('/payment-methods/{id}', [PassengerPaymentMethodController::class, 'destroy']);
     });
     Route::get('/rides/{id}/driver-location', [RideLocationController::class, 'show']);
+    Route::get('/rides/{ride}/payment', [PaymentController::class, 'show']);
+    Route::post(
+        '/rides/{ride}/payments/webxpay/checkout',
+        [PaymentController::class, 'createWebxpayCheckout']
+    )->middleware([
+        'role:passenger',
+        'idempotent',
+    ]);
+    Route::post(
+        '/rides/{ride}/payments/webxpay/attempts/{attempt}/saved-card',
+        [WebxpaySavedCardPaymentController::class, 'store']
+    )->middleware([
+        'role:passenger',
+        'idempotent',
+        'throttle:webxpay-saved-card-payment',
+    ]);
     Route::post('/payments/{ride_id}', [PaymentController::class, 'processPayment'])
         ->middleware(['role:passenger,driver,admin,super_admin', 'idempotent']);
+
     Route::get('/wallet-transactions', [WalletTransactionController::class, 'index']);
     Route::get('/wallet-transactions/{id}', [WalletTransactionController::class, 'show']);
     Route::post('/ratings', [RatingController::class, 'store'])->middleware('role:passenger');
@@ -166,7 +213,41 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/support-tickets', [SupportTicketController::class, 'store']);
     Route::get('/support-tickets/{id}', [SupportTicketController::class, 'show']);
 
+    Route::post(
+        '/passengers/{passenger}/credits',
+        [PassengerCreditController::class, 'store']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+        'idempotent',
+    ]);
+
+    Route::post(
+        '/payments/{payment}/credit-refunds',
+        [PaymentCreditRefundController::class, 'store']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+        'idempotent',
+    ]);
+
+    Route::get(
+        '/payments/{payment}/credit-refunds',
+        [PaymentCreditRefundController::class, 'show']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+    ]);
+
+    Route::get(
+        '/payment-credit-refunds',
+        [PaymentCreditRefundController::class, 'index']
+    )->middleware([
+        'role:admin,super_admin,operator',
+        'permission:manage_passenger_credits',
+    ]);
     // Admin routes
+
     Route::middleware('admin')->group(function () {
         // Admin notification routes require manage_notifications permission
         Route::middleware('permission:manage_notifications')->group(function () {

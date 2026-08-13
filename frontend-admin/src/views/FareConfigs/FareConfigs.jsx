@@ -19,6 +19,8 @@ import './FareConfigs.css'
 const defaultForm = {
     vehicle_type: '',
     base_fare: '0',
+    // Distance covered by base_fare before per_km_rate starts billing.
+    included_km: '0',
     per_km_rate: '0',
     per_minute_rate: '0',
     cancellation_fee: '0',
@@ -30,6 +32,7 @@ const defaultForm = {
 
 const numericFields = [
     'base_fare',
+    'included_km',
     'per_km_rate',
     'per_minute_rate',
     'cancellation_fee',
@@ -41,7 +44,7 @@ const formatMoney = (value) => {
     return amount.toFixed(2)
 }
 
-const FARE_CONFIG_GRID = '1.2fr 0.85fr 0.85fr 0.85fr 0.85fr 0.85fr 0.7fr 0.9fr'
+const FARE_CONFIG_GRID = '1.2fr 0.85fr 0.75fr 0.85fr 0.85fr 0.85fr 0.85fr 0.7fr 0.9fr'
 
 const formatCommissionRate = (value) => {
     if (value === null || value === undefined || value === '') return 'Default'
@@ -181,6 +184,7 @@ const FareConfigs = () => {
     const normalizePayload = () => ({
         vehicle_type: form.vehicle_type.trim(),
         base_fare: Number(form.base_fare),
+        included_km: Number(form.included_km),
         per_km_rate: Number(form.per_km_rate),
         per_minute_rate: Number(form.per_minute_rate),
         cancellation_fee: Number(form.cancellation_fee),
@@ -227,6 +231,7 @@ const FareConfigs = () => {
         setForm({
             vehicle_type: item.vehicle_type || '',
             base_fare: String(item.base_fare ?? '0'),
+            included_km: String(item.included_km ?? '0'),
             per_km_rate: String(item.per_km_rate ?? '0'),
             per_minute_rate: String(item.per_minute_rate ?? '0'),
             cancellation_fee: String(item.cancellation_fee ?? '0'),
@@ -267,7 +272,7 @@ const FareConfigs = () => {
             </div>
 
             <DataTable
-                headers={['Vehicle Type', 'Base', 'Per KM', 'Per Min', 'Cancel Fee', 'Commission', 'Status', 'Action']}
+                headers={['Vehicle Type', 'Base', 'Included KM', 'Per KM', 'Per Min', 'Cancel Fee', 'Commission', 'Status', 'Action']}
                 gridTemplate={FARE_CONFIG_GRID}
             >
                 {loading ? (
@@ -293,6 +298,7 @@ const FareConfigs = () => {
                                 <VehicleTypeIcon type={item.vehicle_type} showLabel />
                             </div>
                             <div>LKR {formatMoney(item.base_fare)}</div>
+                            <div>{formatMoney(item.included_km)} km</div>
                             <div>LKR {formatMoney(item.per_km_rate)}</div>
                             <div>LKR {formatMoney(item.per_minute_rate)}</div>
                             <div>LKR {formatMoney(item.cancellation_fee)}</div>
@@ -379,6 +385,26 @@ const FareConfigs = () => {
                             step="0.01"
                             min="0"
                         />
+                        <div>
+                            <FormInput
+                                label="Included KM"
+                                name="included_km"
+                                type="number"
+                                placeholder="0.00"
+                                value={form.included_km}
+                                onChange={handleFormChange}
+                                required
+                                disabled={saving}
+                                step="0.01"
+                                min="0"
+                            />
+                            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                                Distance covered by the base fare before Per KM Rate starts billing.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '0' }}>
                         <FormInput
                             label="Per KM Rate (LKR)"
                             name="per_km_rate"
@@ -391,9 +417,6 @@ const FareConfigs = () => {
                             step="0.01"
                             min="0"
                         />
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '0' }}>
                         <FormInput
                             label="Per Minute Rate (LKR)"
                             name="per_minute_rate"
@@ -406,6 +429,9 @@ const FareConfigs = () => {
                             step="0.01"
                             min="0"
                         />
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '0' }}>
                         <FormInput
                             label="Cancellation Fee (LKR)"
                             name="cancellation_fee"

@@ -5,7 +5,7 @@
     "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/vehicles/icon.png",
-    "scheme": "frontend",
+    "scheme": "picku",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

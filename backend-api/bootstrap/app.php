@@ -6,12 +6,12 @@ use App\Http\Middleware\CheckPermission;
 use App\Http\Middleware\EnsureIdempotentRequest;
 use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\SuperAdminMiddleware;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
-use Illuminate\Support\Facades\RateLimiter;
-use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -49,6 +49,13 @@ return Application::configure(basePath: dirname(__DIR__))
 
             return Limit::perMinute((int) config('auth.auth_rate_limit_per_minute', 10))
                 ->by($request->ip().'|'.sha1((string) $identity));
+        });
+
+        RateLimiter::for('webxpay-saved-card-payment', function (Request $request) {
+            $identity = $request->user()?->getAuthIdentifier() ?? $request->ip();
+
+            return Limit::perMinute(5)
+                ->by('webxpay-saved-card-payment|'.$identity);
         });
     })
     ->create();

@@ -48,7 +48,7 @@ class CardPaymentSettlementTest extends TestCase
         $this->postJson("/api/payments/{$ride->id}", [], ['Idempotency-Key' => 'card-declined'])
             ->assertStatus(402);
 
-        $this->assertSame('FAILED', Payment::where('ride_id', $ride->id)->first()->payment_status);
+        $this->assertSame('DECLINED', Payment::where('ride_id', $ride->id)->first()->payment_status);
         // The driver must not be credited for money that was never collected.
         $this->assertSame('0.00', app(LedgerService::class)->balanceFor("DRIVER:{$driver->id}"));
         $this->assertSame(0, JournalEntry::count());

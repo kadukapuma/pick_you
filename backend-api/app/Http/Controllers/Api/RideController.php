@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Api;
 use App\Events\RideStatusUpdated;
 use App\Exceptions\GoogleMapsException;
 use App\Http\Controllers\Controller;
+use App\Models\DriverAccount;
 use App\Models\FareConfig;
 use App\Models\Ride;
+use App\Models\User;
 use App\Services\Fares\FareCalculationService;
 use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
@@ -41,7 +43,15 @@ class RideController extends Controller
      */
     public function show(Request $request, $id)
     {
-        $ride = Ride::with(['statuses', 'passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment'])->find($id);
+        $ride = Ride::with([
+            'statuses',
+            'passenger.user',
+            'driver.user',
+            'vehicle',
+            'fareConfig',
+            'payment.allocations',
+            'payment.refunds',
+        ])->find($id);
 
         if (! $ride) {
             return $this->error('Ride not found', 404);
@@ -119,6 +129,7 @@ class RideController extends Controller
                     'ride_code' => $ride->ride_code,
                     'status' => $ride->status,
                     'vehicle_type' => $ride->fareConfig?->vehicle_type,
+                    'use_wallet_credit' => (bool) $ride->use_wallet_credit,
                     'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? '')),
                     'passenger_profile_picture' => $passengerUser?->profile_picture,
                     'pickup_address' => $ride->pickup_address,
@@ -132,6 +143,7 @@ class RideController extends Controller
                     // The driver needs this before accepting: it decides whether
                     // they collect cash at the end or nothing at all.
                     'payment_method' => $ride->payment_method,
+                    'use_wallet_credit' => (bool) $ride->use_wallet_credit,
                     'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
                 ];
             });
@@ -156,6 +168,7 @@ class RideController extends Controller
             'estimated_duration_minutes' => 'nullable|numeric|min:0',
             // Older app builds omit this; default to cash so they keep working.
             'payment_method' => 'sometimes|in:cash,card',
+            'use_wallet_credit' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -205,6 +218,9 @@ class RideController extends Controller
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
             'estimated_fare' => $fareEstimate['estimated_fare'],
             'payment_method' => $request->input('payment_method', 'cash'),
+            'use_wallet_credit' => $request->boolean(
+                'use_wallet_credit'
+            ),
             'fare_breakdown' => [
                 'policy' => 'estimate_plus_extras',
                 'version' => 1,
@@ -346,7 +362,7 @@ class RideController extends Controller
             return $this->error('No active vehicle found for driver', 400);
         }
 
-        $account = \App\Models\DriverAccount::forDriver((int) $driver->id);
+        $account = DriverAccount::forDriver((int) $driver->id);
 
         if (! $account->canAcceptRides()) {
             return $this->error(
@@ -567,7 +583,7 @@ class RideController extends Controller
 
         $user = $request->user();
         $cancelledBy = 'passenger';
-        if ($user->canActAs(\App\Models\User::ROLE_DRIVER) && $user->driver && $ride->driver_id !== null && (int)$user->driver->id === (int)$ride->driver_id) {
+        if ($user->canActAs(User::ROLE_DRIVER) && $user->driver && $ride->driver_id !== null && (int) $user->driver->id === (int) $ride->driver_id) {
             $cancelledBy = 'driver';
         }
 

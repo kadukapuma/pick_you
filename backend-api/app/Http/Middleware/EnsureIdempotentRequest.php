@@ -42,7 +42,10 @@ class EnsureIdempotentRequest
             throw $exception;
         }
 
-        if ($response instanceof JsonResponse && $response->getStatusCode() < 500) {
+        if ($response instanceof JsonResponse
+            && $response->getStatusCode() < 500
+            && $response->getStatusCode() !== 429
+        ) {
             $record->update([
                 'status' => 'COMPLETED',
                 'response_status' => $response->getStatusCode(),

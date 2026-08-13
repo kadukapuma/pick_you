@@ -14,6 +14,7 @@ import RideEventModal from "../../features/ride-tracking/RideEventModal";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 import { apiClient } from "../../services/api/client";
 import { logExpectedError } from "../../services/errors/userMessages";
+import { paymentService } from "../../services/payments/paymentService";
 import {
     DriverLocationUpdate,
     subscribeToRideLocation,
@@ -46,7 +47,7 @@ const mergeRideData = (previous: any, next: any) => ({
 export default function LiveTrackerPage() {
     useKeepAwake();
     const params = useLocalSearchParams();
-    const { paymentMethod, resetTrip, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
+    const { paymentMethod, resetTrip, selectedPaymentCard, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;
     const initialEventStatus = Array.isArray(params.eventStatus)
         ? params.eventStatus[0]
@@ -81,6 +82,7 @@ export default function LiveTrackerPage() {
     const [rating, setRating] = useState(5);
     const [review, setReview] = useState("");
     const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+    const [isSettlingCredit, setIsSettlingCredit] = useState(false);
     const [ratingSubmitted, setRatingSubmitted] = useState(false);
     const lastAlertedStatusRef = useRef<string | null>(
         initialRideData?.status ? String(initialRideData.status).toUpperCase() : null,
@@ -216,6 +218,51 @@ export default function LiveTrackerPage() {
         eventStatus === "COMPLETED" &&
         selectedPaymentMethod === "card" &&
         eventPaymentStatus !== "COMPLETED";
+    const awaitingCreditSettlement =
+        eventStatus === "COMPLETED" &&
+        Boolean(rideData?.use_wallet_credit) &&
+        selectedPaymentMethod !== "card" &&
+        eventPaymentStatus !== "COMPLETED";
+
+    const settleCreditPayment = async () => {
+        if (!rideId || isSettlingCredit) return;
+
+        setIsSettlingCredit(true);
+        try {
+            const result = await paymentService.beginRidePayment(
+                String(rideId),
+                Number(rideData?.final_fare || rideData?.estimated_fare || 0),
+            );
+
+            if (result.status === "completed") {
+                setEventPaymentStatus("COMPLETED");
+                setEventStatus(null);
+                setRideData((previous: any) => ({
+                    ...previous,
+                    payment: {
+                        ...(previous?.payment || {}),
+                        payment_status: "COMPLETED",
+                        gateway_reference: result.reference,
+                    },
+                }));
+                setShowRatingModal(true);
+                return;
+            }
+
+            router.push({
+                pathname: "/payments/failed",
+                params: {
+                    rideId: String(rideId),
+                    amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
+                    message: result.message || "Payment needs your attention.",
+                },
+            });
+        } catch (error) {
+            logExpectedError("PickU credit settlement failed", error);
+        } finally {
+            setIsSettlingCredit(false);
+        }
+    };
 
     const handleBookAgain = async () => {
         const { pickup, destination } = getRebookLocationsFromRide(rideData);
@@ -282,6 +329,10 @@ export default function LiveTrackerPage() {
                         ? "Book again"
                         : awaitingCardPayment
                             ? "Pay now"
+                            : awaitingCreditSettlement
+                                ? isSettlingCredit
+                                    ? "Applying credit..."
+                                    : "Confirm payment"
                             : undefined
                 }
                 onPrimary={() => {
@@ -293,6 +344,19 @@ export default function LiveTrackerPage() {
                     // automatically. See processing.tsx for what happens after.
                     if (awaitingCardPayment) {
                         setEventStatus(null);
+
+                        if (!selectedPaymentCard) {
+                            router.push({
+                                pathname: "/payments/cards",
+                                params: {
+                                    mode: "retry",
+                                    rideId: String(rideId),
+                                    amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
+                                },
+                            });
+                            return;
+                        }
+
                         router.push({
                             pathname: "/payments/processing",
                             params: {
@@ -300,6 +364,10 @@ export default function LiveTrackerPage() {
                                 amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
                             },
                         });
+                        return;
+                    }
+                    if (awaitingCreditSettlement) {
+                        void settleCreditPayment();
                         return;
                     }
                     if (eventStatus === "COMPLETED") {

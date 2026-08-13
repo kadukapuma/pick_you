@@ -19,7 +19,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
   // State to handle the intermediate loading/success transition
   const [isProcessingCash, setIsProcessingCash] = useState(false);
 
-  const ride = route?.params?.ride || {};
+  const [ride, setRide] = useState(route?.params?.ride || {});
   const customerName = ride?.customerName || "John David";
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropLocation = ride?.drop || "Peradeniya Junction";
@@ -45,6 +45,44 @@ const TripCompletedScreen = ({ navigation, route }) => {
   // the driver collects cash for a fare the gateway also charges.
   const paymentMethod = (ride?.payment_method || "cash").toLowerCase();
   const isCash = paymentMethod === "cash";
+  const paymentStatus = String(
+    ride?.payment?.payment_status || ride?.payment_status || "PENDING",
+  ).toUpperCase();
+  const completedAllocations = Array.isArray(ride?.payment?.allocations)
+    ? ride.payment.allocations.filter(
+        (allocation) => String(allocation?.status || "").toUpperCase() === "COMPLETED",
+      )
+    : [];
+  const allocationAmount = (type) => completedAllocations
+    .filter((allocation) => String(allocation?.type || "").toUpperCase() === type)
+    .reduce((total, allocation) => total + Number(allocation?.amount || 0), 0);
+  const creditAmount = allocationAmount("PICKU_CREDIT");
+  const cashAmount = allocationAmount("CASH");
+  const cardAmount = allocationAmount("CARD");
+  const usesPickuCredit = Boolean(ride?.use_wallet_credit) || creditAmount > 0;
+  const waitingForSplit = usesPickuCredit && paymentStatus !== "COMPLETED";
+  const hasSplitBreakdown = usesPickuCredit && completedAllocations.length > 0;
+  const cashToCollect = hasSplitBreakdown ? cashAmount : isCash ? numericFare : 0;
+  const isCardPaid = !isCash && paymentStatus === "COMPLETED";
+  const isCardFailed =
+    !isCash && ["FAILED", "DECLINED", "CANCELLED", "EXPIRED"].includes(paymentStatus);
+  const isCardPending = !isCash && !isCardPaid && !isCardFailed;
+  const isPaymentPending = waitingForSplit || isCardPending;
+  const paymentLabel = hasSplitBreakdown
+    ? cashAmount > 0
+      ? "PickU credit + Cash"
+      : cardAmount > 0
+        ? "PickU credit + Card"
+        : "PickU credit"
+    : isCash
+      ? "Cash"
+      : "Card";
+  const paymentIcon = usesPickuCredit
+    ? "wallet-outline"
+    : isCash
+      ? "cash"
+      : "credit-card-outline";
+  const paymentColor = usesPickuCredit ? "#047857" : isCash ? "#B45309" : "#1D4ED8";
 
   const commissionAmount = Number(ride?.commission_amount || 0);
   const driverEarning = Number(ride?.driver_earning || 0);
@@ -58,8 +96,51 @@ const TripCompletedScreen = ({ navigation, route }) => {
     return () => subscription.remove();
   }, []);
 
+  useEffect(() => {
+    if (!ride?.id || !isPaymentPending) return;
+
+    let cancelled = false;
+    const refreshPayment = async () => {
+      try {
+        const response = await api.get(`/rides/${ride.id}`);
+        const refreshedRide = response.data?.data ?? response.data;
+        if (!cancelled && refreshedRide) {
+          setRide((current) => ({ ...current, ...refreshedRide }));
+        }
+      } catch (error) {
+        console.log("Could not refresh completed ride payment:", error.response?.data || error);
+      }
+    };
+
+    void refreshPayment();
+    const timer = setInterval(refreshPayment, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [isPaymentPending, ride?.id]);
+
   const handleCashCollected = async () => {
     if (!ride?.id || isProcessingCash) return;
+
+    if (isPaymentPending) return;
+
+    if (hasSplitBreakdown) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs" }],
+      });
+      return;
+    }
+
+    if (!isCash) {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: "MainTabs" }],
+      });
+      return;
+    }
 
     setIsProcessingCash(true);
     try {
@@ -144,15 +225,34 @@ const TripCompletedScreen = ({ navigation, route }) => {
             <Text style={styles.rowLabelField}>Payment Method</Text>
             <View style={[styles.methodPill, isCash ? styles.methodPillCash : styles.methodPillCard]}>
               <MaterialCommunityIcons
-                name={isCash ? "cash" : "credit-card-outline"}
+                name={paymentIcon}
                 size={14}
-                color={isCash ? "#B45309" : "#1D4ED8"}
+                color={paymentColor}
               />
-              <Text style={[styles.methodPillText, { color: isCash ? "#B45309" : "#1D4ED8" }]}>
-                {isCash ? "Cash" : "Card"}
+              <Text style={[styles.methodPillText, { color: paymentColor }]}>
+                {waitingForSplit ? "Payment breakdown pending" : paymentLabel}
               </Text>
             </View>
           </View>
+
+          {hasSplitBreakdown ? (
+            <>
+              <View style={styles.dataRowMetric}>
+                <Text style={styles.rowLabelField}>Paid with PickU credit</Text>
+                <Text style={styles.rowValueHighlight}>Rs. {creditAmount.toFixed(2)}</Text>
+              </View>
+              {cardAmount > 0 ? (
+                <View style={styles.dataRowMetric}>
+                  <Text style={styles.rowLabelField}>Paid by card</Text>
+                  <Text style={styles.rowValueHighlight}>Rs. {cardAmount.toFixed(2)}</Text>
+                </View>
+              ) : null}
+              <View style={styles.dataRowMetric}>
+                <Text style={styles.rowLabelField}>Cash to collect</Text>
+                <Text style={styles.rowValueHighlight}>Rs. {cashToCollect.toFixed(2)}</Text>
+              </View>
+            </>
+          ) : null}
 
           {commissionAmount > 0 ? (
             <>
@@ -228,11 +328,24 @@ const TripCompletedScreen = ({ navigation, route }) => {
 
         {/* --- SYSTEM ACTION BLOCK FOOTER --- */}
         <View style={styles.actionSectionContainer}>
-          {!isProcessingCash && !isCash && (
+          {!isProcessingCash && waitingForSplit && (
+            <View style={styles.cardNoticeBanner}>
+              <MaterialCommunityIcons name="clock-outline" size={18} color="#1D4ED8" />
+              <Text style={styles.cardNoticeText}>
+                Waiting for the passenger payment breakdown. Do not collect cash yet.
+              </Text>
+            </View>
+          )}
+
+          {!isProcessingCash && !isCash && !usesPickuCredit && (
             <View style={styles.cardNoticeBanner}>
               <MaterialCommunityIcons name="information" size={18} color="#1D4ED8" />
               <Text style={styles.cardNoticeText}>
-                Already paid by card. Do not collect any cash from the passenger.
+                {isCardPaid
+                  ? "Paid by card. Do not collect any cash from the passenger."
+                  : isCardFailed
+                    ? "Card payment was not completed. The passenger must retry or choose another payment option."
+                    : "Waiting for the passenger to complete the card payment. Do not collect cash unless the payment method is changed."}
               </Text>
             </View>
           )}
@@ -240,27 +353,45 @@ const TripCompletedScreen = ({ navigation, route }) => {
           <Text style={styles.paymentInstructionMessage}>
             {isProcessingCash
               ? "Updating your account..."
+              : waitingForSplit
+                ? "Waiting for payment confirmation"
+                : hasSplitBreakdown
+                  ? cashToCollect > 0
+                    ? `Collect Rs. ${cashToCollect.toFixed(2)} cash from passenger`
+                    : "Nothing to collect"
               : isCash
                 ? `Collect ${formattedFare} cash from passenger`
-                : "Nothing to collect"}
+                : isCardPaid
+                  ? "Nothing to collect"
+                  : isCardFailed
+                    ? "Card payment needs passenger attention"
+                    : "Card payment is pending"}
           </Text>
 
           <TouchableOpacity
             style={[
               styles.primaryActionButton,
-              isProcessingCash && styles.buttonDisabledState
+              (isProcessingCash || isPaymentPending) && styles.buttonDisabledState
             ]}
             onPress={handleCashCollected}
-            disabled={isProcessingCash}
+            disabled={isProcessingCash || isPaymentPending}
             activeOpacity={0.85}
           >
             <View style={{ width: 24 }} />
             <Text style={styles.primaryActionLabel}>
               {isProcessingCash
                 ? "Updating Earnings..."
+                : isPaymentPending
+                  ? "Waiting for payment"
+                  : hasSplitBreakdown
+                    ? cashToCollect > 0
+                      ? "Cash Collected"
+                      : "Finish Trip"
                 : isCash
                   ? "Cash Collected"
-                  : "Finish Trip"}
+                  : isCardPaid
+                    ? "Finish Trip"
+                    : "Return to Home"}
             </Text>
             <View style={styles.actionButtonIconFrame}>
               <MaterialCommunityIcons
