@@ -36,6 +36,10 @@ import {
   enableRideFallbackSync,
   syncPendingRideOnce,
 } from "../../services/rideRealtime";
+import {
+  consumePendingRideOffer,
+  subscribePendingRideOffer,
+} from "../../services/pendingRideOffer";
 import { fetchEarningsSummary } from "../../services/earnings";
 import { normalizeRidePayload } from "../../utils/rideLocation";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
@@ -259,8 +263,47 @@ const HomeScreen = () => {
       setRideData(null);
       setIsAcceptingRide(false);
       lastNotifiedRideIdRef.current = null;
-    }, 12000);
+    }, 20000);
   }, [clearIncomingRideTimer]);
+
+  // A "ride_offer" push notification was tapped (app was backgrounded/killed
+  // when the offer went out, so the WebSocket path in the effect below never
+  // saw it). Re-fetch this driver's currently-targeted offers and, if the
+  // tapped ride is still one of them, present it exactly like a live one.
+  const presentRideOfferById = useCallback(async (rideId) => {
+    const numericId = Number(rideId);
+    if (!numericId) return;
+
+    if (
+      handledRideIdRef.current === numericId ||
+      Number(lastNotifiedRideIdRef.current) === numericId
+    ) {
+      // Already handled (e.g. accepted/rejected via the live socket before
+      // the notification was tapped) - nothing to do.
+      return;
+    }
+
+    try {
+      const response = await api.get("/driver/ride-requests");
+      const requests = response.data?.data ?? [];
+      const match = requests.find((request) => Number(request.id) === numericId);
+
+      if (match) {
+        presentIncomingRide(normalizeRidePayload(match));
+      } else {
+        showCustomToast("info", "This ride request is no longer available.");
+      }
+    } catch (error) {
+      console.log("Could not fetch ride offer from notification:", error?.response?.data || error);
+    }
+  }, [presentIncomingRide]);
+
+  useEffect(() => {
+    const pendingRideId = consumePendingRideOffer();
+    if (pendingRideId) presentRideOfferById(pendingRideId);
+
+    return subscribePendingRideOffer((rideId) => presentRideOfferById(rideId));
+  }, [presentRideOfferById]);
 
   // WebSocket-first ride delivery (no 5s polling — scales to large fleets)
   // WebSocket + GPS while online (socket stays warm — popup is instant when a ride is broadcast)

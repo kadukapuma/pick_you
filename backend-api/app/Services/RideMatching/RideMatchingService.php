@@ -4,6 +4,8 @@ namespace App\Services\RideMatching;
 
 use App\Events\RideRequestedTargeted;
 use App\Jobs\ProcessRideTimeout;
+use App\Jobs\SendExpoPushNotification;
+use App\Models\Driver;
 use App\Models\Ride;
 use Illuminate\Support\Facades\Log;
 
@@ -83,11 +85,38 @@ class RideMatchingService
 
         event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId));
 
-        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 12));
+        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 20));
+
+        $this->notifyDriverOfOffer($ride, $driverId, $offerSeconds);
 
         ProcessRideTimeout::dispatch($rideId, $driverId)
             ->onQueue(config('ride.queues.rides', 'rides'))
             ->delay(now()->addSeconds($offerSeconds));
+    }
+
+    /**
+     * Push a background alert to the targeted driver so the offer is visible
+     * even when the app isn't in the foreground (the live WebSocket event
+     * above only reaches drivers with the app open).
+     */
+    private function notifyDriverOfOffer(Ride $ride, int $driverId, int $offerSeconds): void
+    {
+        $driver = Driver::find($driverId);
+
+        if (! $driver?->user_id) {
+            return;
+        }
+
+        SendExpoPushNotification::dispatch(
+            $driver->user_id,
+            'New ride request',
+            $ride->pickup_address ? "Pickup: {$ride->pickup_address}" : 'Tap to view the ride details.',
+            [
+                'action' => 'ride_offer',
+                'ride_id' => $ride->id,
+                'expires_at' => now()->addSeconds($offerSeconds)->toISOString(),
+            ],
+        );
     }
 
     public function handleDriverRejection(int $rideId, int $driverId): void

@@ -39,7 +39,7 @@ const IncomingRideModal = ({
   rideData,
   isAccepting = false,
 }) => {
-  const OFFER_SECONDS = 12;
+  const OFFER_SECONDS = 20;
   const customerProfilePicture = rideData?.customerProfilePicture;
   // Shown before the driver accepts: cash rides they collect and owe commission
   // on, card rides they collect nothing for and are paid out later.
@@ -140,7 +140,7 @@ const IncomingRideModal = ({
     };
   }, [playSound, stopSound, visible]);
 
-  // Precise 15s Countdown & Automatic Job Rejection Loop
+  // Precise 20s Countdown & Automatic Job Rejection Loop
   useEffect(() => {
     if (!visible) return;
     if (isAccepting) return;

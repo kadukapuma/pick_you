@@ -7,6 +7,7 @@ import * as Notifications from "expo-notifications";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import api from "./src/services/api";
 import { registerForPushNotifications } from "./src/services/pushRegistration";
+import { setPendingRideOffer } from "./src/services/pendingRideOffer";
 import { checkDriverAppUpdate, isDriverUpdateRequired } from "./src/services/appUpdate";
 import RequiredUpdateScreen from "./src/screens/RequiredUpdateScreen";
 import NotificationDetailScreen from "./src/screens/NotificationDetailScreen";
@@ -48,6 +49,8 @@ export default function App() {
         navigateWhenReady("AppUpdate");
       } else if (action === "broadcast_message") {
         navigateWhenReady("NotificationDetail", { title: content.title, message: content.body });
+      } else if (action === "ride_offer") {
+        setPendingRideOffer(content?.data?.ride_id);
       }
     };
     check();

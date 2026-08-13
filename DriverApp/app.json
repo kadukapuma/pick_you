@@ -13,7 +13,7 @@
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
-          "location"
+          "remote-notification"
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
@@ -58,6 +58,13 @@
         }
       ],
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./src/assets/icon-1.png",
+          "color": "#00A859"
+        }
+      ],
       [
         "expo-location",
         {

@@ -7,7 +7,7 @@
 3. **One driver at a time** receives the offer (sequential dispatch, good for accept/reject logic):
    - `ride:current_driver:{rideId}` = who sees the popup now
    - WebSocket event `RideRequestedTargeted` on `driver.rides.{driverId}`
-   - After `RIDE_DRIVER_OFFER_SECONDS` (default **12**), queue worker moves to the **next** driver (`lpop` was already done; next `targetNextDriver` pops the list)
+   - After `RIDE_DRIVER_OFFER_SECONDS` (default **20**), queue worker moves to the **next** driver (`lpop` was already done; next `targetNextDriver` pops the list)
 4. Driver app must be **online** with **GPS synced** (`POST /driver-locations`) or they are **not** in the nearby queue.
 5. WebSocket stays **connected** while online (persistent Pusher) so the popup is instant.
 6. HTTP fallback only if the socket is down for 4+ seconds.
@@ -17,7 +17,7 @@
 | Cause | Fix |
 |--------|-----|
 | Driver not in `driver_locations` | Go online (app now sends GPS automatically) |
-| You are 2nd/3rd in the Redis queue | Wait until the first driver’s 12s window ends |
+| You are 2nd/3rd in the Redis queue | Wait until the first driver’s 20s window ends |
 | WebSocket reconnecting each time | Fixed: one Pusher connection per session |
 | Modal slide animation | Fixed: instant modal + short motion |
 
@@ -77,14 +77,14 @@ Yes, for matching keys. The API uses **short-lived** Redis keys:
 - `ride:matching_drivers:{rideId}` — queue of driver IDs (deleted when ride ends)
 - `ride:current_driver:{rideId}` — who is being offered the ride now (deleted on accept/reject/timeout)
 
-They are **not** permanent ride storage. Ride data lives in **PostgreSQL** (`rides` table). After 15 seconds with no accept, `ProcessRideTimeout` moves to the next driver and keys update — so Redis can be empty even though the WebSocket already fired.
+They are **not** permanent ride storage. Ride data lives in **PostgreSQL** (`rides` table). After 20 seconds with no accept, `ProcessRideTimeout` moves to the next driver and keys update — so Redis can be empty even though the WebSocket already fired.
 
 ## Empty `/driver/ride-requests`
 
 `{"data": []}` is normal when:
 
 - No passenger has requested a ride targeted to you, or
-- The 15s window expired and the ride moved to another driver, or
+- The 20s window expired and the ride moved to another driver, or
 - You are offline / wrong vehicle type.
 
 You should **not** see that request every 5 seconds anymore.

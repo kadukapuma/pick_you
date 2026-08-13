@@ -11,7 +11,7 @@ return [
     | next nearest driver in the Redis queue.
     |
     */
-    'driver_offer_seconds' => (int) env('RIDE_DRIVER_OFFER_SECONDS', 12),
+    'driver_offer_seconds' => (int) env('RIDE_DRIVER_OFFER_SECONDS', 20),
 
     /*
     |--------------------------------------------------------------------------
@@ -74,11 +74,11 @@ return [
     'redis' => [
         'matching_drivers_ttl' => (int) env(
             'RIDE_REDIS_MATCHING_TTL',
-            ((int) env('RIDE_DRIVER_OFFER_SECONDS', 12)) * ((int) env('RIDE_MATCH_MAX_DRIVERS', 50)) + 120
+            ((int) env('RIDE_DRIVER_OFFER_SECONDS', 20)) * ((int) env('RIDE_MATCH_MAX_DRIVERS', 50)) + 120
         ),
         'current_driver_ttl' => (int) env(
             'RIDE_REDIS_CURRENT_DRIVER_TTL',
-            ((int) env('RIDE_DRIVER_OFFER_SECONDS', 12)) + 30
+            ((int) env('RIDE_DRIVER_OFFER_SECONDS', 20)) + 30
         ),
     ],
 
