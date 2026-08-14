@@ -275,6 +275,13 @@ Route::middleware('auth:sanctum')->group(function () {
             'permission:manage_finance',
             'idempotent',
         ]);
+        Route::post(
+            '/admin/finance/drivers/{driverId}/payouts',
+            [AdminFinanceController::class, 'payoutDriver']
+        )->middleware([
+            'permission:manage_finance',
+            'idempotent',
+        ]);
         Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
 
         // Reports

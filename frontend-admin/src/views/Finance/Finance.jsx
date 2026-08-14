@@ -10,6 +10,7 @@ import {
     fetchFinanceSummary,
     fetchTrialBalance,
     settleDriverAccount,
+    payoutDriverAccount,
 } from '../../services/adminApi'
 import './Finance.css'
 
@@ -73,6 +74,10 @@ const Finance = () => {
     const [settleNote, setSettleNote] = useState('')
     const [settling, setSettling] = useState(false)
 
+    const [payoutAmount, setPayoutAmount] = useState('')
+    const [payoutNote, setPayoutNote] = useState('')
+    const [payingOut, setPayingOut] = useState(false)
+
     const [trialBalance, setTrialBalance] = useState(null)
     const [trialOpen, setTrialOpen] = useState(false)
 
@@ -127,6 +132,8 @@ const Finance = () => {
             setStatement({ loading: true })
             setSettleAmount('')
             setSettleNote('')
+            setPayoutAmount('')
+            setPayoutNote('')
             setStatement(await fetchDriverStatement(token, driverId))
         } catch (error) {
             setStatement(null)
@@ -179,6 +186,63 @@ const Finance = () => {
             Swal.fire('Settlement failed', error.message || 'Could not record this settlement.', 'error')
         } finally {
             setSettling(false)
+        }
+    }
+
+    const submitPayout = async (event) => {
+        event.preventDefault()
+
+        const amount = Number(payoutAmount)
+        const owed = Number(statement?.account?.balance || 0)
+
+        if (!Number.isFinite(amount) || amount <= 0) {
+            Swal.fire('Invalid amount', 'Enter the amount actually sent to the driver.', 'warning')
+            return
+        }
+        if (amount > owed) {
+            Swal.fire('Amount too high', `This driver is only owed ${formatMoney(owed)}.`, 'warning')
+            return
+        }
+        if (!payoutNote.trim()) {
+            Swal.fire('Reference required', 'Note the bank transfer reference so it can be audited.', 'warning')
+            return
+        }
+
+        const driverId = statement?.driver?.id
+        if (!driverId) return
+
+        const bankKnown = Boolean(statement.driver.account_number)
+        const confirmation = await Swal.fire({
+            title: 'Confirm driver payout',
+            html: `<p>Record <strong>${formatMoney(amount)}</strong> as paid to ${statement.driver.name || 'this driver'}?</p><p>${
+                bankKnown
+                    ? `Sent to ${statement.driver.bank_name || 'their bank'} - ${statement.driver.account_number} (${statement.driver.account_name}).`
+                    : 'No bank details are on file for this driver - confirm you already paid them by another method.'
+            }</p>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Record payout',
+            confirmButtonColor: '#087f5b',
+        })
+        if (!confirmation.isConfirmed) return
+
+        try {
+            setPayingOut(true)
+            await payoutDriverAccount(token, driverId, {
+                amount: amount.toFixed(2),
+                note: payoutNote.trim(),
+                idempotencyKey: createIdempotencyKey(),
+            })
+            setPayoutAmount('')
+            setPayoutNote('')
+            setStatement(await fetchDriverStatement(token, driverId))
+            loadAccounts(pagination.page)
+            loadSummary()
+            await Swal.fire('Payout recorded', `${formatMoney(amount)} was recorded as paid to this driver.`, 'success')
+        } catch (error) {
+            Swal.fire('Payout failed', error.message || 'Could not record this payout.', 'error')
+        } finally {
+            setPayingOut(false)
         }
     }
 
@@ -394,34 +458,67 @@ const Finance = () => {
                             </div>
                         </div>
 
-                        <form className="finance-settle-form" onSubmit={submitSettlement}>
-                            <span className="finance-stat-label">Record a manual settlement</span>
-                            <p className="finance-stat-hint">
-                                Operator verified a bank/mobile money payment against the driver's WhatsApp
-                                receipt. Recording it here posts a balanced ledger entry and reduces what
-                                they owe.
-                            </p>
-                            <div className="finance-settle-fields">
-                                <input
-                                    type="number"
-                                    min="0.01"
-                                    step="0.01"
-                                    placeholder="Amount received (LKR)"
-                                    value={settleAmount}
-                                    onChange={(event) => setSettleAmount(event.target.value)}
-                                />
-                                <input
-                                    type="text"
-                                    maxLength="500"
-                                    placeholder="Reference (bank slip / transaction ID)"
-                                    value={settleNote}
-                                    onChange={(event) => setSettleNote(event.target.value)}
-                                />
-                                <button type="submit" disabled={settling}>
-                                    {settling ? 'Recording...' : 'Record settlement'}
-                                </button>
-                            </div>
-                        </form>
+                        {Number(statement.account.balance) < 0 && (
+                            <form className="finance-settle-form" onSubmit={submitSettlement}>
+                                <span className="finance-stat-label">Record a manual settlement</span>
+                                <p className="finance-stat-hint">
+                                    Operator verified a bank/mobile money payment against the driver's WhatsApp
+                                    receipt. Recording it here posts a balanced ledger entry and reduces what
+                                    they owe.
+                                </p>
+                                <div className="finance-settle-fields">
+                                    <input
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        placeholder="Amount received (LKR)"
+                                        value={settleAmount}
+                                        onChange={(event) => setSettleAmount(event.target.value)}
+                                    />
+                                    <input
+                                        type="text"
+                                        maxLength="500"
+                                        placeholder="Reference (bank slip / transaction ID)"
+                                        value={settleNote}
+                                        onChange={(event) => setSettleNote(event.target.value)}
+                                    />
+                                    <button type="submit" disabled={settling}>
+                                        {settling ? 'Recording...' : 'Record settlement'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        {Number(statement.account.balance) > 0 && (
+                            <form className="finance-settle-form" onSubmit={submitPayout}>
+                                <span className="finance-stat-label">Record a driver payout</span>
+                                <p className="finance-stat-hint">
+                                    PickU owes this driver money. Once it's sent by bank transfer, record it
+                                    here to post a balanced ledger entry and clear the payable.
+                                </p>
+                                <div className="finance-settle-fields">
+                                    <input
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        max={statement.account.balance}
+                                        placeholder="Amount sent (LKR)"
+                                        value={payoutAmount}
+                                        onChange={(event) => setPayoutAmount(event.target.value)}
+                                    />
+                                    <input
+                                        type="text"
+                                        maxLength="500"
+                                        placeholder="Reference (bank transfer confirmation)"
+                                        value={payoutNote}
+                                        onChange={(event) => setPayoutNote(event.target.value)}
+                                    />
+                                    <button type="submit" disabled={payingOut}>
+                                        {payingOut ? 'Recording...' : 'Record payout'}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
 
                         <div className="finance-ledger">
                             <div className="finance-ledger-head">
