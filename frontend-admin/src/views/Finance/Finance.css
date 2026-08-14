@@ -261,6 +261,13 @@
   display: grid;
   grid-template-columns: 0.8fr 1.6fr auto;
   gap: 10px;
+  align-items: start;
+}
+
+.finance-settle-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .finance-settle-fields input {

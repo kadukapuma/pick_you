@@ -497,15 +497,31 @@ const Finance = () => {
                                     here to post a balanced ledger entry and clear the payable.
                                 </p>
                                 <div className="finance-settle-fields">
-                                    <input
-                                        type="number"
-                                        min="0.01"
-                                        step="0.01"
-                                        max={statement.account.balance}
-                                        placeholder="Amount sent (LKR)"
-                                        value={payoutAmount}
-                                        onChange={(event) => setPayoutAmount(event.target.value)}
-                                    />
+                                    <div className="finance-settle-amount">
+                                        <input
+                                            type="number"
+                                            min="0.01"
+                                            step="0.01"
+                                            max={statement.account.balance}
+                                            placeholder="Amount sent (LKR)"
+                                            value={payoutAmount}
+                                            onChange={(event) => setPayoutAmount(event.target.value)}
+                                        />
+                                        {statement.driver.account_number ? (
+                                            <span className="finance-stat-hint">
+                                                Pay to: {statement.driver.bank_name || '-'}
+                                                {statement.driver.bank_branch ? ` (${statement.driver.bank_branch})` : ''}
+                                                {' · '}
+                                                {statement.driver.account_number}
+                                                {' · '}
+                                                {statement.driver.account_name}
+                                            </span>
+                                        ) : (
+                                            <span className="finance-stat-hint">
+                                                No bank details - driver cannot be paid out yet
+                                            </span>
+                                        )}
+                                    </div>
                                     <input
                                         type="text"
                                         maxLength="500"
