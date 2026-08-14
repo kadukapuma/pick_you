@@ -35,8 +35,9 @@ const AdminProvider = ({ children }) => {
             return data
         }
 
-        if (data.user?.role !== 'admin' && data.user?.role !== 'super_admin') {
-            throw new Error('Access denied. Only administrators can access this panel.')
+        const allowedRoles = ['admin', 'super_admin', 'operator']
+        if (!allowedRoles.includes(data.user?.role)) {
+            throw new Error('Access denied. Only administrators and operators can access this panel.')
         }
 
         storeToken(data.token)
