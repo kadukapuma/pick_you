@@ -145,6 +145,9 @@ class RideController extends Controller
                     'payment_method' => $ride->payment_method,
                     'use_wallet_credit' => (bool) $ride->use_wallet_credit,
                     'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
+                    // This is the server deadline, not 20 seconds from when a
+                    // delayed push notification is opened on the device.
+                    'expires_at' => $this->rideMatchingRedis->getOfferExpiresAt($ride->id),
                 ];
             });
 

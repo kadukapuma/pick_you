@@ -564,8 +564,8 @@ const fetchRideStatistics = async (token, { period = 'week', vehicleType = '' } 
   return payload.data || {}
 }
 
-const fetchPaymentBreakdown = async (token, { period = 'week', status = 'all' } = {}) => {
-  const params = new URLSearchParams({ period, status })
+const fetchPaymentBreakdown = async (token, { period = 'week', status = 'all', method = 'all' } = {}) => {
+  const params = new URLSearchParams({ period, status, method })
   const payload = await apiFetch(`/admin/reports/payment-breakdown?${params}`, { token })
   return payload.data || {}
 }
@@ -586,16 +586,20 @@ const fetchRevenueMonthlyReport = async (token, { start, end } = {}) => {
   return payload.data || { rows: [] }
 }
 
-const fetchDriverPerformanceReport = async (token, { period = 'month', search = '', page = 1 } = {}) => {
+const fetchDriverPerformanceReport = async (token, { period = 'month', search = '', page = 1, start = '', end = '' } = {}) => {
   const params = new URLSearchParams({ period, page: String(page) })
   if (search) params.set('search', search)
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
   const payload = await apiFetch(`/admin/reports/drivers/performance?${params}`, { token })
   return payload.data || { data: [] }
 }
 
-const fetchDriverEarningsReport = async (token, { period = 'month', search = '', page = 1 } = {}) => {
+const fetchDriverEarningsReport = async (token, { period = 'month', search = '', page = 1, start = '', end = '' } = {}) => {
   const params = new URLSearchParams({ period, page: String(page) })
   if (search) params.set('search', search)
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
   const payload = await apiFetch(`/admin/reports/drivers/earnings?${params}`, { token })
   return payload.data || { data: [] }
 }
@@ -607,6 +611,16 @@ const fetchTransactionsReport = async (token, { type = '', search = '', start = 
   if (start) params.set('start', start)
   if (end) params.set('end', end)
   const payload = await apiFetch(`/admin/reports/transactions?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const fetchRideHistoryReport = async (token, { period = 'all', search = '', start = '', end = '', status = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ period, page: String(page) })
+  if (search) params.set('search', search)
+  if (start) params.set('start', start)
+  if (end) params.set('end', end)
+  if (status) params.set('status', status)
+  const payload = await apiFetch(`/admin/reports/ride-history?${params}`, { token })
   return payload.data || { data: [] }
 }
 
@@ -705,6 +719,7 @@ export {
   fetchDriverPerformanceReport,
   fetchDriverEarningsReport,
   fetchTransactionsReport,
+  fetchRideHistoryReport,
   fetchFinanceSummary,
   fetchDriverAccounts,
   fetchDriverStatement,

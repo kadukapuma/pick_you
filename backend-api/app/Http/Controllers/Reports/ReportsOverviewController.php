@@ -88,7 +88,7 @@ class ReportsOverviewController extends Controller
         // today belongs in today's cancelled count, not last month's, so a
         // single blanket requested_at filter across all statuses (the previous
         // approach) misattributes cancellations to the wrong period.
-        $countFor = function (string $status, string $dateColumn) use ($since, $vehicleTypeId) {
+        $countFor = function (string $status, string $dateColumn, ?\Closure $extra = null) use ($since, $vehicleTypeId) {
             $query = Ride::query()->where('status', $status);
 
             if ($since) {
@@ -97,6 +97,10 @@ class ReportsOverviewController extends Controller
 
             if ($vehicleTypeId) {
                 $query->whereHas('vehicle', fn ($q) => $q->where('vehicle_type_id', $vehicleTypeId));
+            }
+
+            if ($extra) {
+                $extra($query);
             }
 
             return $query->count();
@@ -108,7 +112,14 @@ class ReportsOverviewController extends Controller
         return $this->success([
             'period' => $period,
             'completed' => $countFor('COMPLETED', 'completed_at'),
-            'cancelled' => $countFor('CANCELLED', 'cancelled_at'),
+            // 'cancelled' is only rides a passenger or driver actively cancelled
+            // (cancelled_by is set). Rides the system auto-cancelled because no
+            // driver was available/responded in time (cancelled_by is null - see
+            // RideMatchingService::targetNextDriver) are their own 'expired'
+            // bucket, since lumping them together under "cancelled" reads as if
+            // someone cancelled a ride when nobody did.
+            'cancelled' => $countFor('CANCELLED', 'cancelled_at', fn ($q) => $q->whereNotNull('cancelled_by')),
+            'expired' => $countFor('CANCELLED', 'cancelled_at', fn ($q) => $q->whereNull('cancelled_by')),
             // ACCEPTED/ARRIVED/STARTED have no terminal timestamp yet, so
             // requested_at is the only meaningful date column for them.
             'ongoing' => $ongoing,
@@ -122,11 +133,13 @@ class ReportsOverviewController extends Controller
         $validated = $request->validate([
             'period' => 'sometimes|in:day,week,month,all',
             'status' => 'sometimes|in:all,success,pending',
+            'method' => 'sometimes|in:all,cash,card,wallet',
         ]);
 
         $period = $validated['period'] ?? 'week';
         $since = $this->sincePeriod($period);
         $status = $validated['status'] ?? 'all';
+        $method = $validated['method'] ?? 'all';
 
         $query = Payment::query();
 
@@ -139,6 +152,10 @@ class ReportsOverviewController extends Controller
             'pending' => $query->where('payment_status', 'PENDING'),
             default => null,
         };
+
+        if ($method !== 'all') {
+            $query->where('payment_method', $method);
+        }
 
         $counts = $query
             ->select('payment_method', DB::raw('COUNT(*) as count'))
@@ -153,6 +170,7 @@ class ReportsOverviewController extends Controller
         return $this->success([
             'period' => $period,
             'status' => $status,
+            'method' => $method,
             'payment_methods' => $methods,
         ], 'Payment breakdown retrieved successfully.');
     }

@@ -20,7 +20,9 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 import * as Location from "expo-location";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import IncomingRideModal from "../../components/IncomingRideModel";
+import BankDetailsGuideModal from "../../components/BankDetailsGuideModal";
 import BackgroundLocationDisclosureModal from "../../components/BackgroundLocationDisclosureModal";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
 import { useDriverLocation } from "../../hooks/useDriverLocation";
@@ -79,6 +81,8 @@ const getActiveRideSubtitle = (status) => {
   }
 };
 
+const HAS_SEEN_BANK_GUIDE_KEY = "hasSeenBankDetailsGuide";
+
 const HomeScreen = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -102,6 +106,7 @@ const HomeScreen = () => {
   const [realtimeStatus, setRealtimeStatus] = useState("disconnected");
   const [showRideModal, setShowRideModal] = useState(false);
   const [showDisclosureModal, setShowDisclosureModal] = useState(false);
+  const [showBankGuide, setShowBankGuide] = useState(false);
   const [rideData, setRideData] = useState(null);
   const [isAcceptingRide, setIsAcceptingRide] = useState(false);
   const [driverId, setDriverId] = useState(null);
@@ -123,6 +128,7 @@ const HomeScreen = () => {
   const incomingRideTimerRef = useRef(null);
   const lastNotifiedRideIdRef = useRef(null);
   const handledRideIdRef = useRef(null);
+  const acceptingRideIdRef = useRef(null);
   const lastCenteredRequestRef = useRef(-1);
 
   const clearIncomingRideTimer = useCallback(() => {
@@ -251,26 +257,41 @@ const HomeScreen = () => {
       console.log("presentIncomingRide: showing modal for ride", rideId);
 
     // Show UI first — do not wait for sound or network
+    // Old backend versions may not yet send expires_at over WebSocket. Give
+    // such an offer one fixed deadline here; never recalculate 20 seconds on
+    // every countdown tick.
+    const offer = {
+      ...ride,
+      expires_at: ride.expires_at || new Date(Date.now() + 20_000).toISOString(),
+    };
+    const expiresAt = Date.parse(offer.expires_at);
+    const remainingMs = Number.isFinite(expiresAt)
+      ? expiresAt - Date.now()
+      : 20_000;
+
+    if (remainingMs <= 0) {
+      showCustomToast("info", "This ride request is no longer available.");
+      return;
+    }
+
     setShowRideModal(true);
-    setRideData(ride);
+    setRideData(offer);
     setIsAcceptingRide(false);
     lastNotifiedRideIdRef.current = rideId;
 
+    // IncomingRideModal owns the countdown and closes itself at this exact
+    // deadline. Keeping a second timer here used to make the sheet disappear
+    // while its UI still displayed the previous second.
     clearIncomingRideTimer();
-    incomingRideTimerRef.current = setTimeout(() => {
-      incomingRideTimerRef.current = null;
-      setShowRideModal(false);
-      setRideData(null);
-      setIsAcceptingRide(false);
-      lastNotifiedRideIdRef.current = null;
-    }, 20000);
   }, [clearIncomingRideTimer]);
 
   // A "ride_offer" push notification was tapped (app was backgrounded/killed
   // when the offer went out, so the WebSocket path in the effect below never
   // saw it). Re-fetch this driver's currently-targeted offers and, if the
   // tapped ride is still one of them, present it exactly like a live one.
-  const presentRideOfferById = useCallback(async (rideId) => {
+  const presentRideOfferById = useCallback(async (offer) => {
+    const rideId = typeof offer === "object" ? offer?.rideId : offer;
+    const notificationExpiresAt = typeof offer === "object" ? offer?.expiresAt : null;
     const numericId = Number(rideId);
     if (!numericId) return;
 
@@ -289,7 +310,12 @@ const HomeScreen = () => {
       const match = requests.find((request) => Number(request.id) === numericId);
 
       if (match) {
-        presentIncomingRide(normalizeRidePayload(match));
+        presentIncomingRide(normalizeRidePayload({
+          ...match,
+          // The API is authoritative when available. The push deadline keeps
+          // older API deployments safe while they are being rolled out.
+          expires_at: match.expires_at || notificationExpiresAt,
+        }));
       } else {
         showCustomToast("info", "This ride request is no longer available.");
       }
@@ -304,6 +330,25 @@ const HomeScreen = () => {
 
     return subscribePendingRideOffer((rideId) => presentRideOfferById(rideId));
   }, [presentRideOfferById]);
+
+  // Show the bank-details walkthrough once, right after the driver's first
+  // login on this device. Reachable again afterward via the help icon on
+  // BankDetailsScreen itself.
+  useEffect(() => {
+    AsyncStorage.getItem(HAS_SEEN_BANK_GUIDE_KEY).then((value) => {
+      if (!value) setShowBankGuide(true);
+    });
+  }, []);
+
+  const closeBankGuide = useCallback(() => {
+    setShowBankGuide(false);
+    AsyncStorage.setItem(HAS_SEEN_BANK_GUIDE_KEY, "true").catch(() => {});
+  }, []);
+
+  const finishBankGuide = useCallback(() => {
+    closeBankGuide();
+    navigation.navigate("BankDetails");
+  }, [closeBankGuide, navigation]);
 
   // WebSocket-first ride delivery (no 5s polling — scales to large fleets)
   // WebSocket + GPS while online (socket stays warm — popup is instant when a ride is broadcast)
@@ -447,8 +492,9 @@ const HomeScreen = () => {
   }, []);
 
   const handleAcceptRide = async () => {
-    if (!rideData?.id || isAcceptingRide) return;
+    if (!rideData?.id || isAcceptingRide || acceptingRideIdRef.current !== null) return;
     const rideId = rideData.id;
+    acceptingRideIdRef.current = rideId;
     clearIncomingRideTimer();
     setIsAcceptingRide(true);
 
@@ -475,12 +521,24 @@ const HomeScreen = () => {
         console.log("Could not refresh ride details:", detailErr);
       });
     } catch (error) {
-      console.log("Error accepting ride:", error);
+      const status = error.response?.status;
+      const message = error.response?.data?.message || "Failed to accept ride.";
+      console.log("Error accepting ride:", { rideId, status, message, data: error.response?.data });
+
+      // A timeout/another driver accepting is normal dispatch behaviour. Do
+      // not leave a stale offer on screen or let the driver submit it again.
+      if (message === "Ride is no longer available") {
+        setShowRideModal(false);
+        setRideData(null);
+        lastNotifiedRideIdRef.current = null;
+        handledRideIdRef.current = rideId;
+        showCustomToast("info", "This ride request has expired.");
+      }
+
       setIsAcceptingRide(false);
-      showCustomToast(
-        "error",
-        error.response?.data?.message || "Failed to accept ride.",
-      );
+      if (message !== "Ride is no longer available") showCustomToast("error", message);
+    } finally {
+      acceptingRideIdRef.current = null;
     }
   };
 
@@ -847,6 +905,13 @@ const HomeScreen = () => {
             visible={showDisclosureModal}
             onContinue={handleDisclosureContinue}
             onCancel={handleDisclosureCancel}
+          />
+
+          {/* --- FIRST-LOGIN BANK DETAILS WALKTHROUGH --- */}
+          <BankDetailsGuideModal
+            visible={showBankGuide}
+            onClose={closeBankGuide}
+            onFinish={finishBankGuide}
           />
         </>
       )}

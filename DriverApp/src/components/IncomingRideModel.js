@@ -40,13 +40,18 @@ const IncomingRideModal = ({
   isAccepting = false,
 }) => {
   const OFFER_SECONDS = 20;
+  const remainingOfferSeconds = useCallback(() => {
+    const expiresAt = Date.parse(rideData?.expires_at || "");
+    if (!Number.isFinite(expiresAt)) return OFFER_SECONDS;
+    return Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000));
+  }, [rideData?.expires_at]);
   const customerProfilePicture = rideData?.customerProfilePicture;
   // Shown before the driver accepts: cash rides they collect and owe commission
   // on, card rides they collect nothing for and are paid out later.
   const isCashRide =
     (rideData?.paymentMode || rideData?.payment_method || "cash").toLowerCase() === "cash";
   const usesPickuCredit = Boolean(rideData?.use_wallet_credit);
-  const [countdown, setCountdown] = useState(OFFER_SECONDS);
+  const [countdown, setCountdown] = useState(remainingOfferSeconds);
   const soundRef = useRef(null);
   const soundOperationRef = useRef(Promise.resolve());
   const shouldPlaySoundRef = useRef(false);
@@ -130,7 +135,7 @@ const IncomingRideModal = ({
   useEffect(() => {
     if (visible) {
       playSound();
-      setCountdown(OFFER_SECONDS);
+      setCountdown(remainingOfferSeconds());
     } else {
       stopSound();
     }
@@ -138,25 +143,34 @@ const IncomingRideModal = ({
     return () => {
       stopSound();
     };
-  }, [playSound, stopSound, visible]);
+  }, [playSound, remainingOfferSeconds, stopSound, visible]);
 
-  // Precise 20s Countdown & Automatic Job Rejection Loop
+  // The sheet owns expiry. This lets the driver see 0 before it closes and
+  // avoids a competing parent timer dismissing it while the UI still shows 1.
   useEffect(() => {
     if (!visible) return;
     if (isAccepting) return;
 
-    if (countdown === 0) {
+    let dismissTimer = null;
+    const updateCountdown = () => {
+      const seconds = remainingOfferSeconds();
+      setCountdown(seconds);
+
+      if (seconds !== 0 || dismissTimer) return;
+
       stopSound();
-      onRejectRef.current?.(); // Fire parent automatic denial update block
-      return;
-    }
+      // Give React one frame to render "0" before closing the sheet.
+      dismissTimer = setTimeout(() => onRejectRef.current?.(), 150);
+    };
 
-    const intervalId = setInterval(() => {
-      setCountdown((prev) => prev - 1);
-    }, 1000);
+    updateCountdown();
+    const intervalId = setInterval(updateCountdown, 250);
 
-    return () => clearInterval(intervalId);
-  }, [countdown, isAccepting, stopSound, visible]);
+    return () => {
+      clearInterval(intervalId);
+      if (dismissTimer) clearTimeout(dismissTimer);
+    };
+  }, [isAccepting, remainingOfferSeconds, stopSound, visible]);
 
   useEffect(() => {
     if (isAccepting) stopSound();

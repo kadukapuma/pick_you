@@ -37,6 +37,7 @@ use App\Http\Controllers\Api\RolePermissionController;
 use App\Http\Controllers\Reports\DriverPerformanceReportController;
 use App\Http\Controllers\Reports\ReportsOverviewController;
 use App\Http\Controllers\Reports\RevenueReportController;
+use App\Http\Controllers\Reports\RideHistoryReportController;
 use App\Http\Controllers\Reports\TransactionReportController;
 use App\Http\Controllers\Api\SuperAdminNotificationController;
 use App\Http\Controllers\Api\SupportTicketController;
@@ -294,6 +295,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/reports/drivers/performance', [DriverPerformanceReportController::class, 'index']);
         Route::get('/admin/reports/drivers/earnings', [DriverPerformanceReportController::class, 'earnings']);
         Route::get('/admin/reports/transactions', [TransactionReportController::class, 'index']);
+        Route::get('/admin/reports/ride-history', [RideHistoryReportController::class, 'index']);
 
         Route::get('/role-permissions', [RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [RolePermissionController::class, 'update'])->middleware('super_admin');

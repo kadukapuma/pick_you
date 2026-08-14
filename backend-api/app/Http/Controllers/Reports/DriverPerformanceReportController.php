@@ -19,10 +19,16 @@ class DriverPerformanceReportController extends Controller
         $validated = $request->validate([
             'period' => 'sometimes|in:day,week,month,all',
             'search' => 'sometimes|string|max:100',
+            'start' => 'sometimes|date',
+            'end' => 'sometimes|date',
         ]);
 
-        $rows = $this->driverAggregates($validated['period'] ?? 'month', $validated['search'] ?? null)
-            ->paginate(50);
+        $rows = $this->driverAggregates(
+            $validated['period'] ?? 'month',
+            $validated['search'] ?? null,
+            $validated['start'] ?? null,
+            $validated['end'] ?? null,
+        )->paginate(50);
 
         $rows->getCollection()->transform(fn ($row) => [
             'driver_id' => $row->driver_id,
@@ -43,9 +49,16 @@ class DriverPerformanceReportController extends Controller
         $validated = $request->validate([
             'period' => 'sometimes|in:day,week,month,all',
             'search' => 'sometimes|string|max:100',
+            'start' => 'sometimes|date',
+            'end' => 'sometimes|date',
         ]);
 
-        $rows = $this->driverAggregates($validated['period'] ?? 'month', $validated['search'] ?? null)
+        $rows = $this->driverAggregates(
+            $validated['period'] ?? 'month',
+            $validated['search'] ?? null,
+            $validated['start'] ?? null,
+            $validated['end'] ?? null,
+        )
             ->orderByDesc('total_earnings')
             ->paginate(50);
 
@@ -62,14 +75,18 @@ class DriverPerformanceReportController extends Controller
         return $this->success($rows, 'Driver earnings report retrieved successfully.');
     }
 
-    private function driverAggregates(string $period, ?string $search)
+    private function driverAggregates(string $period, ?string $search, ?string $start = null, ?string $end = null)
     {
-        $since = match ($period) {
+        // An explicit date range (calendar picker) takes priority over the
+        // fixed day/week/month/all buttons - both filter the same
+        // requested_at column below, they're just two ways to set it.
+        $since = $start ? now()->parse($start)->startOfDay() : match ($period) {
             'day' => now()->startOfDay(),
             'week' => now()->startOfWeek(),
             'month' => now()->startOfMonth(),
             default => null,
         };
+        $until = $end ? now()->parse($end)->endOfDay() : null;
 
         $query = Ride::query()
             ->join('drivers', 'drivers.id', '=', 'rides.driver_id')
@@ -91,6 +108,10 @@ class DriverPerformanceReportController extends Controller
 
         if ($since) {
             $query->where('rides.requested_at', '>=', $since);
+        }
+
+        if ($until) {
+            $query->where('rides.requested_at', '<=', $until);
         }
 
         if ($search) {

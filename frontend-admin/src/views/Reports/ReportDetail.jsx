@@ -8,6 +8,7 @@ import { useAdmin } from '../../context/AdminContext'
 import {
     fetchRevenueDailyReport, fetchRevenueMonthlyReport,
     fetchDriverPerformanceReport, fetchDriverEarningsReport, fetchTransactionsReport,
+    fetchRideHistoryReport,
 } from '../../services/adminApi'
 import './Reports.css'
 
@@ -28,6 +29,31 @@ const numericMoney = value => {
     return Number.parseFloat(normalized) || 0
 }
 const compactMoney = value => value >= 1000000 ? `${(value / 1000000).toFixed(1)}M` : value >= 1000 ? `${Math.round(value / 1000)}K` : String(Math.round(value))
+const summarizeFareBreakdown = (breakdown) => {
+    if (!breakdown || typeof breakdown !== 'object') return '—'
+    const parts = []
+    if (Number(breakdown.extra_distance_fare) > 0) parts.push(`Distance +${money(breakdown.extra_distance_fare)}`)
+    if (Number(breakdown.waiting_fare) > 0) parts.push(`Waiting +${money(breakdown.waiting_fare)}`)
+    if (Number(breakdown.duration_overage_fare) > 0) parts.push(`Overtime +${money(breakdown.duration_overage_fare)}`)
+    return parts.length ? parts.join(' · ') : 'Base fare only'
+}
+const fareBreakdownChips = (breakdown) => {
+    if (!breakdown || typeof breakdown !== 'object') return []
+    const chips = []
+    if (Number(breakdown.extra_distance_fare) > 0) chips.push(['Distance', breakdown.extra_distance_fare])
+    if (Number(breakdown.waiting_fare) > 0) chips.push(['Waiting', breakdown.waiting_fare])
+    if (Number(breakdown.duration_overage_fare) > 0) chips.push(['Overtime', breakdown.duration_overage_fare])
+    return chips
+}
+const RIDE_STATUS_META = {
+    COMPLETED: { label: 'Completed', className: 'completed' },
+    CANCELLED: { label: 'Cancelled', className: 'cancelled' },
+    STARTED: { label: 'In progress', className: 'ongoing' },
+    ARRIVED: { label: 'Arrived', className: 'ongoing' },
+    ACCEPTED: { label: 'Accepted', className: 'ongoing' },
+    REQUESTED: { label: 'Requested', className: 'pending' },
+}
+const rideStatusMeta = status => RIDE_STATUS_META[status] || { label: status || '—', className: 'pending' }
 
 const REPORT_META = {
     'daily-financial': {
@@ -60,6 +86,12 @@ const REPORT_META = {
         description: 'Review ledger activity: commission settlements, payouts, top-ups and adjustments.',
         columns: ['Reference', 'Type', 'Description', 'Gateway', 'Amount', 'Date'],
     },
+    'ride-history': {
+        eyebrow: 'Ride activity',
+        title: 'Ride History',
+        description: 'Every ride with driver, customer, route and full fare breakdown.',
+        columns: ['Ride', 'Status', 'Driver', 'Customer', 'Route', 'Commission', 'Est. Fare', 'Total Fare', 'Fare Breakdown'],
+    },
 }
 
 const toRow = (reportType, raw) => {
@@ -72,6 +104,8 @@ const toRow = (reportType, raw) => {
             return [raw.name, raw.rating != null ? `${Number(raw.rating).toFixed(1)} ★` : '—', raw.rides, raw.completed_rides, raw.cancelled_rides]
         case 'driver-earnings':
             return [raw.name, raw.rides, money(raw.gross_fares), money(raw.commission), money(raw.earnings)]
+        case 'ride-history':
+            return [raw.ride_code || `RIDE-${raw.id}`, rideStatusMeta(raw.status).label, raw.driver, raw.customer, `${raw.pickup || '—'} → ${raw.drop || '—'}`, money(raw.commission), money(raw.estimated_fare), money(raw.final_fare), summarizeFareBreakdown(raw.fare_breakdown)]
         default:
             return [`TXN-${String(raw.id).padStart(6, '0')}`, raw.type, raw.description, raw.gateway || '—', `${Number(raw.amount) < 0 ? '−' : '+'}${money(raw.amount)}`, raw.posted_at ? shortDate(new Date(raw.posted_at)) : '—']
     }
@@ -127,9 +161,15 @@ const ReportDetail = () => {
     const navigate = useNavigate()
     const { token } = useAdmin()
     const meta = REPORT_META[reportType] || REPORT_META.transactions
-    const isServerPaginated = reportType === 'driver-performance' || reportType === 'driver-earnings' || reportType === 'transactions'
+    const isServerPaginated = reportType === 'driver-performance' || reportType === 'driver-earnings' || reportType === 'transactions' || reportType === 'ride-history'
+    const isDriverStylePeriod = reportType === 'driver-performance' || reportType === 'driver-earnings' || reportType === 'ride-history'
     const hasAnalytics = reportType === 'daily-financial' || reportType === 'financial'
     const perPage = 8
+
+    // Navigating in from the reports hub (or between report types) keeps
+    // whatever scroll position the browser already had - land on the top of
+    // the new report instead of wherever the previous page/table left off.
+    useEffect(() => { window.scrollTo(0, 0) }, [reportType])
 
     const [search, setSearch] = useState('')
     const [page, setPage] = useState(1)
@@ -153,11 +193,17 @@ const ReportDetail = () => {
 
     // driver reports period
     const [dbPeriod, setDbPeriod] = useState('month')
+    const [dbStart, setDbStart] = useState('')
+    const [dbEnd, setDbEnd] = useState('')
 
     // transactions filters
     const [txType, setTxType] = useState('')
     const [txStart, setTxStart] = useState('')
     const [txEnd, setTxEnd] = useState('')
+    const [txPeriod, setTxPeriod] = useState('')
+
+    // ride history filters
+    const [rideStatus, setRideStatus] = useState('')
 
     const load = useCallback(async () => {
         if (!token) return
@@ -175,11 +221,15 @@ const ReportDetail = () => {
                 setRawRows((data.rows || []).slice().reverse())
                 setServerMeta(null)
             } else if (reportType === 'driver-performance') {
-                const data = await fetchDriverPerformanceReport(token, { period: dbPeriod, search, page })
+                const data = await fetchDriverPerformanceReport(token, { period: dbPeriod, search, page, start: dbStart, end: dbEnd })
                 setRawRows(data.data || [])
                 setServerMeta({ currentPage: data.current_page || 1, lastPage: data.last_page || 1, total: data.total ?? (data.data || []).length })
             } else if (reportType === 'driver-earnings') {
-                const data = await fetchDriverEarningsReport(token, { period: dbPeriod, search, page })
+                const data = await fetchDriverEarningsReport(token, { period: dbPeriod, search, page, start: dbStart, end: dbEnd })
+                setRawRows(data.data || [])
+                setServerMeta({ currentPage: data.current_page || 1, lastPage: data.last_page || 1, total: data.total ?? (data.data || []).length })
+            } else if (reportType === 'ride-history') {
+                const data = await fetchRideHistoryReport(token, { period: dbPeriod, search, page, start: dbStart, end: dbEnd, status: rideStatus })
                 setRawRows(data.data || [])
                 setServerMeta({ currentPage: data.current_page || 1, lastPage: data.last_page || 1, total: data.total ?? (data.data || []).length })
             } else {
@@ -194,10 +244,10 @@ const ReportDetail = () => {
         } finally {
             setLoading(false)
         }
-    }, [token, reportType, appliedCustom, selectedYear, dbPeriod, search, page, txType, txStart, txEnd])
+    }, [token, reportType, appliedCustom, selectedYear, dbPeriod, dbStart, dbEnd, search, page, txType, txStart, txEnd, rideStatus])
 
     useEffect(() => { load() }, [load])
-    useEffect(() => { setPage(1) }, [reportType, dbPeriod, txType, txStart, txEnd, appliedCustom, selectedYear])
+    useEffect(() => { setPage(1) }, [reportType, dbPeriod, dbStart, dbEnd, txType, txStart, txEnd, appliedCustom, selectedYear, rideStatus])
 
     const displayRows = useMemo(() => rawRows.map(raw => toRow(reportType, raw)), [rawRows, reportType])
 
@@ -225,10 +275,13 @@ const ReportDetail = () => {
     const reportingPeriod = useMemo(() => {
         if (reportType === 'financial') return new Date(selectedYear, selectedMonth, 1).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
         if (reportType === 'daily-financial') return `${shortDate(new Date(`${appliedCustom.start}T00:00:00`))} – ${shortDate(new Date(`${appliedCustom.end}T00:00:00`))}`
-        if (reportType === 'driver-performance' || reportType === 'driver-earnings') return { day: 'Today', week: 'This week', month: 'This month', all: 'All time' }[dbPeriod]
+        if (reportType === 'driver-performance' || reportType === 'driver-earnings' || reportType === 'ride-history') {
+            if (dbStart || dbEnd) return `${dbStart ? shortDate(new Date(`${dbStart}T00:00:00`)) : '…'} – ${dbEnd ? shortDate(new Date(`${dbEnd}T00:00:00`)) : '…'}`
+            return { day: 'Today', week: 'This week', month: 'This month', all: 'All time' }[dbPeriod]
+        }
         if (txStart || txEnd) return `${txStart ? shortDate(new Date(`${txStart}T00:00:00`)) : '…'} – ${txEnd ? shortDate(new Date(`${txEnd}T00:00:00`)) : '…'}`
         return 'All time'
-    }, [reportType, selectedMonth, selectedYear, appliedCustom, dbPeriod, txStart, txEnd])
+    }, [reportType, selectedMonth, selectedYear, appliedCustom, dbPeriod, dbStart, dbEnd, txStart, txEnd])
 
     const analyticsMetrics = useMemo(() => {
         if (reportType === 'financial') {
@@ -286,6 +339,14 @@ const ReportDetail = () => {
         setDateError('')
     }
 
+    const applyTodayFinancial = () => {
+        const todayValue = inputDate(today)
+        setCustomStart(todayValue)
+        setCustomEnd(todayValue)
+        setAppliedCustom({ start: todayValue, end: todayValue })
+        setDateError('')
+    }
+
     const applyTxDates = () => {
         if (txStart && txEnd && txStart > txEnd) {
             setDateError('Start date must be before the end date.')
@@ -294,6 +355,38 @@ const ReportDetail = () => {
         setDateError('')
         setTxStart(customStart)
         setTxEnd(customEnd)
+        setTxPeriod('')
+    }
+
+    const applyTxPeriod = (value) => {
+        setTxPeriod(value)
+        const end = inputDate(today)
+        const start = new Date(today)
+        if (value === 'week') start.setDate(start.getDate() - start.getDay())
+        else if (value === 'month') start.setDate(1)
+        // 'day' leaves start as today
+        const startValue = inputDate(start)
+        setCustomStart(startValue)
+        setCustomEnd(end)
+        setTxStart(startValue)
+        setTxEnd(end)
+        setDateError('')
+    }
+
+    const applyDbDates = () => {
+        if (customStart && customEnd && customStart > customEnd) {
+            setDateError('Start date must be before the end date.')
+            return
+        }
+        setDateError('')
+        setDbStart(customStart)
+        setDbEnd(customEnd)
+    }
+
+    const setDbPeriodButton = (value) => {
+        setDbPeriod(value)
+        setDbStart('')
+        setDbEnd('')
     }
 
     const fileName = `${reportType}-report-${reportingPeriod.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}`
@@ -383,29 +476,57 @@ const ReportDetail = () => {
                     <label><span>Year</span><select value={selectedYear} onChange={event => setSelectedYear(Number(event.target.value))}>{[today.getFullYear(), today.getFullYear() - 1].map(year => <option key={year}>{year}</option>)}</select></label>
                 </div>
             ) : reportType === 'daily-financial' ? (
-                <div className="daily-date-controls">
-                    <div className="daily-date-label"><FiCalendar /><div><strong>Select report dates</strong><span>Choose the exact daily period to analyse</span></div></div>
-                    <label><span>From</span><input type="date" max={customEnd || inputDate(today)} value={customStart} onChange={event => setCustomStart(event.target.value)} /></label>
-                    <span className="date-range-arrow">→</span>
-                    <label><span>To</span><input type="date" min={customStart} max={inputDate(today)} value={customEnd} onChange={event => setCustomEnd(event.target.value)} /></label>
-                    <button onClick={applyCustomDates}>Apply filter</button>
-                    {dateError && <em>{dateError}</em>}
-                </div>
-            ) : reportType === 'driver-performance' || reportType === 'driver-earnings' ? (
-                <div className="detail-period-filter">
-                    {[['day', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'All time']].map(([value, label]) => (
-                        <button key={value} className={dbPeriod === value ? 'active' : ''} onClick={() => setDbPeriod(value)}>{label}</button>
-                    ))}
-                </div>
+                <>
+                    <div className="detail-period-filter">
+                        <button
+                            className={appliedCustom.start === inputDate(today) && appliedCustom.end === inputDate(today) ? 'active' : ''}
+                            onClick={applyTodayFinancial}
+                        >
+                            Today
+                        </button>
+                    </div>
+                    <div className="daily-date-controls">
+                        <div className="daily-date-label"><FiCalendar /><div><strong>Select report dates</strong><span>Choose the exact daily period to analyse</span></div></div>
+                        <label><span>From</span><input type="date" max={customEnd || inputDate(today)} value={customStart} onChange={event => setCustomStart(event.target.value)} /></label>
+                        <span className="date-range-arrow">→</span>
+                        <label><span>To</span><input type="date" min={customStart} max={inputDate(today)} value={customEnd} onChange={event => setCustomEnd(event.target.value)} /></label>
+                        <button onClick={applyCustomDates}>Apply filter</button>
+                        {dateError && <em>{dateError}</em>}
+                    </div>
+                </>
+            ) : isDriverStylePeriod ? (
+                <>
+                    <div className="detail-period-filter">
+                        {[['day', 'Today'], ['week', 'This week'], ['month', 'This month'], ['all', 'All time']].map(([value, label]) => (
+                            <button key={value} className={!dbStart && !dbEnd && dbPeriod === value ? 'active' : ''} onClick={() => setDbPeriodButton(value)}>{label}</button>
+                        ))}
+                    </div>
+                    <div className="daily-date-controls">
+                        <div className="daily-date-label"><FiCalendar /><div><strong>Or pick a date range</strong><span>Overrides the buttons above while set</span></div></div>
+                        <label><span>From</span><input type="date" max={customEnd || inputDate(today)} value={customStart} onChange={event => setCustomStart(event.target.value)} /></label>
+                        <span className="date-range-arrow">→</span>
+                        <label><span>To</span><input type="date" min={customStart} max={inputDate(today)} value={customEnd} onChange={event => setCustomEnd(event.target.value)} /></label>
+                        <button onClick={applyDbDates}>Apply filter</button>
+                        {(dbStart || dbEnd) && <button className="text-button" onClick={() => { setDbStart(''); setDbEnd('') }}>Clear range</button>}
+                        {dateError && <em>{dateError}</em>}
+                    </div>
+                </>
             ) : (
-                <div className="daily-date-controls">
-                    <div className="daily-date-label"><FiCalendar /><div><strong>Filter by date</strong><span>Leave blank to show all ledger activity</span></div></div>
-                    <label><span>From</span><input type="date" max={customEnd || inputDate(today)} value={customStart} onChange={event => setCustomStart(event.target.value)} /></label>
-                    <span className="date-range-arrow">→</span>
-                    <label><span>To</span><input type="date" min={customStart} max={inputDate(today)} value={customEnd} onChange={event => setCustomEnd(event.target.value)} /></label>
-                    <button onClick={applyTxDates}>Apply filter</button>
-                    {dateError && <em>{dateError}</em>}
-                </div>
+                <>
+                    <div className="detail-period-filter">
+                        {[['day', 'Today'], ['week', 'This week'], ['month', 'This month']].map(([value, label]) => (
+                            <button key={value} className={txPeriod === value ? 'active' : ''} onClick={() => applyTxPeriod(value)}>{label}</button>
+                        ))}
+                    </div>
+                    <div className="daily-date-controls">
+                        <div className="daily-date-label"><FiCalendar /><div><strong>Filter by date</strong><span>Leave blank to show all ledger activity</span></div></div>
+                        <label><span>From</span><input type="date" max={customEnd || inputDate(today)} value={customStart} onChange={event => { setCustomStart(event.target.value); setTxPeriod('') }} /></label>
+                        <span className="date-range-arrow">→</span>
+                        <label><span>To</span><input type="date" min={customStart} max={inputDate(today)} value={customEnd} onChange={event => { setCustomEnd(event.target.value); setTxPeriod('') }} /></label>
+                        <button onClick={applyTxDates}>Apply filter</button>
+                        {dateError && <em>{dateError}</em>}
+                    </div>
+                </>
             )}
 
             {hasAnalytics && (
@@ -441,20 +562,57 @@ const ReportDetail = () => {
                             <option value="REVERSAL">Reversal</option>
                         </select></div>
                     )}
+                    {reportType === 'ride-history' && (
+                        <div className="table-filter"><FiFilter /><select value={rideStatus} onChange={e => setRideStatus(e.target.value)}>
+                            <option value="">All statuses</option>
+                            <option value="COMPLETED">Completed</option>
+                            <option value="CANCELLED">Cancelled</option>
+                            <option value="ONGOING">Ongoing</option>
+                            <option value="REQUESTED">Requested</option>
+                        </select></div>
+                    )}
                 </div>
                 <div className="full-table-wrap">
-                    <table className="full-report-table">
+                    <table className={`full-report-table${reportType === 'ride-history' ? ' ride-history-table' : ''}`}>
                         <thead><tr>{meta.columns.map(column => <th key={column}>{column}</th>)}</tr></thead>
                         <tbody>
                             {loading ? (
                                 <tr><td className="empty-table" colSpan={meta.columns.length}>Loading…</td></tr>
-                            ) : rows.length ? rows.map((row, rowIndex) => (
+                            ) : !rows.length ? (
+                                <tr><td className="empty-table" colSpan={meta.columns.length}>No records match your filters.</td></tr>
+                            ) : reportType === 'ride-history' ? rawRows.map((raw, rowIndex) => {
+                                const statusInfo = rideStatusMeta(raw.status)
+                                const chips = fareBreakdownChips(raw.fare_breakdown)
+                                return (
+                                    <tr key={raw.id ?? rowIndex}>
+                                        <td><span className="ride-code-chip">{raw.ride_code || `#${raw.id}`}</span></td>
+                                        <td><span className={`table-status ${statusInfo.className}`}>{statusInfo.label}</span></td>
+                                        <td>{raw.driver}</td>
+                                        <td>{raw.customer}</td>
+                                        <td className="route-cell">
+                                            <div className="route-point"><span className="route-dot pickup" /><span className="route-text" title={raw.pickup}>{raw.pickup || '—'}</span></div>
+                                            <div className="route-connector" />
+                                            <div className="route-point"><span className="route-dot drop" /><span className="route-text" title={raw.drop}>{raw.drop || '—'}</span></div>
+                                        </td>
+                                        <td className="money-cell muted">{money(raw.commission)}</td>
+                                        <td className="money-cell muted">{money(raw.estimated_fare)}</td>
+                                        <td className="money-cell strong">{money(raw.final_fare)}</td>
+                                        <td>
+                                            {chips.length ? (
+                                                <div className="fare-chip-row">
+                                                    {chips.map(([label, amount]) => <span key={label} className="fare-chip">{label} +{money(amount)}</span>)}
+                                                </div>
+                                            ) : <span className="muted-text">Base fare only</span>}
+                                        </td>
+                                    </tr>
+                                )
+                            }) : rows.map((row, rowIndex) => (
                                 <tr key={`${row[0]}-${rowIndex}`}>
                                     {row.map((value, cellIndex) => (
                                         <td key={`${value}-${cellIndex}`}><span style={value === 'N/A' ? { color: 'var(--text-muted)', fontStyle: 'italic' } : undefined}>{value}</span></td>
                                     ))}
                                 </tr>
-                            )) : <tr><td className="empty-table" colSpan={meta.columns.length}>No records match your filters.</td></tr>}
+                            ))}
                         </tbody>
                     </table>
                 </div>

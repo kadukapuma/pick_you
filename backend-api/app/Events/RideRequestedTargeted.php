@@ -43,7 +43,9 @@ class RideRequestedTargeted implements ShouldBroadcastNow
 
     public int $driver_id;
 
-    public function __construct(Ride $ride, int $driverId)
+    public string $expires_at;
+
+    public function __construct(Ride $ride, int $driverId, ?\DateTimeInterface $expiresAt = null)
     {
         $this->ride_id = $ride->id;
         $this->ride_code = $ride->ride_code;
@@ -63,6 +65,7 @@ class RideRequestedTargeted implements ShouldBroadcastNow
 
         $this->requested_at = optional($ride->requested_at)?->toISOString() ?? now()->toISOString();
         $this->driver_id = $driverId;
+        $this->expires_at = ($expiresAt ?? now()->addSeconds((int) config('ride.driver_offer_seconds', 20)))->format(DATE_ATOM);
     }
 
     public function broadcastOn(): PrivateChannel

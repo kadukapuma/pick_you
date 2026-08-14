@@ -181,8 +181,9 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
   // --- SLIDER MECHANICS & ANIMATIONS ---
   const slideX = useRef(new Animated.Value(0)).current;
-  const [completed, setCompleted] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+  const completedRef = useRef(false);
+  const completingRef = useRef(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
   const handleRecenter = useCallback(() => {
@@ -202,25 +203,33 @@ const TripInProgressScreen = ({ navigation, route }) => {
   });
 
   const handleCompleteTrip = async () => {
-    if (!ride?.id || isCompleting) return;
+    if (!ride?.id || completingRef.current) return;
 
+    completingRef.current = true;
     setIsCompleting(true);
     try {
       const response = await api.post(`/rides/${ride.id}/complete`);
       const completedRide = response.data?.data ?? response.data ?? ride;
-      await clearActiveRideLocationSync();
-      navigation.navigate("TripCompletedScreen", {
+
+      // Tracking cleanup must not block a successfully completed ride from
+      // reaching its receipt/payment screen.
+      clearActiveRideLocationSync().catch((cleanupError) => {
+        console.log("Could not stop active ride location tracking:", cleanupError);
+      });
+
+      navigation.replace("TripCompletedScreen", {
         ride: { ...ride, ...completedRide },
       });
     } catch (error) {
-      console.log("Error completing ride:", error);
+      console.log("Error completing ride:", error.response?.data || error);
       alert(
         error.response?.data?.message ||
           "Failed to complete ride. Please try again.",
       );
-      setCompleted(false);
+      completedRef.current = false;
       slideX.setValue(0);
     } finally {
+      completingRef.current = false;
       setIsCompleting(false);
     }
   };
@@ -231,7 +240,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       onMoveShouldSetPanResponder: () => true,
 
       onPanResponderMove: (_, gestureState) => {
-        if (completed) return;
+        if (completedRef.current || completingRef.current) return;
 
         let dx = gestureState.dx;
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10; // offset account for inner padding boundaries
@@ -243,7 +252,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       },
 
       onPanResponderRelease: (_, gestureState) => {
-        if (completed || isCompleting) return;
+        if (completedRef.current || completingRef.current) return;
 
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10;
         const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.7;
@@ -254,8 +263,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
             duration: 200,
             useNativeDriver: false,
           }).start(async () => {
-            setCompleted(true);
-
+            completedRef.current = true;
             // Trigger physical haptic response frame execution
             await Haptics.notificationAsync(
               Haptics.NotificationFeedbackType.Success,

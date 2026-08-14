@@ -212,6 +212,7 @@ const onRideRequestedTargeted = (raw) => {
     passenger_profile_picture: e.passenger_profile_picture,
     vehicle_type: e.vehicle_type,
     requested_at: e.requested_at,
+    expires_at: e.expires_at,
     status: "REQUESTED",
   });
 };
