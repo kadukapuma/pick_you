@@ -8,10 +8,14 @@
 let pendingRideId = null;
 const listeners = new Set();
 
-export const setPendingRideOffer = (rideId) => {
+export const setPendingRideOffer = (offer) => {
+  const rideId = typeof offer === "object" ? offer?.rideId : offer;
   if (!rideId) return;
-  pendingRideId = rideId;
-  listeners.forEach((listener) => listener(rideId));
+  pendingRideId = {
+    rideId,
+    expiresAt: typeof offer === "object" ? offer?.expiresAt : null,
+  };
+  listeners.forEach((listener) => listener(pendingRideId));
 };
 
 export const consumePendingRideOffer = () => {

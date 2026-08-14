@@ -119,6 +119,7 @@ const Reports = () => {
     const [summaryVehicleType, setSummaryVehicleType] = useState('')
     const [rideVehicleType, setRideVehicleType] = useState('')
     const [paymentStatus, setPaymentStatus] = useState('all')
+    const [paymentMethod, setPaymentMethod] = useState('all')
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState('')
 
@@ -158,12 +159,12 @@ const Reports = () => {
     const loadPaymentData = useCallback(async () => {
         if (!token) return
         try {
-            const data = await fetchPaymentBreakdown(token, { period, status: paymentStatus })
+            const data = await fetchPaymentBreakdown(token, { period, status: paymentStatus, method: paymentMethod })
             setPaymentData(data)
         } catch {
             // Non-critical panel - the rest of the dashboard still works without it.
         }
-    }, [token, period, paymentStatus])
+    }, [token, period, paymentStatus, paymentMethod])
 
     useEffect(() => {
         if (!token) return
@@ -232,12 +233,16 @@ const Reports = () => {
     const selectedSummaryVehicle = vehicleTypes.find(vt => String(vt.id) === String(summaryVehicleType))
     const selectedSummaryVehicleLabel = selectedSummaryVehicle ? (selectedSummaryVehicle.display_name || selectedSummaryVehicle.name) : 'All Vehicles'
 
-    const rideStatus = rideStats || { completed: 0, cancelled: 0, ongoing: 0, requested: 0 }
-    const rideStatusTotal = rideStatus.completed + rideStatus.cancelled + rideStatus.ongoing + rideStatus.requested
-    const rideStatusMax = Math.max(rideStatus.completed, rideStatus.cancelled, rideStatus.ongoing, rideStatus.requested, 1)
+    const rideStatus = rideStats || { completed: 0, cancelled: 0, expired: 0, ongoing: 0, requested: 0 }
+    const rideStatusTotal = rideStatus.completed + rideStatus.cancelled + (rideStatus.expired || 0) + rideStatus.ongoing + rideStatus.requested
+    const rideStatusMax = Math.max(rideStatus.completed, rideStatus.cancelled, rideStatus.expired || 0, rideStatus.ongoing, rideStatus.requested, 1)
     const rideStatusBars = [
         ['Completed', rideStatus.completed],
         ['Cancelled', rideStatus.cancelled],
+        // Rides the system auto-cancelled because no driver accepted in time -
+        // kept separate from "Cancelled" so that bar only ever reflects rides a
+        // passenger or driver actually chose to cancel.
+        ['Expired', rideStatus.expired || 0],
         ['Ongoing', rideStatus.ongoing],
         ['Requested', rideStatus.requested],
     ].map(([label, value]) => [label, value, Math.max(Math.round((value / rideStatusMax) * 88), value ? 6 : 0)])
@@ -289,11 +294,19 @@ const Reports = () => {
                 <article className="report-panel">
                     <div className="panel-title-row">
                         <h3>Payment Methods</h3>
-                        <select className="chart-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
-                            <option value="all">All payments</option>
-                            <option value="success">Successful</option>
-                            <option value="pending">Pending</option>
-                        </select>
+                        <div className="panel-filter-group">
+                            <select className="chart-select" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+                                <option value="all">All methods</option>
+                                <option value="cash">Cash</option>
+                                <option value="card">Card</option>
+                                <option value="wallet">Wallet</option>
+                            </select>
+                            <select className="chart-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
+                                <option value="all">All payments</option>
+                                <option value="success">Successful</option>
+                                <option value="pending">Pending</option>
+                            </select>
+                        </div>
                     </div>
                     {paymentTotal ? (
                         <div className="payment-chart">
@@ -368,6 +381,7 @@ const Reports = () => {
                         ['driver-performance', FiActivity, 'Driver Performance Report', 'Ratings, trip activity and cancellations per driver.', 'Operations'],
                         ['driver-earnings', FiDollarSign, 'Driver Earnings Report', 'Income, commission and net earnings per driver.', 'Payouts'],
                         ['transactions', FiFileText, 'Transactions Report', 'Ledger activity: commission, payouts and settlements.', 'Finance activity'],
+                        ['ride-history', LuCarTaxiFront, 'Ride History', 'Every ride: driver, customer, route, commission and fare breakdown.', 'Ride activity'],
                     ].map(([path, Icon, title, description, tag]) => (
                         <button key={path} className="report-library-card" onClick={() => navigate(`/admin-portal/reports/${path}`)}>
                             <span className="library-icon"><Icon /></span>

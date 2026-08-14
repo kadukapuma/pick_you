@@ -78,6 +78,7 @@ export function normalizeRidePayload(source = {}) {
     rating: source.rating,
     vehicle_type: vehicleType,
     requested_at: source.requested_at,
+    expires_at: source.expires_at ?? source.expiresAt ?? null,
     accepted_at: source.accepted_at,
     arrived_at: source.arrived_at,
     started_at: source.started_at,

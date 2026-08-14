@@ -8,6 +8,7 @@ class RideMatchingRedis
 {
     private const MATCHING_DRIVERS_PREFIX = 'ride:matching_drivers:';
     private const CURRENT_DRIVER_PREFIX = 'ride:current_driver:';
+    private const OFFER_EXPIRES_AT_PREFIX = 'ride:offer_expires_at:';
     private const DRIVER_CURRENT_RIDES_PREFIX = 'driver:current_rides:';
 
     /**
@@ -36,19 +37,20 @@ class RideMatchingRedis
         return $driverId !== null && $driverId !== false ? (int) $driverId : null;
     }
 
-    public function setCurrentDriver(int $rideId, int $driverId): void
+    public function setCurrentDriver(int $rideId, int $driverId, string $expiresAt): void
     {
         $ttl = (int) config('ride.redis.current_driver_ttl', 42);
         $currentDriverKey = $this->currentDriverKey($rideId);
         $previousDriverId = $this->getCurrentDriver($rideId);
 
-        Redis::pipeline(function ($pipe) use ($currentDriverKey, $rideId, $driverId, $previousDriverId, $ttl) {
+        Redis::pipeline(function ($pipe) use ($currentDriverKey, $rideId, $driverId, $previousDriverId, $expiresAt, $ttl) {
             if ($previousDriverId !== null && $previousDriverId !== $driverId) {
                 $pipe->srem($this->driverCurrentRidesKey($previousDriverId), (string) $rideId);
             }
 
             $driverRidesKey = $this->driverCurrentRidesKey($driverId);
             $pipe->setex($currentDriverKey, $ttl, (string) $driverId);
+            $pipe->setex($this->offerExpiresAtKey($rideId), $ttl, $expiresAt);
             $pipe->sadd($driverRidesKey, (string) $rideId);
             $pipe->expire($driverRidesKey, $ttl);
         });
@@ -59,6 +61,13 @@ class RideMatchingRedis
         $driverId = Redis::get($this->currentDriverKey($rideId));
 
         return $driverId !== null ? (int) $driverId : null;
+    }
+
+    public function getOfferExpiresAt(int $rideId): ?string
+    {
+        $expiresAt = Redis::get($this->offerExpiresAtKey($rideId));
+
+        return $expiresAt !== null && $expiresAt !== false ? (string) $expiresAt : null;
     }
 
     public function refreshCurrentDriverTtl(int $rideId): void
@@ -75,6 +84,7 @@ class RideMatchingRedis
         Redis::del(
             $this->matchingDriversKey($rideId),
             $this->currentDriverKey($rideId),
+            $this->offerExpiresAtKey($rideId),
         );
 
         if ($driverId !== null) {
@@ -107,6 +117,11 @@ class RideMatchingRedis
     private function currentDriverKey(int $rideId): string
     {
         return self::CURRENT_DRIVER_PREFIX . $rideId;
+    }
+
+    private function offerExpiresAtKey(int $rideId): string
+    {
+        return self::OFFER_EXPIRES_AT_PREFIX . $rideId;
     }
 
     private function driverCurrentRidesKey(int $driverId): string

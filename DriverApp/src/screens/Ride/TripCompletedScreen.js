@@ -6,8 +6,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
+  ScrollView,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import api from "../../services/api";
@@ -168,6 +169,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#064E3B" />
 
+      <View style={styles.flexContent}>
       {/* --- TOP EMERALD HEADER (Dynamic conditional layout switches) --- */}
       <View style={[styles.emeraldHeaderFrame, { paddingTop: insets.top + 20 }]}>
         <View style={styles.animationCenterWrapper}>
@@ -207,9 +209,14 @@ const TripCompletedScreen = ({ navigation, route }) => {
       </View>
 
       {/* --- LOWER SUMMARY SHEET --- */}
-      <View style={[styles.summaryCardSheet, { paddingBottom: insets.bottom || 24 }]}>
+      <View style={styles.summaryCardSheet}>
+        <ScrollView
+          style={styles.detailsScroll}
+          contentContainerStyle={styles.detailsScrollContent}
+          showsVerticalScrollIndicator={false}
+        >
         <Text style={styles.sectionHeaderLabel}>Trip Summary</Text>
-        
+
         <View style={styles.tableBlockWrapper}>
           <View style={styles.dataRowMetric}>
             <Text style={styles.rowLabelField}>Customer Name</Text>
@@ -325,6 +332,7 @@ const TripCompletedScreen = ({ navigation, route }) => {
             </View>
           </View>
         </View>
+        </ScrollView>
 
         {/* --- SYSTEM ACTION BLOCK FOOTER --- */}
         <View style={styles.actionSectionContainer}>
@@ -409,6 +417,10 @@ const TripCompletedScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
       </View>
+      </View>
+
+      {/* BLACK BOTTOM SAFE AREA WRAPPER */}
+      <SafeAreaView edges={["bottom"]} style={styles.bottomSafeArea} />
     </View>
   );
 };
@@ -419,6 +431,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#064E3B",
+  },
+  flexContent: {
+    flex: 1,
   },
   emeraldHeaderFrame: {
     flex: 4.8,
@@ -466,6 +481,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 24,
   },
+  detailsScroll: {
+    flex: 1,
+  },
+  detailsScrollContent: {
+    paddingBottom: 8,
+  },
   sectionHeaderLabel: {
     fontSize: 16,
     fontWeight: "800",
@@ -473,9 +494,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     letterSpacing: -0.1,
   },
-  tableBlockWrapper: {
-    flex: 1,
-  },
+  tableBlockWrapper: {},
   dataRowMetric: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -590,9 +609,9 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   actionSectionContainer: {
-    marginTop: "auto",
     alignItems: "center",
     paddingTop: 10,
+    paddingBottom: 16,
   },
   paymentInstructionMessage: {
     fontSize: 14,
@@ -633,5 +652,8 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
+  },
+  bottomSafeArea: {
+    backgroundColor: "#000000",
   },
 });

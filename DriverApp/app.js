@@ -50,7 +50,10 @@ export default function App() {
       } else if (action === "broadcast_message") {
         navigateWhenReady("NotificationDetail", { title: content.title, message: content.body });
       } else if (action === "ride_offer") {
-        setPendingRideOffer(content?.data?.ride_id);
+        setPendingRideOffer({
+          rideId: content?.data?.ride_id,
+          expiresAt: content?.data?.expires_at,
+        });
       }
     };
     check();

@@ -77,21 +77,22 @@ class RideMatchingService
             return;
         }
 
-        $this->redis->setCurrentDriver($rideId, $driverId);
+        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 20));
+        $offerExpiresAt = now()->addSeconds($offerSeconds);
+
+        $this->redis->setCurrentDriver($rideId, $driverId, $offerExpiresAt->toISOString());
 
         Log::info("RideMatching: Targeting Driver {$driverId} for Ride {$rideId}");
 
         $ride->refresh();
 
-        event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId));
+        event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId, $offerExpiresAt));
 
-        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 20));
-
-        $this->notifyDriverOfOffer($ride, $driverId, $offerSeconds);
+        $this->notifyDriverOfOffer($ride, $driverId, $offerExpiresAt);
 
         ProcessRideTimeout::dispatch($rideId, $driverId)
             ->onQueue(config('ride.queues.rides', 'rides'))
-            ->delay(now()->addSeconds($offerSeconds));
+            ->delay($offerExpiresAt);
     }
 
     /**
@@ -99,7 +100,7 @@ class RideMatchingService
      * even when the app isn't in the foreground (the live WebSocket event
      * above only reaches drivers with the app open).
      */
-    private function notifyDriverOfOffer(Ride $ride, int $driverId, int $offerSeconds): void
+    private function notifyDriverOfOffer(Ride $ride, int $driverId, \DateTimeInterface $offerExpiresAt): void
     {
         $driver = Driver::find($driverId);
 
@@ -114,7 +115,7 @@ class RideMatchingService
             [
                 'action' => 'ride_offer',
                 'ride_id' => $ride->id,
-                'expires_at' => now()->addSeconds($offerSeconds)->toISOString(),
+                'expires_at' => $offerExpiresAt->format(DATE_ATOM),
             ],
         );
     }
