@@ -113,7 +113,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/driver/availability', [DriverController::class, 'updateOwnAvailability']);
     });
 
-    Route::middleware('role:driver,admin,super_admin')->group(function () {
+    Route::middleware('role:driver,admin,super_admin,operator')->group(function () {
         Route::get('/vehicles', [VehicleController::class, 'index']);
         Route::post('/vehicles', [VehicleController::class, 'store']);
         Route::get('/vehicles/{id}', [VehicleController::class, 'show']);
@@ -250,42 +250,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin routes
 
     Route::middleware('admin')->group(function () {
-        // Admin notification routes require manage_notifications permission
-        Route::middleware('permission:manage_notifications')->group(function () {
-            Route::get('/admin/notifications', [AdminNotificationController::class, 'index']);
-            Route::put('/admin/notifications/read', [AdminNotificationController::class, 'markAllRead']);
-            Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
-            Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
-            Route::post('/admin/notifications/send-bulk', [AdminNotificationController::class, 'sendBulk']);
-            Route::post('/admin/app-updates/{app}/publish', [AppUpdateController::class, 'publish']);
-            Route::get('/admin/app-updates/{app}/release', [AppUpdateController::class, 'current']);
-            Route::post('/admin/app-updates/{app}/apk', [AppUpdateController::class, 'upload']);
-            Route::get('/admin/notifications/broadcasts', [AdminNotificationController::class, 'broadcasts']);
-            Route::delete('/admin/notifications/broadcasts/{id}', [AdminNotificationController::class, 'deleteBroadcast']);
-            Route::delete('/admin/notifications/broadcasts', [AdminNotificationController::class, 'clearBroadcasts']);
-        });
-
-        // Commission and driver settlement
-        Route::get('/admin/finance/summary', [AdminFinanceController::class, 'summary']);
-        Route::get('/admin/finance/driver-accounts', [AdminFinanceController::class, 'driverAccounts']);
-        Route::get('/admin/finance/drivers/{driverId}/statement', [AdminFinanceController::class, 'driverStatement']);
-        Route::post(
-            '/admin/finance/drivers/{driverId}/settlements',
-            [AdminFinanceController::class, 'settleDriver']
-        )->middleware([
-            'permission:manage_finance',
-            'idempotent',
-        ]);
-        Route::post(
-            '/admin/finance/drivers/{driverId}/payouts',
-            [AdminFinanceController::class, 'payoutDriver']
-        )->middleware([
-            'permission:manage_finance',
-            'idempotent',
-        ]);
-        Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
-
-        // Reports
+        // Reports have no per-permission gate yet, so they stay admin/super_admin only.
         Route::get('/admin/reports/overview', [ReportsOverviewController::class, 'index']);
         Route::get('/admin/reports/vehicle-summary', [ReportsOverviewController::class, 'vehicleSummary']);
         Route::get('/admin/reports/ride-statistics', [ReportsOverviewController::class, 'rideStatistics']);
@@ -299,28 +264,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::get('/role-permissions', [RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [RolePermissionController::class, 'update'])->middleware('super_admin');
-        Route::get('/operators', [OperatorController::class, 'index'])->middleware('permission:create_operators,manage_operators');
-        Route::post('/operators', [OperatorController::class, 'store'])->middleware('permission:create_operators');
-        Route::put('/operators/{id}', [OperatorController::class, 'update'])->middleware('permission:manage_operators');
-        Route::put('/operators/{id}/status', [OperatorController::class, 'updateStatus'])->middleware('permission:manage_operators');
-        Route::delete('/operators/{id}', [OperatorController::class, 'destroy'])->middleware('permission:manage_operators');
-        Route::apiResource('fare-configs', FareConfigController::class)->middleware('permission:manage_fare_configs');
-        Route::apiResource('vehicle-types', VehicleTypeController::class)->except(['index'])->middleware('permission:manage_vehicle_types');
 
-        // Vehicle management requires manage_vehicles permission
-        Route::delete('/vehicles/{id}', [VehicleController::class, 'destroy'])->middleware('permission:manage_vehicles');
-        Route::put('/vehicles/{id}/status', [VehicleController::class, 'updateStatus'])->middleware('permission:manage_vehicles');
-
-        // Driver and passenger status updates remain admin-only (no permissions configured)
-        Route::get('/drivers', [DriverController::class, 'index']);
-        Route::get('/drivers/{id}', [DriverController::class, 'show']);
-        Route::get('/passengers', [PassengerController::class, 'index']);
-        Route::get('/passengers/{id}', [PassengerController::class, 'show']);
-        Route::put('/drivers/{id}/status', [DriverController::class, 'updateStatus']);
-        Route::put('/drivers/{id}/active-status', [DriverController::class, 'updateActiveStatus']);
-        Route::put('/passengers/{id}/status', [PassengerController::class, 'updateStatus']);
-
-        Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
         Route::post('/user/update-password', [AuthController::class, 'updatePassword']);
         Route::apiResource('promotions', PromotionController::class)->except(['index', 'show']);
 
@@ -342,5 +286,72 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::delete('/superadmin/notifications', [SuperAdminNotificationController::class, 'clear']);
             Route::delete('/superadmin/notifications/read', [SuperAdminNotificationController::class, 'clearRead']);
         });
+    });
+
+    // Operator-accessible admin routes. The 'admin' middleware above hard-blocks
+    // anyone who isn't role admin/super_admin, so an operator granted a
+    // permission below would still 403 before the permission check ever ran.
+    // These routes are gated per-action by 'permission:...' instead, so a
+    // RolePermission grant actually takes effect for operators.
+    Route::middleware('role:admin,super_admin,operator')->group(function () {
+        // Admin notification routes require manage_notifications permission
+        Route::middleware('permission:manage_notifications')->group(function () {
+            Route::get('/admin/notifications', [AdminNotificationController::class, 'index']);
+            Route::put('/admin/notifications/read', [AdminNotificationController::class, 'markAllRead']);
+            Route::delete('/admin/notifications', [AdminNotificationController::class, 'clear']);
+            Route::delete('/admin/notifications/read', [AdminNotificationController::class, 'clearRead']);
+            Route::post('/admin/notifications/send-bulk', [AdminNotificationController::class, 'sendBulk']);
+            Route::post('/admin/app-updates/{app}/publish', [AppUpdateController::class, 'publish']);
+            Route::get('/admin/app-updates/{app}/release', [AppUpdateController::class, 'current']);
+            Route::post('/admin/app-updates/{app}/apk', [AppUpdateController::class, 'upload']);
+            Route::get('/admin/notifications/broadcasts', [AdminNotificationController::class, 'broadcasts']);
+            Route::delete('/admin/notifications/broadcasts/{id}', [AdminNotificationController::class, 'deleteBroadcast']);
+            Route::delete('/admin/notifications/broadcasts', [AdminNotificationController::class, 'clearBroadcasts']);
+        });
+
+        // Commission and driver settlement - viewing is open to any admin/operator,
+        // moving money requires manage_finance.
+        Route::get('/admin/finance/summary', [AdminFinanceController::class, 'summary']);
+        Route::get('/admin/finance/driver-accounts', [AdminFinanceController::class, 'driverAccounts']);
+        Route::get('/admin/finance/drivers/{driverId}/statement', [AdminFinanceController::class, 'driverStatement']);
+        Route::post(
+            '/admin/finance/drivers/{driverId}/settlements',
+            [AdminFinanceController::class, 'settleDriver']
+        )->middleware([
+            'permission:manage_finance',
+            'idempotent',
+        ]);
+        Route::post(
+            '/admin/finance/drivers/{driverId}/payouts',
+            [AdminFinanceController::class, 'payoutDriver']
+        )->middleware([
+            'permission:manage_finance',
+            'idempotent',
+        ]);
+        Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
+
+        Route::get('/operators', [OperatorController::class, 'index'])->middleware('permission:create_operators,manage_operators');
+        Route::post('/operators', [OperatorController::class, 'store'])->middleware('permission:create_operators');
+        Route::put('/operators/{id}', [OperatorController::class, 'update'])->middleware('permission:manage_operators');
+        Route::put('/operators/{id}/status', [OperatorController::class, 'updateStatus'])->middleware('permission:manage_operators');
+        Route::delete('/operators/{id}', [OperatorController::class, 'destroy'])->middleware('permission:manage_operators');
+        Route::apiResource('fare-configs', FareConfigController::class)->middleware('permission:manage_fare_configs');
+        Route::apiResource('vehicle-types', VehicleTypeController::class)->except(['index'])->middleware('permission:manage_vehicle_types');
+
+        // Vehicle management requires manage_vehicles permission
+        Route::delete('/vehicles/{id}', [VehicleController::class, 'destroy'])->middleware('permission:manage_vehicles');
+        Route::put('/vehicles/{id}/status', [VehicleController::class, 'updateStatus'])->middleware('permission:manage_vehicles');
+
+        // Driver/passenger directories - viewing is open to any admin/operator.
+        // Status changes are a bigger lever (suspending a driver/passenger) and
+        // 'manage_drivers'/'manage_passengers' aren't granted to anyone today,
+        // so leave those admin/super_admin-only for now rather than silently
+        // locking existing admins out until the permissions are seeded.
+        Route::get('/drivers', [DriverController::class, 'index']);
+        Route::get('/drivers/{id}', [DriverController::class, 'show']);
+        Route::get('/passengers', [PassengerController::class, 'index']);
+        Route::get('/passengers/{id}', [PassengerController::class, 'show']);
+
+        Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
     });
 });

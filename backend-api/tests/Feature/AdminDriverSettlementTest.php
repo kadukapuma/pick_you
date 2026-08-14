@@ -111,6 +111,63 @@ class AdminDriverSettlementTest extends TestCase
         $this->assertSame(0, JournalEntry::count());
     }
 
+    public function test_operator_granted_manage_finance_can_record_a_settlement(): void
+    {
+        [, $driver] = $this->makeDriver();
+        DriverAccount::forDriver((int) $driver->id)->update(['credit_limit' => '-1000']);
+
+        app(LedgerService::class)->post(
+            JournalEntry::TYPE_ADJUSTMENT,
+            'seed:operator-debt',
+            'Seed cash commission debt',
+            [
+                ['account' => "DRIVER:{$driver->id}", 'debit' => '90.00'],
+                ['account' => 'REVENUE_COMMISSION', 'credit' => '90.00'],
+            ],
+        );
+
+        $operator = $this->makeUser(User::ROLE_OPERATOR, '0770000013');
+        $operator->ensureRole(User::ROLE_OPERATOR);
+
+        RolePermission::create([
+            'role' => User::ROLE_OPERATOR,
+            'permission' => 'manage_finance',
+        ]);
+
+        Sanctum::actingAs($operator, ['role:operator']);
+
+        // This is the route the operator-lockout bug lived in: the outer
+        // 'admin' middleware used to 403 every operator here regardless of
+        // any RolePermission grant, before the inner permission check ran.
+        $this->postJson(
+            "/api/admin/finance/drivers/{$driver->id}/settlements",
+            ['amount' => '90.00', 'note' => 'Bank transfer verified against WhatsApp receipt.'],
+            ['Idempotency-Key' => 'settle-operator-1'],
+        )
+            ->assertCreated()
+            ->assertJsonPath('data.balance', '0.00');
+
+        $this->assertSame('0.00', app(LedgerService::class)->balanceFor("DRIVER:{$driver->id}"));
+    }
+
+    public function test_operator_without_manage_finance_permission_is_still_forbidden(): void
+    {
+        [, $driver] = $this->makeDriver();
+
+        $operator = $this->makeUser(User::ROLE_OPERATOR, '0770000014');
+        $operator->ensureRole(User::ROLE_OPERATOR);
+
+        Sanctum::actingAs($operator, ['role:operator']);
+
+        $this->postJson(
+            "/api/admin/finance/drivers/{$driver->id}/settlements",
+            ['amount' => '60.00', 'note' => 'Bank transfer verified.'],
+            ['Idempotency-Key' => 'settle-operator-forbidden-1'],
+        )->assertStatus(403);
+
+        $this->assertSame(0, JournalEntry::count());
+    }
+
     public function test_settlement_rejects_a_non_existent_driver(): void
     {
         $admin = $this->makeAdmin();
