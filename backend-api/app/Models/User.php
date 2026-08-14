@@ -36,6 +36,7 @@ class User extends Authenticatable
         'manage_fare_configs',
         'manage_notifications',
         'manage_passenger_credits',
+        'manage_finance',
     ];
 
     public const MANAGEABLE_ROLES = [

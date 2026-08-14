@@ -268,6 +268,13 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/finance/summary', [AdminFinanceController::class, 'summary']);
         Route::get('/admin/finance/driver-accounts', [AdminFinanceController::class, 'driverAccounts']);
         Route::get('/admin/finance/drivers/{driverId}/statement', [AdminFinanceController::class, 'driverStatement']);
+        Route::post(
+            '/admin/finance/drivers/{driverId}/settlements',
+            [AdminFinanceController::class, 'settleDriver']
+        )->middleware([
+            'permission:manage_finance',
+            'idempotent',
+        ]);
         Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
 
         // Reports

@@ -9,8 +9,23 @@ import {
     fetchDriverStatement,
     fetchFinanceSummary,
     fetchTrialBalance,
+    settleDriverAccount,
 } from '../../services/adminApi'
 import './Finance.css'
+
+const createIdempotencyKey = () => {
+    if (typeof globalThis.crypto?.randomUUID === 'function') {
+        return globalThis.crypto.randomUUID()
+    }
+
+    if (typeof globalThis.crypto?.getRandomValues === 'function') {
+        const values = new Uint32Array(4)
+        globalThis.crypto.getRandomValues(values)
+        return `settle-${Array.from(values, (value) => value.toString(16).padStart(8, '0')).join('')}`
+    }
+
+    return `settle-${Date.now()}-${Math.random().toString(36).slice(2)}-${Math.random().toString(36).slice(2)}`
+}
 
 const GRID = '1.4fr 1fr 1fr 1fr 0.9fr 0.8fr'
 
@@ -53,6 +68,10 @@ const Finance = () => {
 
     const [statement, setStatement] = useState(null)
     const [statementLoading, setStatementLoading] = useState(false)
+
+    const [settleAmount, setSettleAmount] = useState('')
+    const [settleNote, setSettleNote] = useState('')
+    const [settling, setSettling] = useState(false)
 
     const [trialBalance, setTrialBalance] = useState(null)
     const [trialOpen, setTrialOpen] = useState(false)
@@ -106,12 +125,60 @@ const Finance = () => {
         try {
             setStatementLoading(true)
             setStatement({ loading: true })
+            setSettleAmount('')
+            setSettleNote('')
             setStatement(await fetchDriverStatement(token, driverId))
         } catch (error) {
             setStatement(null)
             Swal.fire('Error', error.message || 'Failed to load driver statement', 'error')
         } finally {
             setStatementLoading(false)
+        }
+    }
+
+    const submitSettlement = async (event) => {
+        event.preventDefault()
+
+        const amount = Number(settleAmount)
+        if (!Number.isFinite(amount) || amount <= 0) {
+            Swal.fire('Invalid amount', 'Enter the amount the driver actually paid.', 'warning')
+            return
+        }
+        if (!settleNote.trim()) {
+            Swal.fire('Reference required', 'Note the bank/mobile money reference from the WhatsApp receipt.', 'warning')
+            return
+        }
+
+        const driverId = statement?.driver?.id
+        if (!driverId) return
+
+        const confirmation = await Swal.fire({
+            title: 'Confirm driver settlement',
+            html: `<p>Record <strong>${formatMoney(amount)}</strong> as received from ${statement.driver.name || 'this driver'}?</p><p>This posts a balanced ledger entry and reduces what they owe.</p>`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Record settlement',
+            confirmButtonColor: '#087f5b',
+        })
+        if (!confirmation.isConfirmed) return
+
+        try {
+            setSettling(true)
+            await settleDriverAccount(token, driverId, {
+                amount: amount.toFixed(2),
+                note: settleNote.trim(),
+                idempotencyKey: createIdempotencyKey(),
+            })
+            setSettleAmount('')
+            setSettleNote('')
+            setStatement(await fetchDriverStatement(token, driverId))
+            loadAccounts(pagination.page)
+            loadSummary()
+            await Swal.fire('Settlement recorded', `${formatMoney(amount)} was applied to this driver's account.`, 'success')
+        } catch (error) {
+            Swal.fire('Settlement failed', error.message || 'Could not record this settlement.', 'error')
+        } finally {
+            setSettling(false)
         }
     }
 
@@ -326,6 +393,35 @@ const Finance = () => {
                                 )}
                             </div>
                         </div>
+
+                        <form className="finance-settle-form" onSubmit={submitSettlement}>
+                            <span className="finance-stat-label">Record a manual settlement</span>
+                            <p className="finance-stat-hint">
+                                Operator verified a bank/mobile money payment against the driver's WhatsApp
+                                receipt. Recording it here posts a balanced ledger entry and reduces what
+                                they owe.
+                            </p>
+                            <div className="finance-settle-fields">
+                                <input
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    placeholder="Amount received (LKR)"
+                                    value={settleAmount}
+                                    onChange={(event) => setSettleAmount(event.target.value)}
+                                />
+                                <input
+                                    type="text"
+                                    maxLength="500"
+                                    placeholder="Reference (bank slip / transaction ID)"
+                                    value={settleNote}
+                                    onChange={(event) => setSettleNote(event.target.value)}
+                                />
+                                <button type="submit" disabled={settling}>
+                                    {settling ? 'Recording...' : 'Record settlement'}
+                                </button>
+                            </div>
+                        </form>
 
                         <div className="finance-ledger">
                             <div className="finance-ledger-head">
