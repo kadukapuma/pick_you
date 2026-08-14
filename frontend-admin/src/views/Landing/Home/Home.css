@@ -83,6 +83,12 @@
   max-width: 36rem;
 }
 
+/* The main header CTA appears here on phones, immediately before the hero
+   message, so it is visible without competing with the logo/menu controls. */
+.hero-mobile-app-cta {
+  display: none;
+}
+
 /* Animated Badge */
 .hero-badge-pill {
   display: inline-flex;
@@ -1519,5 +1525,29 @@
 
   .map-3d-wrapper {
     transform: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .hero-mobile-app-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    position: absolute;
+    top: 1rem;
+    left: 50%;
+    z-index: 30;
+    width: max-content;
+    padding: 0.85rem 1.35rem;
+    border: 1px solid rgba(34, 197, 94, 0.7);
+    border-radius: 999px;
+    background: rgba(8, 214, 18, 0.94);
+    color: #ffffff;
+    font-size: 0.95rem;
+    font-weight: 800;
+    line-height: 1;
+    box-shadow: 0 10px 24px rgba(8, 214, 18, 0.28);
+    transform: translateX(-50%);
   }
 }
