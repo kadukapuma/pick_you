@@ -299,7 +299,16 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 
     return () => clearTimeout(timeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cameraIsFree, followVehicle, followZoom, destLat, destLng, routeCoordsLen]);
+  }, [
+    cameraIsFree,
+    followVehicle,
+    followZoom,
+    renderedLat,
+    renderedLng,
+    destLat,
+    destLng,
+    routeCoordsLen,
+  ]);
 
   const cameraLat = cameraOrigin?.latitude;
   const cameraLng = cameraOrigin?.longitude;

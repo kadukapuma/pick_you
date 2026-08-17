@@ -109,11 +109,12 @@ class RideLocationPointProcessor
             0,
             $waitingMinutes - (float) config('ride.waiting_grace_minutes', 5)
         ), 2);
-        $extraDistanceKm = round(max(0, $actualDistanceKm - $estimatedDistanceKm), 4);
+        $includedKm = (float) $ride->fareConfig->included_km;
+        $extraDistanceKm = round(max(0, $actualDistanceKm - $includedKm), 4);
         $extraDistanceFare = round($extraDistanceKm * (float) $ride->fareConfig->per_km_rate, 2);
         $waitingFare = round($chargeableWaitingMinutes * (float) $ride->fareConfig->per_minute_rate, 2);
         $estimatedFare = round((float) $ride->estimated_fare, 2);
-        $finalFare = round(max($estimatedFare, $estimatedFare + $extraDistanceFare + $waitingFare), 2);
+        $finalFare = round(max($estimatedFare, (float) $ride->fareConfig->base_fare + $extraDistanceFare + $waitingFare), 2);
 
         return [
             'ride_id' => (int) $ride->id,
@@ -190,18 +191,21 @@ class RideLocationPointProcessor
     private function incrementRideDistance(Ride $ride, float $distanceKm, ?int $sequence, CarbonImmutable $recordedAt): void
     {
         $newDistanceKm = round((float) $ride->actual_distance_km + $distanceKm, 4);
-        $estimatedDistanceKm = (float) ($ride->estimated_distance_km ?: $ride->distance_km);
-        $extraDistanceKm = round(max(0, $newDistanceKm - $estimatedDistanceKm), 4);
+        $includedKm = (float) optional($ride->fareConfig)->included_km;
+        $extraDistanceKm = round(max(0, $newDistanceKm - $includedKm), 4);
+        $baseFare = (float) optional($ride->fareConfig)->base_fare;
         $perKmRate = (float) optional($ride->fareConfig)->per_km_rate;
         $extraDistanceFare = round($extraDistanceKm * $perKmRate, 2);
         $waitingFare = (float) $ride->waiting_fare;
         $estimatedFare = (float) $ride->estimated_fare;
 
+        // Duration overage isn't computed live - it depends on total elapsed
+        // time vs. the estimate and is only finalized once at completion.
         $ride->update([
             'actual_distance_km' => $newDistanceKm,
             'extra_distance_km' => $extraDistanceKm,
             'extra_distance_fare' => $extraDistanceFare,
-            'final_fare' => round(max($estimatedFare, $estimatedFare + $extraDistanceFare + $waitingFare), 2),
+            'final_fare' => round(max($estimatedFare, $baseFare + $extraDistanceFare + $waitingFare), 2),
             'last_processed_location_sequence' => $sequence,
             'last_processed_location_recorded_at' => $recordedAt,
         ]);

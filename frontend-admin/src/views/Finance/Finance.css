@@ -247,6 +247,60 @@
   gap: 3px;
 }
 
+/* Manual settlement form */
+.finance-settle-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.finance-settle-fields {
+  display: grid;
+  grid-template-columns: 0.8fr 1.6fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.finance-settle-amount {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.finance-settle-fields input {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13px;
+  color: var(--text-dark);
+}
+
+.finance-settle-fields button {
+  border: none;
+  background: #087f5b;
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.finance-settle-fields button:disabled {
+  background: #adb5bd;
+  cursor: not-allowed;
+}
+
+@media (max-width: 768px) {
+  .finance-settle-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 .finance-ledger-head,
 .finance-ledger-row {
   display: grid;

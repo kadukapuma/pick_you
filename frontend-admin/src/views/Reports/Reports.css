@@ -28,7 +28,9 @@
 .report-stat-card small b { color: #08a64b; margin-right: 6px; }
 .reports-chart-grid { display: grid; grid-template-columns: 1.3fr .95fr 1.05fr; gap: 16px; margin-bottom: 16px; }
 .report-panel { padding: 16px; min-width: 0; box-sizing: border-box; }
-.panel-title-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.panel-title-row { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 12px; }
+.panel-filter-group { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; min-width: 0; }
+.panel-filter-group .chart-select { min-width: 0; flex: 1 1 110px; }
 .panel-title-row h3 { font-size: 15px; margin: 0; }
 .panel-chip { border: 1px solid var(--border); border-radius: 7px; padding: 5px 9px; color: var(--text-muted); font-size: 11px; }
 .legend { font-size: 10px; color: var(--text-muted); display: flex; align-items: center; gap: 5px; margin-top: 8px; }
@@ -177,7 +179,26 @@
 .full-report-table td { padding: 14px 18px; border-bottom: 1px solid #edf1f5; font-size: 12px; color: #3d4a5d; }
 .full-report-table tbody tr { transition: background .18s; }.full-report-table tbody tr:hover { background: #f5fcf8; }
 .table-avatar { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 9px; margin-right: 10px; background: linear-gradient(145deg,#dcfce7,#bbf7d0); color: #057a3d; font-size: 9px; font-weight: 700; }
-.table-status { display: inline-block; padding: 5px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; }.table-status.completed { color: #047a3c; background: #dcfce7; }.table-status.pending { color: #a16207; background: #fef3c7; }
+.table-status { display: inline-block; padding: 5px 9px; border-radius: 20px; font-size: 10px; font-weight: 700; white-space: nowrap; }.table-status.completed { color: #047a3c; background: #dcfce7; }.table-status.pending { color: #a16207; background: #fef3c7; }.table-status.cancelled { color: #b91c1c; background: #fee2e2; }.table-status.ongoing { color: #1d4ed8; background: #dbeafe; }
+
+/* Ride History report */
+.ride-code-chip { display: inline-block; padding: 4px 9px; border-radius: 7px; background: #f1f5f9; color: #334155; font-weight: 700; font-size: 11px; letter-spacing: .02em; }
+.ride-history-table { white-space: normal; }
+.ride-history-table td { vertical-align: top; }
+.route-cell { min-width: 220px; max-width: 280px; }
+.route-point { display: flex; align-items: flex-start; gap: 8px; }
+.route-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.route-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; }
+.route-dot.pickup { background: #10b981; }
+.route-dot.drop { background: #ef4444; border-radius: 2px; }
+.route-connector { width: 1px; height: 14px; background: #dbe4ec; margin: 2px 0 2px 3px; }
+.money-cell { text-align: right; font-variant-numeric: tabular-nums; }
+.money-cell.muted { color: #8792a3; }
+.money-cell.strong { color: #0f172a; font-weight: 800; }
+.ride-history-table th:nth-child(6), .ride-history-table th:nth-child(7), .ride-history-table th:nth-child(8) { text-align: right; }
+.fare-chip-row { display: flex; flex-wrap: wrap; gap: 6px; max-width: 220px; }
+.fare-chip { display: inline-block; padding: 3px 8px; border-radius: 20px; background: #f0fdf4; color: #059669; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.muted-text { color: #9aa5b5; font-size: 11px; font-style: italic; }
 .growth-value { color: #059669; font-weight: 700; }.empty-table { text-align: center; padding: 50px !important; color: #8792a3 !important; }
 .table-pagination { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; color: #7b8798; font-size: 11px; }
 .table-pagination > div { display: flex; align-items: center; gap: 12px; }.table-pagination button { width: 32px; height: 32px; display: grid; place-items: center; border: 1px solid #dce3ea; background: white; border-radius: 8px; color: #526075; cursor: pointer; }

@@ -305,12 +305,13 @@ const LandingLayout = () => {
             </Link>
 
             <div className="mobile-menu-footer">
-              <button
+              <Link
+                to="/get-app"
                 className="get-app-btn"
                 onClick={() => setIsMenuOpen(false)}
               >
                 Get the App
-              </button>
+              </Link>
             </div>
           </nav>
           {/* Right: Actions */}
@@ -318,7 +319,7 @@ const LandingLayout = () => {
             {/* <Link to="/admin-portal/login" className="staff-login-link">
               Staff Login
             </Link> */}
-            <button className="get-app-btn">Get the App</button>
+            <Link to="/get-app" className="get-app-btn">Get the App</Link>
           </div>
         </div>
       </header>
@@ -372,7 +373,7 @@ const LandingLayout = () => {
             <div className="contact-info">
               <div className="contact-item">
                 <FaMapMarkerAlt className="contact-icon" />
-                <span>no 29, muneeswaran rd, jaffna</span>
+                <span>Raja Vasa" Tholpuram, Jaffna</span>
               </div>
               <div className="contact-item">
                 <FaEnvelope className="contact-icon" />
@@ -380,7 +381,7 @@ const LandingLayout = () => {
               </div>
               <div className="contact-item">
                 <FaPhone className="contact-icon" />
-                <a href="tel:+15551234567"></a>
+                <a href="tel:- 070 4 141 141">070 4 141 141</a>
               </div>
               <div className="contact-item">
                 <FaCommentDots className="contact-icon" />

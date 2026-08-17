@@ -9,6 +9,16 @@ import { getRideStatus, rideTheme } from "../ride-support/rideUtils";
 import { getPassengerRideStatusUI } from "./passengerRideStatus";
 
 const visibleStatuses = ["ACCEPTED", "ARRIVED", "STARTED", "COMPLETED", "CANCELLED", "CANCELED"];
+const statusRank: Record<string, number> = {
+  REQUESTED: 0,
+  SEARCHING: 0,
+  ACCEPTED: 1,
+  ARRIVED: 2,
+  STARTED: 3,
+  COMPLETED: 4,
+  CANCELLED: 5,
+  CANCELED: 5,
+};
 
 export default function RideStatusBanner() {
   const { activeRideId, activeRideStatus, setActiveRide, setIsSearchingForDriver } = useRideSearch();
@@ -17,7 +27,12 @@ export default function RideStatusBanner() {
   const [status, setStatus] = useState<string | null>(activeRideStatus);
   const [ride, setRide] = useState<any>(null);
   const [visible, setVisible] = useState(false);
+  const activeRideStatusRef = useRef<string | null>(activeRideStatus);
+  activeRideStatusRef.current = activeRideStatus;
   const lastStatusRef = useRef<string | null>(activeRideStatus);
+  const lastRideIdRef = useRef<number | null>(activeRideId);
+  const paymentCompletedRef = useRef(false);
+  const pollingRef = useRef(false);
   const translateY = useRef(new Animated.Value(-120)).current;
 
   useEffect(() => {
@@ -26,22 +41,58 @@ export default function RideStatusBanner() {
       setRide(null);
       setStatus(null);
       lastStatusRef.current = null;
+      lastRideIdRef.current = null;
+      paymentCompletedRef.current = false;
       return;
+    }
+
+    if (lastRideIdRef.current !== activeRideId) {
+      lastRideIdRef.current = activeRideId;
+      lastStatusRef.current = activeRideStatusRef.current;
+      paymentCompletedRef.current = false;
+      setStatus(activeRideStatusRef.current);
+      setRide(null);
+      setVisible(false);
     }
 
     let cancelled = false;
     const poll = async () => {
-      const response = await apiClient.get<any>(`/rides/${activeRideId}`, { suppressErrorLog: true });
-      if (cancelled || !response.success || !response.data) return;
-      const nextStatus = getRideStatus(response.data);
-      setRide(response.data);
-      setActiveRide(activeRideId, nextStatus);
-      if (["ACCEPTED", "ARRIVED", "STARTED", "COMPLETED"].includes(nextStatus)) setIsSearchingForDriver(false);
+      if (pollingRef.current) return;
+      pollingRef.current = true;
+      try {
+        const response = await apiClient.get<any>(`/rides/${activeRideId}`, { suppressErrorLog: true });
+        if (cancelled || !response.success || !response.data) return;
+        const nextStatus = getRideStatus(response.data);
+        const previousStatus = lastStatusRef.current;
+        const isBackwardTransition =
+          previousStatus != null &&
+          (statusRank[nextStatus] ?? -1) < (statusRank[previousStatus] ?? -1);
 
-      if (nextStatus !== lastStatusRef.current && visibleStatuses.includes(nextStatus)) {
-        lastStatusRef.current = nextStatus;
-        setStatus(nextStatus);
-        setVisible(true);
+        // A delayed response must never move the passenger UI back to an older ride state.
+        if (isBackwardTransition) return;
+
+        const nextPaymentStatus = String(response.data?.payment?.payment_status || "").toUpperCase();
+        const paymentWasCompleted = paymentCompletedRef.current;
+        if (nextPaymentStatus === "COMPLETED") paymentCompletedRef.current = true;
+        const nextRide = paymentCompletedRef.current && nextPaymentStatus !== "COMPLETED"
+          ? {
+              ...response.data,
+              payment: { ...(response.data.payment || {}), payment_status: "COMPLETED" },
+            }
+          : response.data;
+
+        setRide(nextRide);
+        setActiveRide(activeRideId, nextStatus);
+        if (["ACCEPTED", "ARRIVED", "STARTED", "COMPLETED"].includes(nextStatus)) setIsSearchingForDriver(false);
+
+        const paymentJustCompleted = !paymentWasCompleted && paymentCompletedRef.current;
+        if ((nextStatus !== previousStatus || paymentJustCompleted) && visibleStatuses.includes(nextStatus)) {
+          lastStatusRef.current = nextStatus;
+          setStatus(nextStatus);
+          setVisible(true);
+        }
+      } finally {
+        pollingRef.current = false;
       }
     };
 

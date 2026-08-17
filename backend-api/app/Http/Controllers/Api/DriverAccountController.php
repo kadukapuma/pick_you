@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\DriverAccount;
 use App\Models\JournalLine;
+use App\Models\PaymentAllocation;
 use App\Models\Ride;
 use App\Services\Ledger\Money;
 use App\Traits\ApiResponse;
@@ -94,10 +95,12 @@ class DriverAccountController extends Controller
         };
 
         $rides = Ride::query()
+            ->with('payment.allocations')
             ->where('driver_id', $driver->id)
             ->where('status', 'COMPLETED')
             ->where('completed_at', '>=', $since)
             ->get([
+                'id',
                 'final_fare', 'estimated_fare', 'commission_amount',
                 'driver_earning', 'payment_method', 'completed_at',
             ]);
@@ -119,8 +122,21 @@ class DriverAccountController extends Controller
             $rideNet = $ride->driver_earning === null ? $rideGross : Money::of($ride->driver_earning);
             $net = Money::add($net, $rideNet);
 
-            if (($ride->payment_method ?: 'cash') === 'cash') {
-                $cashCollected = Money::add($cashCollected, $rideGross);
+            $completedAllocations = $ride->payment?->allocations
+                ?->where('status', PaymentAllocation::STATUS_COMPLETED);
+
+            if ($completedAllocations?->isNotEmpty()) {
+                foreach ($completedAllocations->where('type', PaymentAllocation::TYPE_CASH) as $allocation) {
+                    $cashCollected = Money::add(
+                        $cashCollected,
+                        Money::of($allocation->amount)
+                    );
+                }
+            } elseif (($ride->payment_method ?: 'cash') === 'cash') {
+                $cashCollected = Money::add(
+                    $cashCollected,
+                    $rideGross
+                );
             }
 
             $key = $this->bucketKeyFor($period, $ride->completed_at);

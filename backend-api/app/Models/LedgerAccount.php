@@ -12,6 +12,7 @@ class LedgerAccount extends Model
     public const TYPE_LIABILITY = 'liability';
     public const TYPE_REVENUE = 'revenue';
     public const TYPE_EQUITY = 'equity';
+    public const TYPE_EXPENSE = 'expense';
 
     /** Company-wide accounts and their types. Driver accounts are resolved dynamically. */
     public const COMPANY_ACCOUNTS = [
@@ -22,6 +23,7 @@ class LedgerAccount extends Model
         'CASH_CLEARING' => self::TYPE_ASSET,
         'PASSENGER_WALLET_LIABILITY' => self::TYPE_LIABILITY,
         'PASSENGER_RECEIVABLE' => self::TYPE_ASSET,
+        'PASSENGER_CREDIT_EXPENSE' => self::TYPE_EXPENSE,
     ];
 
     public function lines()
@@ -46,7 +48,11 @@ class LedgerAccount extends Model
      */
     public function naturalBalance(): string
     {
-        if (in_array($this->type, [self::TYPE_ASSET], true)) {
+        if (in_array(
+            $this->type,
+            [self::TYPE_ASSET, self::TYPE_EXPENSE],
+            true
+        )) {
             return bcmul((string) $this->balance, '-1', 2);
         }
 

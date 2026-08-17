@@ -423,6 +423,7 @@ const LoginScreen = ({
                     type: "timing",
                   }}
                   style={styles.carImageWrapper}
+                  pointerEvents="none"
                 >
                   <Image
                     source={require("../../assets/car-1.png")}

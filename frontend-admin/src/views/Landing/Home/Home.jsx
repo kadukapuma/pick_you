@@ -823,6 +823,11 @@ const Home = () => {
           </div>
         ))}
 
+        <a href="/get-app" className="hero-mobile-app-cta">
+          Get the PickU App
+          <FaArrowRight aria-hidden="true" />
+        </a>
+
         <div className="hero-banner-content">
           <div className="hero-content-inner">
             {/* Animated badge */}

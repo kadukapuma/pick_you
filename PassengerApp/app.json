@@ -2,10 +2,10 @@
   "expo": {
     "name": "PickU",
     "slug": "PickU",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/vehicles/icon.png",
-    "scheme": "frontend",
+    "scheme": "picku",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -16,6 +16,7 @@
       }
     },
     "android": {
+      "versionCode": 2,
       "apkType": "universal",
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
@@ -28,9 +29,12 @@
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "package": "lk.picku.passenger"
+      "package": "lk.picku.passenger",
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "output": "static",
@@ -55,6 +59,18 @@
             "backgroundColor": "#000000"
           }
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow PickU to use your location to find nearby drivers and set your pickup point."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow PickU to access your photos to update your profile picture."
+        }
       ]
     ],
     "experiments": {
@@ -66,6 +82,7 @@
       "eas": {
         "projectId": "06853f0a-c351-4c8e-a613-4b9bd328203a"
       }
-    }
+    },
+    "owner": "hawadmin"
   }
 }

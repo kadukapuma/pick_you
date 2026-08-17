@@ -1,17 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect } from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
-
+import { useEffect, useMemo, useState } from "react";
+import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import PaymentScreen, {
   PaymentButton,
 } from "../../features/payments/PaymentScreen";
-import { paymentTheme } from "../../features/payments/paymentTheme";
-import { CARD_PAYMENTS_ENABLED } from "../../services/payments/paymentService";
+import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
+import { creditService } from "../../services/payments/creditService";
 import {
-  PaymentMethod,
-  useRideSearch,
-} from "../../state/booking/RideBookingContext";
+  CARD_PAYMENTS_ENABLED,
+  paymentService,
+} from "../../services/payments/paymentService";
+import type { PaymentMethod } from "../../state/booking/RideBookingContext";
+import { useRideSearch } from "../../state/booking/RideBookingContext";
 
 const methods: {
   id: PaymentMethod;
@@ -28,45 +29,84 @@ const methods: {
   {
     id: "card",
     title: "Credit or debit card",
-    subtitle: "Pay securely after the final fare",
+    subtitle: "Pay securely with WEBXPAY after your ride",
     icon: "card-outline",
   },
-
-  // PickU Wallet is intentionally hidden until its backend flow is ready.
-  // {
-  //   id: "wallet",
-  //   title: "PickU Wallet",
-  //   subtitle: "Use your available wallet balance",
-  //   icon: "wallet-outline",
-  // },
 ];
 
 export default function PaymentMethodScreen() {
-  const { paymentMethod, setPaymentMethod } = useRideSearch();
-
-  useEffect(() => {
-    if (!CARD_PAYMENTS_ENABLED && paymentMethod === "card") {
-      setPaymentMethod("cash");
+  const {
+    paymentMethod,
+    setPaymentMethod,
+    selectedPaymentCard,
+    usePickuCredit,
+    setUsePickuCredit,
+    outboundTrip,
+  } = useRideSearch();
+  const [cardAvailable, setCardAvailable] = useState(CARD_PAYMENTS_ENABLED);
+  const [walletAvailable, setWalletAvailable] = useState(false);
+  const [available, setAvailable] = useState<string | null>(null);
+  const [reserved, setReserved] = useState("0.00");
+  const [creditError, setCreditError] = useState("");
+  const [loadingCredit, setLoadingCredit] = useState(true);
+  const [fallbackNotice, setFallbackNotice] = useState(false);
+  const loadCredit = async () => {
+    setLoadingCredit(true);
+    const result = await creditService.getSummary();
+    if (result.success && result.data) {
+      setAvailable(result.data.availableBalance);
+      setReserved(result.data.reservedBalance);
+      setCreditError("");
+    } else {
+      setAvailable(null);
+      setCreditError(
+        result.message || "PickU credit is temporarily unavailable.",
+      );
+      setUsePickuCredit(false);
     }
-  }, [paymentMethod, setPaymentMethod]);
-
-  const chooseMethod = (method: PaymentMethod) => {
-    if (method === "card") {
-      router.push({
-        pathname: "/payments/cards",
-        params: { mode: "booking" },
-      });
-
-      return;
-    }
-
-    setPaymentMethod(method);
+    setLoadingCredit(false);
   };
-
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      paymentService.getCapabilities(),
+      creditService.getSummary(),
+    ]).then(([capabilities, credit]) => {
+      if (!active) return;
+      const card = capabilities.card || CARD_PAYMENTS_ENABLED;
+      setCardAvailable(card);
+      setWalletAvailable(capabilities.wallet);
+      if (!card && paymentMethod === "card") {
+        setPaymentMethod("cash");
+        setFallbackNotice(true);
+      }
+      if (credit.success && credit.data) {
+        setAvailable(credit.data.availableBalance);
+        setReserved(credit.data.reservedBalance);
+      } else {
+        setCreditError(
+          credit.message || "PickU credit is temporarily unavailable.",
+        );
+        setUsePickuCredit(false);
+      }
+      setLoadingCredit(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [paymentMethod, setPaymentMethod, setUsePickuCredit]);
+  const estimate = Number(outboundTrip.selectedRide?.price || 0);
+  const credit = useMemo(
+    () => (usePickuCredit ? Math.min(Number(available || 0), estimate) : 0),
+    [available, estimate, usePickuCredit],
+  );
+  const remainder = Math.max(0, estimate - credit);
+  const canUseCredit =
+    walletAvailable && Number(available || 0) > 0 && !creditError;
   return (
     <PaymentScreen
       title="Payment method"
-      subtitle="Choose how you want to pay for this ride"
+      subtitle="Choose how to pay after PickU credit"
       contentStyle={styles.content}
       footer={
         <PaymentButton
@@ -76,215 +116,290 @@ export default function PaymentMethodScreen() {
         />
       }
     >
-      {/* Section heading */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>How do you want to pay?</Text>
-        <Text style={styles.sectionDescription}>
-          Pick the option you prefer — you can switch it any time before you
-          request a ride.
-        </Text>
+      {fallbackNotice ? (
+        <View style={styles.warning}>
+          <Ionicons name="warning-outline" size={19} color="#9A5B06" />
+          <Text style={styles.warningText}>
+            Card payments are unavailable. Cash has been selected instead.
+          </Text>
+        </View>
+      ) : null}
+      <View style={styles.creditCard}>
+        <View style={styles.creditHeading}>
+          <View style={styles.creditIcon}>
+            <Ionicons
+              name="wallet-outline"
+              size={22}
+              color={paymentTheme.green}
+            />
+          </View>
+          <View style={styles.creditCopy}>
+            <Text style={styles.creditTitle}>PickU credit</Text>
+            <Text style={styles.creditBalance}>
+              {loadingCredit
+                ? "Checking balance…"
+                : available === null
+                  ? "Balance unavailable"
+                  : `${formatLkr(available)} available`}
+            </Text>
+          </View>
+          <Switch
+            value={usePickuCredit}
+            onValueChange={setUsePickuCredit}
+            disabled={!canUseCredit}
+            trackColor={{ false: "#CBD5E1", true: "#8DE0B8" }}
+            thumbColor={usePickuCredit ? paymentTheme.green : "#FFFFFF"}
+            accessibilityRole="switch"
+            accessibilityLabel="Use available PickU credit"
+            accessibilityState={{
+              checked: usePickuCredit,
+              disabled: !canUseCredit,
+            }}
+          />
+        </View>
+        {Number(reserved) > 0 ? (
+          <Text style={styles.reserved}>
+            {formatLkr(reserved)} is reserved for another payment.
+          </Text>
+        ) : null}
+        {!walletAvailable && !loadingCredit ? (
+          <Text style={styles.unavailable}>
+            Credit payments are not enabled right now. Your balance and activity
+            remain available in Account.
+          </Text>
+        ) : creditError ? (
+          <View style={styles.inlineError}>
+            <Text style={styles.errorText}>
+              PickU credit is temporarily unavailable. You can continue using
+              cash or card.
+            </Text>
+            <TouchableOpacity onPress={() => void loadCredit()}>
+              <Text style={styles.retry}>Try again</Text>
+            </TouchableOpacity>
+          </View>
+        ) : Number(available || 0) <= 0 && !loadingCredit ? (
+          <Text style={styles.unavailable}>
+            No PickU credit available. You can continue with cash or card.
+          </Text>
+        ) : (
+          <Text style={styles.helper}>
+            We’ll apply up to your available credit to the final fare.
+          </Text>
+        )}
       </View>
-
-      {/* Payment methods — each one is its own standalone card on the screen */}
-      <View style={styles.methodsList}>
+      <Text style={styles.sectionLabel}>PAY THE REMAINING AMOUNT WITH</Text>
+      <View style={styles.methods}>
         {methods.map((method) => {
           const selected = paymentMethod === method.id;
-
+          const disabled = method.id === "card" && !cardAvailable;
+          const subtitle =
+            method.id === "card" && selectedPaymentCard
+              ? `${selectedPaymentCard.brand.toUpperCase()} •••• ${selectedPaymentCard.last4}`
+              : method.subtitle;
           return (
             <TouchableOpacity
               key={method.id}
-              style={[styles.methodCard, selected && styles.methodCardSelected]}
-              onPress={() => chooseMethod(method.id)}
-              activeOpacity={0.86}
+              style={[
+                styles.method,
+                selected && styles.selected,
+                disabled && styles.disabled,
+              ]}
+              disabled={disabled}
+              onPress={() => {
+                if (method.id === "card") {
+                  router.push({
+                    pathname: "/payments/cards",
+                    params: { mode: "booking" },
+                  });
+                } else {
+                  setPaymentMethod(method.id);
+                }
+              }}
               accessibilityRole="radio"
-              accessibilityState={{ checked: selected }}
+              accessibilityState={{ checked: selected, disabled }}
             >
-              <View style={styles.methodRow}>
-                {/* Icon */}
-                <View
-                  style={[styles.methodIcon, selected && styles.selectedIcon]}
-                >
-                  <Ionicons
-                    name={method.icon}
-                    size={22}
-                    color={selected ? paymentTheme.white : paymentTheme.green}
-                  />
-                </View>
-
-                {/* Payment method details */}
-                <View style={styles.methodCopy}>
-                  <View style={styles.methodTitleLine}>
-                    <Text style={styles.methodTitle}>{method.title}</Text>
-
-                    {method.id === "card" && !CARD_PAYMENTS_ENABLED ? (
-                      <Text style={styles.setupPill}>SANDBOX SETUP</Text>
-                    ) : null}
-                  </View>
-
-                  <Text style={styles.methodSubtitle}>{method.subtitle}</Text>
-                </View>
-
-                {/* Selection indicator */}
-                <View style={[styles.radio, selected && styles.radioSelected]}>
-                  {selected ? <View style={styles.radioDot} /> : null}
-                </View>
+              <View
+                style={[styles.methodIcon, selected && styles.selectedIcon]}
+              >
+                <Ionicons
+                  name={method.icon}
+                  size={22}
+                  color={selected ? "#FFFFFF" : paymentTheme.green}
+                />
               </View>
-
-              {/* Selected saved card */}
-              {method.id === "card" && selected ? (
-                <View style={styles.savedCardLine}>
-                  <View style={styles.visaMini}>
-                    <Text style={styles.visaText}>VISA</Text>
-                  </View>
-
-                  <Text style={styles.savedCardText}>•••• 6492</Text>
-
-                  <View style={styles.changeChip}>
-                    <Text style={styles.changeText}>Change</Text>
-                    <Ionicons
-                      name="chevron-forward"
-                      size={12}
-                      color={paymentTheme.green}
-                    />
-                  </View>
+              <View style={styles.methodCopy}>
+                <View style={styles.titleLine}>
+                  <Text style={styles.methodTitle}>{method.title}</Text>
+                  {disabled ? (
+                    <Text style={styles.pill}>UNAVAILABLE</Text>
+                  ) : null}
                 </View>
-              ) : null}
+                <Text style={styles.methodSubtitle}>{subtitle}</Text>
+              </View>
+              {method.id === "card" && !disabled ? (
+                <Ionicons
+                  name="chevron-forward"
+                  size={19}
+                  color={paymentTheme.muted}
+                />
+              ) : (
+                <View style={[styles.radio, selected && styles.radioSelected]}>
+                  {selected ? <View style={styles.dot} /> : null}
+                </View>
+              )}
             </TouchableOpacity>
           );
         })}
       </View>
-
-      {/* Information */}
-      <View style={styles.noteCard}>
-        <View style={styles.noteIcon}>
-          <Ionicons
-            name={
-              paymentMethod === "card"
-                ? "shield-checkmark-outline"
-                : "information-circle-outline"
-            }
-            size={18}
-            color={paymentTheme.green}
+      {estimate > 0 ? (
+        <View style={styles.split}>
+          <Text style={styles.splitTitle}>Estimated payment split</Text>
+          <Split label="Estimated fare" value={formatLkr(estimate)} />
+          <Split
+            label="PickU credit"
+            value={credit ? `−${formatLkr(credit)}` : formatLkr(0)}
+            green
           />
+          <Split
+            label={`${paymentMethod === "card" ? "Card" : "Cash"} after ride`}
+            value={formatLkr(remainder)}
+            strong
+          />
+          <Text style={styles.disclaimer}>
+            This is an estimate. PickU applies available credit to the final
+            fare. Any remaining amount uses your selected method.
+          </Text>
         </View>
-
-        <Text style={styles.noteText}>
-          {paymentMethod === "card"
-            ? CARD_PAYMENTS_ENABLED
-              ? "Your card is charged only after the final fare is ready."
-              : "Card selection is available for review; live payment is currently disabled."
-            : "Pay the final amount directly to your driver."}
-        </Text>
-      </View>
+      ) : null}
     </PaymentScreen>
   );
 }
-
+function Split({
+  label,
+  value,
+  green,
+  strong,
+}: {
+  label: string;
+  value: string;
+  green?: boolean;
+  strong?: boolean;
+}) {
+  return (
+    <View style={styles.splitRow}>
+      <Text style={[styles.splitLabel, strong && styles.strong]}>{label}</Text>
+      <Text
+        style={[
+          styles.splitValue,
+          green && styles.green,
+          strong && styles.strong,
+        ]}
+      >
+        {value}
+      </Text>
+    </View>
+  );
+}
 const styles = StyleSheet.create({
-  content: {
-    flexGrow: 1,
+  content: { paddingTop: 12, paddingBottom: 36 },
+  warning: {
+    flexDirection: "row",
+    gap: 9,
+    padding: 13,
+    backgroundColor: "#FFF8E8",
+    borderRadius: 14,
+  },
+  warningText: { flex: 1, color: "#7A5310", fontSize: 12, lineHeight: 17 },
+  creditCard: {
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#DCE9E4",
+  },
+  creditHeading: { flexDirection: "row", alignItems: "center" },
+  creditIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: paymentTheme.mint,
+    alignItems: "center",
     justifyContent: "center",
-    paddingTop: 24,
-    paddingBottom: 42,
+    marginRight: 11,
   },
-
-  /* Section heading */
-  sectionHeader: {
-    marginBottom: 18,
-    paddingHorizontal: 2,
+  creditCopy: { flex: 1 },
+  creditTitle: { color: paymentTheme.ink, fontSize: 15, fontWeight: "900" },
+  creditBalance: { color: paymentTheme.muted, fontSize: 11, marginTop: 3 },
+  helper: {
+    color: paymentTheme.muted,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 12,
   },
-
-  sectionEyebrow: {
+  reserved: {
+    color: "#7A5310",
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 12,
+  },
+  unavailable: {
+    color: "#7A6570",
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: 12,
+  },
+  inlineError: { marginTop: 12 },
+  errorText: { color: "#7A6570", fontSize: 11, lineHeight: 17 },
+  retry: {
     color: paymentTheme.green,
+    fontSize: 12,
+    fontWeight: "900",
+    marginTop: 6,
+  },
+  sectionLabel: {
+    color: paymentTheme.muted,
     fontSize: 10,
     fontWeight: "900",
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
-
-  sectionTitle: {
-    color: paymentTheme.ink,
-    fontSize: 19,
-    fontWeight: "900",
-    letterSpacing: -0.3,
-  },
-
-  sectionDescription: {
-    color: paymentTheme.muted,
-    fontSize: 12,
-    lineHeight: 18,
+    letterSpacing: 0.8,
     marginTop: 5,
   },
-
-  /* Methods list — no outer wrapper card, each row stands on its own */
-  methodsList: {
-    gap: 10,
-  },
-
-  methodCard: {
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 14,
-    backgroundColor: paymentTheme.white,
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
-    shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 1,
-  },
-
-  methodCardSelected: {
-    backgroundColor: paymentTheme.mint,
-    borderColor: "#6EE7B7",
-    borderWidth: 1.5,
-    shadowColor: paymentTheme.green,
-    shadowOpacity: 0.14,
-    shadowRadius: 12,
-    elevation: 3,
-  },
-
-  methodRow: {
+  methods: { gap: 10 },
+  method: {
+    minHeight: 76,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 1,
+    borderColor: "#E3EBE8",
+    borderRadius: 18,
+    padding: 13,
   },
-
-  /* Payment icon */
+  selected: {
+    borderColor: "#6ED5A1",
+    backgroundColor: paymentTheme.mint,
+    borderWidth: 1.5,
+  },
+  disabled: { opacity: 0.58 },
   methodIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 15,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
     backgroundColor: paymentTheme.mint,
     alignItems: "center",
     justifyContent: "center",
+    marginRight: 11,
   },
-
-  selectedIcon: {
-    backgroundColor: paymentTheme.green,
-  },
-
-  /* Payment copy */
-  methodCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-
-  methodTitleLine: {
+  selectedIcon: { backgroundColor: paymentTheme.green },
+  methodCopy: { flex: 1 },
+  titleLine: {
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",
-    gap: 7,
+    gap: 6,
   },
-
-  methodTitle: {
-    color: paymentTheme.ink,
-    fontSize: 15,
-    fontWeight: "900",
-  },
-
-  setupPill: {
+  methodTitle: { color: paymentTheme.ink, fontSize: 14, fontWeight: "900" },
+  methodSubtitle: { color: paymentTheme.muted, fontSize: 11, marginTop: 3 },
+  pill: {
     color: "#8A5A00",
     backgroundColor: "#FFF3CD",
     borderRadius: 7,
@@ -292,114 +407,58 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     fontSize: 7,
     fontWeight: "900",
-    letterSpacing: 0.35,
   },
-
-  methodSubtitle: {
-    color: paymentTheme.muted,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 3,
-  },
-
-  /* Radio */
   radio: {
     width: 22,
     height: 22,
     borderRadius: 11,
     borderWidth: 1.5,
-    borderColor: "#CBD5E1",
+    borderColor: "#B9C8C2",
     alignItems: "center",
     justifyContent: "center",
+    marginLeft: 8,
   },
-
   radioSelected: {
     borderColor: paymentTheme.green,
     borderWidth: 2,
-    backgroundColor: paymentTheme.white,
+    backgroundColor: "#FFFFFF",
   },
-
-  radioDot: {
+  dot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: paymentTheme.green,
   },
-
-  /* Saved card */
-  savedCardLine: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(32, 183, 104, 0.18)",
-  },
-
-  visaMini: {
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 5,
-    backgroundColor: paymentTheme.white,
+  split: {
+    padding: 16,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "#DCE4EA",
+    borderColor: "#DCE9E4",
   },
-
-  visaText: {
-    color: "#153E8B",
-    fontSize: 8,
-    fontWeight: "900",
-    fontStyle: "italic",
-  },
-
-  savedCardText: {
+  splitTitle: {
     color: paymentTheme.ink,
-    fontSize: 11,
-    fontWeight: "800",
-    flex: 1,
-  },
-
-  changeChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-  },
-
-  changeText: {
-    color: paymentTheme.green,
-    fontSize: 10,
+    fontSize: 14,
     fontWeight: "900",
+    marginBottom: 10,
   },
-
-  /* Information card */
-  noteCard: {
+  splitRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
-    marginTop: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    borderRadius: 14,
-    backgroundColor: "#F8FAFC",
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
+    justifyContent: "space-between",
+    gap: 15,
+    paddingVertical: 5,
   },
-
-  noteIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    backgroundColor: paymentTheme.mint,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  noteText: {
-    flex: 1,
+  splitLabel: { color: paymentTheme.muted, fontSize: 12 },
+  splitValue: { color: paymentTheme.ink, fontSize: 12, fontWeight: "800" },
+  green: { color: paymentTheme.green },
+  strong: { color: paymentTheme.ink, fontWeight: "900" },
+  disclaimer: {
     color: paymentTheme.muted,
-    fontSize: 11,
-    lineHeight: 17,
-    paddingTop: 5,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: paymentTheme.line,
   },
 });

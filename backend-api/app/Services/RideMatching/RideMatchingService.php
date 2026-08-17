@@ -4,6 +4,8 @@ namespace App\Services\RideMatching;
 
 use App\Events\RideRequestedTargeted;
 use App\Jobs\ProcessRideTimeout;
+use App\Jobs\SendExpoPushNotification;
+use App\Models\Driver;
 use App\Models\Ride;
 use Illuminate\Support\Facades\Log;
 
@@ -75,19 +77,47 @@ class RideMatchingService
             return;
         }
 
-        $this->redis->setCurrentDriver($rideId, $driverId);
+        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 20));
+        $offerExpiresAt = now()->addSeconds($offerSeconds);
+
+        $this->redis->setCurrentDriver($rideId, $driverId, $offerExpiresAt->toISOString());
 
         Log::info("RideMatching: Targeting Driver {$driverId} for Ride {$rideId}");
 
         $ride->refresh();
 
-        event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId));
+        event(new RideRequestedTargeted($ride->load(['passenger.user', 'fareConfig']), $driverId, $offerExpiresAt));
 
-        $offerSeconds = max(8, (int) config('ride.driver_offer_seconds', 12));
+        $this->notifyDriverOfOffer($ride, $driverId, $offerExpiresAt);
 
         ProcessRideTimeout::dispatch($rideId, $driverId)
             ->onQueue(config('ride.queues.rides', 'rides'))
-            ->delay(now()->addSeconds($offerSeconds));
+            ->delay($offerExpiresAt);
+    }
+
+    /**
+     * Push a background alert to the targeted driver so the offer is visible
+     * even when the app isn't in the foreground (the live WebSocket event
+     * above only reaches drivers with the app open).
+     */
+    private function notifyDriverOfOffer(Ride $ride, int $driverId, \DateTimeInterface $offerExpiresAt): void
+    {
+        $driver = Driver::find($driverId);
+
+        if (! $driver?->user_id) {
+            return;
+        }
+
+        SendExpoPushNotification::dispatch(
+            $driver->user_id,
+            'New ride request',
+            $ride->pickup_address ? "Pickup: {$ride->pickup_address}" : 'Tap to view the ride details.',
+            [
+                'action' => 'ride_offer',
+                'ride_id' => $ride->id,
+                'expires_at' => $offerExpiresAt->format(DATE_ATOM),
+            ],
+        );
     }
 
     public function handleDriverRejection(int $rideId, int $driverId): void

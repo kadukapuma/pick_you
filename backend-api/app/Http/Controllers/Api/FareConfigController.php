@@ -51,10 +51,17 @@ class FareConfigController extends Controller
         $payload = $request->validate([
             'vehicle_type' => ['required', 'string', 'max:255'],
             'base_fare' => ['required', 'numeric', 'min:0'],
+            // Distance (km) covered by base_fare before per_km_rate starts billing.
+            'included_km' => ['required', 'numeric', 'min:0'],
             'per_km_rate' => ['required', 'numeric', 'min:0'],
             'per_minute_rate' => ['required', 'numeric', 'min:0'],
             'cancellation_fee' => ['required', 'numeric', 'min:0'],
             'is_active' => ['sometimes', 'boolean'],
+            // Fraction of the fare, e.g. 0.06 for 6%. Null means "no override for
+            // this vehicle type" - CommissionService falls back to the global
+            // commission_rate setting, then the config default. See
+            // CommissionService::rateFor() for the full resolution order.
+            'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:1'],
         ]);
         $payload['is_active'] = (bool) ($payload['is_active'] ?? false);
 

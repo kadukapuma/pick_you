@@ -3,8 +3,6 @@ import { StyleSheet, Text, View } from "react-native";
 import PaymentScreen, { PaymentButton, PaymentCard } from "../../features/payments/PaymentScreen";
 import { StatusOrb } from "../../features/payments/PaymentVisuals";
 import { paymentTheme } from "../../features/payments/paymentTheme";
-import { CARD_PAYMENTS_ENABLED } from "../../services/payments/paymentService";
-import { useRideSearch } from "../../state/booking/RideBookingContext";
 
 const BRAND_LABELS: Record<string, string> = {
   visa: "Visa",
@@ -14,17 +12,24 @@ const BRAND_LABELS: Record<string, string> = {
 };
 
 export default function CardSetupCompleteScreen() {
-  const { mode, brand, last4 } = useLocalSearchParams<{
+  const { mode, provider, brand, last4 } = useLocalSearchParams<{
     mode?: string;
+    provider?: string;
     brand?: string;
     last4?: string;
   }>();
-  const { setPaymentMethod } = useRideSearch();
+  const cardWasSaved = provider === "webxpay";
 
   const done = () => {
-    if (CARD_PAYMENTS_ENABLED) setPaymentMethod("card");
-    if (mode === "booking") router.replace("/ride-booking/payment-method");
-    else router.replace("/payments/cards");
+    if (mode === "booking") {
+      router.replace({
+        pathname: "/payments/cards",
+        params: { mode: "booking" },
+      });
+      return;
+    }
+
+    router.replace("/payments/cards");
   };
 
   const cardLabel = last4
@@ -33,19 +38,19 @@ export default function CardSetupCompleteScreen() {
 
   return (
     <PaymentScreen
-      title={CARD_PAYMENTS_ENABLED ? "Card ready" : "Preview complete"}
+      title={cardWasSaved ? "Card ready" : "Preview complete"}
       canGoBack={false}
-      footer={<PaymentButton label={CARD_PAYMENTS_ENABLED && mode === "booking" ? "Use for this ride" : "Return to cards"} icon={CARD_PAYMENTS_ENABLED ? "checkmark" : "arrow-back-outline"} onPress={done} />}
+      footer={<PaymentButton label={mode === "booking" ? "Choose card for this ride" : "Return to cards"} icon={cardWasSaved ? "checkmark" : "arrow-back-outline"} onPress={done} />}
     >
       <View style={styles.hero}>
         <StatusOrb kind="success" />
-        <Text style={styles.title}>{CARD_PAYMENTS_ENABLED ? "Secure setup complete" : "Preview complete"}</Text>
-        <Text style={styles.text}>{CARD_PAYMENTS_ENABLED ? "Your card is ready for supported PickU payments." : "No real card was added during this sandbox preview."}</Text>
+        <Text style={styles.title}>{cardWasSaved ? "Secure setup complete" : "Preview complete"}</Text>
+        <Text style={styles.text}>{cardWasSaved ? "Your card was securely tokenized, saved, and is ready to use for PickU rides." : "The card setup was not completed."}</Text>
       </View>
       <PaymentCard>
         <View style={styles.row}><Text style={styles.label}>Card</Text><Text style={styles.value}>{cardLabel}</Text></View>
         <View style={styles.divider} />
-        <View style={styles.row}><Text style={styles.label}>Status</Text><Text style={styles.success}>{CARD_PAYMENTS_ENABLED ? "Ready" : "Test data"}</Text></View>
+        <View style={styles.row}><Text style={styles.label}>Status</Text><Text style={styles.success}>{cardWasSaved ? "Saved" : "Test data"}</Text></View>
       </PaymentCard>
     </PaymentScreen>
   );

@@ -201,9 +201,10 @@ const startForegroundWatch = async ({ active }) => {
 };
 
 const startBackgroundTracking = async () => {
-  const permission = await Location.requestBackgroundPermissionsAsync();
+  // Google Play Compliance: Query background permissions without prompting.
+  const permission = await Location.getBackgroundPermissionsAsync();
   if (permission.status !== "granted") {
-    if (__DEV__) console.warn("driverLocationSync: background permission denied");
+    if (__DEV__) console.warn("driverLocationSync: background permission not granted, skipping tracking start");
     return;
   }
 
@@ -229,13 +230,26 @@ const stopBackgroundTracking = async () => {
 };
 
 export const startDriverLocationSync = async () => {
-  const { status } = await Location.requestForegroundPermissionsAsync();
-  if (status !== "granted") return;
+  // Google Play Compliance: Query foreground permission without prompting.
+  const { status: fgStatus } = await Location.getForegroundPermissionsAsync();
+  if (fgStatus !== "granted") {
+    if (__DEV__) console.log("driverLocationSync: foreground permission not granted, skipping start");
+    return;
+  }
 
   const storedRideId = await AsyncStorage.getItem(ACTIVE_RIDE_KEY);
   activeRideId = storedRideId ? Number(storedRideId) : null;
   await startForegroundWatch({ active: Boolean(activeRideId) });
-  if (activeRideId) await startBackgroundTracking();
+  
+  if (activeRideId) {
+    // Google Play Compliance: Query background permission without prompting.
+    const { status: bgStatus } = await Location.getBackgroundPermissionsAsync();
+    if (bgStatus === "granted") {
+      await startBackgroundTracking();
+    } else {
+      if (__DEV__) console.warn("driverLocationSync: background permission not granted, active ride tracking limited to foreground");
+    }
+  }
 };
 
 export const setActiveRideLocationSync = async (rideId) => {

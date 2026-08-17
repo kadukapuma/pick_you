@@ -341,6 +341,18 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
                 />
               </View>
 
+              <View style={styles.bankHintCard}>
+                <View style={styles.bankHintIconWrap}>
+                  <Feather name="info" size={16} color="#00A859" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.bankHintFormat}>PickU Bank Account - HNB - 144020184820</Text>
+                  <Text style={styles.bankHintText}>
+                    Add your Vehicle Number or NIC for reference
+                  </Text>
+                </View>
+              </View>
+
               <Text style={styles.sectionTitle}>Preferences</Text>
               <View style={styles.menuGroup}>
                 <MenuItem
@@ -494,6 +506,38 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     marginLeft: 4,
+  },
+
+  bankHintCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#F0FDF4",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#DCFCE7",
+  },
+  bankHintIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#DCFCE7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
+  },
+  bankHintFormat: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#166534",
+    marginBottom: 2,
+  },
+  bankHintText: {
+    fontSize: 12,
+    color: "#4D7C63",
+    lineHeight: 17,
   },
 
   logoutButton: {

@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
+import { useKeepAwake } from "expo-keep-awake";
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -13,6 +14,7 @@ import RideEventModal from "../../features/ride-tracking/RideEventModal";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 import { apiClient } from "../../services/api/client";
 import { logExpectedError } from "../../services/errors/userMessages";
+import { paymentService } from "../../services/payments/paymentService";
 import {
     DriverLocationUpdate,
     subscribeToRideLocation,
@@ -20,6 +22,13 @@ import {
 } from "../../services/rides/rideRealtime";
 import { clearTripStartCoordinate } from "../../services/rides/rideLocationSession";
 import { getRebookLocationsFromRide, saveRebookDraft } from "../../services/rides/rebookDraft";
+
+// The realtime channel's own polling fallback only re-fetches driver GPS
+// location (see rideRealtime.ts), never ride/payment status - so if the
+// single "RideStatusUpdated" broadcast that flips payment to COMPLETED is
+// ever missed (dropped socket, Reverb hiccup), the rating modal has no other
+// way to appear. This is the safety net for that.
+const RIDE_STATUS_POLL_MS = 6000;
 
 const mergeRideData = (previous: any, next: any) => ({
     ...(previous || {}),
@@ -36,8 +45,9 @@ const mergeRideData = (previous: any, next: any) => ({
 });
 
 export default function LiveTrackerPage() {
+    useKeepAwake();
     const params = useLocalSearchParams();
-    const { paymentMethod, resetTrip, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
+    const { paymentMethod, resetTrip, selectedPaymentCard, setActiveRide, setIsSearchingForDriver, setOutboundPickup, setOutboundDropoff } = useRideSearch();
     const initialRideData = params.rideData ? JSON.parse(params.rideData as string) : null;
     const initialEventStatus = Array.isArray(params.eventStatus)
         ? params.eventStatus[0]
@@ -72,11 +82,11 @@ export default function LiveTrackerPage() {
     const [rating, setRating] = useState(5);
     const [review, setReview] = useState("");
     const [isSubmittingRating, setIsSubmittingRating] = useState(false);
+    const [isSettlingCredit, setIsSettlingCredit] = useState(false);
     const [ratingSubmitted, setRatingSubmitted] = useState(false);
     const lastAlertedStatusRef = useRef<string | null>(
         initialRideData?.status ? String(initialRideData.status).toUpperCase() : null,
     );
-    const cardPaymentRedirectedRef = useRef(false);
     const lastPaymentStatusRef = useRef<string | null>(
         initialRideData?.payment?.payment_status ? String(initialRideData.payment.payment_status).toUpperCase() : null,
     );
@@ -90,25 +100,6 @@ export default function LiveTrackerPage() {
     }, [initialRideData, shouldUseActiveRideMap]);
 
     useEffect(() => {
-        if (
-            initialStatus === "COMPLETED" &&
-            selectedPaymentMethod === "card" &&
-            initialPaymentStatus !== "COMPLETED" &&
-            rideId &&
-            !cardPaymentRedirectedRef.current
-        ) {
-            cardPaymentRedirectedRef.current = true;
-            router.replace({
-                pathname: "/payments/processing",
-                params: {
-                    rideId: String(rideId),
-                    amount: String(initialRideData?.final_fare || initialRideData?.estimated_fare || 0),
-                },
-            });
-        }
-    }, [initialPaymentStatus, initialRideData?.estimated_fare, initialRideData?.final_fare, initialStatus, rideId, selectedPaymentMethod]);
-
-    useEffect(() => {
         if (initialStatus === "COMPLETED" && rideId) {
             void clearTripStartCoordinate(rideId);
         }
@@ -119,6 +110,19 @@ export default function LiveTrackerPage() {
 
         let unsubscribe: (() => void) | undefined;
         let cancelled = false;
+        let statusPollTimer: ReturnType<typeof setInterval> | null = null;
+        // Nothing left to discover once the rating modal is up or the ride
+        // ended without payment (cancelled) - stop polling at that point.
+        // Seeded from isInitiallyPaid: landing here already paid (e.g. card
+        // payment redirects straight back with a completed/paid ride) means
+        // the change-detection refs below already match on the first fetch
+        // and never flip resolved on their own.
+        let resolved = isInitiallyPaid;
+
+        const stopStatusPolling = () => {
+            if (statusPollTimer) clearInterval(statusPollTimer);
+            statusPollTimer = null;
+        };
 
         const handleRideUpdate = (ride: any) => {
             setRideData((previous: any) => mergeRideData(previous, ride));
@@ -131,28 +135,20 @@ export default function LiveTrackerPage() {
                     setIsSearchingForDriver(false);
                 }
             }
-            if (
-                status === "COMPLETED" &&
-                selectedPaymentMethod === "card" &&
-                paymentStatus !== "COMPLETED" &&
-                !cardPaymentRedirectedRef.current
-            ) {
-                cardPaymentRedirectedRef.current = true;
-                router.replace({
-                    pathname: "/payments/processing",
-                    params: {
-                        rideId: String(rideId),
-                        amount: String(ride?.final_fare || ride?.estimated_fare || 0),
-                    },
-                });
-                return;
-            }
-
+            // Card rides used to jump straight to /payments/processing here with
+            // no passenger interaction. Falling through to the block below
+            // instead surfaces the normal "Trip completed" prompt, whose
+            // primary button is relabelled "Pay now" for card rides further
+            // down - the passenger has to press it to start the charge.
             if (status && lastAlertedStatusRef.current !== status) {
                 lastAlertedStatusRef.current = status;
                 if (["COMPLETED", "CANCELLED", "CANCELED"].includes(status)) {
                     setEventStatus(status);
                     setEventPaymentStatus(paymentStatus);
+                }
+                if (["CANCELLED", "CANCELED"].includes(status)) {
+                    resolved = true;
+                    stopStatusPolling();
                 }
             }
 
@@ -162,6 +158,8 @@ export default function LiveTrackerPage() {
                     setEventStatus("PAID");
                     setEventPaymentStatus(paymentStatus);
                     setShowRatingModal(true);
+                    resolved = true;
+                    stopStatusPolling();
                 }
             }
         };
@@ -177,6 +175,17 @@ export default function LiveTrackerPage() {
 
         fetchRideDetails();
 
+        // Belt-and-braces alongside the WebSocket push: cheap, and it is the
+        // only thing that catches a payment confirmation whose broadcast
+        // never arrived.
+        statusPollTimer = setInterval(() => {
+            if (resolved) {
+                stopStatusPolling();
+                return;
+            }
+            fetchRideDetails();
+        }, RIDE_STATUS_POLL_MS);
+
         subscribeToRideLocation(
             rideId,
             setDriverLocation,
@@ -190,9 +199,10 @@ export default function LiveTrackerPage() {
 
         return () => {
             cancelled = true;
+            stopStatusPolling();
             unsubscribe?.();
         };
-    }, [rideId, ratingSubmitted, selectedPaymentMethod, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap]);
+    }, [rideId, ratingSubmitted, selectedPaymentMethod, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap, isInitiallyPaid]);
 
     if (shouldUseActiveRideMap) {
         return (
@@ -203,6 +213,56 @@ export default function LiveTrackerPage() {
     }
 
     if (!rideData) return null;
+
+    const awaitingCardPayment =
+        eventStatus === "COMPLETED" &&
+        selectedPaymentMethod === "card" &&
+        eventPaymentStatus !== "COMPLETED";
+    const awaitingCreditSettlement =
+        eventStatus === "COMPLETED" &&
+        Boolean(rideData?.use_wallet_credit) &&
+        selectedPaymentMethod !== "card" &&
+        eventPaymentStatus !== "COMPLETED";
+
+    const settleCreditPayment = async () => {
+        if (!rideId || isSettlingCredit) return;
+
+        setIsSettlingCredit(true);
+        try {
+            const result = await paymentService.beginRidePayment(
+                String(rideId),
+                Number(rideData?.final_fare || rideData?.estimated_fare || 0),
+            );
+
+            if (result.status === "completed") {
+                setEventPaymentStatus("COMPLETED");
+                setEventStatus(null);
+                setRideData((previous: any) => ({
+                    ...previous,
+                    payment: {
+                        ...(previous?.payment || {}),
+                        payment_status: "COMPLETED",
+                        gateway_reference: result.reference,
+                    },
+                }));
+                setShowRatingModal(true);
+                return;
+            }
+
+            router.push({
+                pathname: "/payments/failed",
+                params: {
+                    rideId: String(rideId),
+                    amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
+                    message: result.message || "Payment needs your attention.",
+                },
+            });
+        } catch (error) {
+            logExpectedError("PickU credit settlement failed", error);
+        } finally {
+            setIsSettlingCredit(false);
+        }
+    };
 
     const handleBookAgain = async () => {
         const { pickup, destination } = getRebookLocationsFromRide(rideData);
@@ -264,10 +324,50 @@ export default function LiveTrackerPage() {
                 paymentStatus={eventPaymentStatus}
                 cancelledBy={rideData?.cancelled_by}
                 onClose={() => setEventStatus(null)}
-                primaryLabel={rideData?.cancelled_by === "driver" ? "Book again" : undefined}
+                primaryLabel={
+                    rideData?.cancelled_by === "driver"
+                        ? "Book again"
+                        : awaitingCardPayment
+                            ? "Pay now"
+                            : awaitingCreditSettlement
+                                ? isSettlingCredit
+                                    ? "Applying credit..."
+                                    : "Confirm payment"
+                            : undefined
+                }
                 onPrimary={() => {
                     if (eventStatus && ["CANCELLED", "CANCELED"].includes(String(eventStatus).toUpperCase()) && rideData?.cancelled_by === "driver") {
                         void handleBookAgain();
+                        return;
+                    }
+                    // The passenger must press this - nothing charges the card
+                    // automatically. See processing.tsx for what happens after.
+                    if (awaitingCardPayment) {
+                        setEventStatus(null);
+
+                        if (!selectedPaymentCard) {
+                            router.push({
+                                pathname: "/payments/cards",
+                                params: {
+                                    mode: "retry",
+                                    rideId: String(rideId),
+                                    amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
+                                },
+                            });
+                            return;
+                        }
+
+                        router.push({
+                            pathname: "/payments/processing",
+                            params: {
+                                rideId: String(rideId),
+                                amount: String(rideData?.final_fare || rideData?.estimated_fare || 0),
+                            },
+                        });
+                        return;
+                    }
+                    if (awaitingCreditSettlement) {
+                        void settleCreditPayment();
                         return;
                     }
                     if (eventStatus === "COMPLETED") {

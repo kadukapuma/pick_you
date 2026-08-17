@@ -78,6 +78,7 @@ export function normalizeRidePayload(source = {}) {
     rating: source.rating,
     vehicle_type: vehicleType,
     requested_at: source.requested_at,
+    expires_at: source.expires_at ?? source.expiresAt ?? null,
     accepted_at: source.accepted_at,
     arrived_at: source.arrived_at,
     started_at: source.started_at,
@@ -94,6 +95,8 @@ export function normalizeRidePayload(source = {}) {
       source.payment_method ??
       source.paymentMode ??
       source.payment?.payment_method,
+    use_wallet_credit: Boolean(source.use_wallet_credit),
+    payment: source.payment ?? null,
     commission_amount: source.commission_amount,
     driver_earning: source.driver_earning,
     time: source.time,

@@ -1,62 +1,64 @@
-import { useMemo, useState } from 'react'
+import { createElement, useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-    FiActivity, FiArrowRight, FiBarChart2, FiCalendar, FiCheck, FiChevronRight, FiCreditCard, FiDollarSign,
+    FiActivity, FiCalendar, FiChevronRight, FiCreditCard, FiDollarSign,
     FiFileText, FiStar, FiTrendingUp, FiTruck, FiUsers,
 } from 'react-icons/fi'
-import { LuCarTaxiFront, LuReceiptText } from 'react-icons/lu'
-import { LuCarFront } from 'react-icons/lu'
+import { LuCarFront, LuCarTaxiFront, LuReceiptText } from 'react-icons/lu'
 import { MdElectricRickshaw, MdTwoWheeler } from 'react-icons/md'
 import { FaVanShuttle } from 'react-icons/fa6'
+import { useAdmin } from '../../context/AdminContext'
+import echo from '../../echo'
+import {
+    fetchReportsOverview, fetchVehicleSummary, fetchRideStatistics,
+    fetchPaymentBreakdown, fetchVehicleTypes,
+} from '../../services/adminApi'
 import './Reports.css'
 
 const periods = {
-    day: { label: 'Today', range: 'Jul 23, 2026', factor: 0.16, chart: [82, 96, 73, 118, 104, 132, 146] },
-    week: { label: 'This week', range: 'Jul 17 – Jul 23, 2026', factor: 1, chart: [102, 114, 161, 139, 168, 211, 174] },
-    month: { label: 'This month', range: 'Jul 1 – Jul 23, 2026', factor: 4.15, chart: [126, 149, 137, 185, 201, 194, 228] },
+    day: { label: 'Today' },
+    week: { label: 'This week' },
+    month: { label: 'This month' },
 }
 
-const drivers = [
-    ['Kasun Perera', 245, 190750, 11445, 4200, 183505, 4.9],
-    ['Amal Silva', 220, 176200, 10572, 3600, 169228, 4.8],
-    ['Nimal Fernando', 198, 152600, 9156, 3100, 146544, 4.7],
-    ['Ruwan Jayasinghe', 172, 128400, 7704, 2800, 123496, 4.6],
-    ['Sanjeewa Bandara', 160, 112300, 6738, 2400, 107962, 4.6],
-    ['Tharindu Madushan', 148, 101450, 6087, 2100, 97463, 4.5],
-    ['Dinesh Kumara', 139, 95600, 5736, 1900, 91764, 4.5],
-]
+const paymentColors = { cash: '#05a84d', wallet: '#6dd38d', card: '#2e80d1' }
+const paymentColorFor = (method) => paymentColors[method] || '#aeb4ba'
 
-const cities = [
-    ['Kandy', 420500, 842], ['Colombo', 315200, 598], ['Gampola', 185600, 362],
-    ['Peradeniya', 142800, 276], ['Matale', 76400, 128], ['Jaffna', 68900, 116],
-    ['Kurunegala', 54700, 94],
-]
+const vehicleIconFor = (name = '') => {
+    const n = name.toLowerCase()
+    if (n.includes('tuk')) return MdElectricRickshaw
+    if (n.includes('bike') || n.includes('motor')) return MdTwoWheeler
+    if (n.includes('van')) return FaVanShuttle
+    if (n.includes('car')) return LuCarFront
+    return FiTruck
+}
 
-const transactions = [
-    ['Commission', 'PickU commission', 2450, 'Jul 23, 2026', 'in'],
-    ['Payout', 'Driver payout', 45000, 'Jul 23, 2026', 'out'],
-    ['Revenue', 'Ride payment', 12500, 'Jul 23, 2026', 'in'],
-    ['Bonus', 'Peak-hour bonus', 800, 'Jul 22, 2026', 'out'],
-    ['Wallet', 'Customer top-up', 8750, 'Jul 22, 2026', 'in'],
-    ['Refund', 'Cancelled ride refund', 1350, 'Jul 21, 2026', 'out'],
-]
+const formatMoney = (value) => `Rs. ${Math.round(Math.abs(Number(value) || 0)).toLocaleString('en-LK')}`
 
-const formatMoney = (value) => `Rs. ${Math.round(value).toLocaleString('en-LK')}`
+const formatDateRange = (since) => {
+    if (!since) return 'All time'
+    const start = new Date(since)
+    const today = new Date()
+    return `${start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+}
 
 function LineChart({ values, labels }) {
-    const max = Math.max(...values)
-    const coords = values.map((value, index) => [8 + index * 15.3, 89 - (value / max) * 67])
+    const max = Math.max(...values, 1)
+    const coords = values.map((value, index) => [8 + index * (93 / Math.max(values.length - 1, 1)), 89 - (value / max) * 67])
     const smoothPath = coords.reduce((path, point, index) => {
         if (index === 0) return `M ${point[0]} ${point[1]}`
         const previous = coords[index - 1]
         const controlX = (previous[0] + point[0]) / 2
         return `${path} C ${controlX} ${previous[1]}, ${controlX} ${point[1]}, ${point[0]} ${point[1]}`
     }, '')
-    const areaPath = `${smoothPath} L ${coords.at(-1)[0]} 92 L ${coords[0][0]} 92 Z`
+    const areaPath = coords.length ? `${smoothPath} L ${coords.at(-1)[0]} 92 L ${coords[0][0]} 92 Z` : ''
     const [active, setActive] = useState(null)
+
+    if (!values.length) return <div className="report-line-chart"><p style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-muted)' }}>No revenue recorded for this period yet.</p></div>
+
     return (
         <div className="report-line-chart">
-            <div className="chart-y-labels"><span>250K</span><span>200K</span><span>150K</span><span>100K</span><span>50K</span><span>0</span></div>
+            <div className="chart-y-labels"><span>{formatMoney(max)}</span><span>{formatMoney(max * .75)}</span><span>{formatMoney(max * .5)}</span><span>{formatMoney(max * .25)}</span><span>0</span></div>
             <svg viewBox="0 0 108 100" preserveAspectRatio="none" aria-label="Revenue trend chart">
                 <defs>
                     <linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1">
@@ -79,13 +81,13 @@ function LineChart({ values, labels }) {
                     </g>
                 ))}
             </svg>
-            {active !== null && <div className="chart-tooltip" style={{ left: `${8 + active * 15.3}%`, top: `${12 + (1 - values[active] / max) * 60}%` }}><span>{labels[active]} revenue</span><b>Rs. {values[active]},000</b><small>↑ 12.4% from last period</small></div>}
-            <div className="chart-x-labels">{labels.map(day => <span key={day}>{day}</span>)}</div>
+            {active !== null && <div className="chart-tooltip" style={{ left: `${coords[active][0]}%`, top: `${12 + (1 - values[active] / max) * 60}%` }}><span>{labels[active]} revenue</span><b>{formatMoney(values[active])}</b></div>}
+            <div className="chart-x-labels">{labels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div>
         </div>
     )
 }
 
-function MiniTable({ title, columns, rows, renderRow, onViewAll }) {
+function MiniTable({ title, columns, rows, renderRow, onViewAll, emptyText }) {
     const visibleRows = rows.slice(0, 5)
     return (
         <article className="report-panel report-table-panel">
@@ -94,10 +96,12 @@ function MiniTable({ title, columns, rows, renderRow, onViewAll }) {
                 <button className="text-button" onClick={onViewAll}>View full report <FiChevronRight /></button>
             </div>
             <div className="report-table-scroll">
-                <table className="report-table">
-                    <thead><tr>{columns.map(column => <th key={column}>{column}</th>)}</tr></thead>
-                    <tbody>{visibleRows.map(renderRow)}</tbody>
-                </table>
+                {visibleRows.length ? (
+                    <table className="report-table">
+                        <thead><tr>{columns.map(column => <th key={column}>{column}</th>)}</tr></thead>
+                        <tbody>{visibleRows.map(renderRow)}</tbody>
+                    </table>
+                ) : <p style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)' }}>{emptyText || 'No data yet.'}</p>}
             </div>
         </article>
     )
@@ -105,50 +109,143 @@ function MiniTable({ title, columns, rows, renderRow, onViewAll }) {
 
 const Reports = () => {
     const navigate = useNavigate()
+    const { token } = useAdmin()
     const [period, setPeriod] = useState('week')
-    const [customStart, setCustomStart] = useState('2026-07-17')
-    const [customEnd, setCustomEnd] = useState('2026-07-23')
-    const [appliedDates, setAppliedDates] = useState({ start: '2026-07-17', end: '2026-07-23' })
-    const [revenueMetric, setRevenueMetric] = useState('revenue')
-    const [rideFilter, setRideFilter] = useState('all')
-    const [paymentFilter, setPaymentFilter] = useState('all')
+    const [overview, setOverview] = useState(null)
+    const [vehicleSummary, setVehicleSummary] = useState(null)
+    const [rideStats, setRideStats] = useState(null)
+    const [paymentData, setPaymentData] = useState(null)
+    const [vehicleTypes, setVehicleTypes] = useState([])
+    const [summaryVehicleType, setSummaryVehicleType] = useState('')
+    const [rideVehicleType, setRideVehicleType] = useState('')
+    const [paymentStatus, setPaymentStatus] = useState('all')
+    const [paymentMethod, setPaymentMethod] = useState('all')
+    const [loading, setLoading] = useState(true)
+    const [error, setError] = useState('')
 
-    const current = periods[period] || { ...periods.week, label: 'Custom range', range: `${appliedDates.start} – ${appliedDates.end}` }
-    const multiplier = current.factor
-    const stats = useMemo(() => ({
-        revenue: 1240500 * multiplier,
-        commission: 74430 * multiplier,
-        earnings: 1166070 * multiplier,
-        rides: Math.round(2483 * multiplier),
-    }), [multiplier])
-    const vehicleProfiles = {
-        all: { label: 'All Vehicles', factor: 1, icon: FiTruck },
-        car: { label: 'Car', factor: .38, icon: LuCarFront },
-        tuk: { label: 'Tuk Tuk', factor: .27, icon: MdElectricRickshaw },
-        bike: { label: 'Bike', factor: .18, icon: MdTwoWheeler },
-        van: { label: 'Van', factor: .08, icon: FaVanShuttle },
-        minivan: { label: 'Mini Van', factor: .05, icon: FaVanShuttle },
-        minicar: { label: 'Mini Car', factor: .04, icon: LuCarFront },
-    }
-    const selectedVehicle = vehicleProfiles[rideFilter]
-    const SelectedVehicleIcon = selectedVehicle.icon
-    const rideFactor = selectedVehicle.factor
-    const paymentData = {
-        all: { total: 1.11, values: [['Cash', '45%', 'cash'], ['Wallet', '30%', 'wallet'], ['Card', '20%', 'card'], ['Other', '5%', 'other']] },
-        success: { total: 1.02, values: [['Cash', '48%', 'cash'], ['Wallet', '29%', 'wallet'], ['Card', '21%', 'card'], ['Other', '2%', 'other']] },
-        pending: { total: .09, values: [['Cash', '10%', 'cash'], ['Wallet', '42%', 'wallet'], ['Card', '38%', 'card'], ['Other', '10%', 'other']] },
-    }[paymentFilter]
+    const loadOverview = useCallback(async () => {
+        if (!token) return
+        try {
+            setError('')
+            const data = await fetchReportsOverview(token, period)
+            setOverview(data)
+        } catch (err) {
+            setError(err.message || 'Failed to load reports.')
+        } finally {
+            setLoading(false)
+        }
+    }, [token, period])
 
-    const selectPeriod = (value) => {
-        setPeriod(value)
-    }
+    const loadVehicleSummary = useCallback(async () => {
+        if (!token) return
+        try {
+            const data = await fetchVehicleSummary(token, { vehicleType: summaryVehicleType })
+            setVehicleSummary(data)
+        } catch {
+            // Non-critical panel - the rest of the dashboard still works without it.
+        }
+    }, [token, summaryVehicleType])
+
+    const loadRideStats = useCallback(async () => {
+        if (!token) return
+        try {
+            const data = await fetchRideStatistics(token, { period, vehicleType: rideVehicleType })
+            setRideStats(data)
+        } catch {
+            // Non-critical panel - the rest of the dashboard still works without it.
+        }
+    }, [token, period, rideVehicleType])
+
+    const loadPaymentData = useCallback(async () => {
+        if (!token) return
+        try {
+            const data = await fetchPaymentBreakdown(token, { period, status: paymentStatus, method: paymentMethod })
+            setPaymentData(data)
+        } catch {
+            // Non-critical panel - the rest of the dashboard still works without it.
+        }
+    }, [token, period, paymentStatus, paymentMethod])
+
+    useEffect(() => {
+        if (!token) return
+        fetchVehicleTypes(token).then(({ vehicleTypes: types }) => setVehicleTypes(types || [])).catch(() => {})
+    }, [token])
+
+    useEffect(() => {
+        setLoading(true)
+        loadOverview()
+        const interval = setInterval(loadOverview, 30000)
+        return () => clearInterval(interval)
+    }, [loadOverview])
+
+    useEffect(() => {
+        loadVehicleSummary()
+        const interval = setInterval(loadVehicleSummary, 30000)
+        return () => clearInterval(interval)
+    }, [loadVehicleSummary])
+
+    useEffect(() => {
+        loadRideStats()
+        const interval = setInterval(loadRideStats, 30000)
+        return () => clearInterval(interval)
+    }, [loadRideStats])
+
+    useEffect(() => {
+        loadPaymentData()
+        const interval = setInterval(loadPaymentData, 30000)
+        return () => clearInterval(interval)
+    }, [loadPaymentData])
+
+    useEffect(() => {
+        if (!token) return
+        const channel = echo.channel('admin.dashboard')
+        const handleUpdate = () => loadOverview()
+        channel.listen('DashboardUpdated', handleUpdate)
+        return () => {
+            channel.stopListening('DashboardUpdated', handleUpdate)
+            echo.leave('admin.dashboard')
+        }
+    }, [token, loadOverview])
+
+    const stats = overview?.stats || { revenue: 0, commission: 0, driver_earnings: 0, rides: 0 }
+    const trend = overview?.trend || []
+    const topDrivers = overview?.top_drivers || []
+    const recentTransactions = overview?.recent_transactions || []
+    const paymentMethods = paymentData?.payment_methods || {}
+    const paymentTotal = Object.values(paymentMethods).reduce((sum, count) => sum + count, 0)
 
     const statCards = [
-        [FiDollarSign, 'Total Revenue', formatMoney(stats.revenue), '18.6%', 'All ride payments'],
-        [LuReceiptText, 'PickU Commission', formatMoney(stats.commission), '6%', 'of total revenue'],
-        [FiUsers, 'Driver Earnings', formatMoney(stats.earnings), '22.4%', 'after commission'],
-        [LuCarTaxiFront, 'Completed Rides', stats.rides.toLocaleString(), '15.3%', 'completion rate 90%'],
+        [FiDollarSign, 'Total Revenue', formatMoney(stats.revenue), 'All ride payments'],
+        [LuReceiptText, 'PickU Commission', formatMoney(stats.commission), 'Platform commission'],
+        [FiUsers, 'Driver Earnings', formatMoney(stats.driver_earnings), 'Paid out to drivers'],
+        [LuCarTaxiFront, 'Completed Rides', (stats.rides ?? 0).toLocaleString(), 'In selected period'],
     ]
+
+    let cursor = 0
+    const donutStops = Object.entries(paymentMethods).map(([name, count]) => {
+        const pct = paymentTotal ? (count / paymentTotal) * 100 : 0
+        const start = cursor
+        cursor += pct
+        return `${paymentColorFor(name)} ${start}% ${cursor}%`
+    })
+    const donutBackground = donutStops.length ? `conic-gradient(${donutStops.join(', ')})` : 'conic-gradient(#e5e7eb 0 100%)'
+
+    const selectedSummaryVehicle = vehicleTypes.find(vt => String(vt.id) === String(summaryVehicleType))
+    const selectedSummaryVehicleLabel = selectedSummaryVehicle ? (selectedSummaryVehicle.display_name || selectedSummaryVehicle.name) : 'All Vehicles'
+
+    const rideStatus = rideStats || { completed: 0, cancelled: 0, expired: 0, ongoing: 0, requested: 0 }
+    const rideStatusTotal = rideStatus.completed + rideStatus.cancelled + (rideStatus.expired || 0) + rideStatus.ongoing + rideStatus.requested
+    const rideStatusMax = Math.max(rideStatus.completed, rideStatus.cancelled, rideStatus.expired || 0, rideStatus.ongoing, rideStatus.requested, 1)
+    const rideStatusBars = [
+        ['Completed', rideStatus.completed],
+        ['Cancelled', rideStatus.cancelled],
+        // Rides the system auto-cancelled because no driver accepted in time -
+        // kept separate from "Cancelled" so that bar only ever reflects rides a
+        // passenger or driver actually chose to cancel.
+        ['Expired', rideStatus.expired || 0],
+        ['Ongoing', rideStatus.ongoing],
+        ['Requested', rideStatus.requested],
+    ].map(([label, value]) => [label, value, Math.max(Math.round((value / rideStatusMax) * 88), value ? 6 : 0)])
 
     return (
         <section className="reports-page">
@@ -160,42 +257,23 @@ const Reports = () => {
                 <div className="report-actions">
                     <div className="period-tabs" aria-label="Report period">
                         {Object.entries(periods).map(([key, item]) => (
-                            <button key={key} className={period === key ? 'active' : ''} onClick={() => selectPeriod(key)}>{item.label}</button>
+                            <button key={key} className={period === key ? 'active' : ''} onClick={() => setPeriod(key)}>{item.label}</button>
                         ))}
-                        <button className={period === 'custom' ? 'active' : ''} onClick={() => selectPeriod('custom')}>Custom</button>
                     </div>
-                    <div className="date-display"><FiCalendar />{current.range}</div>
+                    <div className="date-display"><FiCalendar />{formatDateRange(overview?.since)}</div>
                 </div>
             </div>
 
-            {period === 'custom' && (
-                <div className="custom-date-row">
-                    <div className="custom-date-intro">
-                        <span><FiCalendar /></span>
-                        <div><strong>Choose a custom period</strong><small>Select the exact dates you want to analyse</small></div>
-                    </div>
-                    <div className="custom-date-fields">
-                        <label><span>Start date</span><div><FiCalendar /><input type="date" value={customStart} max={customEnd} onChange={e => setCustomStart(e.target.value)} /></div></label>
-                        <span className="custom-date-arrow"><FiArrowRight /></span>
-                        <label><span>End date</span><div><FiCalendar /><input type="date" value={customEnd} min={customStart} onChange={e => setCustomEnd(e.target.value)} /></div></label>
-                    </div>
-                    <div className="custom-date-submit">
-                        {customStart > customEnd && <small>Start date must be before end date</small>}
-                        <button disabled={!customStart || !customEnd || customStart > customEnd} onClick={() => { setAppliedDates({ start: customStart, end: customEnd }); setPeriod('custom') }}><FiCheck /> Apply period</button>
-                    </div>
-                </div>
-            )}
-
             <div className="export-row">
-                <span className="report-period-note"><span className="live-dot" /> Showing {current.label.toLowerCase()} data</span>
-                <span className="data-status"><span /> Demo data · updates with selected period</span>
+                <span className="report-period-note"><span className="live-dot" /> {loading ? 'Loading…' : `Showing ${periods[period].label.toLowerCase()} data`}</span>
+                {error && <span className="data-status"><span /> {error}</span>}
             </div>
 
             <div className="report-stat-grid">
-                {statCards.map(([Icon, label, value, trend, note], index) => (
+                {statCards.map(([Icon, label, value, note], index) => (
                     <article className="report-stat-card" key={label} style={{ animationDelay: `${index * 70}ms` }}>
                         <div className="stat-icon"><Icon /></div>
-                        <div><span>{label}</span><strong>{value}</strong><small><b>↑ {trend}</b> {note}</small></div>
+                        <div><span>{label}</span><strong>{value}</strong><small>{note}</small></div>
                     </article>
                 ))}
             </div>
@@ -203,40 +281,93 @@ const Reports = () => {
             <div className="reports-chart-grid">
                 <article className="report-panel revenue-panel">
                     <div className="panel-title-row revenue-panel-header">
-                        <div><span className="chart-eyebrow">Financial performance</span><h3>Revenue Overview</h3><span className="legend"><i /> {revenueMetric === 'revenue' ? 'Revenue' : 'Commission'} (LKR)</span></div>
+                        <div><span className="chart-eyebrow">Financial performance</span><h3>Revenue Overview</h3><span className="legend"><i /> Revenue (LKR)</span></div>
                         <div className="chart-header-actions">
-                            <div className="chart-total"><small>7-day total</small><strong>{formatMoney((current.chart || periods.week.chart).reduce((sum, value) => sum + value, 0) * 1000 * (revenueMetric === 'commission' ? .06 : 1))}</strong></div>
-                            <select className="chart-select" value={revenueMetric} onChange={e => setRevenueMetric(e.target.value)}><option value="revenue">Revenue</option><option value="commission">Commission</option></select>
+                            <div className="chart-total"><small>7-day total</small><strong>{formatMoney(trend.reduce((sum, day) => sum + Number(day.revenue), 0))}</strong></div>
                         </div>
                     </div>
-                    <LineChart values={(current.chart || periods.week.chart).map(v => revenueMetric === 'commission' ? Math.round(v * .06) : v)} labels={['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']} />
+                    <LineChart
+                        values={trend.map(day => Number(day.revenue))}
+                        labels={trend.map(day => new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }))}
+                    />
                 </article>
                 <article className="report-panel">
-                    <div className="panel-title-row"><h3>Ride Statistics</h3><select className="chart-select" value={rideFilter} onChange={e => setRideFilter(e.target.value)}>{Object.entries(vehicleProfiles).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}</select></div>
-                    <div className="bar-chart">
-                        {[['Completed', Math.round(stats.rides * rideFactor), 88], ['Cancelled', Math.round(stats.rides * .061 * rideFactor), 22], ['Pending', Math.round(stats.rides * .031 * rideFactor), 14], ['Ongoing', Math.round(stats.rides * .013 * rideFactor), 9]].map(([label, value, height]) => (
-                            <div className="bar-item" key={`${rideFilter}-${label}`} title={`${label}: ${value.toLocaleString()}`}><b>{value.toLocaleString()}</b><div style={{ height: `${height}%` }} /><span>{label}</span></div>
-                        ))}
-                    </div>
-                </article>
-                <article className="report-panel">
-                    <div className="panel-title-row"><h3>Payment Methods</h3><select className="chart-select" value={paymentFilter} onChange={e => setPaymentFilter(e.target.value)}><option value="all">All payments</option><option value="success">Successful</option><option value="pending">Pending</option></select></div>
-                    <div className="payment-chart">
-                        <div className={`donut ${paymentFilter}`} key={paymentFilter}><div><strong>{Math.round(stats.rides * paymentData.total).toLocaleString()}</strong><span>Total</span></div></div>
-                        <div className="payment-legend">
-                            {paymentData.values.map(([name, value, cls]) => <p key={name}><i className={cls} /><span>{name}</span><b>{value}</b></p>)}
+                    <div className="panel-title-row">
+                        <h3>Payment Methods</h3>
+                        <div className="panel-filter-group">
+                            <select className="chart-select" value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)}>
+                                <option value="all">All methods</option>
+                                <option value="cash">Cash</option>
+                                <option value="card">Card</option>
+                                <option value="wallet">Wallet</option>
+                            </select>
+                            <select className="chart-select" value={paymentStatus} onChange={e => setPaymentStatus(e.target.value)}>
+                                <option value="all">All payments</option>
+                                <option value="success">Successful</option>
+                                <option value="pending">Pending</option>
+                            </select>
                         </div>
                     </div>
+                    {paymentTotal ? (
+                        <div className="payment-chart">
+                            <div className="donut" style={{ background: donutBackground }}><div><strong>{paymentTotal.toLocaleString()}</strong><span>Total</span></div></div>
+                            <div className="payment-legend">
+                                {Object.entries(paymentMethods).map(([name, count]) => (
+                                    <p key={name}><i style={{ background: paymentColorFor(name) }} /><span style={{ textTransform: 'capitalize' }}>{name}</span><b>{Math.round((count / paymentTotal) * 100)}%</b></p>
+                                ))}
+                            </div>
+                        </div>
+                    ) : <p style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-muted)' }}>No payments recorded for this period yet.</p>}
+                </article>
+                <article className="report-panel">
+                    <div className="panel-title-row">
+                        <h3>Ride Statistics</h3>
+                        <select className="chart-select" value={rideVehicleType} onChange={e => setRideVehicleType(e.target.value)}>
+                            <option value="">All Vehicles</option>
+                            {vehicleTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.display_name || vt.name}</option>)}
+                        </select>
+                    </div>
+                    {rideStatusTotal ? (
+                        <div className="bar-chart">
+                            {rideStatusBars.map(([label, value, height]) => (
+                                <div className="bar-item" key={label} title={`${label}: ${value.toLocaleString()}`}><b>{value.toLocaleString()}</b><div style={{ height: `${height}%` }} /><span>{label}</span></div>
+                            ))}
+                        </div>
+                    ) : <p style={{ padding: '32px 0', textAlign: 'center', color: 'var(--text-muted)' }}>No rides in this period yet.</p>}
                 </article>
             </div>
 
-            <div className="reports-table-grid">
-                <MiniTable title="Top Drivers" columns={['Driver', 'Trips', 'Earnings', 'Commission', 'Net payout', 'Rating']} rows={drivers} onViewAll={() => navigate('/admin-portal/reports/drivers')}
-                    renderRow={(row, i) => <tr key={row[0]}><td><span className="driver-rank">{i + 1}</span>{row[0]}</td><td>{row[1]}</td><td>{formatMoney(row[2])}</td><td>{formatMoney(row[3])}</td><td>{formatMoney(row[5])}</td><td>{row[6]} <span className="rating-star">★</span></td></tr>} />
-                <MiniTable title="Revenue by City" columns={['City', 'Revenue', 'Rides']} rows={cities} onViewAll={() => navigate('/admin-portal/reports/cities')}
-                    renderRow={row => <tr key={row[0]}><td>{row[0]}</td><td>{formatMoney(row[1])}</td><td>{row[2]}</td></tr>} />
-                <MiniTable title="Recent Transactions" columns={['Type', 'Description', 'Amount', 'Date']} rows={transactions} onViewAll={() => navigate('/admin-portal/reports/transactions')}
-                    renderRow={row => <tr key={`${row[0]}-${row[3]}`}><td><span className={`transaction-tag ${row[4]}`}>{row[0]}</span></td><td>{row[1]}</td><td className={row[4] === 'out' ? 'money-out' : 'money-in'}>{row[4] === 'out' ? '−' : '+'}{formatMoney(row[2])}</td><td>{row[3]}</td></tr>} />
+            <div className="reports-table-grid" style={{ gridTemplateColumns: 'repeat(2, 1fr)' }}>
+                <MiniTable
+                    title="Top Drivers" columns={['Driver', 'Trips', 'Earnings', 'Commission', 'Rating']} rows={topDrivers}
+                    onViewAll={() => navigate('/admin-portal/reports/driver-earnings')}
+                    emptyText="No completed rides in this period yet."
+                    renderRow={(row, i) => (
+                        <tr key={row.driver_id}>
+                            <td><span className="driver-rank">{i + 1}</span>{row.name}</td>
+                            <td>{row.rides}</td>
+                            <td>{formatMoney(row.earnings)}</td>
+                            <td>{formatMoney(row.commission)}</td>
+                            <td>{row.rating ?? '—'} <span className="rating-star">★</span></td>
+                        </tr>
+                    )}
+                />
+                <MiniTable
+                    title="Recent Transactions" columns={['Type', 'Description', 'Amount', 'Date']} rows={recentTransactions}
+                    onViewAll={() => navigate('/admin-portal/reports/transactions')}
+                    emptyText="No ledger activity yet."
+                    renderRow={row => {
+                        const outgoing = Number(row.amount) < 0
+                        return (
+                            <tr key={row.id}>
+                                <td><span className={`transaction-tag ${outgoing ? 'out' : 'in'}`}>{row.type}</span></td>
+                                <td>{row.description}</td>
+                                <td className={outgoing ? 'money-out' : 'money-in'}>{outgoing ? '−' : '+'}{formatMoney(row.amount)}</td>
+                                <td>{row.posted_at ? new Date(row.posted_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                            </tr>
+                        )
+                    }}
+                />
             </div>
 
             <section className="report-library">
@@ -245,11 +376,12 @@ const Reports = () => {
                 </div>
                 <div className="report-library-grid">
                     {[
-                        ['daily-financial', FiCalendar, 'Daily Financial Report', 'Day-by-day revenue, earnings, refunds, promotions and profit.', 'Daily finance'],
-                        ['financial', FiFileText, 'Monthly Financial Report', 'Gross revenue, earnings, refunds, promotions and net profit.', 'Finance'],
-                        ['driver-performance', FiActivity, 'Driver Performance Report', 'Ratings, trip activity, acceptance and response times.', 'Operations'],
-                        ['driver-earnings', FiDollarSign, 'Driver Earnings Report', 'Income, commission, net earnings, wallets and settlements.', 'Payouts'],
-                        ['revenue', FiBarChart2, 'Revenue Report', 'Fares, company earnings, driver earnings and completed rides.', 'Revenue'],
+                        ['daily-financial', FiCalendar, 'Daily Financial Report', 'Day-by-day revenue, earnings, promotions and profit.', 'Daily finance'],
+                        ['financial', FiFileText, 'Monthly Financial Report', 'Gross revenue, earnings, promotions and net profit.', 'Finance'],
+                        ['driver-performance', FiActivity, 'Driver Performance Report', 'Ratings, trip activity and cancellations per driver.', 'Operations'],
+                        ['driver-earnings', FiDollarSign, 'Driver Earnings Report', 'Income, commission and net earnings per driver.', 'Payouts'],
+                        ['transactions', FiFileText, 'Transactions Report', 'Ledger activity: commission, payouts and settlements.', 'Finance activity'],
+                        ['ride-history', LuCarTaxiFront, 'Ride History', 'Every ride: driver, customer, route, commission and fare breakdown.', 'Ride activity'],
                     ].map(([path, Icon, title, description, tag]) => (
                         <button key={path} className="report-library-card" onClick={() => navigate(`/admin-portal/reports/${path}`)}>
                             <span className="library-icon"><Icon /></span>
@@ -262,14 +394,25 @@ const Reports = () => {
 
             <section className="vehicle-summary-section">
                 <div className="vehicle-summary-header">
-                    <div><span className="library-icon vehicle-selected-icon" key={rideFilter}><SelectedVehicleIcon /></span><div><h3>Vehicle Performance Summary</h3><p>Operational totals for {selectedVehicle.label.toLowerCase()}</p></div></div>
-                    <label><span>Vehicle type</span><select value={rideFilter} onChange={event => setRideFilter(event.target.value)}>{Object.entries(vehicleProfiles).map(([value, item]) => <option key={value} value={value}>{item.label}</option>)}</select></label>
+                    <div><span className="library-icon vehicle-selected-icon" key={summaryVehicleType}>{createElement(selectedSummaryVehicle ? vehicleIconFor(selectedSummaryVehicleLabel) : FiTruck)}</span><div><h3>Vehicle Performance Summary</h3><p>Operational totals for {selectedSummaryVehicleLabel.toLowerCase()}</p></div></div>
+                    <label><span>Vehicle type</span><select value={summaryVehicleType} onChange={e => setSummaryVehicleType(e.target.value)}>
+                        <option value="">All Vehicles</option>
+                        {vehicleTypes.map(vt => <option key={vt.id} value={vt.id}>{vt.display_name || vt.name}</option>)}
+                    </select></label>
                 </div>
-                <div className="report-totals" key={rideFilter}>
-                    {[[LuCarTaxiFront, 'Total Rides', Math.round(2765 * multiplier * rideFactor).toLocaleString()], [FiUsers, 'Total Customers', Math.round(1245 * multiplier * Math.max(rideFactor, .08)).toLocaleString()], [FiTrendingUp, 'Active Drivers', Math.round(286 * rideFactor).toLocaleString()], [SelectedVehicleIcon, 'Total Vehicles', Math.round(312 * rideFactor).toLocaleString()], [FiCreditCard, 'Pending Payouts', formatMoney(186200 * multiplier * rideFactor)], [FiStar, 'Loyalty Points Issued', Math.round(125000 * multiplier * rideFactor).toLocaleString()]].map(([Icon, label, value], index) => (
+                <div className="report-totals" key={summaryVehicleType}>
+                    {[
+                        [LuCarTaxiFront, 'Total Rides', (vehicleSummary?.total_rides ?? 0).toLocaleString()],
+                        [FiUsers, 'Total Customers', (vehicleSummary?.total_customers ?? 0).toLocaleString()],
+                        [FiTrendingUp, 'Active Drivers', (vehicleSummary?.active_drivers ?? 0).toLocaleString()],
+                        [FiTruck, 'Total Vehicles', (vehicleSummary?.total_vehicles ?? 0).toLocaleString()],
+                        [FiCreditCard, 'Pending Payouts', vehicleSummary ? formatMoney(vehicleSummary.pending_payouts) : '—'],
+                        [FiStar, 'Loyalty Points Issued', vehicleSummary?.loyalty_points_issued ?? '—'],
+                    ].map(([Icon, label, value], index) => (
                         <div key={label} style={{ animationDelay: `${index * 45}ms` }}><Icon /><p><small>{label}</small><strong>{value}</strong></p></div>
                     ))}
                 </div>
+                <p style={{ marginTop: 12, fontSize: 12, color: 'var(--text-muted)' }}>Loyalty points aren't tracked anywhere in the system yet — shown as N/A rather than fabricated. Pending payouts is a company-wide ledger balance and doesn't change with the vehicle-type filter.</p>
             </section>
         </section>
     )

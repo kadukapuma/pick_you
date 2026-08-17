@@ -13,8 +13,29 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import api from '../../services/api';
 import ThemedFeedbackModal from '../../components/ThemedFeedbackModal';
+import BankDetailsGuideModal from '../../components/BankDetailsGuideModal';
+
+const HAS_SEEN_BANK_GUIDE_KEY = 'hasSeenBankDetailsGuide';
+
+const InputField = ({ label, value, onChangeText, icon, keyboardType = 'default' }) => (
+  <View style={styles.inputWrapper}>
+    <Text style={styles.inputLabel}>{label}</Text>
+    <View style={styles.inputContainer}>
+      <Feather name={icon} size={18} color="#64748B" style={styles.inputIcon} />
+      <TextInput
+        style={styles.input}
+        value={value}
+        onChangeText={onChangeText}
+        keyboardType={keyboardType}
+        placeholderTextColor="#94A3B8"
+        autoCapitalize={keyboardType === 'default' ? 'words' : 'none'}
+      />
+    </View>
+  </View>
+);
 
 const BankDetailsScreen = ({ navigation }) => {
   const [bankName, setBankName] = useState('');
@@ -23,6 +44,7 @@ const BankDetailsScreen = ({ navigation }) => {
   const [accountNumber, setAccountNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [feedback, setFeedback] = useState({
     visible: false,
     type: 'success',
@@ -65,6 +87,13 @@ const BankDetailsScreen = ({ navigation }) => {
     fetchBankDetails();
   }, [fetchBankDetails]);
 
+  // Auto-shown once on Home right after login; here it's only reachable via
+  // the help icon, so no AsyncStorage check on mount.
+  const closeGuide = useCallback(() => {
+    setShowGuide(false);
+    AsyncStorage.setItem(HAS_SEEN_BANK_GUIDE_KEY, 'true').catch(() => {});
+  }, []);
+
   const handleSave = async () => {
     if (!bankName || !accountName || !accountNumber) {
       showFeedback({
@@ -105,23 +134,6 @@ const BankDetailsScreen = ({ navigation }) => {
     }
   };
 
-  const InputField = ({ label, value, onChangeText, icon, keyboardType = 'default' }) => (
-    <View style={styles.inputWrapper}>
-      <Text style={styles.inputLabel}>{label}</Text>
-      <View style={styles.inputContainer}>
-        <Feather name={icon} size={18} color="#64748B" style={styles.inputIcon} />
-        <TextInput
-          style={styles.input}
-          value={value}
-          onChangeText={onChangeText}
-          keyboardType={keyboardType}
-          placeholderTextColor="#94A3B8"
-          autoCapitalize={keyboardType === 'default' ? 'words' : 'none'}
-        />
-      </View>
-    </View>
-  );
-
   return (
     <View style={styles.mainContainer}>
       <KeyboardAvoidingView
@@ -136,17 +148,25 @@ const BankDetailsScreen = ({ navigation }) => {
                 <Feather name="arrow-left" size={24} color="#FFF" />
               </TouchableOpacity>
               <Text style={styles.headerTitle}>Bank Details</Text>
-              <TouchableOpacity 
-                style={styles.saveBtn} 
-                onPress={handleSave}
-                disabled={saving || loading}
-              >
-                {saving ? (
-                  <ActivityIndicator size="small" color="#FFF" />
-                ) : (
-                  <Text style={styles.saveBtnText}>Save</Text>
-                )}
-              </TouchableOpacity>
+              <View style={styles.headerActions}>
+                <TouchableOpacity
+                  style={styles.helpBtn}
+                  onPress={() => setShowGuide(true)}
+                >
+                  <Feather name="help-circle" size={22} color="#FFF" />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.saveBtn}
+                  onPress={handleSave}
+                  disabled={saving || loading}
+                >
+                  {saving ? (
+                    <ActivityIndicator size="small" color="#FFF" />
+                  ) : (
+                    <Text style={styles.saveBtnText}>Save</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </SafeAreaView>
         </LinearGradient>
@@ -217,6 +237,8 @@ const BankDetailsScreen = ({ navigation }) => {
           action?.();
         }}
       />
+
+      <BankDetailsGuideModal visible={showGuide} onClose={closeGuide} />
     </View>
   );
 };
@@ -240,6 +262,17 @@ const styles = StyleSheet.create({
   },
   headerTitle: { color: '#FFF', fontSize: 18, fontWeight: '800' },
   backBtn: { width: 44, height: 44, justifyContent: 'center' },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  helpBtn: {
+    width: 36,
+    height: 36,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   saveBtn: {
     backgroundColor: 'rgba(255,255,255,0.15)',
     paddingHorizontal: 16,

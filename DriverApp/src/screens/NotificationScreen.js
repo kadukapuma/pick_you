@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -6,72 +6,112 @@ import {
   TouchableOpacity,
   FlatList,
   StatusBar,
-  Animated, // Import Animated
+  ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
-import UnderConstructionBanner from "../components/UnderConstructionBanner";
+import api from "../services/api";
 
-const dummyNotifications = [
-  { id: "1", type: "earnings", icon: "dollar-sign", title: "Daily Earnings Goal Reached!", message: "Congratulations! You earned $250 today.", time: "2 hours ago", color: "#22C55E" },
-  { id: "2", type: "bonus", icon: "gift", title: "Bonus Available", message: "Complete 3 more trips to earn a $20 bonus.", time: "5 hours ago", color: "#FFEA61" },
-  { id: "3", type: "surge", icon: "trending-up", title: "Surge Pricing Active", message: "High demand in Downtown area. 2.5x multiplier!", time: "1 day ago", color: "#A855F7" },
-  { id: "4", type: "rating", icon: "star", title: "New 5-Star Review", message: "Sarah Johnson left you a great review!", time: "2 days ago", color: "#F59E0B" },
-  { id: "5", type: "alert", icon: "alert-circle", title: "Document Expiring Soon", message: "Your insurance expires in 30 days. Please update.", time: "3 days ago", color: "#EF4444" },
-];
+const timeAgo = (isoDate) => {
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours > 1 ? "s" : ""} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days > 1 ? "s" : ""} ago`;
+};
 
 const NotificationScreen = () => {
   const navigation = useNavigation();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Create an array of animated values for each item
-  const fadeAnims = useRef(dummyNotifications.map(() => new Animated.Value(0))).current;
-  const slideAnims = useRef(dummyNotifications.map(() => new Animated.Value(20))).current;
-
-  useEffect(() => {
-    // Run staggered animation
-    const animations = dummyNotifications.map((_, i) => {
-      return Animated.parallel([
-        Animated.timing(fadeAnims[i], {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnims[i], {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ]);
-    });
-
-    Animated.stagger(100, animations).start();
+  const loadNotifications = useCallback(async () => {
+    try {
+      const response = await api.get("/notifications");
+      const list = response.data?.data?.data ?? response.data?.data ?? [];
+      setNotifications(Array.isArray(list) ? list : []);
+    } catch (error) {
+      console.log("Failed to load notifications:", error);
+    }
   }, []);
 
-  const renderItem = ({ item, index }) => (
-    <Animated.View
-      style={{
-        opacity: fadeAnims[index],
-        transform: [{ translateY: slideAnims[index] }],
-      }}
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      await loadNotifications();
+      setLoading(false);
+    })();
+  }, [loadNotifications]);
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadNotifications();
+    setRefreshing(false);
+  };
+
+  const handleMarkRead = async (item) => {
+    if (item.is_read) return;
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n))
+    );
+    try {
+      await api.put(`/notifications/${item.id}`, { is_read: true });
+    } catch (error) {
+      console.log("Failed to mark notification read:", error);
+    }
+  };
+
+  const handlePressNotification = (item) => {
+    handleMarkRead(item);
+    if (item.data?.action === "app_update") {
+      navigation.navigate("AppUpdate");
+    } else {
+      navigation.navigate("NotificationDetail", { title: item.title, message: item.message });
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    const unread = notifications.filter((n) => !n.is_read);
+    setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+    await Promise.all(
+      unread.map((n) =>
+        api.put(`/notifications/${n.id}`, { is_read: true }).catch(() => {})
+      )
+    );
+  };
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity
+      style={styles.notificationItem}
+      activeOpacity={0.7}
+      onPress={() => handlePressNotification(item)}
     >
-      <TouchableOpacity style={styles.notificationItem} activeOpacity={0.7}>
-        <View style={[styles.iconContainer, { backgroundColor: item.color }]}>
-          <Feather name={item.icon} size={22} color="#FFF" />
-        </View>
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>{item.title}</Text>
-          <Text style={styles.message}>{item.message}</Text>
-          <Text style={styles.time}>{item.time}</Text>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
+      <View
+        style={[
+          styles.iconContainer,
+          { backgroundColor: item.is_read ? "#94A3B8" : "#00A859" },
+        ]}
+      >
+        <Feather name="bell" size={22} color="#FFF" />
+      </View>
+      <View style={styles.textContainer}>
+        <Text style={styles.title}>{item.title}</Text>
+        <Text style={styles.message} numberOfLines={2} ellipsizeMode="tail">{item.message}</Text>
+        <Text style={styles.time}>{timeAgo(item.created_at)}</Text>
+      </View>
+    </TouchableOpacity>
   );
 
   return (
     <View style={styles.mainWrapper}>
       <StatusBar barStyle="dark-content" transparent backgroundColor="transparent" />
-      
+
       {/* BACKGROUND GRAPHICS */}
       <View style={styles.circle1} />
       <View style={styles.circle2} />
@@ -80,7 +120,7 @@ const NotificationScreen = () => {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Notifications</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             onPress={() => navigation.goBack()}
             style={styles.closeButton}
           >
@@ -88,22 +128,32 @@ const NotificationScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <UnderConstructionBanner style={styles.constructionBanner} />
-
-        {/* List */}
-        <FlatList
-          data={dummyNotifications}
-          renderItem={renderItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator size="large" color="#00A859" />
+          </View>
+        ) : notifications.length === 0 ? (
+          <View style={styles.centered}>
+            <Text style={styles.emptyText}>No notifications yet.</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={notifications}
+            renderItem={renderItem}
+            keyExtractor={(item) => String(item.id)}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+          />
+        )}
       </SafeAreaView>
 
       {/* FOOTER */}
       <SafeAreaView edges={["bottom"]} style={styles.bottomSafe}>
         <View style={styles.footer}>
-          <TouchableOpacity style={styles.markReadButton}>
+          <TouchableOpacity style={styles.markReadButton} onPress={handleMarkAllRead}>
             <Text style={styles.markReadText}>Mark All as Read</Text>
           </TouchableOpacity>
         </View>
@@ -155,19 +205,24 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 4,
   },
+  centered: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyText: {
+    fontSize: 15,
+    color: "#64748B",
+  },
   listContent: {
     paddingBottom: 20,
-  },
-  constructionBanner: {
-    marginHorizontal: 20,
-    marginBottom: 12,
   },
   notificationItem: {
     flexDirection: "row",
     paddingHorizontal: 20,
     paddingVertical: 18,
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(15, 23, 42, 0.05)", 
+    borderBottomColor: "rgba(15, 23, 42, 0.05)",
   },
   iconContainer: {
     width: 48,

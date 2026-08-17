@@ -15,6 +15,9 @@ export default function AccountLayout() {
       <Stack.Screen name="membership" />
       <Stack.Screen name="saved-addresses" />
       <Stack.Screen name="payments" />
+      <Stack.Screen name="wallet" />
+      <Stack.Screen name="wallet-transactions" />
+      <Stack.Screen name="wallet-transaction/[id]" />
       <Stack.Screen name="vouchers" />
       <Stack.Screen name="help-support" />
       <Stack.Screen name="about" />
