@@ -17,6 +17,7 @@ const Sidebar = ({ admin, isCollapsed }) => {
     const canManageFare = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_fare_configs')
     const canManageNotifications = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_notifications')
     const canManageCredits = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_passenger_credits')
+    const canViewReports = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_reports')
 
     return (
         <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -81,10 +82,12 @@ const Sidebar = ({ admin, isCollapsed }) => {
                         <span>Permissions</span>
                     </NavLink>
                 )}
-                <NavLink to="/admin-portal/reports">
-                    <span className="material-icons">analytics</span>
-                    <span>Reports</span>
-                </NavLink>
+                {canViewReports && (
+                    <NavLink to="/admin-portal/reports">
+                        <span className="material-icons">analytics</span>
+                        <span>Reports</span>
+                    </NavLink>
+                )}
                 {canManageNotifications && (
                     <NavLink to="/admin-portal/broadcasts">
                         <span className="material-icons">campaign</span>
