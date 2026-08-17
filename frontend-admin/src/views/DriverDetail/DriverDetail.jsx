@@ -91,7 +91,14 @@ const DriverDetail = () => {
     }
 
     const { driver, documents } = driverDetails
-    const bank = driver?.bank_account || null
+    const bank = driver?.bank_name || driver?.account_number || driver?.account_name || driver?.bank_branch
+        ? {
+              bank_name: driver.bank_name,
+              bank_branch: driver.bank_branch,
+              account_name: driver.account_name,
+              account_number: driver.account_number,
+          }
+        : null
 
     return (
         <section className="content-page">
@@ -165,16 +172,16 @@ const DriverDetail = () => {
                                         <span>{bank.bank_name || 'N/A'}</span>
                                     </div>
                                     <div className="info-item">
+                                        <label>Branch</label>
+                                        <span>{bank.bank_branch || 'N/A'}</span>
+                                    </div>
+                                    <div className="info-item">
                                         <label>Account Number</label>
                                         <span>{bank.account_number || 'N/A'}</span>
                                     </div>
                                     <div className="info-item">
                                         <label>Account Holder</label>
-                                        <span>{bank.account_holder_name || 'N/A'}</span>
-                                    </div>
-                                    <div className="info-item">
-                                        <label>IBAN / Swift</label>
-                                        <span>{bank.iban || 'N/A'}</span>
+                                        <span>{bank.account_name || 'N/A'}</span>
                                     </div>
                                 </div>
                             ) : (

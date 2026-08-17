@@ -8,8 +8,11 @@ use App\Models\DriverAccount;
 use App\Models\JournalLine;
 use App\Models\LedgerAccount;
 use App\Models\Ride;
+use App\Services\Ledger\DriverPayoutService;
+use App\Services\Ledger\DriverSettlementService;
 use App\Services\Ledger\Money;
 use App\Traits\ApiResponse;
+use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -217,6 +220,102 @@ class AdminFinanceController extends Controller
             ],
             'transactions' => $lines,
         ], 'Driver statement retrieved successfully.');
+    }
+
+    /**
+     * Record a driver's commission debt payment that happened outside the app.
+     *
+     * An operator verifies a WhatsApp receipt for a bank transfer / mobile
+     * money payment, then enters it here. This posts a balanced journal entry
+     * so the driver's ledger position - not just a status flag - reflects it.
+     */
+    public function settleDriver(Request $request, $driverId, DriverSettlementService $settlements)
+    {
+        $driver = Driver::find($driverId);
+
+        if (! $driver) {
+            return $this->error('Driver not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01|max:1000000',
+            'note' => 'required|string|max:500',
+        ]);
+
+        $idempotencyKey = trim((string) $request->header('Idempotency-Key'));
+        $reference = sprintf('%d:%d:%s', $request->user()->id, $driver->id, $idempotencyKey);
+
+        $entry = $settlements->record(
+            driver: $driver,
+            amount: (string) $validated['amount'],
+            note: $validated['note'],
+            createdBy: $request->user(),
+            reference: $reference,
+        );
+
+        $account = DriverAccount::forDriver((int) $driver->id)->load('ledgerAccount');
+        $balance = $account->balance();
+
+        return $this->success([
+            'driver_id' => $driver->id,
+            'balance' => $balance,
+            'status' => match (true) {
+                Money::isZero($balance) => 'SETTLED',
+                Money::isNegative($balance) => 'OWING',
+                default => 'OWED',
+            },
+            'entry_id' => $entry->id,
+        ], 'Driver settlement recorded successfully.', 201);
+    }
+
+    /**
+     * Record PickU paying a driver out - the reverse of settleDriver().
+     *
+     * An operator sends a bank transfer for what PickU owes the driver (e.g.
+     * accumulated card/wallet earnings), then enters it here. This posts a
+     * balanced journal entry and is capped at what is actually owed.
+     */
+    public function payoutDriver(Request $request, $driverId, DriverPayoutService $payouts)
+    {
+        $driver = Driver::find($driverId);
+
+        if (! $driver) {
+            return $this->error('Driver not found.', 404);
+        }
+
+        $validated = $request->validate([
+            'amount' => 'required|numeric|min:0.01|max:1000000',
+            'note' => 'required|string|max:500',
+        ]);
+
+        $idempotencyKey = trim((string) $request->header('Idempotency-Key'));
+        $reference = sprintf('%d:%d:%s', $request->user()->id, $driver->id, $idempotencyKey);
+
+        try {
+            $entry = $payouts->record(
+                driver: $driver,
+                amount: (string) $validated['amount'],
+                note: $validated['note'],
+                createdBy: $request->user(),
+                reference: $reference,
+            );
+        } catch (DomainException $exception) {
+            return $this->error($exception->getMessage(), 422);
+        }
+
+        $account = DriverAccount::forDriver((int) $driver->id)->load('ledgerAccount');
+        $balance = $account->balance();
+
+        return $this->success([
+            'driver_id' => $driver->id,
+            'balance' => $balance,
+            'status' => match (true) {
+                Money::isZero($balance) => 'SETTLED',
+                Money::isNegative($balance) => 'OWING',
+                default => 'OWED',
+            },
+            'entry_id' => $entry->id,
+        ], 'Driver payout recorded successfully.', 201);
     }
 
     /**

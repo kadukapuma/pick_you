@@ -524,6 +524,26 @@ const fetchTrialBalance = async (token) => {
   return payload.data || {}
 }
 
+const settleDriverAccount = async (token, driverId, settlement) => {
+  const payload = await apiFetch(`/admin/finance/drivers/${driverId}/settlements`, {
+    method: 'POST',
+    token,
+    body: { amount: settlement.amount, note: settlement.note },
+    headers: { 'Idempotency-Key': settlement.idempotencyKey },
+  })
+  return payload.data || {}
+}
+
+const payoutDriverAccount = async (token, driverId, payout) => {
+  const payload = await apiFetch(`/admin/finance/drivers/${driverId}/payouts`, {
+    method: 'POST',
+    token,
+    body: { amount: payout.amount, note: payout.note },
+    headers: { 'Idempotency-Key': payout.idempotencyKey },
+  })
+  return payload.data || {}
+}
+
 // Reports
 const fetchReportsOverview = async (token, period = 'week') => {
   const payload = await apiFetch(`/admin/reports/overview?period=${period}`, { token })
@@ -704,6 +724,8 @@ export {
   fetchDriverAccounts,
   fetchDriverStatement,
   fetchTrialBalance,
+  settleDriverAccount,
+  payoutDriverAccount,
   sendBulkNotification,
   publishAppUpdate,
   fetchAppRelease,
