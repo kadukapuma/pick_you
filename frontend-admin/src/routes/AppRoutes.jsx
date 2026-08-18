@@ -64,6 +64,9 @@ const AppRoutes = () => {
     const canManageCredits =
         admin?.role === 'super_admin' ||
         admin?.permissions?.includes('manage_passenger_credits')
+    const canViewReports =
+        admin?.role === 'super_admin' ||
+        admin?.permissions?.includes('manage_reports')
 
     return (
         <Routes>
@@ -106,8 +109,14 @@ const AppRoutes = () => {
                         path="credit-refunds"
                         element={canManageCredits ? <CreditRefunds /> : <Navigate to="/admin-portal" replace />}
                     />
-                    <Route path="reports" element={<Reports />} />
-                    <Route path="reports/:reportType" element={<ReportDetail />} />
+                    <Route
+                        path="reports"
+                        element={canViewReports ? <Reports /> : <Navigate to="/admin-portal" replace />}
+                    />
+                    <Route
+                        path="reports/:reportType"
+                        element={canViewReports ? <ReportDetail /> : <Navigate to="/admin-portal" replace />}
+                    />
                     <Route
                         path="vehicle-types"
                         element={canManageVehicleTypes ? <VehicleTypes /> : <Navigate to="/admin-portal" replace />}

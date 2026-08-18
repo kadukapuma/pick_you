@@ -250,18 +250,6 @@ Route::middleware('auth:sanctum')->group(function () {
     // Admin routes
 
     Route::middleware('admin')->group(function () {
-        // Reports have no per-permission gate yet, so they stay admin/super_admin only.
-        Route::get('/admin/reports/overview', [ReportsOverviewController::class, 'index']);
-        Route::get('/admin/reports/vehicle-summary', [ReportsOverviewController::class, 'vehicleSummary']);
-        Route::get('/admin/reports/ride-statistics', [ReportsOverviewController::class, 'rideStatistics']);
-        Route::get('/admin/reports/payment-breakdown', [ReportsOverviewController::class, 'paymentBreakdown']);
-        Route::get('/admin/reports/revenue/daily', [RevenueReportController::class, 'daily']);
-        Route::get('/admin/reports/revenue/monthly', [RevenueReportController::class, 'monthly']);
-        Route::get('/admin/reports/drivers/performance', [DriverPerformanceReportController::class, 'index']);
-        Route::get('/admin/reports/drivers/earnings', [DriverPerformanceReportController::class, 'earnings']);
-        Route::get('/admin/reports/transactions', [TransactionReportController::class, 'index']);
-        Route::get('/admin/reports/ride-history', [RideHistoryReportController::class, 'index']);
-
         Route::get('/role-permissions', [RolePermissionController::class, 'index'])->middleware('super_admin');
         Route::put('/role-permissions/{role}', [RolePermissionController::class, 'update'])->middleware('super_admin');
 
@@ -349,9 +337,25 @@ Route::middleware('auth:sanctum')->group(function () {
         // locking existing admins out until the permissions are seeded.
         Route::get('/drivers', [DriverController::class, 'index']);
         Route::get('/drivers/{id}', [DriverController::class, 'show']);
+        Route::put('/drivers/{id}/status', [DriverController::class, 'updateStatus']);
+        Route::put('/drivers/{id}/active-status', [DriverController::class, 'updateActiveStatus']);
         Route::get('/passengers', [PassengerController::class, 'index']);
         Route::get('/passengers/{id}', [PassengerController::class, 'show']);
 
         Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
+
+        // Reports require manage_reports permission
+        Route::middleware('permission:manage_reports')->group(function () {
+            Route::get('/admin/reports/overview', [ReportsOverviewController::class, 'index']);
+            Route::get('/admin/reports/vehicle-summary', [ReportsOverviewController::class, 'vehicleSummary']);
+            Route::get('/admin/reports/ride-statistics', [ReportsOverviewController::class, 'rideStatistics']);
+            Route::get('/admin/reports/payment-breakdown', [ReportsOverviewController::class, 'paymentBreakdown']);
+            Route::get('/admin/reports/revenue/daily', [RevenueReportController::class, 'daily']);
+            Route::get('/admin/reports/revenue/monthly', [RevenueReportController::class, 'monthly']);
+            Route::get('/admin/reports/drivers/performance', [DriverPerformanceReportController::class, 'index']);
+            Route::get('/admin/reports/drivers/earnings', [DriverPerformanceReportController::class, 'earnings']);
+            Route::get('/admin/reports/transactions', [TransactionReportController::class, 'index']);
+            Route::get('/admin/reports/ride-history', [RideHistoryReportController::class, 'index']);
+        });
     });
 });
