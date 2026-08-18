@@ -195,10 +195,22 @@ const RATING_MAP: Record<string, number> = {
 // Approx stars earned per LKR spent
 const STARS_PER_LKR = 0.01;
 
+// Average urban travel speed used to turn a driver's real distance into an ETA.
+const AVG_VEHICLE_SPEED_KMH = 25;
+
+function formatEtaFromDistanceMeters(distanceMeters: number): string {
+  const minutes = Math.max(
+    1,
+    Math.round((distanceMeters / 1000 / AVG_VEHICLE_SPEED_KMH) * 60),
+  );
+  return minutes === 1 ? "1 min" : `${minutes} mins`;
+}
+
 function mapDBVehicleToOption(
   vt: DBVehicleType,
   distanceMeters: number,
   durationSeconds: number,
+  nearestVehicleDistanceMeters?: number,
 ): RideOption {
   let price = 0;
   if (vt.fare_config) {
@@ -213,12 +225,20 @@ function mapDBVehicleToOption(
 
   const safeName = normaliseVehicleKey(vt.name ?? "car");
 
+  // Real ETA: time for the closest available driver of this vehicle type to
+  // reach the passenger, based on that driver's actual distance. Falls back
+  // to a rough static estimate only while no live driver of this type is nearby.
+  const eta =
+    nearestVehicleDistanceMeters != null
+      ? formatEtaFromDistanceMeters(nearestVehicleDistanceMeters)
+      : (ETA_MAP[safeName] ?? "4 mins");
+
   return {
     id: vt.name, // Keep original for backend queries
     name: vt.display_name,
     icon: ICON_MAP[safeName] ?? "car",
     price: parseFloat(price.toFixed(2)),
-    eta: ETA_MAP[safeName] ?? "4 mins",
+    eta,
     rating: RATING_MAP[safeName] ?? 4.6,
     passengerCount: vt.passenger_count ?? 4,
   };
@@ -454,6 +474,22 @@ export default function SelectRideScreen() {
   const destinationLatitude = destination?.latitude;
   const destinationLongitude = destination?.longitude;
 
+  // All available vehicles near the pickup point (unfiltered by type), used to
+  // derive a real per-vehicle-type ETA from the closest driver's actual distance.
+  const allNearbyVehicles = useNearbyVehicles(pickup, null);
+
+  const nearestDistanceByType = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const vehicle of allNearbyVehicles) {
+      if (vehicle.distanceMeters == null) continue;
+      const key = normaliseVehicleKey(vehicle.vehicleType);
+      if (map[key] == null || vehicle.distanceMeters < map[key]) {
+        map[key] = vehicle.distanceMeters;
+      }
+    }
+    return map;
+  }, [allNearbyVehicles]);
+
   // Bottom sheet slide-up entrance
   const sheetY = useRef(new Animated.Value(80)).current;
   const sheetOpacity = useRef(new Animated.Value(0)).current;
@@ -585,7 +621,12 @@ export default function SelectRideScreen() {
 
     let cancelled = false;
     const fallbackOptions = _rawVehicles.map((vehicle) =>
-      mapDBVehicleToOption(vehicle, directions.distance, directions.duration),
+      mapDBVehicleToOption(
+        vehicle,
+        directions.distance,
+        directions.duration,
+        nearestDistanceByType[normaliseVehicleKey(vehicle.name ?? "car")],
+      ),
     );
 
     setRideOptions(fallbackOptions);
@@ -649,6 +690,23 @@ export default function SelectRideScreen() {
     pickupLongitude,
     _rawVehicles,
   ]);
+
+  // Refresh just the ETA as nearby driver positions update, without touching
+  // price (which the fare effect above owns) or resetting backend estimates.
+  useEffect(() => {
+    if (_rawVehicles.length === 0) return;
+    setRideOptions((current) =>
+      current.map((option) => {
+        const key = normaliseVehicleKey(option.id);
+        const nearestMeters = nearestDistanceByType[key];
+        const eta =
+          nearestMeters != null
+            ? formatEtaFromDistanceMeters(nearestMeters)
+            : (ETA_MAP[key] ?? "4 mins");
+        return eta === option.eta ? option : { ...option, eta };
+      }),
+    );
+  }, [nearestDistanceByType, _rawVehicles]);
   const handleBookNow = useCallback(() => {
     if (!pickup || !destination || !selectedRide || rideOptions.length === 0)
       return;
@@ -678,7 +736,15 @@ export default function SelectRideScreen() {
     directions && _rawVehicles.length > 0 && rideOptions.length === 0,
   );
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
-  const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
+  const nearbyVehicles = React.useMemo(
+    () =>
+      selectedRide
+        ? allNearbyVehicles.filter(
+            (v) => normaliseVehicleKey(v.vehicleType) === normaliseVehicleKey(selectedRide),
+          )
+        : allNearbyVehicles,
+    [allNearbyVehicles, selectedRide],
+  );
 
   if (!pickup || !destination) {
     return (

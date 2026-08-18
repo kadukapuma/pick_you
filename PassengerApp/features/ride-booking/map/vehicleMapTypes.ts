@@ -15,4 +15,5 @@ export type NearbyVehicle = {
   coordinate: MapCoordinate;
   vehicleType: string;
   heading?: number;
+  distanceMeters?: number;
 };
