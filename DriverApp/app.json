@@ -20,7 +20,7 @@
       "bundleIdentifier": "com.picku.DriverApp"
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/icon-1.png",
         "backgroundColor": "#0B1220"
@@ -68,7 +68,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Pick You to share your location during active rides.",
+          "locationAlwaysAndWhenInUsePermission": "PickU Driver collects your location, including in the background when the app is closed or not in use, to send you ride requests and share your live location with passengers during active rides.",
           "locationWhenInUsePermission": "Allow Pick You to use your location while you are online.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,

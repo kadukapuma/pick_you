@@ -636,7 +636,7 @@ const HomeScreen = () => {
         setIsToggling(false);
         Alert.alert(
           "Background Location Required",
-          "PickU Driver collects your location even when the app is running in the background to share your live location with passengers during active rides. Please go to Settings > Permissions > Location and select 'Allow all the time'.",
+          "PickU Driver collects your location even when the app is closed or not in use, to share your live location with passengers during active rides. Please go to Settings > Permissions > Location and select 'Allow all the time'.",
           [
             { text: "Cancel", style: "cancel" },
             { text: "Open Settings", onPress: () => Linking.openSettings() }

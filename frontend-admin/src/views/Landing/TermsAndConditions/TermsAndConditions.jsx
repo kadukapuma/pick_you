@@ -35,6 +35,17 @@ const sections = [
     },
     {
         number: '04',
+        title: 'App Permissions',
+        intro: 'To use core driver features, you must grant PickU Driver certain device permissions:',
+        items: [
+            'Location (Foreground) — to show nearby ride requests and provide navigation.',
+            'Location (Background) — collected even when the app is closed or not in use, only while you are online, to receive dispatch requests and keep passengers updated on your arrival.',
+            'Camera — to capture and upload documents and vehicle photos for verification.',
+        ],
+        note: 'Background location access is requested only after you review and agree to an in-app disclosure screen. You may decline, but you will not be able to go online and receive trips until it is granted. Permissions can be changed anytime in your device Settings.',
+    },
+    {
+        number: '05',
         title: 'Ride Acceptance',
         paragraphs: [
             'Drivers may receive ride requests through the application.',
@@ -42,7 +53,7 @@ const sections = [
         ],
     },
     {
-        number: '05',
+        number: '06',
         title: 'Payments',
         paragraphs: [
             'Drivers may receive earnings based on completed trips according to PickU policies.',
@@ -50,7 +61,7 @@ const sections = [
         ],
     },
     {
-        number: '06',
+        number: '07',
         title: 'Prohibited Activities',
         intro: 'Drivers must not:',
         items: [
@@ -62,7 +73,7 @@ const sections = [
         ],
     },
     {
-        number: '07',
+        number: '08',
         title: 'Suspension and Termination',
         intro: 'PickU reserves the right to suspend or terminate accounts for:',
         items: [
@@ -73,7 +84,7 @@ const sections = [
         ],
     },
     {
-        number: '08',
+        number: '09',
         title: 'Limitation of Liability & Changes to Terms',
         paragraphs: [
             'PickU provides the platform on an "as available" basis and is not responsible for losses arising from service interruptions, technical failures, or events beyond our control.',
@@ -102,7 +113,7 @@ const TermsAndConditions = () => {
                     </a>
                 ))}
                 <a href="#section-contact" className="legal-toc-item">
-                    <span className="legal-toc-number">09</span>
+                    <span className="legal-toc-number">10</span>
                     <span>Contact</span>
                 </a>
             </div>
@@ -135,7 +146,7 @@ const TermsAndConditions = () => {
 
                 <section id="section-contact" className="legal-section legal-contact">
                     <div className="legal-section-heading">
-                        <span className="legal-section-number">09</span>
+                        <span className="legal-section-number">10</span>
                         <h2>Contact Information</h2>
                     </div>
                     <p>For support or inquiries about these terms, reach out to:</p>
