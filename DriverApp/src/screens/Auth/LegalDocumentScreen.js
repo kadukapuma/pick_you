@@ -63,7 +63,20 @@ const privacySections = [
       "Improve service reliability",
     ],
     footer:
-      "Location data may continue to be collected while the app is running in the background when a driver is online.",
+      "Location data continues to be collected even when the app is closed or not in use (running in the background) while a driver is online, so you can keep receiving ride requests and passengers can track your arrival even while using external navigation apps or with your screen off.",
+  },
+  {
+    title: "Permissions We Request",
+    body:
+      "Before requesting device permissions, PickU Driver shows an in-app screen explaining what data is collected and why. The app requests:",
+    bullets: [
+      "Location (While Using the App) — to show and navigate you to nearby ride requests.",
+      "Location (Background / \"Allow all the time\") — collected even when the app is closed or not in use, requested only when you choose to go online, and only after you review and agree to an in-app disclosure screen.",
+      "Camera and Photos — to capture your profile picture and verification documents.",
+      "Notifications — to alert you to new ride requests and account updates.",
+    ],
+    footer:
+      "You may decline any permission, but declining background location will prevent you from going online and receiving trips. Permissions can be reviewed or changed anytime in your device Settings.",
   },
   {
     title: "Information Sharing",
@@ -120,6 +133,18 @@ const termsSections = [
       "Keep account information accurate",
       "Protect passenger safety and privacy",
     ],
+  },
+  {
+    title: "App Permissions",
+    body:
+      "To use core driver features, you must grant PickU Driver certain device permissions:",
+    bullets: [
+      "Location (Foreground) — to show nearby ride requests and provide navigation.",
+      "Location (Background) — collected even when the app is closed or not in use, only while you are online, to receive dispatch requests and keep passengers updated on your arrival.",
+      "Camera — to capture and upload documents and vehicle photos for verification.",
+    ],
+    footer:
+      "Background location access is requested only after you review and agree to an in-app disclosure screen. You may decline, but you will not be able to go online and receive trips until it is granted. Permissions can be changed anytime in your device Settings.",
   },
   {
     title: "Account Verification",

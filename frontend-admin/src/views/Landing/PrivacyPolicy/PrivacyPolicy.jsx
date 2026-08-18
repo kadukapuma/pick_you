@@ -49,10 +49,22 @@ const sections = [
             'Track trip progress',
             'Improve service reliability',
         ],
-        note: 'Location data may continue to be collected while the app is running in the background when a driver is online.',
+        note: 'Location data continues to be collected even when the app is closed or not in use (running in the background) while a driver is online, so you can keep receiving ride requests and passengers can track your arrival even while using external navigation apps or with your screen off.',
     },
     {
         number: '04',
+        title: 'Permissions We Request',
+        intro: 'Before requesting device permissions, PickU Driver shows an in-app screen explaining what data is collected and why. The app requests:',
+        items: [
+            'Location (While Using the App) — to show and navigate you to nearby ride requests.',
+            'Location (Background / "Allow all the time") — collected even when the app is closed or not in use, requested only when you choose to go online, and only after you review and agree to an in-app disclosure screen.',
+            'Camera and Photos — to capture your profile picture and verification documents.',
+            'Notifications — to alert you to new ride requests and account updates.',
+        ],
+        note: 'You may decline any permission, but declining background location will prevent you from going online and receiving trips. Permissions can be reviewed or changed anytime in your device Settings.',
+    },
+    {
+        number: '05',
         title: 'Information Sharing',
         emphasis: 'We do not sell personal information.',
         intro: 'Information may be shared with:',
@@ -63,7 +75,7 @@ const sections = [
         ],
     },
     {
-        number: '05',
+        number: '06',
         title: 'Data Security & Retention',
         paragraphs: [
             'We implement reasonable security measures to protect user information from unauthorized access, disclosure, or misuse.',
@@ -71,7 +83,7 @@ const sections = [
         ],
     },
     {
-        number: '06',
+        number: '07',
         title: 'Your Rights',
         intro: 'Drivers may:',
         items: [
@@ -103,7 +115,7 @@ const PrivacyPolicy = () => {
                     </a>
                 ))}
                 <a href="#section-contact" className="legal-toc-item">
-                    <span className="legal-toc-number">07</span>
+                    <span className="legal-toc-number">08</span>
                     <span>Contact</span>
                 </a>
             </div>
