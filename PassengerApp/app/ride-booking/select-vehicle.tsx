@@ -331,67 +331,68 @@ function RideCard({
       }}
     >
       <Pressable onPress={onSelect} style={{ borderRadius: 16 }}>
-        <Animated.View
-          style={[
-            styles.rideCard,
-            { borderColor },
-            selected && { backgroundColor: "#F3F4F6" },
-            Platform.OS === "ios"
-              ? {
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity,
-                  shadowRadius,
-                }
-              : { elevation },
-          ]}
-        >
-          {/* Icon area */}
-          <View style={styles.cardIconWrap}>
-            <Image
-              source={getVehicleRideImage(ride.id)}
-              style={{ width: 85, height: 46, resizeMode: "contain" }}
-            />
-          </View>
+       <Animated.View
+  style={[
+    styles.rideCard,
+    { borderColor },
+    selected && { backgroundColor: "#F3F4F6" },
+    Platform.OS === "ios"
+      ? {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity,
+          shadowRadius,
+        }
+      : { elevation },
+  ]}
+>
+  {/* ETA badge — top-right corner */}
+  <View style={styles.etaBadge}>
+    <Ionicons name="time-outline" size={10} color={GREEN_DARK} />
+    <Text style={styles.etaBadgeText} numberOfLines={1}>
+      {ride.eta}
+    </Text>
+  </View>
 
-          {/* Name */}
-          <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
-            {ride.name}
-          </Text>
+  {/* Icon */}
+  <View style={styles.cardIconWrap}>
+    <Image
+      source={getVehicleRideImage(ride.id)}
+      style={{ width: 78, height: 42, resizeMode: "contain" }}
+    />
+  </View>
 
-          {/* Passenger count + ETA */}
-          <View style={styles.cardMeta}>
-            <Ionicons name="person-outline" size={11} color="#9CA3AF" />
-            <Text style={styles.cardEta} numberOfLines={1}>
-              {ride.passengerCount} · {ride.eta}
-            </Text>
-          </View>
+  {/* Name */}
+  <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
+    {ride.name}
+  </Text>
 
-          {/* Price */}
-          <Text
-            style={styles.cardPrice}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-          >
-            LKR {ride.price.toFixed(2)}
-          </Text>
+  {/* Passenger count */}
+  <View style={styles.cardMeta}>
+    <Ionicons name="person-outline" size={11} color="#9CA3AF" />
+    <Text style={styles.cardEta} numberOfLines={1}>
+      {ride.passengerCount} seats
+    </Text>
+  </View>
 
-          {/* Stars earned */}
-          <View style={styles.starsRow}>
-            <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text style={styles.starsText} numberOfLines={1}>
-              Earn {stars}
-            </Text>
-          </View>
+  {/* Price */}
+  <Text
+    style={styles.cardPrice}
+    numberOfLines={1}
+    adjustsFontSizeToFit
+    minimumFontScale={0.6}
+  >
+    LKR {ride.price.toFixed(2)}
+  </Text>
 
-          {/* Route info */}
-          {directions && (
-            <Text style={styles.cardRoute} numberOfLines={1}>
-              {directions.distanceText} · {directions.durationText}
-            </Text>
-          )}
-        </Animated.View>
+  {/* Stars earned */}
+  <View style={styles.starsRow}>
+    <Ionicons name="star" size={11} color="#FBBF24" />
+    <Text style={styles.starsText} numberOfLines={1}>
+      Earn {stars}
+    </Text>
+  </View>
+</Animated.View>
       </Pressable>
     </Animated.View>
   );
@@ -1027,18 +1028,47 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
 
-  rideCard: {
-    width: 112,
-    height: 180,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FAFAFA",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+rideCard: {
+  width: 118,
+  height: 172,
+  borderRadius: 16,
+  borderWidth: 2,
+  borderColor: "#E5E7EB",
+  backgroundColor: "#FAFAFA",
+  paddingVertical: 14,
+  paddingHorizontal: 10,
+  alignItems: "center",
+  justifyContent: "flex-start", // top-align content instead of centering as a block
+  gap: 4,
+  position: "relative",
+  overflow: "visible",
+},
+
+  etaBadge: {
+    position: "absolute",
+    top: -8,
+    right: -6,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
+    gap: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: GREEN_LIGHT,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
+    zIndex: 5,
+  },
+
+  etaBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GREEN_DARK,
   },
 
   rideCardSelected: {
