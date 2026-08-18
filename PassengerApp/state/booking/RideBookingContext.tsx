@@ -12,6 +12,7 @@ export interface RideOption {
   price: number;
   eta: string;
   rating: number;
+  passengerCount: number;
 }
 
 export type TripType = "oneway" | "return";

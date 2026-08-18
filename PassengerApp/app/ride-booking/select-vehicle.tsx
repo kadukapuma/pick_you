@@ -38,6 +38,7 @@ interface DBVehicleType {
   name: string;
   display_name: string;
   description: string | null;
+  passenger_count: number;
   is_active: boolean;
   fare_config: {
     id: number;
@@ -77,6 +78,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "car",
     display_name: "Car",
     description: "Standard 4-seater cars and hatchbacks",
+    passenger_count: 4,
     is_active: true,
     fare_config: {
       id: 1,
@@ -94,6 +96,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "tuk",
     display_name: "Tuk Tuk",
     description: "Classic 3-wheeler auto rickshaws",
+    passenger_count: 3,
     is_active: true,
     fare_config: {
       id: 2,
@@ -110,6 +113,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "bike",
     display_name: "Motorbike",
     description: "Fast single-passenger motorbikes",
+    passenger_count: 1,
     is_active: true,
     fare_config: {
       id: 3,
@@ -126,6 +130,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "suv",
     display_name: "SUV",
     description: "Large 6-seater family vehicles",
+    passenger_count: 6,
     is_active: true,
     fare_config: {
       id: 4,
@@ -215,6 +220,7 @@ function mapDBVehicleToOption(
     price: parseFloat(price.toFixed(2)),
     eta: ETA_MAP[safeName] ?? "4 mins",
     rating: RATING_MAP[safeName] ?? 4.6,
+    passengerCount: vt.passenger_count ?? 4,
   };
 }
 
@@ -353,11 +359,11 @@ function RideCard({
             {ride.name}
           </Text>
 
-          {/* ETA */}
+          {/* Passenger count + ETA */}
           <View style={styles.cardMeta}>
             <Ionicons name="person-outline" size={11} color="#9CA3AF" />
             <Text style={styles.cardEta} numberOfLines={1}>
-              {ride.eta}
+              {ride.passengerCount} · {ride.eta}
             </Text>
           </View>
 
