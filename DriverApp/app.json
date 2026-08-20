@@ -2,6 +2,7 @@
   "expo": {
     "name": "PickU Driver",
     "slug": "DriverApp",
+    "owner": "hawadmins-team",
     "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon-1.png",
@@ -90,7 +91,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "19185e93-09e4-4ac7-bd1f-1df08ed4add0"
+        "projectId": "96ef6731-3bb7-453a-b09b-4a855fc5bfb3"
       }
     }
   }

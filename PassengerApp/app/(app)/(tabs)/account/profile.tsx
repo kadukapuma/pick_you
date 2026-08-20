@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { LinearGradient } from "expo-linear-gradient";
 import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -277,6 +278,14 @@ export default function AccountScreen() {
           },
         ]}
       >
+        {profile?.studentStatus === "approved" && (
+          <LinearGradient
+            colors={["#8FE3A6", "#0B9E54", "#04502B"]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.studentRingOverlay}
+          />
+        )}
         <View style={styles.avatarRing}>
           {profile?.profileImage ? (
             <Image
@@ -483,6 +492,14 @@ const styles = StyleSheet.create({
     zIndex: 30,
     borderRadius: 45,
     overflow: "visible",
+  },
+  studentRingOverlay: {
+    position: "absolute",
+    top: -4,
+    left: -4,
+    right: -4,
+    bottom: -4,
+    borderRadius: 9999,
   },
   avatarSpacer: {
     height: 168,

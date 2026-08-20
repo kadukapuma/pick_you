@@ -5,6 +5,7 @@ namespace App\Services\Ledger;
 use App\Models\DriverAccount;
 use App\Models\JournalEntry;
 use App\Models\LedgerAccount;
+use App\Models\LoyaltyPointTransaction;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use DomainException;
@@ -80,14 +81,20 @@ class RideSettlementService
             $computed
         );
 
-        $entry = $this->ledger->post(
-            type: JournalEntry::TYPE_RIDE_SETTLEMENT,
-            idempotencyKey: "ride:{$ride->id}:settlement",
-            description: "Ride {$ride->ride_code} settled ({$method})",
-            lines: $lines,
-            reference: $payment,
-            gateway: $payment->gateway,
-        );
+        // A verified student on a vehicle type with no student_commission_rate
+        // configured resolves to 0% commission - nothing actually needs to
+        // move through the books, and the ledger correctly refuses to post a
+        // zero-value entry. Skip posting rather than crashing the payment.
+        $entry = $this->isZeroValue($lines)
+            ? null
+            : $this->ledger->post(
+                type: JournalEntry::TYPE_RIDE_SETTLEMENT,
+                idempotencyKey: "ride:{$ride->id}:settlement",
+                description: "Ride {$ride->ride_code} settled ({$method})",
+                lines: $lines,
+                reference: $payment,
+                gateway: $payment->gateway,
+            );
 
         // Snapshot values onto the ride so a later commission-rate change
         // never rewrites the historical settlement.
@@ -100,7 +107,56 @@ class RideSettlementService
                 'updated_at' => now(),
             ]);
 
+        $this->awardStudentLoyaltyPoints($ride, $computed['commission']);
+
         return $entry;
+    }
+
+    /**
+     * @param array<int, array{account: string, debit?: string, credit?: string}> $lines
+     */
+    private function isZeroValue(array $lines): bool
+    {
+        $total = '0.00';
+
+        foreach ($lines as $line) {
+            $total = Money::add($total, $line['debit'] ?? '0');
+        }
+
+        return Money::isZero($total);
+    }
+
+    /**
+     * The commission that PickU would otherwise have kept as revenue is
+     * instead credited to the passenger as loyalty points, but only while
+     * their student verification is approved at the moment of settlement -
+     * rides taken while an application is still pending never accrue points.
+     *
+     * The commission itself is already student-aware: CommissionService
+     * resolves a dedicated student_commission_rate from the ride's fare
+     * config when the passenger is a verified student, so this just credits
+     * whatever commission was actually computed for the ride.
+     */
+    private function awardStudentLoyaltyPoints(\App\Models\Ride $ride, string $commission): void
+    {
+        if (Money::isZero($commission)) {
+            return;
+        }
+
+        $passenger = $ride->passenger()->with('studentVerification')->first();
+
+        if (! $passenger?->isVerifiedStudent()) {
+            return;
+        }
+
+        $passenger->increment('loyalty_points_balance', $commission);
+
+        LoyaltyPointTransaction::create([
+            'passenger_id' => $passenger->id,
+            'ride_id' => $ride->id,
+            'points' => $commission,
+            'created_at' => now(),
+        ]);
     }
 
     /**

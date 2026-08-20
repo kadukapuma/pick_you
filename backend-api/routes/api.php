@@ -34,6 +34,7 @@ use App\Http\Controllers\Api\RatingController;
 use App\Http\Controllers\Api\RideController;
 use App\Http\Controllers\Api\RideLocationController;
 use App\Http\Controllers\Api\RolePermissionController;
+use App\Http\Controllers\Api\StudentVerificationController;
 use App\Http\Controllers\Reports\DriverPerformanceReportController;
 use App\Http\Controllers\Reports\ReportsOverviewController;
 use App\Http\Controllers\Reports\RevenueReportController;
@@ -101,6 +102,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/passenger/profile', [PassengerProfileController::class, 'getProfile']);
         Route::put('/passenger/profile', [PassengerProfileController::class, 'updateProfile']);
         Route::post('/passenger/profile-picture', [PassengerProfileController::class, 'updateProfilePicture']);
+        Route::get('/passenger/student-verification', [StudentVerificationController::class, 'show']);
+        Route::post('/passenger/student-verification', [StudentVerificationController::class, 'store']);
     });
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::post('/user/profile-picture', [AuthController::class, 'updateProfilePicture']);
@@ -341,6 +344,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('/drivers/{id}/active-status', [DriverController::class, 'updateActiveStatus']);
         Route::get('/passengers', [PassengerController::class, 'index']);
         Route::get('/passengers/{id}', [PassengerController::class, 'show']);
+        Route::put('/passengers/{id}/student-status', [PassengerController::class, 'updateStudentStatus']);
 
         Route::get('/dashboard/stats', [DashboardController::class, 'getStats']);
 

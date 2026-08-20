@@ -8,11 +8,13 @@ const VEHICLE_RIDE_IMAGES: Record<string, ImageSourcePropType> = {
   bike: require("../assets/images/vehicles/bike.png"),
   motorbike: require("../assets/images/vehicles/bike.png"),
   motorcycle: require("../assets/images/vehicles/bike.png"),
-  suv: require("../assets/images/vehicles/minivan.png"),
+  suv: require("../assets/images/vehicles/suv.png"),
   van: require("../assets/images/vehicles/van.png"),
-  minivan: require("../assets/images/vehicles/van.png"),
+  minvan: require("../assets/images/vehicles/minivan.png"),
+  minivan: require("../assets/images/vehicles/minivan.png"),
   minicar: require("../assets/images/vehicles/minicar.png"),
   mini: require("../assets/images/vehicles/minicar.png"),
+  flex: require("../assets/images/vehicles/flex.png"),
 };
 
 const normalizeVehicleKey = (value?: string | null) =>
@@ -23,5 +25,8 @@ const normalizeVehicleKey = (value?: string | null) =>
 export function getVehicleRideImage(
   vehicleType?: string | null,
 ): ImageSourcePropType {
-  return VEHICLE_RIDE_IMAGES[normalizeVehicleKey(vehicleType)] || VEHICLE_RIDE_IMAGES.car;
+  return (
+    VEHICLE_RIDE_IMAGES[normalizeVehicleKey(vehicleType)] ||
+    VEHICLE_RIDE_IMAGES.car
+  );
 }

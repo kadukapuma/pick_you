@@ -25,6 +25,7 @@ import Login from '../views/Login'
 import VehicleDetail from '../views/VehicleDetail'
 import Vehicles from '../views/Vehicles'
 import Passengers from '../views/Passengers'
+import PassengerDetail from '../views/PassengerDetail'
 import Settings from '../views/Settings'
 import FareConfigs from '../views/FareConfigs'
 import Finance from '../views/Finance'
@@ -103,6 +104,7 @@ const AppRoutes = () => {
                     <Route path="vehicles" element={<Vehicles />} />
                     <Route path="vehicles/:vehicleId" element={<VehicleDetail />} />
                     <Route path="customers" element={<Passengers />} />
+                    <Route path="customers/:passengerId" element={<PassengerDetail />} />
                     <Route path="fare-configs" element={<FareConfigs />} />
                     <Route path="finance" element={<Finance />} />
                     <Route

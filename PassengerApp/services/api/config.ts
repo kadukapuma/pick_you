@@ -50,5 +50,6 @@ export const API_ENDPOINTS = {
     PROFILE: "/passenger/profile",
     UPDATE_PROFILE: "/passenger/profile",
     PROFILE_PICTURE: "/passenger/profile-picture",
+    STUDENT_VERIFICATION: "/passenger/student-verification",
   },
 };

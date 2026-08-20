@@ -187,6 +187,23 @@ const RATING_MAP: Record<string, number> = {
   van: 4.9,
   minivan: 4.9,
 };
+// Passenger seating capacity per vehicle type
+const CAPACITY_MAP: Record<string, number> = {
+  bike: 1,
+  motorbike: 1,
+  motorcycle: 1,
+  tuk: 3,
+  tuktuk: 3,
+  threewheel: 3,
+  flex: 3,
+  minicar: 3,
+  mini: 3,
+  car: 4,
+  suv: 6,
+  minivan: 5,
+  minvan: 5,
+  van: 10,
+};
 // Approx stars earned per LKR spent
 const STARS_PER_LKR = 0.01;
 
@@ -215,6 +232,7 @@ function mapDBVehicleToOption(
     price: parseFloat(price.toFixed(2)),
     eta: ETA_MAP[safeName] ?? "4 mins",
     rating: RATING_MAP[safeName] ?? 4.6,
+    capacity: CAPACITY_MAP[safeName] ?? 4,
   };
 }
 
@@ -353,11 +371,11 @@ function RideCard({
             {ride.name}
           </Text>
 
-          {/* ETA */}
+          {/* Passenger capacity */}
           <View style={styles.cardMeta}>
             <Ionicons name="person-outline" size={11} color="#9CA3AF" />
             <Text style={styles.cardEta} numberOfLines={1}>
-              {ride.eta}
+              {ride.capacity ?? 4}
             </Text>
           </View>
 

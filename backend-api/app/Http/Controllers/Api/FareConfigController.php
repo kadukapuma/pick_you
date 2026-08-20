@@ -62,6 +62,10 @@ class FareConfigController extends Controller
             // commission_rate setting, then the config default. See
             // CommissionService::rateFor() for the full resolution order.
             'commission_rate' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            // Fraction of the fare charged as commission when the passenger is
+            // a verified student, e.g. 0.10 for 10%. Replaces commission_rate
+            // entirely for student rides. Null means 0% until admin sets it.
+            'student_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:1'],
         ]);
         $payload['is_active'] = (bool) ($payload['is_active'] ?? false);
 

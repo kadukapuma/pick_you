@@ -3,6 +3,7 @@
     "name": "PickU",
     "slug": "PickU",
     "version": "1.1.0",
+    "owner": "hawadmins-team",
     "orientation": "portrait",
     "icon": "./assets/images/vehicles/icon.png",
     "scheme": "picku",
@@ -80,9 +81,8 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "06853f0a-c351-4c8e-a613-4b9bd328203a"
+        "projectId": "b897a048-6b54-4a4c-ad96-c2752067631c"
       }
-    },
-    "owner": "hawadmin"
+    }
   }
 }
