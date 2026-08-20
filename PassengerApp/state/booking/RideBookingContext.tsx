@@ -48,8 +48,6 @@ interface RideSearchContextType {
   setSelectedPaymentCard: (card: SavedCard | null) => void;
   usePickuCredit: boolean;
   setUsePickuCredit: (value: boolean) => void;
-  useLoyaltyPoints: boolean;
-  setUseLoyaltyPoints: (value: boolean) => void;
   promoCode: string | null;
   setPromoCode: (code: string | null) => void;
   scheduledAt: string | null;
@@ -91,7 +89,6 @@ export function RideSearchProvider({
   const [selectedPaymentCard, setSelectedPaymentCard] =
     useState<SavedCard | null>(null);
   const [usePickuCredit, setUsePickuCredit] = useState(false);
-  const [useLoyaltyPoints, setUseLoyaltyPoints] = useState(false);
   const [promoCode, setPromoCode] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
   const [activeRideId, setActiveRideId] = useState<number | null>(null);
@@ -129,7 +126,6 @@ export function RideSearchProvider({
     setPaymentMethod("cash");
     setSelectedPaymentCard(null);
     setUsePickuCredit(false);
-    setUseLoyaltyPoints(false);
     setPromoCode(null);
     setScheduledAt(null);
     setActiveRideId(null);
@@ -161,8 +157,6 @@ export function RideSearchProvider({
     setSelectedPaymentCard,
     usePickuCredit,
     setUsePickuCredit,
-    useLoyaltyPoints,
-    setUseLoyaltyPoints,
     promoCode,
     setPromoCode,
     scheduledAt,

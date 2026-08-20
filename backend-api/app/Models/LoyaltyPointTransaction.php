@@ -8,14 +8,9 @@ class LoyaltyPointTransaction extends Model
 {
     public $timestamps = false;
 
-    public const TYPE_EARNED = 'earned';
-    public const TYPE_REDEEMED = 'redeemed';
-    public const TYPE_REFUNDED = 'refunded';
-
     protected $fillable = [
         'passenger_id',
         'ride_id',
-        'type',
         'points',
         'created_at',
     ];

@@ -7,11 +7,10 @@ use App\Exceptions\GoogleMapsException;
 use App\Http\Controllers\Controller;
 use App\Models\DriverAccount;
 use App\Models\FareConfig;
-use App\Models\LoyaltyPointTransaction;
 use App\Models\Ride;
 use App\Models\User;
-use App\Services\Ledger\Money;
 use App\Services\Fares\FareCalculationService;
+use App\Services\Ledger\CommissionService;
 use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
 use App\Services\RideMatching\RideMatchingService;
@@ -36,6 +35,7 @@ class RideController extends Controller
         private readonly RideMatchingRedis $rideMatchingRedis,
         private readonly RideTransitionService $rideTransition,
         private readonly FareCalculationService $fares,
+        private readonly CommissionService $commission,
         private readonly GoogleMapsService $maps,
         private readonly NotificationService $notifications,
     ) {}
@@ -174,7 +174,6 @@ class RideController extends Controller
             // Older app builds omit this; default to cash so they keep working.
             'payment_method' => 'sometimes|in:cash,card',
             'use_wallet_credit' => 'sometimes|boolean',
-            'use_loyalty_points' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -209,25 +208,9 @@ class RideController extends Controller
             $dropLng,
         );
 
-        $pointsToUse = '0.00';
-        if ($request->boolean('use_loyalty_points') && $passenger->isVerifiedStudent()) {
-            $pointsToUse = DB::transaction(function () use ($passenger, $fareEstimate) {
-                $lockedPassenger = \App\Models\Passenger::query()
-                    ->lockForUpdate()
-                    ->find($passenger->id);
-
-                $available = Money::of($lockedPassenger->loyalty_points_balance);
-                $fareAmount = Money::of($fareEstimate['estimated_fare']);
-                $amount = Money::cmp($available, $fareAmount) < 0 ? $available : $fareAmount;
-
-                if (Money::isZero($amount)) {
-                    return '0.00';
-                }
-
-                $lockedPassenger->decrement('loyalty_points_balance', $amount);
-
-                return $amount;
-            });
+        $estimatedFare = (string) $fareEstimate['estimated_fare'];
+        if ($passenger->isVerifiedStudent()) {
+            $estimatedFare = $this->commission->studentAdjustedFare($estimatedFare, $fareConfig);
         }
 
         $ride = Ride::create([
@@ -243,12 +226,11 @@ class RideController extends Controller
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
-            'estimated_fare' => Money::sub($fareEstimate['estimated_fare'], $pointsToUse),
+            'estimated_fare' => $estimatedFare,
             'payment_method' => $request->input('payment_method', 'cash'),
             'use_wallet_credit' => $request->boolean(
                 'use_wallet_credit'
             ),
-            'loyalty_points_used' => $pointsToUse,
             'fare_breakdown' => [
                 'policy' => 'estimate_plus_extras',
                 'version' => 1,
@@ -259,16 +241,6 @@ class RideController extends Controller
         ]);
 
         $ride->refresh();
-
-        if (! Money::isZero($pointsToUse)) {
-            LoyaltyPointTransaction::create([
-                'passenger_id' => $passenger->id,
-                'ride_id' => $ride->id,
-                'type' => LoyaltyPointTransaction::TYPE_REDEEMED,
-                'points' => Money::negate($pointsToUse),
-                'created_at' => now(),
-            ]);
-        }
 
         $ride->statuses()->create([
             'status' => 'REQUESTED',
@@ -365,13 +337,18 @@ class RideController extends Controller
             (float) $request->drop_lng,
         );
 
+        $estimatedFare = (string) $fareEstimate['estimated_fare'];
+        if ($request->user()->passenger?->isVerifiedStudent()) {
+            $estimatedFare = $this->commission->studentAdjustedFare($estimatedFare, $fareConfig);
+        }
+
         return $this->success([
             'vehicle_type' => $fareConfig->vehicle_type,
             'route' => $route,
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
-            'estimated_fare' => $fareEstimate['estimated_fare'],
+            'estimated_fare' => $estimatedFare,
             'fare_breakdown' => $fareEstimate['breakdown'],
         ], 'Ride estimate calculated successfully');
     }
@@ -585,12 +562,13 @@ class RideController extends Controller
             $ride->update($this->fares->completionBreakdown($ride));
             $ride->refresh();
 
-            if (! Money::isZero($ride->loyalty_points_used ?? '0.00')) {
-                $discountedFare = Money::sub($ride->final_fare, $ride->loyalty_points_used);
-                if (Money::isNegative($discountedFare)) {
-                    $discountedFare = '0.00';
-                }
-                $ride->update(['final_fare' => $discountedFare]);
+            $passenger = $ride->passenger()->with('studentVerification')->first();
+            if ($passenger?->isVerifiedStudent()) {
+                $adjustedFinalFare = $this->commission->studentAdjustedFare(
+                    (string) $ride->final_fare,
+                    $ride->fareConfig,
+                );
+                $ride->update(['final_fare' => $adjustedFinalFare]);
                 $ride->refresh();
             }
         } catch (DomainException) {
@@ -650,7 +628,6 @@ class RideController extends Controller
             return $this->error('Ride cannot be cancelled', 409);
         }
 
-        $this->refundUnusedLoyaltyPoints($ride);
         $this->rideMatching->cleanup($ride->id);
         $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
@@ -689,46 +666,10 @@ class RideController extends Controller
             return $this->error('Ride cannot be cancelled', 409);
         }
 
-        $this->refundUnusedLoyaltyPoints($ride);
         $this->rideMatching->cleanup($ride->id);
         $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
         event(new RideStatusUpdated($ride));
 
         return $this->success($ride, 'Ride cancelled successfully');
-    }
-
-    /**
-     * A cancelled ride was never settled, so any loyalty points a student
-     * applied at booking never became a real discount - give them back.
-     */
-    private function refundUnusedLoyaltyPoints(Ride $ride): void
-    {
-        $pointsUsed = Money::of($ride->loyalty_points_used ?? '0.00');
-
-        if (Money::isZero($pointsUsed)) {
-            return;
-        }
-
-        DB::transaction(function () use ($ride, $pointsUsed) {
-            $passenger = \App\Models\Passenger::query()
-                ->lockForUpdate()
-                ->find($ride->passenger_id);
-
-            if (! $passenger) {
-                return;
-            }
-
-            $passenger->increment('loyalty_points_balance', $pointsUsed);
-
-            LoyaltyPointTransaction::create([
-                'passenger_id' => $passenger->id,
-                'ride_id' => $ride->id,
-                'type' => LoyaltyPointTransaction::TYPE_REFUNDED,
-                'points' => $pointsUsed,
-                'created_at' => now(),
-            ]);
-
-            $ride->update(['loyalty_points_used' => '0.00']);
-        });
     }
 }

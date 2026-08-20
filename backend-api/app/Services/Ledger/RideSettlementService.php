@@ -8,7 +8,6 @@ use App\Models\LedgerAccount;
 use App\Models\LoyaltyPointTransaction;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
-use App\Models\Ride;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -57,30 +56,10 @@ class RideSettlementService
             return null;
         }
 
-        // The actual money that moved is the discounted gross (loyalty points
-        // already reduced final_fare before the payment was created). Commission
-        // and driver earning are computed on the pre-discount fare so the
-        // driver's earning is never affected by a passenger's points - see
-        // resolveLoyaltyDiscount().
-        $pointsUsed = Money::of($ride->loyalty_points_used ?? '0.00');
-        $fareBeforeDiscount = Money::add($gross, $pointsUsed);
-
         $computed = $this->commission->computeFor(
             $ride,
-            $fareBeforeDiscount
+            $gross
         );
-
-        [$commissionFinal, $discountExcess] = $this->resolveLoyaltyDiscount(
-            $computed['commission'],
-            $pointsUsed
-        );
-
-        // driver_earning stays as computed above (based on the pre-discount
-        // fare); gross/commission are overridden to what settlement actually
-        // needs to move: the real money collected, and the commission PickU
-        // keeps after the points discount eats into it.
-        $computed['gross'] = $gross;
-        $computed['commission'] = $commissionFinal;
 
         $driverCode = LedgerAccount::codeForDriver(
             (int) $ride->driver_id
@@ -99,18 +78,23 @@ class RideSettlementService
             $payment,
             $method,
             $driverCode,
-            $computed,
-            $discountExcess
+            $computed
         );
 
-        $entry = $this->ledger->post(
-            type: JournalEntry::TYPE_RIDE_SETTLEMENT,
-            idempotencyKey: "ride:{$ride->id}:settlement",
-            description: "Ride {$ride->ride_code} settled ({$method})",
-            lines: $lines,
-            reference: $payment,
-            gateway: $payment->gateway,
-        );
+        // A verified student on a vehicle type with no student_commission_rate
+        // configured resolves to 0% commission - nothing actually needs to
+        // move through the books, and the ledger correctly refuses to post a
+        // zero-value entry. Skip posting rather than crashing the payment.
+        $entry = $this->isZeroValue($lines)
+            ? null
+            : $this->ledger->post(
+                type: JournalEntry::TYPE_RIDE_SETTLEMENT,
+                idempotencyKey: "ride:{$ride->id}:settlement",
+                description: "Ride {$ride->ride_code} settled ({$method})",
+                lines: $lines,
+                reference: $payment,
+                gateway: $payment->gateway,
+            );
 
         // Snapshot values onto the ride so a later commission-rate change
         // never rewrites the historical settlement.
@@ -129,26 +113,17 @@ class RideSettlementService
     }
 
     /**
-     * A student's loyalty-point discount comes out of PickU's own commission,
-     * never the driver's earning. When the discount is larger than this ride's
-     * commission, the excess is booked as a company expense instead of ever
-     * touching the driver's payout.
-     *
-     * @return array{0: string, 1: string} [commissionAfterDiscount, excessBeyondCommission]
+     * @param array<int, array{account: string, debit?: string, credit?: string}> $lines
      */
-    private function resolveLoyaltyDiscount(string $commissionBeforeDiscount, string $pointsUsed): array
+    private function isZeroValue(array $lines): bool
     {
-        if (Money::isZero($pointsUsed)) {
-            return [$commissionBeforeDiscount, '0.00'];
+        $total = '0.00';
+
+        foreach ($lines as $line) {
+            $total = Money::add($total, $line['debit'] ?? '0');
         }
 
-        $remaining = Money::sub($commissionBeforeDiscount, $pointsUsed);
-
-        if (Money::isNegative($remaining)) {
-            return ['0.00', Money::negate($remaining)];
-        }
-
-        return [$remaining, '0.00'];
+        return Money::isZero($total);
     }
 
     /**
@@ -156,8 +131,13 @@ class RideSettlementService
      * instead credited to the passenger as loyalty points, but only while
      * their student verification is approved at the moment of settlement -
      * rides taken while an application is still pending never accrue points.
+     *
+     * The commission itself is already student-aware: CommissionService
+     * resolves a dedicated student_commission_rate from the ride's fare
+     * config when the passenger is a verified student, so this just credits
+     * whatever commission was actually computed for the ride.
      */
-    private function awardStudentLoyaltyPoints(Ride $ride, string $commission): void
+    private function awardStudentLoyaltyPoints(\App\Models\Ride $ride, string $commission): void
     {
         if (Money::isZero($commission)) {
             return;
@@ -174,7 +154,6 @@ class RideSettlementService
         LoyaltyPointTransaction::create([
             'passenger_id' => $passenger->id,
             'ride_id' => $ride->id,
-            'type' => LoyaltyPointTransaction::TYPE_EARNED,
             'points' => $commission,
             'created_at' => now(),
         ]);
@@ -201,7 +180,6 @@ class RideSettlementService
         string $method,
         string $driverCode,
         array $computed,
-        string $discountExcess = '0.00',
     ): array {
         $allocations = $payment->allocations()
             ->where(
@@ -219,8 +197,7 @@ class RideSettlementService
             return $this->linesFor(
                 $method,
                 $driverCode,
-                $computed,
-                $discountExcess
+                $computed
             );
         }
 
@@ -324,13 +301,6 @@ class RideSettlementService
             ];
         }
 
-        if (! Money::isZero($discountExcess)) {
-            $lines[] = [
-                'account' => 'STUDENT_LOYALTY_DISCOUNT_EXPENSE',
-                'debit' => $discountExcess,
-            ];
-        }
-
         return $lines;
     }
 
@@ -352,32 +322,13 @@ class RideSettlementService
     private function linesFor(
         string $method,
         string $driverCode,
-        array $computed,
-        string $discountExcess = '0.00',
+        array $computed
     ): array {
         if ($method === 'cash') {
             /*
-             * Normally: the driver already holds the full fare in cash, so the
-             * driver owes PickU only the commission.
-             *
-             * When a student's points discount is larger than this ride's
-             * commission (discountExcess > 0), the driver holds less cash than
-             * their protected earning - PickU tops them up out of pocket
-             * instead, via the loyalty discount expense account.
+             * The driver already holds the full fare, so the driver owes PickU
+             * only the commission.
              */
-            if (! Money::isZero($discountExcess)) {
-                return [
-                    [
-                        'account' => 'STUDENT_LOYALTY_DISCOUNT_EXPENSE',
-                        'debit' => $discountExcess,
-                    ],
-                    [
-                        'account' => $driverCode,
-                        'credit' => $discountExcess,
-                    ],
-                ];
-            }
-
             return [
                 [
                     'account' => $driverCode,
@@ -401,11 +352,9 @@ class RideSettlementService
 
         /*
          * PickU holds the gross amount, keeps the commission, and owes the
-         * remaining driver earning to the driver. If the points discount ate
-         * into more than the commission, the excess is an extra debit so the
-         * driver still gets their full, undiscounted earning.
+         * remaining driver earning to the driver.
          */
-        $lines = [
+        return [
             [
                 'account' => $source,
                 'debit' => $computed['gross'],
@@ -419,14 +368,5 @@ class RideSettlementService
                 'credit' => $computed['driver_earning'],
             ],
         ];
-
-        if (! Money::isZero($discountExcess)) {
-            $lines[] = [
-                'account' => 'STUDENT_LOYALTY_DISCOUNT_EXPENSE',
-                'debit' => $discountExcess,
-            ];
-        }
-
-        return $lines;
     }
 }
