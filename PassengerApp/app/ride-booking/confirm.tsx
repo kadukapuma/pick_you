@@ -53,6 +53,7 @@ export default function ConfirmationScreen() {
     paymentMethod,
     selectedPaymentCard,
     usePickuCredit,
+    useLoyaltyPoints,
   } = useRideSearch();
   const nearbySelectedVehicles = useNearbyVehicles(
     outboundTrip.pickup,
@@ -195,6 +196,7 @@ export default function ConfirmationScreen() {
         drop_lng: outboundTrip.dropoff!.longitude,
         payment_method: paymentMethod,
         use_wallet_credit: usePickuCredit,
+        use_loyalty_points: useLoyaltyPoints,
       };
 
       if (__DEV__) {
@@ -233,6 +235,7 @@ export default function ConfirmationScreen() {
               vehicle_type: payload.vehicle_type,
               selected_payment_method: paymentMethod,
               use_wallet_credit: usePickuCredit,
+              use_loyalty_points: useLoyaltyPoints,
             }),
           },
         });

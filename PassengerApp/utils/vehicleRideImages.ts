@@ -11,8 +11,10 @@ const VEHICLE_RIDE_IMAGES: Record<string, ImageSourcePropType> = {
   suv: require("../assets/images/vehicles/suv.png"),
   van: require("../assets/images/vehicles/van.png"),
   minvan: require("../assets/images/vehicles/minivan.png"),
+  minivan: require("../assets/images/vehicles/minivan.png"),
   minicar: require("../assets/images/vehicles/minicar.png"),
   mini: require("../assets/images/vehicles/minicar.png"),
+  flex: require("../assets/images/vehicles/flex.png"),
 };
 
 const normalizeVehicleKey = (value?: string | null) =>

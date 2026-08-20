@@ -11,6 +11,7 @@ import {
   CARD_PAYMENTS_ENABLED,
   paymentService,
 } from "../../services/payments/paymentService";
+import { ProfileService } from "../../services/auth/profileApi";
 import type { PaymentMethod } from "../../state/booking/RideBookingContext";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 
@@ -41,6 +42,8 @@ export default function PaymentMethodScreen() {
     selectedPaymentCard,
     usePickuCredit,
     setUsePickuCredit,
+    useLoyaltyPoints,
+    setUseLoyaltyPoints,
     outboundTrip,
   } = useRideSearch();
   const [cardAvailable, setCardAvailable] = useState(CARD_PAYMENTS_ENABLED);
@@ -50,6 +53,9 @@ export default function PaymentMethodScreen() {
   const [creditError, setCreditError] = useState("");
   const [loadingCredit, setLoadingCredit] = useState(true);
   const [fallbackNotice, setFallbackNotice] = useState(false);
+  const [isVerifiedStudent, setIsVerifiedStudent] = useState(false);
+  const [loyaltyPointsAvailable, setLoyaltyPointsAvailable] = useState(0);
+  const [loadingLoyaltyPoints, setLoadingLoyaltyPoints] = useState(true);
   const loadCredit = async () => {
     setLoadingCredit(true);
     const result = await creditService.getSummary();
@@ -95,14 +101,40 @@ export default function PaymentMethodScreen() {
       active = false;
     };
   }, [paymentMethod, setPaymentMethod, setUsePickuCredit]);
+  useEffect(() => {
+    let active = true;
+    void ProfileService.getProfile().then((result) => {
+      if (!active) return;
+      if (result.success && result.data) {
+        setIsVerifiedStudent(result.data.studentStatus === "approved");
+        setLoyaltyPointsAvailable(result.data.loyaltyPointsBalance || 0);
+      } else {
+        setIsVerifiedStudent(false);
+        setUseLoyaltyPoints(false);
+      }
+      setLoadingLoyaltyPoints(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [setUseLoyaltyPoints]);
   const estimate = Number(outboundTrip.selectedRide?.price || 0);
   const credit = useMemo(
     () => (usePickuCredit ? Math.min(Number(available || 0), estimate) : 0),
     [available, estimate, usePickuCredit],
   );
-  const remainder = Math.max(0, estimate - credit);
+  const remainderAfterCredit = Math.max(0, estimate - credit);
+  const loyaltyPoints = useMemo(
+    () =>
+      useLoyaltyPoints
+        ? Math.min(loyaltyPointsAvailable, remainderAfterCredit)
+        : 0,
+    [loyaltyPointsAvailable, remainderAfterCredit, useLoyaltyPoints],
+  );
+  const remainder = Math.max(0, remainderAfterCredit - loyaltyPoints);
   const canUseCredit =
     walletAvailable && Number(available || 0) > 0 && !creditError;
+  const canUseLoyaltyPoints = isVerifiedStudent && loyaltyPointsAvailable > 0;
   return (
     <PaymentScreen
       title="Payment method"
@@ -187,6 +219,50 @@ export default function PaymentMethodScreen() {
           </Text>
         )}
       </View>
+      {isVerifiedStudent ? (
+        <View style={[styles.creditCard, styles.loyaltyCard]}>
+          <View style={styles.creditHeading}>
+            <View style={styles.creditIcon}>
+              <Ionicons
+                name="school-outline"
+                size={22}
+                color={paymentTheme.green}
+              />
+            </View>
+            <View style={styles.creditCopy}>
+              <Text style={styles.creditTitle}>Loyalty points</Text>
+              <Text style={styles.creditBalance}>
+                {loadingLoyaltyPoints
+                  ? "Checking balance…"
+                  : `${formatLkr(loyaltyPointsAvailable)} available`}
+              </Text>
+            </View>
+            <Switch
+              value={useLoyaltyPoints}
+              onValueChange={setUseLoyaltyPoints}
+              disabled={!canUseLoyaltyPoints}
+              trackColor={{ false: "#CBD5E1", true: "#8DE0B8" }}
+              thumbColor={useLoyaltyPoints ? paymentTheme.green : "#FFFFFF"}
+              accessibilityRole="switch"
+              accessibilityLabel="Use available loyalty points"
+              accessibilityState={{
+                checked: useLoyaltyPoints,
+                disabled: !canUseLoyaltyPoints,
+              }}
+            />
+          </View>
+          {!loadingLoyaltyPoints && loyaltyPointsAvailable <= 0 ? (
+            <Text style={styles.unavailable}>
+              No loyalty points available yet. Points are earned automatically
+              on your rides.
+            </Text>
+          ) : (
+            <Text style={styles.helper}>
+              We’ll apply up to your available points to the final fare.
+            </Text>
+          )}
+        </View>
+      ) : null}
       <Text style={styles.sectionLabel}>PAY THE REMAINING AMOUNT WITH</Text>
       <View style={styles.methods}>
         {methods.map((method) => {
@@ -260,6 +336,13 @@ export default function PaymentMethodScreen() {
             value={credit ? `−${formatLkr(credit)}` : formatLkr(0)}
             green
           />
+          {isVerifiedStudent ? (
+            <Split
+              label="Loyalty points"
+              value={loyaltyPoints ? `−${formatLkr(loyaltyPoints)}` : formatLkr(0)}
+              green
+            />
+          ) : null}
           <Split
             label={`${paymentMethod === "card" ? "Card" : "Cash"} after ride`}
             value={formatLkr(remainder)}
@@ -317,6 +400,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#DCE9E4",
   },
+  loyaltyCard: { marginTop: 12 },
   creditHeading: { flexDirection: "row", alignItems: "center" },
   creditIcon: {
     width: 44,

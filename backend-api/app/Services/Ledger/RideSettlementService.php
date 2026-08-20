@@ -57,10 +57,30 @@ class RideSettlementService
             return null;
         }
 
+        // The actual money that moved is the discounted gross (loyalty points
+        // already reduced final_fare before the payment was created). Commission
+        // and driver earning are computed on the pre-discount fare so the
+        // driver's earning is never affected by a passenger's points - see
+        // resolveLoyaltyDiscount().
+        $pointsUsed = Money::of($ride->loyalty_points_used ?? '0.00');
+        $fareBeforeDiscount = Money::add($gross, $pointsUsed);
+
         $computed = $this->commission->computeFor(
             $ride,
-            $gross
+            $fareBeforeDiscount
         );
+
+        [$commissionFinal, $discountExcess] = $this->resolveLoyaltyDiscount(
+            $computed['commission'],
+            $pointsUsed
+        );
+
+        // driver_earning stays as computed above (based on the pre-discount
+        // fare); gross/commission are overridden to what settlement actually
+        // needs to move: the real money collected, and the commission PickU
+        // keeps after the points discount eats into it.
+        $computed['gross'] = $gross;
+        $computed['commission'] = $commissionFinal;
 
         $driverCode = LedgerAccount::codeForDriver(
             (int) $ride->driver_id
@@ -79,7 +99,8 @@ class RideSettlementService
             $payment,
             $method,
             $driverCode,
-            $computed
+            $computed,
+            $discountExcess
         );
 
         $entry = $this->ledger->post(
@@ -108,6 +129,29 @@ class RideSettlementService
     }
 
     /**
+     * A student's loyalty-point discount comes out of PickU's own commission,
+     * never the driver's earning. When the discount is larger than this ride's
+     * commission, the excess is booked as a company expense instead of ever
+     * touching the driver's payout.
+     *
+     * @return array{0: string, 1: string} [commissionAfterDiscount, excessBeyondCommission]
+     */
+    private function resolveLoyaltyDiscount(string $commissionBeforeDiscount, string $pointsUsed): array
+    {
+        if (Money::isZero($pointsUsed)) {
+            return [$commissionBeforeDiscount, '0.00'];
+        }
+
+        $remaining = Money::sub($commissionBeforeDiscount, $pointsUsed);
+
+        if (Money::isNegative($remaining)) {
+            return ['0.00', Money::negate($remaining)];
+        }
+
+        return [$remaining, '0.00'];
+    }
+
+    /**
      * The commission that PickU would otherwise have kept as revenue is
      * instead credited to the passenger as loyalty points, but only while
      * their student verification is approved at the moment of settlement -
@@ -130,6 +174,7 @@ class RideSettlementService
         LoyaltyPointTransaction::create([
             'passenger_id' => $passenger->id,
             'ride_id' => $ride->id,
+            'type' => LoyaltyPointTransaction::TYPE_EARNED,
             'points' => $commission,
             'created_at' => now(),
         ]);
@@ -156,6 +201,7 @@ class RideSettlementService
         string $method,
         string $driverCode,
         array $computed,
+        string $discountExcess = '0.00',
     ): array {
         $allocations = $payment->allocations()
             ->where(
@@ -173,7 +219,8 @@ class RideSettlementService
             return $this->linesFor(
                 $method,
                 $driverCode,
-                $computed
+                $computed,
+                $discountExcess
             );
         }
 
@@ -277,6 +324,13 @@ class RideSettlementService
             ];
         }
 
+        if (! Money::isZero($discountExcess)) {
+            $lines[] = [
+                'account' => 'STUDENT_LOYALTY_DISCOUNT_EXPENSE',
+                'debit' => $discountExcess,
+            ];
+        }
+
         return $lines;
     }
 
@@ -298,13 +352,32 @@ class RideSettlementService
     private function linesFor(
         string $method,
         string $driverCode,
-        array $computed
+        array $computed,
+        string $discountExcess = '0.00',
     ): array {
         if ($method === 'cash') {
             /*
-             * The driver already holds the full fare, so the driver owes PickU
-             * only the commission.
+             * Normally: the driver already holds the full fare in cash, so the
+             * driver owes PickU only the commission.
+             *
+             * When a student's points discount is larger than this ride's
+             * commission (discountExcess > 0), the driver holds less cash than
+             * their protected earning - PickU tops them up out of pocket
+             * instead, via the loyalty discount expense account.
              */
+            if (! Money::isZero($discountExcess)) {
+                return [
+                    [
+                        'account' => 'STUDENT_LOYALTY_DISCOUNT_EXPENSE',
+                        'debit' => $discountExcess,
+                    ],
+                    [
+                        'account' => $driverCode,
+                        'credit' => $discountExcess,
+                    ],
+                ];
+            }
+
             return [
                 [
                     'account' => $driverCode,
@@ -328,9 +401,11 @@ class RideSettlementService
 
         /*
          * PickU holds the gross amount, keeps the commission, and owes the
-         * remaining driver earning to the driver.
+         * remaining driver earning to the driver. If the points discount ate
+         * into more than the commission, the excess is an extra debit so the
+         * driver still gets their full, undiscounted earning.
          */
-        return [
+        $lines = [
             [
                 'account' => $source,
                 'debit' => $computed['gross'],
@@ -344,5 +419,14 @@ class RideSettlementService
                 'credit' => $computed['driver_earning'],
             ],
         ];
+
+        if (! Money::isZero($discountExcess)) {
+            $lines[] = [
+                'account' => 'STUDENT_LOYALTY_DISCOUNT_EXPENSE',
+                'debit' => $discountExcess,
+            ];
+        }
+
+        return $lines;
     }
 }
