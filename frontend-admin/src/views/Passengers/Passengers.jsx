@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAdmin } from '../../context/AdminContext'
 import echo from '../../echo'
 import { fetchPassengers, updatePassengerStatus } from '../../services/adminApi'
@@ -8,7 +9,9 @@ import Swal from 'sweetalert2'
 
 const Passengers = () => {
     const { token } = useAdmin()
+    const navigate = useNavigate()
     const [passengers, setPassengers] = useState([])
+    const [studentFilter, setStudentFilter] = useState('all')
     const [pagination, setPagination] = useState({
         page: 1,
         perPage: 10,
@@ -85,9 +88,11 @@ const Passengers = () => {
 
     const filteredPassengers = useMemo(() => {
         const query = search.trim().toLowerCase()
-        if (!query) return passengers
 
         return passengers.filter((p) => {
+            if (studentFilter === 'student' && !p.student_verification) return false
+            if (!query) return true
+
             return [
                 p.user?.first_name,
                 p.user?.last_name,
@@ -97,7 +102,7 @@ const Passengers = () => {
                 .filter(Boolean)
                 .some((value) => value.toLowerCase().includes(query))
         })
-    }, [passengers, search])
+    }, [passengers, search, studentFilter])
 
     const handleToggleStatus = async (id, currentStatus) => {
         const action = currentStatus ? 'suspend' : 'activate';
@@ -136,7 +141,26 @@ const Passengers = () => {
 
     return (
         <section className="content-page">
-            <div className="top-actions-row" style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '24px' }}>
+            <div className="top-actions-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '20px' }}>
+                <div className="stats-summary" style={{ margin: 0, flex: 1, flexWrap: 'nowrap', overflowX: 'auto' }}>
+                    <button
+                        type="button"
+                        className="stat-pill"
+                        style={{ border: studentFilter === 'all' ? '1.5px solid #08d612' : undefined, cursor: 'pointer' }}
+                        onClick={() => setStudentFilter('all')}
+                    >
+                        All: <strong>{passengers.length}</strong>
+                    </button>
+                    <button
+                        type="button"
+                        className="stat-pill"
+                        style={{ border: studentFilter === 'student' ? '1.5px solid #08d612' : undefined, cursor: 'pointer' }}
+                        onClick={() => setStudentFilter('student')}
+                    >
+                        Student: <strong>{passengers.filter((p) => p.student_verification).length}</strong>
+                    </button>
+                </div>
+
                 <SearchBar
                     value={search}
                     onChange={setSearch}
@@ -145,7 +169,9 @@ const Passengers = () => {
             </div>
 
             <DataTable
-                headers={['Customer', 'Contact', 'Balance', 'Status', 'Action']}
+                headers={studentFilter === 'student'
+                    ? ['Customer', 'Contact', 'University', 'Student Status', 'Action']
+                    : ['Customer', 'Contact', 'Balance', 'Status', 'Action']}
                 gridTemplate="1.5fr 2fr 1fr 1fr 1fr"
                 pagination={{
                     page: pagination.page,
@@ -179,9 +205,23 @@ const Passengers = () => {
                                 <p style={{ fontSize: '13px', marginBottom: 4 }}>{p.user?.email}</p>
                                 <p style={{ fontSize: '12px', color: '#868e96' }}>{p.user?.phone}</p>
                             </div>
+                            {studentFilter === 'student' ? (
+                                <>
+                                    <div className="cell-contact">
+                                        <p style={{ fontSize: '13px' }}>{p.student_verification?.university_name || 'N/A'}</p>
+                                    </div>
+                                    <div className="cell-status">
+                                        <span className={`badge-status ${p.student_verification?.status || 'pending'}`}>
+                                            {p.student_verification?.status || 'pending'}
+                                        </span>
+                                    </div>
+                                </>
+                            ) : (
                             <div className="cell-contact">
                                 <p style={{ fontWeight: 700, color: '#2b8a3e' }}>LKR {p.wallet_balance}</p>
                             </div>
+                            )}
+                            {studentFilter !== 'student' && (
                             <div className="cell-status">
                                 <button
                                     className={`badge-status ${p.user?.is_active ? 'approved' : 'pending'}`}
@@ -191,12 +231,14 @@ const Passengers = () => {
                                     {p.user?.is_active ? 'Active' : 'Suspended'}
                                 </button>
                             </div>
+                            )}
                             <div className="cell-actions">
                                 <button
                                     type="button"
                                     className="btn-view"
                                     title="View passenger details"
                                     aria-label="View passenger details"
+                                    onClick={() => navigate(`/admin-portal/customers/${p.id}`)}
                                 >
                                     <span className="material-icons">visibility</span>
                                 </button>

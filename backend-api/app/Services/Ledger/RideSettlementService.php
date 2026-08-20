@@ -5,8 +5,10 @@ namespace App\Services\Ledger;
 use App\Models\DriverAccount;
 use App\Models\JournalEntry;
 use App\Models\LedgerAccount;
+use App\Models\LoyaltyPointTransaction;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
+use App\Models\Ride;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -100,7 +102,37 @@ class RideSettlementService
                 'updated_at' => now(),
             ]);
 
+        $this->awardStudentLoyaltyPoints($ride, $computed['commission']);
+
         return $entry;
+    }
+
+    /**
+     * The commission that PickU would otherwise have kept as revenue is
+     * instead credited to the passenger as loyalty points, but only while
+     * their student verification is approved at the moment of settlement -
+     * rides taken while an application is still pending never accrue points.
+     */
+    private function awardStudentLoyaltyPoints(Ride $ride, string $commission): void
+    {
+        if (Money::isZero($commission)) {
+            return;
+        }
+
+        $passenger = $ride->passenger()->with('studentVerification')->first();
+
+        if (! $passenger?->isVerifiedStudent()) {
+            return;
+        }
+
+        $passenger->increment('loyalty_points_balance', $commission);
+
+        LoyaltyPointTransaction::create([
+            'passenger_id' => $passenger->id,
+            'ride_id' => $ride->id,
+            'points' => $commission,
+            'created_at' => now(),
+        ]);
     }
 
     /**

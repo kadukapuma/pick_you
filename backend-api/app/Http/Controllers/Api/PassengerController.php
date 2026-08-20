@@ -7,6 +7,7 @@ use App\Events\PassengerCreated;
 use App\Http\Controllers\Controller;
 use App\Models\Passenger;
 use App\Models\AdminNotificationLog;
+use App\Services\Auth\NotifySmsSender;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
@@ -22,7 +23,7 @@ class PassengerController extends Controller
         }
         $perPage = min($perPage, 100);
 
-        $data = Passenger::with('user')
+        $data = Passenger::with(['user', 'studentVerification'])
             ->orderByDesc('id')
             ->paginate($perPage);
 
@@ -57,7 +58,7 @@ class PassengerController extends Controller
 
     public function show($id)
     {
-        $data = Passenger::find($id);
+        $data = Passenger::with(['user', 'studentVerification'])->find($id);
         if (!$data) return $this->error('Passenger not found.', 404);
         return $this->success($data, 'Passenger retrieved successfully.');
     }
@@ -95,5 +96,41 @@ class PassengerController extends Controller
         ]));
 
         return $this->success($passenger, 'Passenger status updated successfully.');
+    }
+
+    public function updateStudentStatus(Request $request, $id, NotifySmsSender $sms)
+    {
+        $request->validate([
+            'status' => 'required|in:approved,rejected',
+            'rejection_reason' => 'nullable|string|max:255',
+        ]);
+
+        $passenger = Passenger::with(['user', 'studentVerification'])->find($id);
+        if (!$passenger) return $this->error('Passenger not found.', 404);
+
+        $verification = $passenger->studentVerification;
+        if (!$verification) return $this->error('No student application found for this passenger.', 404);
+
+        $verification->update([
+            'status' => $request->status,
+            'rejection_reason' => $request->status === 'rejected' ? $request->rejection_reason : null,
+            'reviewed_by' => $request->user()?->id,
+            'reviewed_at' => now(),
+        ]);
+
+        if ($passenger->user?->phone) {
+            $message = $request->status === 'approved'
+                ? "Congratulations! You're now a verified Student Passenger on PickU. Enjoy loyalty points, exclusive offers and more on every ride."
+                : "Your PickU student verification could not be approved at this time. You can review your details and re-apply from the app.";
+
+            $sms->send($passenger->user->phone, $message);
+        }
+
+        event(new DashboardUpdated('passenger.student_status', [
+            'passenger_id' => $passenger->id,
+            'status' => $request->status,
+        ]));
+
+        return $this->success($passenger->fresh(['user', 'studentVerification']), "Student verification has been {$request->status}.");
     }
 }

@@ -15,11 +15,13 @@ class Passenger extends Model
         'profile_image',
         'wallet_balance',
         'wallet_reserved_balance',
+        'loyalty_points_balance',
     ];
 
     protected $casts = [
         'wallet_balance' => 'decimal:2',
         'wallet_reserved_balance' => 'decimal:2',
+        'loyalty_points_balance' => 'decimal:2',
     ];
 
     public function user()
@@ -35,5 +37,20 @@ class Passenger extends Model
     public function payments()
     {
         return $this->hasMany(Payment::class);
+    }
+
+    public function studentVerification()
+    {
+        return $this->hasOne(StudentVerification::class);
+    }
+
+    public function loyaltyPointTransactions()
+    {
+        return $this->hasMany(LoyaltyPointTransaction::class);
+    }
+
+    public function isVerifiedStudent(): bool
+    {
+        return $this->studentVerification?->status === 'approved';
     }
 }

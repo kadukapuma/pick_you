@@ -215,6 +215,20 @@ const fetchPassengers = async (token, { page = 1, perPage = 10 } = {}) => {
   }
 }
 
+const fetchPassengerDetails = async (token, passengerId) => {
+  const payload = await apiFetch(`/passengers/${passengerId}`, { token })
+  return { passenger: payload.data }
+}
+
+const updatePassengerStudentStatus = async (token, passengerId, status, rejectionReason) => {
+  const payload = await apiFetch(`/passengers/${passengerId}/student-status`, {
+    method: 'PUT',
+    token,
+    body: { status, rejection_reason: rejectionReason || null },
+  })
+  return { passenger: payload.data }
+}
+
 const fetchAdmins = async (token, { page = 1, perPage = 10 } = {}) => {
   const payload = await apiFetch(`/admins?page=${page}&per_page=${perPage}`, { token })
   const data = payload.data || {}
@@ -679,6 +693,8 @@ export {
   fetchMe,
   fetchDriverDetails,
   fetchPassengers,
+  fetchPassengerDetails,
+  updatePassengerStudentStatus,
   fetchVehicles,
   fetchVehicleDetails,
   updateDriverStatus,
