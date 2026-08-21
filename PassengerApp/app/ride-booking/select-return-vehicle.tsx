@@ -25,6 +25,7 @@ interface DBVehicleType {
   name: string;
   display_name: string;
   description: string | null;
+  passenger_count: number;
   is_active: boolean;
   fare_config: {
     id: number;
@@ -48,6 +49,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "car",
     display_name: "Car",
     description: "Standard 4-seater cars and hatchbacks",
+    passenger_count: 4,
     is_active: true,
     fare_config: {
       id: 1,
@@ -64,6 +66,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "tuk",
     display_name: "Tuk Tuk",
     description: "Classic 3-wheeler auto rickshaws",
+    passenger_count: 3,
     is_active: true,
     fare_config: {
       id: 2,
@@ -81,6 +84,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     display_name: "Motorbike",
     description: "Fast and efficient single-passenger motorbikes",
     is_active: true,
+    passenger_count: 1,
     fare_config: {
       id: 3,
       vehicle_type: "bike",
@@ -96,6 +100,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "suv",
     display_name: "SUV",
     description: "Large 6-seater utility and family vehicles",
+    passenger_count: 6,
     is_active: true,
     fare_config: {
       id: 4,
@@ -151,6 +156,7 @@ const mapDBVehicleToOption = (vt: DBVehicleType, distanceMeters: number, duratio
     price: parseFloat(price.toFixed(2)),
     eta: etaMap[vt.name] || "4 mins",
     rating: ratingMap[vt.name] || 4.6,
+    passengerCount: vt.passenger_count ?? 4,
   };
 };
 
@@ -439,7 +445,7 @@ export default function SelectRideReturnScreen() {
                     selectedRide === ride.id && styles.etaSelected,
                   ]}
                 >
-                  {ride.eta}
+                  {ride.passengerCount} · {ride.eta}
                 </Text>
 
                 {/* Distance & Duration */}

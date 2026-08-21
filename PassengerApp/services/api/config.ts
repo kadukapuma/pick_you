@@ -52,4 +52,7 @@ export const API_ENDPOINTS = {
     PROFILE_PICTURE: "/passenger/profile-picture",
     STUDENT_VERIFICATION: "/passenger/student-verification",
   },
+  PROMOTIONS: {
+    LIST: "/passenger/promotions",
+  },
 };

@@ -38,6 +38,7 @@ interface DBVehicleType {
   name: string;
   display_name: string;
   description: string | null;
+  passenger_count: number;
   is_active: boolean;
   fare_config: {
     id: number;
@@ -77,6 +78,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "car",
     display_name: "Car",
     description: "Standard 4-seater cars and hatchbacks",
+    passenger_count: 4,
     is_active: true,
     fare_config: {
       id: 1,
@@ -94,6 +96,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "tuk",
     display_name: "Tuk Tuk",
     description: "Classic 3-wheeler auto rickshaws",
+    passenger_count: 3,
     is_active: true,
     fare_config: {
       id: 2,
@@ -110,6 +113,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "bike",
     display_name: "Motorbike",
     description: "Fast single-passenger motorbikes",
+    passenger_count: 1,
     is_active: true,
     fare_config: {
       id: 3,
@@ -126,6 +130,7 @@ const MOCK_VEHICLE_TYPES: DBVehicleType[] = [
     name: "suv",
     display_name: "SUV",
     description: "Large 6-seater family vehicles",
+    passenger_count: 6,
     is_active: true,
     fare_config: {
       id: 4,
@@ -187,30 +192,25 @@ const RATING_MAP: Record<string, number> = {
   van: 4.9,
   minivan: 4.9,
 };
-// Passenger seating capacity per vehicle type
-const CAPACITY_MAP: Record<string, number> = {
-  bike: 1,
-  motorbike: 1,
-  motorcycle: 1,
-  tuk: 3,
-  tuktuk: 3,
-  threewheel: 3,
-  flex: 3,
-  minicar: 3,
-  mini: 3,
-  car: 4,
-  suv: 6,
-  minivan: 5,
-  minvan: 5,
-  van: 10,
-};
 // Approx stars earned per LKR spent
 const STARS_PER_LKR = 0.01;
+
+// Average urban travel speed used to turn a driver's real distance into an ETA.
+const AVG_VEHICLE_SPEED_KMH = 25;
+
+function formatEtaFromDistanceMeters(distanceMeters: number): string {
+  const minutes = Math.max(
+    1,
+    Math.round((distanceMeters / 1000 / AVG_VEHICLE_SPEED_KMH) * 60),
+  );
+  return minutes === 1 ? "1 min" : `${minutes} mins`;
+}
 
 function mapDBVehicleToOption(
   vt: DBVehicleType,
   distanceMeters: number,
   durationSeconds: number,
+  nearestVehicleDistanceMeters?: number,
 ): RideOption {
   let price = 0;
   if (vt.fare_config) {
@@ -225,14 +225,22 @@ function mapDBVehicleToOption(
 
   const safeName = normaliseVehicleKey(vt.name ?? "car");
 
+  // Real ETA: time for the closest available driver of this vehicle type to
+  // reach the passenger, based on that driver's actual distance. Falls back
+  // to a rough static estimate only while no live driver of this type is nearby.
+  const eta =
+    nearestVehicleDistanceMeters != null
+      ? formatEtaFromDistanceMeters(nearestVehicleDistanceMeters)
+      : (ETA_MAP[safeName] ?? "4 mins");
+
   return {
     id: vt.name, // Keep original for backend queries
     name: vt.display_name,
     icon: ICON_MAP[safeName] ?? "car",
     price: parseFloat(price.toFixed(2)),
-    eta: ETA_MAP[safeName] ?? "4 mins",
+    eta,
     rating: RATING_MAP[safeName] ?? 4.6,
-    capacity: CAPACITY_MAP[safeName] ?? 4,
+    passengerCount: vt.passenger_count ?? 4,
   };
 }
 
@@ -343,67 +351,68 @@ function RideCard({
       }}
     >
       <Pressable onPress={onSelect} style={{ borderRadius: 16 }}>
-        <Animated.View
-          style={[
-            styles.rideCard,
-            { borderColor },
-            selected && { backgroundColor: "#F3F4F6" },
-            Platform.OS === "ios"
-              ? {
-                  shadowColor: "#000",
-                  shadowOffset: { width: 0, height: 3 },
-                  shadowOpacity,
-                  shadowRadius,
-                }
-              : { elevation },
-          ]}
-        >
-          {/* Icon area */}
-          <View style={styles.cardIconWrap}>
-            <Image
-              source={getVehicleRideImage(ride.id)}
-              style={{ width: 85, height: 46, resizeMode: "contain" }}
-            />
-          </View>
+       <Animated.View
+  style={[
+    styles.rideCard,
+    { borderColor },
+    selected && { backgroundColor: "#F3F4F6" },
+    Platform.OS === "ios"
+      ? {
+          shadowColor: "#000",
+          shadowOffset: { width: 0, height: 3 },
+          shadowOpacity,
+          shadowRadius,
+        }
+      : { elevation },
+  ]}
+>
+  {/* ETA badge — top-right corner */}
+  <View style={styles.etaBadge}>
+    <Ionicons name="time-outline" size={10} color={GREEN_DARK} />
+    <Text style={styles.etaBadgeText} numberOfLines={1}>
+      {ride.eta}
+    </Text>
+  </View>
 
-          {/* Name */}
-          <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
-            {ride.name}
-          </Text>
+  {/* Icon */}
+  <View style={styles.cardIconWrap}>
+    <Image
+      source={getVehicleRideImage(ride.id)}
+      style={{ width: 78, height: 42, resizeMode: "contain" }}
+    />
+  </View>
 
-          {/* Passenger capacity */}
+  {/* Name */}
+  <Text style={styles.cardName} numberOfLines={1} adjustsFontSizeToFit>
+    {ride.name}
+  </Text>
+
+          {/* Passenger seat count (from backend) */}
           <View style={styles.cardMeta}>
             <Ionicons name="person-outline" size={11} color="#9CA3AF" />
             <Text style={styles.cardEta} numberOfLines={1}>
-              {ride.capacity ?? 4}
+              {ride.passengerCount} seats
             </Text>
           </View>
 
-          {/* Price */}
-          <Text
-            style={styles.cardPrice}
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.6}
-          >
-            LKR {ride.price.toFixed(2)}
-          </Text>
+  {/* Price */}
+  <Text
+    style={styles.cardPrice}
+    numberOfLines={1}
+    adjustsFontSizeToFit
+    minimumFontScale={0.6}
+  >
+    LKR {ride.price.toFixed(2)}
+  </Text>
 
-          {/* Stars earned */}
-          <View style={styles.starsRow}>
-            <Ionicons name="star" size={11} color="#FBBF24" />
-            <Text style={styles.starsText} numberOfLines={1}>
-              Earn {stars}
-            </Text>
-          </View>
-
-          {/* Route info */}
-          {directions && (
-            <Text style={styles.cardRoute} numberOfLines={1}>
-              {directions.distanceText} · {directions.durationText}
-            </Text>
-          )}
-        </Animated.View>
+  {/* Stars earned */}
+  <View style={styles.starsRow}>
+    <Ionicons name="star" size={11} color="#FBBF24" />
+    <Text style={styles.starsText} numberOfLines={1}>
+      Earn {stars}
+    </Text>
+  </View>
+</Animated.View>
       </Pressable>
     </Animated.View>
   );
@@ -464,6 +473,22 @@ export default function SelectRideScreen() {
   const pickupLongitude = pickup?.longitude;
   const destinationLatitude = destination?.latitude;
   const destinationLongitude = destination?.longitude;
+
+  // All available vehicles near the pickup point (unfiltered by type), used to
+  // derive a real per-vehicle-type ETA from the closest driver's actual distance.
+  const allNearbyVehicles = useNearbyVehicles(pickup, null);
+
+  const nearestDistanceByType = React.useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const vehicle of allNearbyVehicles) {
+      if (vehicle.distanceMeters == null) continue;
+      const key = normaliseVehicleKey(vehicle.vehicleType);
+      if (map[key] == null || vehicle.distanceMeters < map[key]) {
+        map[key] = vehicle.distanceMeters;
+      }
+    }
+    return map;
+  }, [allNearbyVehicles]);
 
   // Bottom sheet slide-up entrance
   const sheetY = useRef(new Animated.Value(80)).current;
@@ -596,7 +621,12 @@ export default function SelectRideScreen() {
 
     let cancelled = false;
     const fallbackOptions = _rawVehicles.map((vehicle) =>
-      mapDBVehicleToOption(vehicle, directions.distance, directions.duration),
+      mapDBVehicleToOption(
+        vehicle,
+        directions.distance,
+        directions.duration,
+        nearestDistanceByType[normaliseVehicleKey(vehicle.name ?? "car")],
+      ),
     );
 
     setRideOptions(fallbackOptions);
@@ -660,6 +690,23 @@ export default function SelectRideScreen() {
     pickupLongitude,
     _rawVehicles,
   ]);
+
+  // Refresh just the ETA as nearby driver positions update, without touching
+  // price (which the fare effect above owns) or resetting backend estimates.
+  useEffect(() => {
+    if (_rawVehicles.length === 0) return;
+    setRideOptions((current) =>
+      current.map((option) => {
+        const key = normaliseVehicleKey(option.id);
+        const nearestMeters = nearestDistanceByType[key];
+        const eta =
+          nearestMeters != null
+            ? formatEtaFromDistanceMeters(nearestMeters)
+            : (ETA_MAP[key] ?? "4 mins");
+        return eta === option.eta ? option : { ...option, eta };
+      }),
+    );
+  }, [nearestDistanceByType, _rawVehicles]);
   const handleBookNow = useCallback(() => {
     if (!pickup || !destination || !selectedRide || rideOptions.length === 0)
       return;
@@ -689,7 +736,15 @@ export default function SelectRideScreen() {
     directions && _rawVehicles.length > 0 && rideOptions.length === 0,
   );
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
-  const nearbyVehicles = useNearbyVehicles(pickup, selectedRide);
+  const nearbyVehicles = React.useMemo(
+    () =>
+      selectedRide
+        ? allNearbyVehicles.filter(
+            (v) => normaliseVehicleKey(v.vehicleType) === normaliseVehicleKey(selectedRide),
+          )
+        : allNearbyVehicles,
+    [allNearbyVehicles, selectedRide],
+  );
 
   if (!pickup || !destination) {
     return (
@@ -1039,18 +1094,47 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
 
-  rideCard: {
-    width: 112,
-    height: 180,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    backgroundColor: "#FAFAFA",
-    paddingVertical: 12,
-    paddingHorizontal: 10,
+rideCard: {
+  width: 118,
+  height: 172,
+  borderRadius: 16,
+  borderWidth: 2,
+  borderColor: "#E5E7EB",
+  backgroundColor: "#FAFAFA",
+  paddingVertical: 14,
+  paddingHorizontal: 10,
+  alignItems: "center",
+  justifyContent: "flex-start", // top-align content instead of centering as a block
+  gap: 4,
+  position: "relative",
+  overflow: "visible",
+},
+
+  etaBadge: {
+    position: "absolute",
+    top: -8,
+    right: -6,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 3,
+    gap: 2,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 6,
+    borderWidth: 1,
+    borderColor: GREEN_LIGHT,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 3,
+    zIndex: 5,
+  },
+
+  etaBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: GREEN_DARK,
   },
 
   rideCardSelected: {

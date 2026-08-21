@@ -44,6 +44,7 @@ class VehicleTypeController extends Controller
             'display_name' => 'required|string|max:100',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
+            'passenger_count' => 'required|integer|min:1|max:20',
         ]);
 
         $vehicleType = VehicleType::create($request->all());
@@ -78,6 +79,7 @@ class VehicleTypeController extends Controller
             'display_name' => 'required|string|max:100',
             'description' => 'nullable|string',
             'is_active' => 'boolean',
+            'passenger_count' => 'required|integer|min:1|max:20',
         ]);
 
         $vehicleType->update($request->all());

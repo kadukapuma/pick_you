@@ -10,6 +10,7 @@ type NearbyVehicleResponse = {
   speed?: number;
   recorded_at?: string;
   vehicle_type: string;
+  distance_meters?: number;
 };
 
 const POLL_INTERVAL_MS = 10_000;
@@ -40,6 +41,9 @@ export function useNearbyVehicles(center?: MapCoordinate | null, vehicleType?: s
         id: vehicle.id,
         vehicleType: vehicle.vehicle_type,
         heading: Number(vehicle.heading || 0),
+        distanceMeters: Number.isFinite(Number(vehicle.distance_meters))
+          ? Number(vehicle.distance_meters)
+          : undefined,
         coordinate: {
           latitude: Number(vehicle.latitude),
           longitude: Number(vehicle.longitude),
