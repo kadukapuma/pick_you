@@ -50,10 +50,16 @@ const BackgroundLocationDisclosureModal = ({
             contentContainerStyle={styles.scrollContent}
           >
             <Text style={styles.messageHeading}>
-              PickU Driver collects your location even when the app is running in the background to:
+              PickU Driver collects your location even when the app is closed or not in use (running in the background) to:
             </Text>
 
             <View style={styles.bulletList}>
+              <View style={styles.bulletItem}>
+                <Text style={styles.bullet}>•</Text>
+                <Text style={styles.bulletText}>
+                  Match you with nearby passenger bookings and send you dispatch requests.
+                </Text>
+              </View>
               <View style={styles.bulletItem}>
                 <Text style={styles.bullet}>•</Text>
                 <Text style={styles.bulletText}>
@@ -75,7 +81,7 @@ const BackgroundLocationDisclosureModal = ({
               <View style={styles.bulletItem}>
                 <Text style={styles.bullet}>•</Text>
                 <Text style={styles.bulletText}>
-                  Support navigation while you are online.
+                  Support navigation while you are online, including while using external navigation apps or with your screen off.
                 </Text>
               </View>
               <View style={styles.bulletItem}>
@@ -87,7 +93,7 @@ const BackgroundLocationDisclosureModal = ({
             </View>
 
             <Text style={styles.messageFooter}>
-              Your location is only collected while you are online as a driver and is never used for advertising purposes.
+              This data is sent securely to our servers only while you are online as a driver, and is never shared with third-party advertising networks.
             </Text>
           </ScrollView>
 

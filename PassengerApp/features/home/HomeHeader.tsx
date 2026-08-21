@@ -3,6 +3,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useState } from "react";
 import { Image, Platform, TouchableOpacity, View } from "react-native";
+import StudentAvatarRing from "../../components/ui/StudentAvatarRing";
 import { ProfileService } from "../../services/auth/profileApi";
 
 type HomeHeaderProps = {
@@ -11,6 +12,7 @@ type HomeHeaderProps = {
 
 export default function HomeHeader({ compact = false }: HomeHeaderProps) {
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [isVerifiedStudent, setIsVerifiedStudent] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -24,6 +26,9 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
 
         setProfileImage(
           result.success ? (result.data?.profileImage ?? null) : null,
+        );
+        setIsVerifiedStudent(
+          result.success && result.data?.studentStatus === "approved",
         );
       };
 
@@ -116,43 +121,43 @@ export default function HomeHeader({ compact = false }: HomeHeaderProps) {
           */}
 
         {/* PROFILE BUTTON */}
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={() => router.push("/(app)/(tabs)/account")}
-          style={{
-            width: 44,
-            height: 44,
-            borderRadius: 22,
-            overflow: "hidden",
-            backgroundColor: "#F3F4F6",
-            marginLeft: 12,
-
-            borderWidth: 1.5,
-            borderColor: "#E5E7EB",
-          }}
-        >
-          {profileImage ? (
-            <Image
-              source={{ uri: profileImage }}
-              style={{
-                width: "100%",
-                height: "100%",
-              }}
-            />
-          ) : (
-            <View
-              style={{
-                width: "100%",
-                height: "100%",
-                alignItems: "center",
-                justifyContent: "center",
-                backgroundColor: "#E5E7EB",
-              }}
-            >
-              <Ionicons name="person" size={24} color="#9CA3AF" />
-            </View>
-          )}
-        </TouchableOpacity>
+        <StudentAvatarRing active={isVerifiedStudent} size={44} ringWidth={3} style={{ marginLeft: 12 }}>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            onPress={() => router.push("/(app)/(tabs)/account")}
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 22,
+              overflow: "hidden",
+              backgroundColor: "#F3F4F6",
+              borderWidth: 1.5,
+              borderColor: "#E5E7EB",
+            }}
+          >
+            {profileImage ? (
+              <Image
+                source={{ uri: profileImage }}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                }}
+              />
+            ) : (
+              <View
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: "#E5E7EB",
+                }}
+              >
+                <Ionicons name="person" size={24} color="#9CA3AF" />
+              </View>
+            )}
+          </TouchableOpacity>
+        </StudentAvatarRing>
       </View>
     </View>
   );

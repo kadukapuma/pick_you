@@ -1,4 +1,6 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { useEffect, useState } from "react";
 import {
   Image,
   Platform,
@@ -15,9 +17,62 @@ import PromotionCarousel from "../../../features/home/promotions/PromotionCarous
 import SavedPlaces from "../../../features/home/SavedPlacesPreview";
 import SearchBar from "../../../features/home/RideSearchBar";
 import ServiceGrid from "../../../features/home/ServiceGrid";
+import StudentEligibilityModal from "../../../components/ui/StudentEligibilityModal";
+import StudentStatusModal from "../../../components/ui/StudentStatusModal";
+import { StudentVerificationService } from "../../../services/auth/studentVerificationApi";
+
+const STUDENT_PROMPT_SEEN_KEY = "student_prompt_seen";
+const STUDENT_LAST_SEEN_STATUS_KEY = "student_last_seen_status";
 
 export default function HomeScreen() {
   const { height, width } = useWindowDimensions();
+  const [showEligibilityModal, setShowEligibilityModal] = useState(false);
+  const [statusModal, setStatusModal] = useState<"approved" | "rejected" | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const result = await StudentVerificationService.getStatus();
+      if (!mounted || !result.success || !result.data) return;
+
+      const currentStatus = result.data.status;
+      const lastSeenStatus = await AsyncStorage.getItem(STUDENT_LAST_SEEN_STATUS_KEY);
+
+      if (
+        (currentStatus === "approved" || currentStatus === "rejected") &&
+        lastSeenStatus !== currentStatus
+      ) {
+        setStatusModal(currentStatus);
+        await AsyncStorage.setItem(STUDENT_LAST_SEEN_STATUS_KEY, currentStatus);
+        return;
+      }
+
+      if (currentStatus === "none") {
+        const promptSeen = await AsyncStorage.getItem(STUDENT_PROMPT_SEEN_KEY);
+        if (!promptSeen) {
+          setShowEligibilityModal(true);
+        }
+      } else {
+        await AsyncStorage.setItem(STUDENT_LAST_SEEN_STATUS_KEY, currentStatus);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const dismissEligibilityModal = async () => {
+    setShowEligibilityModal(false);
+    await AsyncStorage.setItem(STUDENT_PROMPT_SEEN_KEY, "1");
+  };
+
+  const acceptEligibilityPrompt = async () => {
+    setShowEligibilityModal(false);
+    await AsyncStorage.setItem(STUDENT_PROMPT_SEEN_KEY, "1");
+    router.push("/(app)/(tabs)/account/student-verification" as any);
+  };
 
   const isVerySmallDevice = width < 340;
   const isSmallDevice = width < 380;
@@ -234,6 +289,20 @@ export default function HomeScreen() {
           </View> */}
         </View>
       </ScrollView>
+
+      <StudentEligibilityModal
+        visible={showEligibilityModal}
+        onYes={acceptEligibilityPrompt}
+        onDismiss={dismissEligibilityModal}
+      />
+
+      {statusModal ? (
+        <StudentStatusModal
+          visible
+          status={statusModal}
+          onClose={() => setStatusModal(null)}
+        />
+      ) : null}
     </View>
   );
 }

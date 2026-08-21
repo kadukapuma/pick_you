@@ -10,6 +10,7 @@ use App\Models\FareConfig;
 use App\Models\Ride;
 use App\Models\User;
 use App\Services\Fares\FareCalculationService;
+use App\Services\Ledger\CommissionService;
 use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
 use App\Services\RideMatching\RideMatchingService;
@@ -34,6 +35,7 @@ class RideController extends Controller
         private readonly RideMatchingRedis $rideMatchingRedis,
         private readonly RideTransitionService $rideTransition,
         private readonly FareCalculationService $fares,
+        private readonly CommissionService $commission,
         private readonly GoogleMapsService $maps,
         private readonly NotificationService $notifications,
     ) {}
@@ -206,6 +208,11 @@ class RideController extends Controller
             $dropLng,
         );
 
+        $estimatedFare = (string) $fareEstimate['estimated_fare'];
+        if ($passenger->isVerifiedStudent()) {
+            $estimatedFare = $this->commission->studentAdjustedFare($estimatedFare, $fareConfig);
+        }
+
         $ride = Ride::create([
             'ride_code' => strtoupper(Str::random(8)),
             'passenger_id' => $passenger->id,
@@ -219,7 +226,7 @@ class RideController extends Controller
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
-            'estimated_fare' => $fareEstimate['estimated_fare'],
+            'estimated_fare' => $estimatedFare,
             'payment_method' => $request->input('payment_method', 'cash'),
             'use_wallet_credit' => $request->boolean(
                 'use_wallet_credit'
@@ -330,13 +337,18 @@ class RideController extends Controller
             (float) $request->drop_lng,
         );
 
+        $estimatedFare = (string) $fareEstimate['estimated_fare'];
+        if ($request->user()->passenger?->isVerifiedStudent()) {
+            $estimatedFare = $this->commission->studentAdjustedFare($estimatedFare, $fareConfig);
+        }
+
         return $this->success([
             'vehicle_type' => $fareConfig->vehicle_type,
             'route' => $route,
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
-            'estimated_fare' => $fareEstimate['estimated_fare'],
+            'estimated_fare' => $estimatedFare,
             'fare_breakdown' => $fareEstimate['breakdown'],
         ], 'Ride estimate calculated successfully');
     }
@@ -549,6 +561,16 @@ class RideController extends Controller
             );
             $ride->update($this->fares->completionBreakdown($ride));
             $ride->refresh();
+
+            $passenger = $ride->passenger()->with('studentVerification')->first();
+            if ($passenger?->isVerifiedStudent()) {
+                $adjustedFinalFare = $this->commission->studentAdjustedFare(
+                    (string) $ride->final_fare,
+                    $ride->fareConfig,
+                );
+                $ride->update(['final_fare' => $adjustedFinalFare]);
+                $ride->refresh();
+            }
         } catch (DomainException) {
             return $this->error('Ride cannot be completed', 409);
         }

@@ -11,6 +11,8 @@ export interface PassengerProfile {
   phone: string;
   profileImage: string | null;
   walletBalance: number | null;
+  loyaltyPointsBalance: number | null;
+  studentStatus: "none" | "pending" | "approved" | "rejected";
 }
 
 export interface ProfileServiceResponse {
@@ -39,6 +41,11 @@ function mapUserToProfile(user: any): PassengerProfile {
       user?.wallet_balance !== undefined && user?.wallet_balance !== null
         ? Number(user.wallet_balance)
         : null,
+    loyaltyPointsBalance:
+      user?.loyalty_points_balance !== undefined && user?.loyalty_points_balance !== null
+        ? Number(user.loyalty_points_balance)
+        : null,
+    studentStatus: (user?.student_status as PassengerProfile["studentStatus"]) || "none",
   };
 }
 

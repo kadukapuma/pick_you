@@ -28,6 +28,10 @@ const defaultForm = {
     // Blank means "use the platform default commission rate" - entered here
     // as a percentage (e.g. "8") and converted to a fraction (0.08) on save.
     commission_rate: '',
+    // Commission charged instead of commission_rate when the passenger is a
+    // verified student. Blank means 0% (no commission, no loyalty points)
+    // until an admin sets a rate for this vehicle type.
+    student_commission_rate: '',
 }
 
 const numericFields = [
@@ -161,6 +165,13 @@ const FareConfigs = () => {
             }
         }
 
+        if (form.student_commission_rate.trim() !== '') {
+            const percent = Number(form.student_commission_rate)
+            if (Number.isNaN(percent) || percent < 0 || percent > 100) {
+                return 'Student commission rate must be a percentage between 0 and 100, or left blank for 0%.'
+            }
+        }
+
         return null
     }
 
@@ -193,6 +204,10 @@ const FareConfigs = () => {
             form.commission_rate.trim() === ''
                 ? null
                 : Number(form.commission_rate) / 100,
+        student_commission_rate:
+            form.student_commission_rate.trim() === ''
+                ? null
+                : Number(form.student_commission_rate) / 100,
     })
 
     const handleSubmit = async (event) => {
@@ -240,6 +255,10 @@ const FareConfigs = () => {
                 item.commission_rate === null || item.commission_rate === undefined
                     ? ''
                     : String(Number(item.commission_rate) * 100),
+            student_commission_rate:
+                item.student_commission_rate === null || item.student_commission_rate === undefined
+                    ? ''
+                    : String(Number(item.student_commission_rate) * 100),
         })
         setModalOpen(true)
     }
@@ -306,6 +325,9 @@ const FareConfigs = () => {
                                 <span className={item.commission_rate ? 'fare-config-commission' : 'muted'}>
                                     {formatCommissionRate(item.commission_rate)}
                                 </span>
+                                <div style={{ fontSize: '11px', marginTop: '2px' }} className="muted">
+                                    Student: {formatCommissionRate(item.student_commission_rate) === 'Default' ? '0%' : formatCommissionRate(item.student_commission_rate)}
+                                </div>
                             </div>
                             <div>
                                 <span className={`badge-status ${item.is_active ? 'active' : 'pending'}`}>
@@ -462,6 +484,27 @@ const FareConfigs = () => {
                         <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
                             What PickU keeps from every ride of this vehicle type. Leave blank
                             to use the platform-wide commission rate instead.
+                        </p>
+                    </div>
+
+                    <div>
+                        <FormInput
+                            label="Student Commission Rate (%)"
+                            name="student_commission_rate"
+                            type="number"
+                            placeholder="0 (no commission)"
+                            value={form.student_commission_rate}
+                            onChange={handleFormChange}
+                            disabled={saving}
+                            step="0.01"
+                            min="0"
+                            max="100"
+                        />
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                            Used instead of the normal commission rate above when the passenger
+                            is a verified student passenger - this amount is also credited to
+                            them as loyalty points. Leave blank for 0% until you're ready to
+                            configure it.
                         </p>
                     </div>
 

@@ -2,6 +2,7 @@
   "expo": {
     "name": "PickU Driver",
     "slug": "DriverApp",
+    "owner": "hawadmins-team",
     "version": "1.1.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon-1.png",
@@ -20,7 +21,7 @@
       "bundleIdentifier": "com.picku.DriverApp"
     },
     "android": {
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/icon-1.png",
         "backgroundColor": "#0B1220"
@@ -68,7 +69,7 @@
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow Pick You to share your location during active rides.",
+          "locationAlwaysAndWhenInUsePermission": "PickU Driver collects your location, including in the background when the app is closed or not in use, to send you ride requests and share your live location with passengers during active rides.",
           "locationWhenInUsePermission": "Allow Pick You to use your location while you are online.",
           "isIosBackgroundLocationEnabled": true,
           "isAndroidBackgroundLocationEnabled": true,
@@ -90,7 +91,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "19185e93-09e4-4ac7-bd1f-1df08ed4add0"
+        "projectId": "96ef6731-3bb7-453a-b09b-4a855fc5bfb3"
       }
     }
   }

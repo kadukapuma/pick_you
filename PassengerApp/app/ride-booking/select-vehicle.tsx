@@ -387,13 +387,13 @@ function RideCard({
     {ride.name}
   </Text>
 
-  {/* Passenger count */}
-  <View style={styles.cardMeta}>
-    <Ionicons name="person-outline" size={11} color="#9CA3AF" />
-    <Text style={styles.cardEta} numberOfLines={1}>
-      {ride.passengerCount} seats
-    </Text>
-  </View>
+          {/* Passenger seat count (from backend) */}
+          <View style={styles.cardMeta}>
+            <Ionicons name="person-outline" size={11} color="#9CA3AF" />
+            <Text style={styles.cardEta} numberOfLines={1}>
+              {ride.passengerCount} seats
+            </Text>
+          </View>
 
   {/* Price */}
   <Text
