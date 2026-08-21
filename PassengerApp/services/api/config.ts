@@ -51,4 +51,7 @@ export const API_ENDPOINTS = {
     UPDATE_PROFILE: "/passenger/profile",
     PROFILE_PICTURE: "/passenger/profile-picture",
   },
+  PROMOTIONS: {
+    LIST: "/passenger/promotions",
+  },
 };
