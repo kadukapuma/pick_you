@@ -377,7 +377,7 @@ const LandingLayout = () => {
               </div>
               <div className="contact-item">
                 <FaEnvelope className="contact-icon" />
-                <a href="mailto:support@pickyou.lk">support@pickyou.lk</a>
+                <a href="mailto:support@picku.lk">support@picku.lk</a>
               </div>
               <div className="contact-item">
                 <FaPhone className="contact-icon" />
