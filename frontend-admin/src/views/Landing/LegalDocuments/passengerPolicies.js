@@ -7,13 +7,9 @@ const links = [
 
 const shared = {
     audience: 'PickU Passenger',
-    status: 'Draft — under review',
+    status: 'Effective',
     updated: '28 July 2026',
     links,
-    notice: {
-        title: 'Pre-launch draft',
-        text: 'This document describes the intended passenger service. Commercial rules, card processing and formal company details remain subject to approval before publication.',
-    },
 }
 
 export const passengerTerms = {
@@ -77,7 +73,7 @@ export const passengerTerms = {
         },
         {
             title: 'Complaints, changes and contact',
-            paragraphs: ['Send a complaint with your account contact, ride reference, date, amount and evidence to support@pickyou.lk. These terms are governed by Sri Lankan law, without restricting access to a competent regulator, consumer process or court.', 'Material updates will be communicated through the app, website or another appropriate channel where required.'],
+            paragraphs: ['Send a complaint with your account contact, ride reference, date, amount and evidence to support@picku.lk. These terms are governed by Sri Lankan law, without restricting access to a competent regulator, consumer process or court.', 'Material updates will be communicated through the app, website or another appropriate channel where required.'],
         },
     ],
 }
@@ -90,7 +86,7 @@ export const passengerPrivacy = {
     sections: [
         {
             title: 'Who this policy covers',
-            paragraphs: ['This policy applies when passengers use the PickU passenger app, website, support services and related ride services. Final legal-company and privacy-controller details will be added before launch.'],
+            paragraphs: ['This policy applies when passengers use the PickU passenger app, website, support services and related ride services. PickU is operated by Pick Up, which acts as the data controller for the information described in this policy.'],
         },
         {
             title: 'Data we collect',
@@ -119,7 +115,7 @@ export const passengerPrivacy = {
         },
         {
             title: 'Your choices and rights',
-            paragraphs: ['Subject to applicable law, passengers may request access, correction, deletion, restriction, objection or withdrawal of consent. Identity may be verified before a request is completed.', 'Permissions can be changed in device settings, although some features may then be unavailable. Privacy requests may be sent to support@pickyou.lk until a dedicated privacy address is published.'],
+            paragraphs: ['Subject to applicable law, passengers may request access, correction, deletion, restriction, objection or withdrawal of consent. Identity may be verified before a request is completed.', 'Permissions can be changed in device settings, although some features may then be unavailable. Privacy requests may be sent to support@picku.lk until a dedicated privacy address is published.'],
         },
         {
             title: 'Children, automated decisions and updates',
@@ -198,7 +194,7 @@ export const passengerRefund = {
         },
         {
             title: 'Requesting a review',
-            paragraphs: ['Contact support@pickyou.lk with the account mobile number, ride reference, date, amount, reason and relevant evidence. Service targets and reporting periods will be published after operational approval without limiting longer rights under law.'],
+            paragraphs: ['Contact support@picku.lk with the account mobile number, ride reference, date, amount, reason and relevant evidence. Service targets and reporting periods will be published after operational approval without limiting longer rights under law.'],
         },
         {
             title: 'Chargebacks and promotional credits',
