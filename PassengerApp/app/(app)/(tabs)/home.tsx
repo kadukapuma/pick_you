@@ -13,6 +13,7 @@ import {
 } from "react-native";
 
 import HomeHeader from "../../../features/home/HomeHeader";
+import PromotionCarousel from "../../../features/home/promotions/PromotionCarousel";
 import SavedPlaces from "../../../features/home/SavedPlacesPreview";
 import SearchBar from "../../../features/home/RideSearchBar";
 import ServiceGrid from "../../../features/home/ServiceGrid";
@@ -281,6 +282,11 @@ export default function HomeScreen() {
           <View style={{ marginBottom: sectionGap }}>
             <SavedPlaces compact={isShortScreen} />
           </View>
+
+          {/* Ads / promotions */}
+          {/* <View style={{ marginBottom: sectionGap }}>
+            <PromotionCarousel compact={isShortScreen} containerWidth={availableWidth} />
+          </View> */}
         </View>
       </ScrollView>
 

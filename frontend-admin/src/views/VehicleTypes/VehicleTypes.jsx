@@ -18,6 +18,7 @@ const defaultForm = {
     name: '',
     display_name: '',
     description: '',
+    passenger_count: '',
     is_active: true,
 }
 
@@ -110,6 +111,10 @@ const VehicleTypes = () => {
         if (!form.display_name.trim()) {
             return 'Display name is required.'
         }
+        const passengerCount = Number(form.passenger_count)
+        if (!form.passenger_count || !Number.isInteger(passengerCount) || passengerCount < 1 || passengerCount > 20) {
+            return 'Passenger count must be a whole number between 1 and 20.'
+        }
         return null
     }
 
@@ -128,6 +133,7 @@ const VehicleTypes = () => {
                 name: form.name.trim().toLowerCase(),
                 display_name: form.display_name.trim(),
                 description: form.description.trim(),
+                passenger_count: Number(form.passenger_count),
                 is_active: Boolean(form.is_active),
             }
 
@@ -155,6 +161,7 @@ const VehicleTypes = () => {
             name: item.name || '',
             display_name: item.display_name || '',
             description: item.description || '',
+            passenger_count: item.passenger_count != null ? String(item.passenger_count) : '',
             is_active: Boolean(item.is_active),
         })
         setModalOpen(true)
@@ -210,17 +217,17 @@ const VehicleTypes = () => {
             </div>
 
             <DataTable
-                headers={['Reference Name', 'Display Name', 'Description', 'Status', 'Action']}
-                gridTemplate="1.2fr 1.5fr 2fr 0.8fr 1fr"
+                headers={['Reference Name', 'Display Name', 'Description', 'Passengers', 'Status', 'Action']}
+                gridTemplate="1.2fr 1.5fr 2fr 0.8fr 0.8fr 1fr"
             >
                 {loading ? (
-                    <div className="table-row" style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 1fr' }}>
+                    <div className="table-row" style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 0.8fr 1fr' }}>
                         <span className="muted" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
                             Loading vehicle types...
                         </span>
                     </div>
                 ) : filteredVehicleTypes.length === 0 ? (
-                    <div className="table-row" style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 1fr' }}>
+                    <div className="table-row" style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 0.8fr 1fr' }}>
                         <span className="muted" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>
                             No vehicle types found.
                         </span>
@@ -230,13 +237,14 @@ const VehicleTypes = () => {
                         <div
                             className="table-row"
                             key={item.id}
-                            style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 1fr' }}
+                            style={{ gridTemplateColumns: '1.2fr 1.5fr 2fr 0.8fr 0.8fr 1fr' }}
                         >
                             <div className="vehicle-type-name">
                                 <VehicleTypeIcon type={item} showLabel />
                             </div>
                             <div>{item.display_name}</div>
                             <div className="vehicle-type-desc" title={item.description}>{item.description || 'N/A'}</div>
+                            <div>{item.passenger_count ?? 'N/A'}</div>
                             <div>
                                 <span className={`badge-status ${item.is_active ? 'active' : 'pending'}`}>
                                     {item.is_active ? 'Active' : 'Inactive'}
@@ -294,6 +302,19 @@ const VehicleTypes = () => {
                         onChange={handleFormChange}
                         required
                         disabled={saving}
+                    />
+
+                    <FormInput
+                        label="Passenger Count"
+                        name="passenger_count"
+                        type="number"
+                        placeholder="e.g. 4"
+                        value={form.passenger_count}
+                        onChange={handleFormChange}
+                        required
+                        disabled={saving}
+                        min={1}
+                        max={20}
                     />
 
                     <div className="vehicle-type-icon-preview">

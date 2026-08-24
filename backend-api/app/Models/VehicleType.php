@@ -16,6 +16,7 @@ class VehicleType extends Model
         'display_name',
         'description',
         'is_active',
+        'passenger_count',
     ];
 
     protected $casts = [
