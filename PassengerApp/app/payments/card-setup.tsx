@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
@@ -34,7 +35,22 @@ export default function CardSetupScreen() {
         "picku://payments/card-result",
       );
 
-      if (result.type !== "success") {
+      if (result.type === "success" && result.url) {
+        // openAuthSessionAsync sometimes consumes the redirect itself
+        // without the OS also dispatching it through the app's normal deep
+        // link handling, which would otherwise land on card-result.tsx. Push
+        // there explicitly so the flow always completes instead of leaving
+        // this screen stuck on "Opening secure setup...".
+        const { queryParams } = Linking.parse(result.url);
+        router.replace({
+          pathname: "/payments/card-result",
+          params: {
+            status: (queryParams?.status as string) || "FAILED",
+            operation_id: queryParams?.operation_id as string | undefined,
+            mode,
+          },
+        });
+      } else if (result.type !== "success") {
         router.replace({
           pathname: "/payments/card-setup-status",
           params: { status: "cancelled", mode },
