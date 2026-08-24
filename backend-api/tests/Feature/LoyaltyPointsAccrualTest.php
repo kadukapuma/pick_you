@@ -153,6 +153,27 @@ class LoyaltyPointsAccrualTest extends TestCase
         $this->assertSame(LoyaltyPointTransaction::SOURCE_GENERAL_ACCRUAL, $transaction->source);
     }
 
+    public function test_zero_percent_student_commission_still_posts_a_settlement_entry(): void
+    {
+        [, $driver] = $this->makeDriver();
+        [, $passenger] = $this->makePassenger();
+        $this->verifyStudent($passenger);
+
+        // student_commission_rate left unset -> resolves to 0%.
+        $fare = $this->makeFareConfig();
+        $ride = $this->makeCompletedRide($passenger, $driver, $fare, 1000, 'cash');
+
+        $entry = $this->settle($ride->id, 'cash', 1000);
+
+        // A record exists, even though nothing actually moved.
+        $this->assertNotNull($entry);
+        $this->assertSame(1, JournalEntry::where('type', JournalEntry::TYPE_RIDE_SETTLEMENT)->count());
+        $this->assertSame('0.00', app(LedgerService::class)->balanceFor("DRIVER:{$driver->id}"));
+        $this->assertSame('0.0000', (string) $ride->refresh()->commission_rate);
+        $this->assertSame('0.00', (string) $ride->commission_amount);
+        $this->assertLedgerBalances();
+    }
+
     public function test_double_settle_does_not_double_credit_points(): void
     {
         [, $driver] = $this->makeDriver();

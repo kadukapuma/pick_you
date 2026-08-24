@@ -96,19 +96,20 @@ class RideSettlementService
         );
 
         // A verified student on a vehicle type with no student_commission_rate
-        // configured resolves to 0% commission - nothing actually needs to
-        // move through the books, and the ledger correctly refuses to post a
-        // zero-value entry. Skip posting rather than crashing the payment.
-        $entry = $this->isZeroValue($lines)
-            ? null
-            : $this->ledger->post(
-                type: JournalEntry::TYPE_RIDE_SETTLEMENT,
-                idempotencyKey: "ride:{$ride->id}:settlement",
-                description: "Ride {$ride->ride_code} settled ({$method})",
-                lines: $lines,
-                reference: $payment,
-                gateway: $payment->gateway,
-            );
+        // configured (or any other 0%-commission cash ride) resolves to
+        // all-zero lines - nothing actually moves, since the driver already
+        // holds the full cash fare and owes nothing either way. Posted with
+        // allowZero anyway, so every settled ride still has an audit-trail
+        // entry in the ledger rather than silently disappearing from it.
+        $entry = $this->ledger->post(
+            type: JournalEntry::TYPE_RIDE_SETTLEMENT,
+            idempotencyKey: "ride:{$ride->id}:settlement",
+            description: "Ride {$ride->ride_code} settled ({$method})",
+            lines: $lines,
+            reference: $payment,
+            gateway: $payment->gateway,
+            allowZero: true,
+        );
 
         // Points actually redeemed against this payment, if any - snapshotted
         // alongside the other settlement values so it's never rewritten by a
@@ -134,20 +135,6 @@ class RideSettlementService
         $this->awardGeneralLoyaltyPoints($ride, $computed['commission']);
 
         return $entry;
-    }
-
-    /**
-     * @param array<int, array{account: string, debit?: string, credit?: string}> $lines
-     */
-    private function isZeroValue(array $lines): bool
-    {
-        $total = '0.00';
-
-        foreach ($lines as $line) {
-            $total = Money::add($total, $line['debit'] ?? '0');
-        }
-
-        return Money::isZero($total);
     }
 
     /**
