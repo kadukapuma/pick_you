@@ -194,7 +194,12 @@ export default function ConfirmationScreen() {
         drop_lat: outboundTrip.dropoff!.latitude,
         drop_lng: outboundTrip.dropoff!.longitude,
         payment_method: paymentMethod,
+        // The app shows PickU credit and loyalty points as one combined
+        // balance under a single toggle - both flags mirror it, and the
+        // backend simply reserves nothing from whichever side has no
+        // balance.
         use_wallet_credit: usePickuCredit,
+        use_loyalty_points: usePickuCredit,
       };
 
       if (__DEV__) {
@@ -233,6 +238,7 @@ export default function ConfirmationScreen() {
               vehicle_type: payload.vehicle_type,
               selected_payment_method: paymentMethod,
               use_wallet_credit: usePickuCredit,
+              use_loyalty_points: usePickuCredit,
             }),
           },
         });

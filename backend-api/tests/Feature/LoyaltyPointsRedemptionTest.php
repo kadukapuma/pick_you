@@ -290,6 +290,67 @@ class LoyaltyPointsRedemptionTest extends TestCase
         $this->assertLedgerBalances();
     }
 
+    public function test_loyalty_points_only_claim_what_credit_leaves_behind(): void
+    {
+        [$passengerUser, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $passenger->update([
+            'wallet_balance' => '0.00',
+            'wallet_reserved_balance' => '0.00',
+            // Both balances independently exceed the fare - without
+            // sequencing, each would try to reserve up to the full 800 and
+            // remainingAmount() would reject the payment as over-allocated.
+            'loyalty_points_balance' => '800.00',
+        ]);
+
+        $admin = $this->makeUser(User::ROLE_ADMIN, '0770000003');
+        $admin->ensureRole(User::ROLE_ADMIN);
+
+        app(PassengerCreditService::class)->award(
+            passenger: $passenger,
+            amount: '800.00',
+            createdBy: $admin,
+            reason: 'System error compensation.',
+            reference: 'sequencing-credit-award',
+        );
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'cash',
+            ['use_wallet_credit' => true, 'use_loyalty_points' => true]
+        );
+
+        Sanctum::actingAs($passengerUser, ['role:passenger']);
+
+        $this->postJson(
+            "/api/payments/{$ride->id}",
+            [],
+            ['Idempotency-Key' => 'sequencing-payment-1']
+        )
+            ->assertOk()
+            ->assertJsonPath('data.payment_status', 'COMPLETED');
+
+        $payment = Payment::where('ride_id', $ride->id)->sole();
+
+        // Credit alone covers the full fare, so loyalty points reserve
+        // nothing - the two never together exceed what's owed.
+        $this->assertSame(
+            [PaymentAllocation::TYPE_PICKU_CREDIT => '800.00'],
+            $payment->allocations()->pluck('amount', 'type')->all()
+        );
+
+        $passenger->refresh();
+        $this->assertSame('0.00', (string) $passenger->wallet_balance);
+        $this->assertSame('800.00', (string) $passenger->loyalty_points_balance);
+
+        $this->assertLedgerBalances();
+    }
+
     public function test_wallet_credit_and_loyalty_points_and_card_settle_together(): void
     {
         [$passengerUser, $passenger] = $this->makePassenger();

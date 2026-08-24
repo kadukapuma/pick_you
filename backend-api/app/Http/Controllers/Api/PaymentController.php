@@ -130,7 +130,8 @@ class PaymentController extends Controller
             $loyaltyAllocation = $this->reserveSelectedLoyaltyPoints(
                 $request,
                 $ride,
-                $payment
+                $payment,
+                $this->remainingAmount($payment, $creditAllocation)
             );
 
             $remainingAmount = $this->remainingAmount(
@@ -261,7 +262,8 @@ class PaymentController extends Controller
                 $loyaltyAllocation = $this->reserveSelectedLoyaltyPoints(
                     $request,
                     $ride,
-                    $payment
+                    $payment,
+                    $this->remainingAmount($payment, $creditAllocation)
                 );
             }
             $remainingAmount = $this->remainingAmount(
@@ -586,10 +588,19 @@ class PaymentController extends Controller
         );
     }
 
+    /**
+     * $capAmount is what's left of the payment after any credit allocation
+     * already reserved - loyalty points must not independently claim up to
+     * the full payment amount when credit already covers part of it, or the
+     * two allocations can together exceed what's owed (remainingAmount()
+     * would then reject the payment outright rather than gracefully
+     * splitting between the two balances).
+     */
     private function reserveSelectedLoyaltyPoints(
         Request $request,
         Ride $ride,
         Payment $payment,
+        string $capAmount,
     ): ?PaymentAllocation {
         if (! $ride->use_loyalty_points) {
             return null;
@@ -612,13 +623,17 @@ class PaymentController extends Controller
             return $existing;
         }
 
+        if (Money::isZero($capAmount)) {
+            return null;
+        }
+
         $idempotencyKey = trim(
             (string) $request->header('Idempotency-Key')
         );
 
         return $this->loyaltyPoints->reserve(
             payment: $payment,
-            amount: (string) $payment->amount,
+            amount: $capAmount,
             reference: sprintf(
                 'ride:%d:payment:%d:loyalty:%s',
                 $ride->id,
