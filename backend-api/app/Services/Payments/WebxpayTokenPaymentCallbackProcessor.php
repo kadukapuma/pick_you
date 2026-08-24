@@ -16,7 +16,8 @@ class WebxpayTokenPaymentCallbackProcessor
     public function __construct(
         private readonly WebxpayTokenPaymentResultParser $parser,
         private readonly WebxpayOutcomeProcessor $outcomeProcessor,
-        private readonly PassengerCreditService $credits
+        private readonly PassengerCreditService $credits,
+        private readonly LoyaltyPointsService $loyaltyPoints
     ) {}
 
     public function process(
@@ -133,6 +134,11 @@ class WebxpayTokenPaymentCallbackProcessor
                 ->where('type', PaymentAllocation::TYPE_PICKU_CREDIT)
                 ->lockForUpdate()
                 ->first();
+            $loyaltyAllocation = PaymentAllocation::query()
+                ->where('payment_id', $payment->id)
+                ->where('type', PaymentAllocation::TYPE_LOYALTY_POINTS)
+                ->lockForUpdate()
+                ->first();
 
             $attempt->update([
                 'status' => PaymentAttemptStatus::DECLINED->value,
@@ -152,6 +158,15 @@ class WebxpayTokenPaymentCallbackProcessor
             ) {
                 $this->credits->release(
                     $creditAllocation,
+                    'webxpay:token-operation:'.$lockedOperation->id.':'.$code
+                );
+            }
+
+            if ($loyaltyAllocation
+                && $loyaltyAllocation->status === PaymentAllocation::STATUS_RESERVED
+            ) {
+                $this->loyaltyPoints->release(
+                    $loyaltyAllocation,
                     'webxpay:token-operation:'.$lockedOperation->id.':'.$code
                 );
             }

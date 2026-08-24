@@ -87,6 +87,30 @@ class CommissionService
     }
 
     /**
+     * Fraction of the commission actually charged that is credited back to
+     * the passenger as loyalty points. Applies to every passenger, including
+     * verified students - deliberately independent of the student-only track
+     * above, so it stacks with whatever a student already earns there.
+     *
+     * Resolution: per-vehicle-type (fare_configs.loyalty_points_rate), then
+     * the global 'loyalty_points_rate' setting, then the config default (0 -
+     * no accrual until an admin configures a rate). No per-driver override -
+     * loyalty points are a passenger benefit, not a driver-negotiated term.
+     */
+    public function loyaltyPointsRateFor(Ride $ride): string
+    {
+        $vehicleTypeRate = $ride->fareConfig?->loyalty_points_rate;
+
+        if ($vehicleTypeRate !== null) {
+            return $this->normaliseRate($vehicleTypeRate);
+        }
+
+        return $this->normaliseRate(
+            Setting::getSetting('loyalty_points_rate', config('commission.default_loyalty_points_rate', '0'))
+        );
+    }
+
+    /**
      * Commission base is always the amount actually charged to the passenger.
      * Mirrors the fallback in PaymentController so both agree on the gross.
      */

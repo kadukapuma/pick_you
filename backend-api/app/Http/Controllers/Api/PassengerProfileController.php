@@ -100,6 +100,7 @@ class PassengerProfileController extends Controller
       'profile_picture' => $images->url($user->profile_picture_path),
       'wallet_balance' => optional($user->passenger)->wallet_balance,
       'loyalty_points_balance' => optional($user->passenger)->loyalty_points_balance,
+      'loyalty_points_reserved_balance' => optional($user->passenger)->loyalty_points_reserved_balance,
       'student_status' => optional($user->passenger?->studentVerification)->status,
     ];
   }

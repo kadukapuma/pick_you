@@ -22,7 +22,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
   const [uploads, setUploads] = useState({
     license_front: null,
     license_back: null,
-    registration: null,
+    registration: null, 
     insurance: null,
     front: null,
     back: null,
@@ -30,7 +30,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
   });
 
   const [isSubmitted, setIsSubmitted] = useState(false);
-  
+
   // Step 3: Processing & Text States Added
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState("Preparing your documents...");
@@ -62,7 +62,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
 
   const handleSubmit = async () => {
     if (!allDocsUploaded) return;
-    
+
     // Step 4: Show Animation & Initial Text Before Upload
     setIsSubmitted(true);
     setIsProcessing(true);
@@ -130,7 +130,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
 
       // After a successful upload/re-upload, update the local status directly to pending so the Verification screen adapts properly
       if (navigation.getState?.().routes[0]?.name === "Verification") {
-        navigation.goBack(); 
+        navigation.goBack();
       } else {
         // Reset stack to Verification for onboarding flow
         navigation.reset({
@@ -141,7 +141,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
     } catch (error) {
       console.error("Submit error:", error);
       Alert.alert("Error", "Could not submit your profile. Please try again.");
-      
+
       // Step 5: Reset state on exception blocks
       setIsSubmitted(false);
       setIsProcessing(false);
@@ -392,7 +392,7 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFF" },
   header: {
-    backgroundColor: "#00A859", 
+    backgroundColor: "#00A859",
     paddingTop: Platform.OS === "android" ? StatusBar.currentHeight + 10 : 60,
     paddingHorizontal: 25,
     paddingBottom: 35,
@@ -499,7 +499,7 @@ const styles = StyleSheet.create({
   pendingRow: { flexDirection: "row", alignItems: "center" },
   submitText: { color: "#FFF", fontSize: 16, fontWeight: "900" },
   bottomSafe: { backgroundColor: "#000" },
-  
+
   // Step 7: Premium Full-Screen Processing Styles Included
   processingContainer: {
     position: "absolute",

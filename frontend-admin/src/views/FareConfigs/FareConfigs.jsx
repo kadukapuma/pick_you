@@ -32,6 +32,10 @@ const defaultForm = {
     // verified student. Blank means 0% (no commission, no loyalty points)
     // until an admin sets a rate for this vehicle type.
     student_commission_rate: '',
+    // Fraction of the commission actually charged that is credited back to
+    // every passenger (including students, on top of the bonus above) as
+    // loyalty points. Blank means 0% until configured.
+    loyalty_points_rate: '',
 }
 
 const numericFields = [
@@ -172,6 +176,13 @@ const FareConfigs = () => {
             }
         }
 
+        if (form.loyalty_points_rate.trim() !== '') {
+            const percent = Number(form.loyalty_points_rate)
+            if (Number.isNaN(percent) || percent < 0 || percent > 100) {
+                return 'Loyalty points rate must be a percentage between 0 and 100, or left blank for 0%.'
+            }
+        }
+
         return null
     }
 
@@ -208,6 +219,10 @@ const FareConfigs = () => {
             form.student_commission_rate.trim() === ''
                 ? null
                 : Number(form.student_commission_rate) / 100,
+        loyalty_points_rate:
+            form.loyalty_points_rate.trim() === ''
+                ? null
+                : Number(form.loyalty_points_rate) / 100,
     })
 
     const handleSubmit = async (event) => {
@@ -259,6 +274,10 @@ const FareConfigs = () => {
                 item.student_commission_rate === null || item.student_commission_rate === undefined
                     ? ''
                     : String(Number(item.student_commission_rate) * 100),
+            loyalty_points_rate:
+                item.loyalty_points_rate === null || item.loyalty_points_rate === undefined
+                    ? ''
+                    : String(Number(item.loyalty_points_rate) * 100),
         })
         setModalOpen(true)
     }
@@ -327,6 +346,9 @@ const FareConfigs = () => {
                                 </span>
                                 <div style={{ fontSize: '11px', marginTop: '2px' }} className="muted">
                                     Student: {formatCommissionRate(item.student_commission_rate) === 'Default' ? '0%' : formatCommissionRate(item.student_commission_rate)}
+                                </div>
+                                <div style={{ fontSize: '11px', marginTop: '2px' }} className="muted">
+                                    Loyalty: {formatCommissionRate(item.loyalty_points_rate) === 'Default' ? '0%' : formatCommissionRate(item.loyalty_points_rate)}
                                 </div>
                             </div>
                             <div>
@@ -504,6 +526,28 @@ const FareConfigs = () => {
                             Used instead of the normal commission rate above when the passenger
                             is a verified student passenger - this amount is also credited to
                             them as loyalty points. Leave blank for 0% until you're ready to
+                            configure it.
+                        </p>
+                    </div>
+
+                    <div>
+                        <FormInput
+                            label="Loyalty Points Rate (%)"
+                            name="loyalty_points_rate"
+                            type="number"
+                            placeholder="0 (no points)"
+                            value={form.loyalty_points_rate}
+                            onChange={handleFormChange}
+                            disabled={saving}
+                            step="0.01"
+                            min="0"
+                            max="100"
+                        />
+                        <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-muted, #64748b)' }}>
+                            Percentage of the commission actually charged on a ride of this
+                            vehicle type that is credited to the passenger as loyalty points.
+                            Applies to every passenger, including verified students, in addition
+                            to the student bonus above. Leave blank for 0% until you're ready to
                             configure it.
                         </p>
                     </div>

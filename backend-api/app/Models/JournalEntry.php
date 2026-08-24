@@ -20,6 +20,7 @@ class JournalEntry extends Model
     public const TYPE_ADJUSTMENT = 'ADJUSTMENT';
     public const TYPE_REVERSAL = 'REVERSAL';
     public const TYPE_PASSENGER_CREDIT = 'PASSENGER_CREDIT';
+    public const TYPE_LOYALTY_ACCRUAL = 'LOYALTY_ACCRUAL';
 
     protected static function booted(): void
     {

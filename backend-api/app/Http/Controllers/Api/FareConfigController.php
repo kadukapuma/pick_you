@@ -66,6 +66,12 @@ class FareConfigController extends Controller
             // a verified student, e.g. 0.10 for 10%. Replaces commission_rate
             // entirely for student rides. Null means 0% until admin sets it.
             'student_commission_rate' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            // Fraction of the commission actually charged that is credited
+            // back to the passenger as loyalty points, e.g. 0.10 for 10%.
+            // Applies to every passenger on this vehicle type, including
+            // verified students, in addition to the student bonus above.
+            // Null means 0% until admin sets a rate.
+            'loyalty_points_rate' => ['nullable', 'numeric', 'min:0', 'max:1'],
         ]);
         $payload['is_active'] = (bool) ($payload['is_active'] ?? false);
 

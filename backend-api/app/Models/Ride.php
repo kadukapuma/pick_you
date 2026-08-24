@@ -39,6 +39,8 @@ protected $fillable = [
     'status',
     'payment_method',
     'use_wallet_credit',
+    'use_loyalty_points',
+    'loyalty_points_used',
     'commission_rate',
     'commission_amount',
     'driver_earning',
@@ -56,12 +58,14 @@ protected $fillable = [
 ];
     protected $casts = [
         'use_wallet_credit' => 'boolean',
+        'use_loyalty_points' => 'boolean',
         'fare_breakdown' => 'array',
         // Without these, decimal scale depends on the database driver: Postgres
         // returns "60.00" where SQLite returns "60".
         'commission_rate' => 'decimal:4',
         'commission_amount' => 'decimal:2',
         'driver_earning' => 'decimal:2',
+        'loyalty_points_used' => 'decimal:2',
         'requested_at' => 'datetime',
         'accepted_at' => 'datetime',
         'arrived_at' => 'datetime',

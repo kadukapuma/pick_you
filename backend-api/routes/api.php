@@ -23,6 +23,7 @@ use App\Http\Controllers\Api\OperatorController;
 use App\Http\Controllers\Api\PassengerAuthController;
 use App\Http\Controllers\Api\PassengerController;
 use App\Http\Controllers\Api\PassengerCreditController;
+use App\Http\Controllers\Api\PassengerLoyaltyPointController;
 use App\Http\Controllers\Api\PassengerPaymentMethodController;
 use App\Http\Controllers\Api\PassengerProfileController;
 use App\Http\Controllers\Api\PassengerRideHistoryController;
@@ -163,6 +164,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get(
             '/passenger/credits',
             [PassengerCreditController::class, 'index']
+        );
+        Route::get(
+            '/passenger/loyalty-points',
+            [PassengerLoyaltyPointController::class, 'index']
         );
         Route::get('/payment-methods', [PassengerPaymentMethodController::class, 'index']);
         Route::get(
