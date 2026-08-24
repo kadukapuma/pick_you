@@ -28,6 +28,7 @@ class AdminPromotionController extends Controller
     {
         $validated = $request->validate([
             'phone' => 'required|string|max:20',
+            'page' => 'sometimes|integer|min:1',
         ]);
 
         try {
@@ -47,7 +48,7 @@ class AdminPromotionController extends Controller
         $referredUsers = User::query()
             ->where('promo_code', $normalized)
             ->orderByDesc('created_at')
-            ->paginate(50);
+            ->paginate(20, page: $validated['page'] ?? 1);
 
         $referredUsers->getCollection()->transform(fn (User $user) => [
             'id' => $user->id,
@@ -71,11 +72,54 @@ class AdminPromotionController extends Controller
                 'roles' => $referrer->activeRoles(),
                 'is_driver' => (bool) $referrer->driver,
                 'is_passenger' => (bool) $referrer->passenger,
+                // Rough activity signal for whoever is reviewing the referral,
+                // not a precise trips report - total rides regardless of status.
+                'total_rides_as_driver' => $referrer->driver ? $referrer->driver->rides()->count() : null,
+                'total_rides_as_passenger' => $referrer->passenger ? $referrer->passenger->rides()->count() : null,
             ],
             'referred_count' => $referredUsers->total(),
             'referred_users' => $referredUsers,
             'rewards' => $rewards,
         ], 'Promotion lookup retrieved successfully.');
+    }
+
+    /**
+     * Every user, with a rough count of how many signups used their phone
+     * number as a promotion code - a leaderboard-style view of promo code
+     * usage across the whole user base, independent of any single lookup.
+     */
+    public function usage(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => 'sometimes|string|max:100',
+            'page' => 'sometimes|integer|min:1',
+        ]);
+
+        $query = User::query()->withCount('referredUsers');
+
+        if (! empty($validated['search'])) {
+            $search = $validated['search'];
+            $query->where(function ($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('phone', 'like', "%{$search}%");
+            });
+        }
+
+        $users = $query
+            ->orderByDesc('referred_users_count')
+            ->orderByDesc('created_at')
+            ->paginate(20, page: $validated['page'] ?? 1);
+
+        $users->getCollection()->transform(fn (User $user) => [
+            'id' => $user->id,
+            'name' => trim($user->first_name . ' ' . $user->last_name),
+            'phone' => $user->phone,
+            'roles' => $user->activeRoles(),
+            'promo_code_use_count' => $user->referred_users_count,
+        ]);
+
+        return $this->success($users, 'Promotion code usage retrieved successfully.');
     }
 
     public function rewardDriver(Request $request, $userId, ReferralRewardService $rewards)

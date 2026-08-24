@@ -8,7 +8,7 @@
 .promotions-lookup button:disabled { opacity: .55; cursor: not-allowed; }
 
 .promotions-workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 18px; }
-.promotions-summary, .promotions-referred, .promotions-rewards { padding: 20px; background: #fff; border: 1px solid #e2e8e5; border-radius: 14px; }
+.promotions-summary, .promotions-rewards { padding: 20px; background: #fff; border: 1px solid #e2e8e5; border-radius: 14px; }
 .promotions-summary h2, .promotions-referred h2, .promotions-rewards h2 { margin: 0 0 16px; font-size: 18px; }
 .promotions-summary dl { margin: 0; }
 .promotions-summary dl div { display: flex; justify-content: space-between; gap: 14px; padding: 10px 0; border-bottom: 1px solid #eef2f0; }
@@ -26,9 +26,7 @@
 .promotions-action-form button:disabled { opacity: .55; cursor: not-allowed; }
 
 .promotions-referred, .promotions-rewards { grid-column: 1 / -1; }
-.promotions-referred-row { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1.2fr; gap: 14px; padding: 12px 0; border-top: 1px solid #eef2f0; align-items: center; }
-.promotions-referred-row:first-of-type { border-top: 0; }
-.promotions-referred-row span { color: #6b7773; font-size: 13px; }
+.promotions-referred h2 { margin-bottom: 12px; }
 .promotions-rewards article { padding: 13px 0; border-top: 1px solid #eef2f0; }
 .promotions-rewards article:first-of-type { border-top: 0; }
 .promotions-rewards article div { display: flex; justify-content: space-between; }
@@ -36,8 +34,13 @@
 .promotions-rewards article p { margin: 6px 0; }
 .promotions-rewards article small, .promotions-empty { color: #79837f; }
 
+.promotions-usage { margin-top: 28px; }
+.promotions-usage-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
+.promotions-usage-header h2 { margin: 0; font-size: 20px; }
+.promotions-usage-header .search-container { min-width: 260px; }
+
 @media (max-width: 800px) {
     .promotions-workspace { grid-template-columns: 1fr; }
     .promotions-lookup { align-items: stretch; flex-direction: column; }
-    .promotions-referred-row { grid-template-columns: 1fr 1fr; }
+    .promotions-usage-header { flex-direction: column; align-items: stretch; }
 }

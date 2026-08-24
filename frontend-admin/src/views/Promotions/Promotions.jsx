@@ -1,12 +1,18 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Swal from 'sweetalert2'
 import { useAdmin } from '../../context/AdminContext'
+import DataTable from '../../components/DataTable/DataTable'
+import SearchBar from '../../components/SearchBar'
 import {
+    fetchPromotionUsage,
     rewardDriverReferral,
     rewardLoyaltyReferral,
     searchPromotions,
 } from '../../services/adminApi'
 import './Promotions.css'
+
+const REFERRED_GRID = '2fr 1.5fr 1fr 1.2fr'
+const USAGE_GRID = '2fr 1.5fr 1.2fr 1fr'
 
 const createIdempotencyKey = () => {
     if (typeof globalThis.crypto?.randomUUID === 'function') {
@@ -27,6 +33,7 @@ const Promotions = () => {
     const [phone, setPhone] = useState('')
     const [loading, setLoading] = useState(false)
     const [result, setResult] = useState(null)
+    const [referredPagination, setReferredPagination] = useState({ page: 1, totalPages: 1, total: 0, perPage: 20 })
 
     const [driverAmount, setDriverAmount] = useState('')
     const [driverNote, setDriverNote] = useState('')
@@ -34,6 +41,21 @@ const Promotions = () => {
     const [loyaltyNote, setLoyaltyNote] = useState('')
     const [submittingDriver, setSubmittingDriver] = useState(false)
     const [submittingLoyalty, setSubmittingLoyalty] = useState(false)
+
+    const [usageRows, setUsageRows] = useState([])
+    const [usageLoading, setUsageLoading] = useState(true)
+    const [usageSearch, setUsageSearch] = useState('')
+    const [usagePagination, setUsagePagination] = useState({ page: 1, totalPages: 1, total: 0, perPage: 20 })
+
+    const applyResult = (data, page) => {
+        setResult(data)
+        setReferredPagination({
+            page: data.referred_users?.current_page ?? page,
+            totalPages: data.referred_users?.last_page ?? 1,
+            total: data.referred_users?.total ?? 0,
+            perPage: data.referred_users?.per_page ?? 20,
+        })
+    }
 
     const runSearch = async (event) => {
         event?.preventDefault()
@@ -44,8 +66,8 @@ const Promotions = () => {
 
         try {
             setLoading(true)
-            const data = await searchPromotions(token, phone.trim())
-            setResult(data)
+            const data = await searchPromotions(token, phone.trim(), 1)
+            applyResult(data, 1)
             setDriverAmount('')
             setDriverNote('')
             setLoyaltyPoints('')
@@ -58,9 +80,20 @@ const Promotions = () => {
         }
     }
 
-    const refresh = async () => {
-        const data = await searchPromotions(token, phone.trim())
-        setResult(data)
+    const refresh = async (page = referredPagination.page) => {
+        const data = await searchPromotions(token, phone.trim(), page)
+        applyResult(data, page)
+    }
+
+    const loadReferredPage = async (page) => {
+        try {
+            setLoading(true)
+            await refresh(page)
+        } catch (error) {
+            Swal.fire('Failed', error.message || 'Could not load that page.', 'error')
+        } finally {
+            setLoading(false)
+        }
     }
 
     const submitDriverReward = async (event) => {
@@ -143,6 +176,30 @@ const Promotions = () => {
         }
     }
 
+    const loadUsage = useCallback(async (page = 1) => {
+        try {
+            setUsageLoading(true)
+            const data = await fetchPromotionUsage(token, { search: usageSearch.trim(), page })
+            setUsageRows(data.data || [])
+            setUsagePagination({
+                page: data.current_page ?? page,
+                totalPages: data.last_page ?? 1,
+                total: data.total ?? 0,
+                perPage: data.per_page ?? 20,
+            })
+        } catch (error) {
+            Swal.fire('Failed to load', error.message || 'Could not load promo code usage.', 'error')
+        } finally {
+            setUsageLoading(false)
+        }
+    }, [token, usageSearch])
+
+    useEffect(() => {
+        const timer = setTimeout(() => loadUsage(1), 300)
+        return () => clearTimeout(timer)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [usageSearch, token])
+
     return (
         <section className="promotions-page">
             <header className="promotions-header">
@@ -167,6 +224,12 @@ const Promotions = () => {
                         <dl>
                             <div><dt>Phone</dt><dd>{result.referrer.phone}</dd></div>
                             <div><dt>Roles</dt><dd>{(result.referrer.roles || []).join(', ') || 'none'}</dd></div>
+                            {result.referrer.is_driver && (
+                                <div><dt>Total rides (driver)</dt><dd>{result.referrer.total_rides_as_driver ?? 0}</dd></div>
+                            )}
+                            {result.referrer.is_passenger && (
+                                <div><dt>Total rides (passenger)</dt><dd>{result.referrer.total_rides_as_passenger ?? 0}</dd></div>
+                            )}
                             <div className="referred-count"><dt>Referred signups</dt><dd>{result.referred_count}</dd></div>
                         </dl>
 
@@ -197,14 +260,24 @@ const Promotions = () => {
 
                     <div className="promotions-referred">
                         <h2>Referred signups</h2>
-                        {result.referred_users?.data?.length ? result.referred_users.data.map((user) => (
-                            <div className="promotions-referred-row" key={user.id}>
-                                <strong>{user.name || `#${user.id}`}</strong>
-                                <span>{user.phone}</span>
-                                <span>{(user.roles || []).join(', ')}</span>
-                                <span>{user.registered_at ? new Date(user.registered_at).toLocaleString() : ''}</span>
-                            </div>
-                        )) : <p className="promotions-empty">Nobody has registered with this code yet.</p>}
+                        <DataTable
+                            headers={['Name', 'Phone', 'Roles', 'Registered']}
+                            gridTemplate={REFERRED_GRID}
+                            pagination={{ ...referredPagination, onPageChange: loadReferredPage }}
+                        >
+                            {result.referred_users?.data?.length ? result.referred_users.data.map((user) => (
+                                <div className="table-row" key={user.id} style={{ gridTemplateColumns: REFERRED_GRID }}>
+                                    <strong>{user.name || `#${user.id}`}</strong>
+                                    <span>{user.phone}</span>
+                                    <span>{(user.roles || []).join(', ')}</span>
+                                    <span>{user.registered_at ? new Date(user.registered_at).toLocaleString() : ''}</span>
+                                </div>
+                            )) : (
+                                <div className="table-row" style={{ gridTemplateColumns: REFERRED_GRID }}>
+                                    <span className="promotions-empty" style={{ gridColumn: '1 / -1' }}>Nobody has registered with this code yet.</span>
+                                </div>
+                            )}
+                        </DataTable>
                     </div>
 
                     <div className="promotions-rewards">
@@ -222,6 +295,39 @@ const Promotions = () => {
                     </div>
                 </div>
             )}
+
+            <div className="promotions-usage">
+                <div className="promotions-usage-header">
+                    <h2>All users — promotion code usage</h2>
+                    <SearchBar
+                        value={usageSearch}
+                        onChange={setUsageSearch}
+                        placeholder="Search by name or phone"
+                    />
+                </div>
+                <DataTable
+                    headers={['Name', 'Phone', 'Roles', 'Used as promo code']}
+                    gridTemplate={USAGE_GRID}
+                    pagination={{ ...usagePagination, onPageChange: loadUsage }}
+                >
+                    {usageLoading ? (
+                        <div className="table-row" style={{ gridTemplateColumns: USAGE_GRID }}>
+                            <span className="promotions-empty" style={{ gridColumn: '1 / -1' }}>Loading…</span>
+                        </div>
+                    ) : usageRows.length ? usageRows.map((user) => (
+                        <div className="table-row" key={user.id} style={{ gridTemplateColumns: USAGE_GRID }}>
+                            <strong>{user.name || `#${user.id}`}</strong>
+                            <span>{user.phone}</span>
+                            <span>{(user.roles || []).join(', ')}</span>
+                            <span>{user.promo_code_use_count}</span>
+                        </div>
+                    )) : (
+                        <div className="table-row" style={{ gridTemplateColumns: USAGE_GRID }}>
+                            <span className="promotions-empty" style={{ gridColumn: '1 / -1' }}>No users found.</span>
+                        </div>
+                    )}
+                </DataTable>
+            </div>
         </section>
     )
 }

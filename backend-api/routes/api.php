@@ -332,6 +332,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Referral promotion codes - viewing is open to any admin/operator,
         // issuing a reward requires manage_promotions.
         Route::get('/admin/promotions/search', [AdminPromotionController::class, 'search']);
+        Route::get('/admin/promotions/usage', [AdminPromotionController::class, 'usage']);
         Route::post(
             '/admin/promotions/users/{userId}/reward-driver',
             [AdminPromotionController::class, 'rewardDriver']

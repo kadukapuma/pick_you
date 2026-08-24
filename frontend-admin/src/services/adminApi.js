@@ -559,10 +559,17 @@ const payoutDriverAccount = async (token, driverId, payout) => {
 }
 
 // Referral Promotions
-const searchPromotions = async (token, phone) => {
-  const params = new URLSearchParams({ phone })
+const searchPromotions = async (token, phone, page = 1) => {
+  const params = new URLSearchParams({ phone, page: String(page) })
   const payload = await apiFetch(`/admin/promotions/search?${params}`, { token })
   return payload.data || {}
+}
+
+const fetchPromotionUsage = async (token, { search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ page: String(page) })
+  if (search) params.set('search', search)
+  const payload = await apiFetch(`/admin/promotions/usage?${params}`, { token })
+  return payload.data || { data: [] }
 }
 
 const rewardDriverReferral = async (token, userId, reward) => {
@@ -780,6 +787,7 @@ export {
   searchRefundablePayments,
   createPaymentCreditRefund,
   searchPromotions,
+  fetchPromotionUsage,
   rewardDriverReferral,
   rewardLoyaltyReferral,
 }
