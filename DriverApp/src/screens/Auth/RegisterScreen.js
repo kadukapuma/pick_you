@@ -32,6 +32,7 @@ const RegisterScreen = ({ navigation }) => {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [promoCode, setPromoCode] = useState("");
 
   // Validation States
   const [emailError, setEmailError] = useState("");
@@ -192,7 +193,8 @@ const RegisterScreen = ({ navigation }) => {
         phone,
         password,
         password_confirmation: confirmPassword,
-        role: "driver"
+        role: "driver",
+        promo_code: promoCode.trim() || undefined,
       });
 
       if (response.data?.data?.enrollment_token) {
@@ -449,6 +451,31 @@ const RegisterScreen = ({ navigation }) => {
                     )}
                   </View>
                   {phoneError ? <Text style={styles.errorText}>{phoneError}</Text> : null}
+                </MotiView>
+
+                {/* OPTIONAL REFERRAL PROMOTION CODE FIELD */}
+                <MotiView
+                  from={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 850 }}
+                >
+                  <View style={styles.inputWrapper}>
+                    <Feather
+                      name="gift"
+                      size={18}
+                      color="#94A3B8"
+                      style={styles.inputIcon}
+                    />
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Promotion Code (Optional)"
+                      placeholderTextColor="#94A3B8"
+                      value={promoCode}
+                      onChangeText={setPromoCode}
+                      keyboardType="phone-pad"
+                      autoCapitalize="none"
+                    />
+                  </View>
                 </MotiView>
 
                 {/* SECURE PASSWORD CREATION FIELD */}

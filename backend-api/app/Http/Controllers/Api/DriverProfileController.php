@@ -110,6 +110,50 @@ class DriverProfileController extends Controller
         );
     }
 
+    /**
+     * Add a promotion code after registration, for a driver who skipped it at
+     * signup. Write-once: refuses once a code is already on file, matching the
+     * immutability enforced at registration time.
+     */
+    public function updatePromoCode(Request $request)
+    {
+        $user = $request->user();
+
+        if ($user->promo_code) {
+            return $this->error('A promotion code is already set on this account.', 422);
+        }
+
+        $validator = Validator::make($request->all(), [
+            'promo_code' => 'required|string|max:20',
+        ]);
+
+        if ($validator->fails()) {
+            return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        $normalized = preg_replace('/\D+/', '', $request->promo_code);
+        if (strlen($normalized) === 10 && str_starts_with($normalized, '0')) {
+            $normalized = '94' . substr($normalized, 1);
+        }
+
+        if ($normalized === $user->phone_normalized) {
+            return $this->error('You cannot use your own phone number as a promotion code.', 422, [
+                'promo_code' => ['You cannot use your own phone number as a promotion code.'],
+            ]);
+        }
+
+        $referredBy = \App\Models\User::where('phone_normalized', $normalized)->first();
+        if (! $referredBy) {
+            return $this->error('This promotion code does not match a PickU account.', 422, [
+                'promo_code' => ['This promotion code does not match a PickU account.'],
+            ]);
+        }
+
+        $user->update(['promo_code' => $normalized, 'referred_by_user_id' => $referredBy->id]);
+
+        return $this->success(['promo_code' => $normalized], 'Promotion code added successfully');
+    }
+
     private function buildProfileData($user, ImageStorageService $images): array
     {
         $driver = $user->driver;

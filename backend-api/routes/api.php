@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AdminController;
 use App\Http\Controllers\Api\AdminFinanceController;
 use App\Http\Controllers\Api\AdminNotificationController;
+use App\Http\Controllers\Api\AdminPromotionController;
 use App\Http\Controllers\Api\AppSettingsController;
 use App\Http\Controllers\Api\AppUpdateController;
 use App\Http\Controllers\Api\AuthController;
@@ -103,6 +104,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/passenger/profile', [PassengerProfileController::class, 'getProfile']);
         Route::put('/passenger/profile', [PassengerProfileController::class, 'updateProfile']);
         Route::post('/passenger/profile-picture', [PassengerProfileController::class, 'updateProfilePicture']);
+        Route::patch('/passenger/profile/promo-code', [PassengerProfileController::class, 'updatePromoCode']);
         Route::get('/passenger/student-verification', [StudentVerificationController::class, 'show']);
         Route::post('/passenger/student-verification', [StudentVerificationController::class, 'store']);
     });
@@ -112,6 +114,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/driver/profile', [DriverProfileController::class, 'getProfile']);
         Route::put('/driver/profile', [DriverProfileController::class, 'updateProfile']);
         Route::post('/driver/profile/update-bank', [DriverProfileController::class, 'updateBank']);
+        Route::patch('/driver/profile/promo-code', [DriverProfileController::class, 'updatePromoCode']);
         Route::post('/driver/complete-profile', [DriverController::class, 'completeProfile']);
         Route::post('/driver/license-images', [DriverController::class, 'updateLicenseImages']);
         Route::put('/driver/availability', [DriverController::class, 'updateOwnAvailability']);
@@ -325,6 +328,24 @@ Route::middleware('auth:sanctum')->group(function () {
             'idempotent',
         ]);
         Route::get('/admin/finance/trial-balance', [AdminFinanceController::class, 'trialBalance']);
+
+        // Referral promotion codes - viewing is open to any admin/operator,
+        // issuing a reward requires manage_promotions.
+        Route::get('/admin/promotions/search', [AdminPromotionController::class, 'search']);
+        Route::post(
+            '/admin/promotions/users/{userId}/reward-driver',
+            [AdminPromotionController::class, 'rewardDriver']
+        )->middleware([
+            'permission:manage_promotions',
+            'idempotent',
+        ]);
+        Route::post(
+            '/admin/promotions/users/{userId}/reward-loyalty',
+            [AdminPromotionController::class, 'rewardLoyalty']
+        )->middleware([
+            'permission:manage_promotions',
+            'idempotent',
+        ]);
 
         Route::get('/operators', [OperatorController::class, 'index'])->middleware('permission:create_operators,manage_operators');
         Route::post('/operators', [OperatorController::class, 'store'])->middleware('permission:create_operators');

@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class PendingDriverEnrollment extends Model
 {
     protected $fillable = [
-        'token_hash', 'phone_normalized', 'first_name', 'last_name',
+        'token_hash', 'phone_normalized', 'promo_code', 'first_name', 'last_name',
         'login_email', 'password', 'expires_at', 'consumed_at',
     ];
 

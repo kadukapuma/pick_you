@@ -38,6 +38,7 @@ class User extends Authenticatable
         'manage_passenger_credits',
         'manage_finance',
         'manage_reports',
+        'manage_promotions',
     ];
 
     public const MANAGEABLE_ROLES = [
@@ -57,6 +58,8 @@ class User extends Authenticatable
         'email',
         'phone',
         'phone_normalized',
+        'promo_code',
+        'referred_by_user_id',
         'password',
         'role',
         'is_active',
@@ -253,5 +256,21 @@ class User extends Authenticatable
     public function deviceTokens()
     {
         return $this->hasMany(DeviceToken::class);
+    }
+
+    public function referredBy()
+    {
+        return $this->belongsTo(User::class, 'referred_by_user_id');
+    }
+
+    /** Users who signed up with this user's phone number as their promo code. */
+    public function referredUsers(): HasMany
+    {
+        return $this->hasMany(User::class, 'referred_by_user_id');
+    }
+
+    public function promotionRewardsIssued()
+    {
+        return $this->hasMany(PromotionReward::class, 'referrer_user_id');
     }
 }

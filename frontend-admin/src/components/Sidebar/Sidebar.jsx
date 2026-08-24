@@ -18,6 +18,7 @@ const Sidebar = ({ admin, isCollapsed }) => {
     const canManageNotifications = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_notifications')
     const canManageCredits = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_passenger_credits')
     const canViewReports = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_reports')
+    const canManagePromotions = admin?.role === 'super_admin' || admin?.permissions?.includes('manage_promotions')
 
     return (
         <aside className={`sidebar ${isCollapsed ? 'collapsed' : ''}`}>
@@ -68,6 +69,12 @@ const Sidebar = ({ admin, isCollapsed }) => {
                     <NavLink to="/admin-portal/credit-refunds">
                         <span className="material-icons">currency_exchange</span>
                         <span>Credit Refunds</span>
+                    </NavLink>
+                )}
+                {canManagePromotions && (
+                    <NavLink to="/admin-portal/promotions">
+                        <span className="material-icons">redeem</span>
+                        <span>Referrals</span>
                     </NavLink>
                 )}
                 {canManageOperators && (

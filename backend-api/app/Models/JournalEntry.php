@@ -21,6 +21,8 @@ class JournalEntry extends Model
     public const TYPE_REVERSAL = 'REVERSAL';
     public const TYPE_PASSENGER_CREDIT = 'PASSENGER_CREDIT';
     public const TYPE_LOYALTY_ACCRUAL = 'LOYALTY_ACCRUAL';
+    public const TYPE_REFERRAL_BONUS_DRIVER = 'REFERRAL_BONUS_DRIVER';
+    public const TYPE_REFERRAL_BONUS_LOYALTY = 'REFERRAL_BONUS_LOYALTY';
 
     protected static function booted(): void
     {
