@@ -29,17 +29,13 @@ interface RideSearchContextType {
   tripType: TripType;
   setTripType: (type: TripType) => void;
 
-  // Outbound Trip
+  // The single trip on this booking. For a return trip, `dropoff` holds the
+  // destination (B) — the ride always drops the passenger back at `pickup`,
+  // which the backend derives automatically (never a separately-picked address).
   outboundTrip: Trip;
   setOutboundPickup: (location: LocationSuggestion) => void;
   setOutboundDropoff: (location: LocationSuggestion) => void;
   setOutboundRide: (ride: RideOption) => void;
-
-  // Return Trip (only for return trips)
-  returnTrip: Trip;
-  setReturnPickup: (location: LocationSuggestion) => void;
-  setReturnDropoff: (location: LocationSuggestion) => void;
-  setReturnRide: (ride: RideOption) => void;
 
   // Booking preferences
   paymentMethod: PaymentMethod;
@@ -79,11 +75,6 @@ export function RideSearchProvider({
     dropoff: null,
     selectedRide: null,
   });
-  const [returnTrip, setReturnTrip] = useState<Trip>({
-    pickup: null,
-    dropoff: null,
-    selectedRide: null,
-  });
   const [isSearchingForDriver, setIsSearchingForDriver] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [selectedPaymentCard, setSelectedPaymentCard] =
@@ -106,22 +97,9 @@ export function RideSearchProvider({
     setOutboundTrip((prev) => ({ ...prev, selectedRide: ride }));
   };
 
-  const setReturnPickup = (location: LocationSuggestion) => {
-    setReturnTrip((prev) => ({ ...prev, pickup: location }));
-  };
-
-  const setReturnDropoff = (location: LocationSuggestion) => {
-    setReturnTrip((prev) => ({ ...prev, dropoff: location }));
-  };
-
-  const setReturnRide = (ride: RideOption) => {
-    setReturnTrip((prev) => ({ ...prev, selectedRide: ride }));
-  };
-
   const resetTrip = () => {
     setTripType("oneway");
     setOutboundTrip({ pickup: null, dropoff: null, selectedRide: null });
-    setReturnTrip({ pickup: null, dropoff: null, selectedRide: null });
     setIsSearchingForDriver(false);
     setPaymentMethod("cash");
     setSelectedPaymentCard(null);
@@ -147,10 +125,6 @@ export function RideSearchProvider({
     setOutboundPickup,
     setOutboundDropoff,
     setOutboundRide,
-    returnTrip,
-    setReturnPickup,
-    setReturnDropoff,
-    setReturnRide,
     paymentMethod,
     setPaymentMethod,
     selectedPaymentCard,

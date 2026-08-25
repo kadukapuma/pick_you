@@ -7,7 +7,6 @@ import {
   ScrollView,
   TextInput,
   ActivityIndicator,
-  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -32,48 +31,15 @@ const getPlaceConfig = (type: string) => {
 };
 
 interface ReturnLocationPickerProps {
+  // A return trip is pickup -> destination -> pickup: the driver waits at the
+  // destination and brings the passenger straight back, so only two locations
+  // are ever collected here (the return drop is always the pickup point).
   onConfirm: (
     pickup: LocationSuggestion,
-    stop: LocationSuggestion | null,
-    dropoff: LocationSuggestion,
+    destination: LocationSuggestion,
   ) => void;
   currentLocation?: LocationSuggestion;
 }
-
-const SAVED_LOCATIONS = [
-  {
-    id: "royal_gym",
-    address: "Royal Gym Walala",
-    details: "Walala Road, Menikhinna",
-    latitude: 7.287,
-    longitude: 80.625,
-    placeType: "saved" as const,
-  },
-  {
-    id: "kcc",
-    address: "KCC Multiplex",
-    details: "Sri Dalada Veediya, Kandy",
-    latitude: 7.293,
-    longitude: 80.634,
-    placeType: "saved" as const,
-  },
-  {
-    id: "colombo",
-    address: "Colombo",
-    details: "",
-    latitude: 6.927,
-    longitude: 79.861,
-    placeType: "saved" as const,
-  },
-  {
-    id: "kandy",
-    address: "Kandy",
-    details: "",
-    latitude: 7.29,
-    longitude: 80.633,
-    placeType: "saved" as const,
-  },
-];
 
 export default function ReturnLocationPicker({
   onConfirm,
@@ -82,39 +48,37 @@ export default function ReturnLocationPicker({
   const [pickup, setPickup] = useState<LocationSuggestion | null>(
     currentLocation ?? null,
   );
-  const [stop, setStop] = useState<LocationSuggestion | null>(null);
-  const [dropoff, setDropoff] = useState<LocationSuggestion | null>(null);
+  const [destination, setDestination] = useState<LocationSuggestion | null>(
+    null,
+  );
 
   const { places } = useSavedPlaces();
 
   const [pickupSearch, setPickupSearch] = useState(
     currentLocation?.address || "",
   );
-  const [stopSearch, setStopSearch] = useState("");
-  const [dropSearch, setDropSearch] = useState("");
+  const [destinationSearch, setDestinationSearch] = useState("");
 
   const [activeField, setActiveField] = useState<
-    "pickup" | "stop" | "drop" | null
+    "pickup" | "destination" | null
   >(null);
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
-  const sessionTokens = useRef<Record<"pickup" | "stop" | "drop", string>>({
+  const sessionTokens = useRef<Record<"pickup" | "destination", string>>({
     pickup: createPlacesSessionToken(),
-    stop: createPlacesSessionToken(),
-    drop: createPlacesSessionToken(),
+    destination: createPlacesSessionToken(),
   });
 
-  const resetSessionToken = (field: "pickup" | "stop" | "drop") => {
+  const resetSessionToken = (field: "pickup" | "destination") => {
     sessionTokens.current[field] = createPlacesSessionToken();
   };
 
-  const handleSearch = (text: string, field: "pickup" | "stop" | "drop") => {
+  const handleSearch = (text: string, field: "pickup" | "destination") => {
     if (field === "pickup") setPickupSearch(text);
-    if (field === "stop") setStopSearch(text);
-    if (field === "drop") setDropSearch(text);
+    if (field === "destination") setDestinationSearch(text);
 
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
 
@@ -152,19 +116,16 @@ export default function ReturnLocationPicker({
     if (activeField === "pickup") {
       setPickup(resolvedLocation);
       setPickupSearch(resolvedLocation.address);
-    } else if (activeField === "stop") {
-      setStop(resolvedLocation);
-      setStopSearch(resolvedLocation.address);
-    } else if (activeField === "drop") {
-      setDropoff(resolvedLocation);
-      setDropSearch(resolvedLocation.address);
+    } else {
+      setDestination(resolvedLocation);
+      setDestinationSearch(resolvedLocation.address);
     }
     resetSessionToken(activeField);
     setActiveField(null);
     setSuggestions([]);
   };
 
-  const handleFieldFocus = (field: "pickup" | "stop" | "drop") => {
+  const handleFieldFocus = (field: "pickup" | "destination") => {
     setActiveField(field);
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -172,37 +133,33 @@ export default function ReturnLocationPicker({
   };
 
   const handleConfirm = () => {
-    if (pickup && dropoff) {
-      onConfirm(pickup, stop, dropoff);
+    if (pickup && destination) {
+      onConfirm(pickup, destination);
     }
   };
 
   const handleSwapLocations = () => {
     const tempPickup = pickup;
     const tempPickupSearch = pickupSearch;
-    setPickup(dropoff);
-    setPickupSearch(dropSearch);
-    setDropoff(tempPickup);
-    setDropSearch(tempPickupSearch);
+    setPickup(destination);
+    setPickupSearch(destinationSearch);
+    setDestination(tempPickup);
+    setDestinationSearch(tempPickupSearch);
   };
 
   const renderField = (
     label: string,
     value: string,
-    field: "pickup" | "stop" | "drop",
+    field: "pickup" | "destination",
     placeholder: string,
     selectedLocation: LocationSuggestion | null,
-    isOptional: boolean = false,
   ) => {
     const isActive = activeField === field;
     const hasValue = !!selectedLocation;
 
     return (
       <View style={styles.fieldWrapper}>
-        <Text style={styles.label}>
-          {label}
-          {isOptional && <Text style={styles.optionalBadge}>(Optional)</Text>}
-        </Text>
+        <Text style={styles.label}>{label}</Text>
 
         <View style={styles.inputContainer}>
           {isActive ? (
@@ -222,14 +179,9 @@ export default function ReturnLocationPicker({
                     if (field === "pickup") {
                       setPickupSearch("");
                       setPickup(null);
-                    }
-                    if (field === "stop") {
-                      setStopSearch("");
-                      setStop(null);
-                    }
-                    if (field === "drop") {
-                      setDropSearch("");
-                      setDropoff(null);
+                    } else {
+                      setDestinationSearch("");
+                      setDestination(null);
                     }
                     resetSessionToken(field);
                     setSuggestions([]);
@@ -277,13 +229,16 @@ export default function ReturnLocationPicker({
         <View style={styles.fieldsRow}>
           <View style={styles.inputsColumn}>
             {/* Pickup Field */}
-            {renderField("From", pickupSearch, "pickup", "Your Location", pickup, false)}
+            {renderField("From", pickupSearch, "pickup", "Your Location", pickup)}
 
-            {/* Stop Field (Optional) */}
-            {renderField("Stop", stopSearch, "stop", "Add a stop", stop, true)}
-
-            {/* Dropoff Field */}
-            {renderField("To", dropSearch, "drop", "Where to?", dropoff, false)}
+            {/* Destination Field */}
+            {renderField(
+              "Destination",
+              destinationSearch,
+              "destination",
+              "Where are you going?",
+              destination,
+            )}
           </View>
 
           <View style={styles.decorationColumn}>
@@ -293,25 +248,17 @@ export default function ReturnLocationPicker({
               <Ionicons name="swap-vertical" size={16} color="#FFFFFF" />
             </TouchableOpacity>
             <View style={styles.dashedLine} />
-            <View style={styles.dotGrey} />
-            <View style={styles.dashedLine} />
             <View style={styles.dotHollow} />
           </View>
         </View>
 
-        {/* Same as pickup option */}
-        {pickup && !dropoff && !activeField && (
-          <TouchableOpacity
-            style={styles.sameAsPickup}
-            onPress={() => {
-              setDropoff(pickup);
-              setDropSearch(pickup.address);
-            }}
-          >
-            <Ionicons name="sync-outline" size={18} color="#20B768" />
-            <Text style={styles.sameAsPickupText}>Same as pickup</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.returnNote}>
+          <Ionicons name="repeat" size={16} color="#159A5B" />
+          <Text style={styles.returnNoteText}>
+            Your driver will wait at the destination and bring you back to the
+            pickup point.
+          </Text>
+        </View>
 
         {/* Suggestions */}
         {activeField && suggestions.length > 0 && (
@@ -411,12 +358,9 @@ export default function ReturnLocationPicker({
                     if (activeField === "pickup" || (!pickup && activeField === null)) {
                       setPickup(suggestion);
                       setPickupSearch(suggestion.address);
-                    } else if (activeField === "stop") {
-                      setStop(suggestion);
-                      setStopSearch(suggestion.address);
                     } else {
-                      setDropoff(suggestion);
-                      setDropSearch(suggestion.address);
+                      setDestination(suggestion);
+                      setDestinationSearch(suggestion.address);
                     }
                   }}
                   activeOpacity={0.7}
@@ -435,7 +379,7 @@ export default function ReturnLocationPicker({
       </ScrollView>
 
       {/* Confirm Button */}
-      {pickup && dropoff && !activeField && (
+      {pickup && destination && !activeField && (
         <TouchableOpacity style={styles.confirmButton} onPress={handleConfirm}>
           <Text style={styles.confirmButtonText}>Confirm Return Trip</Text>
         </TouchableOpacity>
@@ -513,11 +457,6 @@ const styles = StyleSheet.create({
     color: "#000000",
     marginBottom: 8,
   },
-  optionalBadge: {
-    fontSize: 12,
-    color: "#9CA3AF",
-    fontWeight: "500",
-  },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -554,20 +493,20 @@ const styles = StyleSheet.create({
   editIcon: {
     padding: 4,
   },
-  sameAsPickup: {
+  returnNote: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    backgroundColor: "#FFFFFF",
-    padding: 16,
-    borderRadius: 16,
-    marginTop: 8,
+    alignItems: "flex-start",
+    gap: 8,
+    backgroundColor: "#E8F8F0",
+    padding: 12,
+    borderRadius: 14,
     marginBottom: 12,
   },
-  sameAsPickupText: {
-    fontSize: 14,
-    color: "#20B768",
-    fontWeight: "600",
+  returnNoteText: {
+    flex: 1,
+    fontSize: 12.5,
+    color: "#0D4F3C",
+    lineHeight: 17,
   },
   suggestionsContainer: {
     backgroundColor: "#FFFFFF",

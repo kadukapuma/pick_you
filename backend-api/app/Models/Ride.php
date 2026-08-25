@@ -21,6 +21,10 @@ protected $fillable = [
     'drop_address',
     'drop_point',
     'drop_geog',
+    'trip_type',
+    'destination_address',
+    'destination_point',
+    'destination_geog',
     'distance_km',
     'estimated_distance_km',
     'estimated_duration_minutes',
@@ -81,7 +85,9 @@ protected $fillable = [
         'pickup_latitude',
         'pickup_longitude',
         'drop_latitude',
-        'drop_longitude'
+        'drop_longitude',
+        'destination_latitude',
+        'destination_longitude'
     ];
 
     public function passenger()
@@ -166,6 +172,20 @@ protected $fillable = [
     public function getDropLongitudeAttribute(): ?float
     {
         $parsed = $this->parsePoint($this->drop_point);
+
+        return $parsed['lng'] ?? null;
+    }
+
+    public function getDestinationLatitudeAttribute(): ?float
+    {
+        $parsed = $this->parsePoint($this->destination_point);
+
+        return $parsed['lat'] ?? null;
+    }
+
+    public function getDestinationLongitudeAttribute(): ?float
+    {
+        $parsed = $this->parsePoint($this->destination_point);
 
         return $parsed['lng'] ?? null;
     }

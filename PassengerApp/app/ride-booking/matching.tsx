@@ -33,8 +33,11 @@ import { useNearbyVehicles } from "../../services/rides/nearbyVehicles";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 import { getVehicleRideImage } from "../../utils/vehicleRideImages";
 import {
+  getRideDestinationAddress,
+  getRideDestinationCoordinate,
   getRideDropoffCoordinate,
   getRidePickupCoordinate,
+  isReturnTrip,
 } from "../../features/ride-support/rideUtils";
 import type { DirectionsResult } from "../../services/maps/directionsApi";
 import {
@@ -597,6 +600,13 @@ export default function SearchingScreen() {
     () => getRideDropoffCoordinate(rideData) || outboundTrip.dropoff || null,
     [outboundTrip.dropoff, rideData],
   );
+  // Round trip: the passenger's next stop while STARTED is the destination
+  // (B), not the final drop (which is the pickup point itself for a return
+  // trip) - falls back to dropoffCoord/outboundTrip.dropoff for a one-way ride.
+  const isReturn = isReturnTrip(rideData);
+  const headingCoord = isReturn
+    ? getRideDestinationCoordinate(rideData) || outboundTrip.dropoff || null
+    : dropoffCoord;
   const acceptedVehicleLocation = useMemo(() => {
     if (
       driverLocation &&
@@ -639,6 +649,11 @@ export default function SearchingScreen() {
     rideData?.dropoff?.address ||
     outboundTrip.dropoff?.address ||
     "Destination";
+  const headingAddress = isReturn
+    ? getRideDestinationAddress(rideData) ||
+      outboundTrip.dropoff?.address ||
+      "Destination"
+    : dropoffAddress;
   const handleRouteInfoChange = useCallback(
     (route: DirectionsResult | null) => setActiveRouteInfo(route),
     [],
@@ -667,7 +682,7 @@ export default function SearchingScreen() {
           <RideMap
             style={styles.map}
             location={pickupCoord}
-            destination={rideStatus === "STARTED" ? dropoffCoord : null}
+            destination={rideStatus === "STARTED" ? headingCoord : null}
             driverLocation={acceptedVehicleLocation}
             nearbyVehicles={acceptedDriverVehicle}
             rideStatus={rideStatus}
@@ -736,7 +751,11 @@ export default function SearchingScreen() {
               ? `${activeRouteInfo.durationText} remaining`
               : "Trip in progress"
           }
-          subtitle={`Heading to ${dropoffAddress}`}
+          subtitle={
+            isReturn
+              ? `Heading to ${headingAddress} · returns to pickup`
+              : `Heading to ${dropoffAddress}`
+          }
           distanceText={activeRouteInfo?.distanceText}
           onBack={() => router.replace("/(app)/(tabs)/trips")}
           onCall={() =>
@@ -909,7 +928,7 @@ export default function SearchingScreen() {
           vehicleDesc={vehicleDesc}
           vehicleType={requestedVehicleType}
           pickupAddress={pickupAddress}
-          dropoffAddress={dropoffAddress}
+          dropoffAddress={headingAddress}
           paymentMethod={paymentMethod}
           promoCode={promoCode}
           fareAmount={
@@ -934,7 +953,7 @@ export default function SearchingScreen() {
       )}
       {rideStatus === "STARTED" && (
         <OnTripSheet
-          destination={dropoffAddress}
+          destination={headingAddress}
           durationText={activeRouteInfo?.durationText}
           distanceText={activeRouteInfo?.distanceText}
           driverName={driverName}

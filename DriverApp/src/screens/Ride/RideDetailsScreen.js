@@ -34,6 +34,8 @@ const RideDetailsScreen = ({ navigation, route }) => {
   const customerProfilePicture = ride?.customerProfilePicture;
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropoffLocation = ride?.drop || "Peradeniya Junction";
+  const isReturnTrip = String(ride?.trip_type || "").toLowerCase() === "return";
+  const destinationLocation = ride?.destination || "Peradeniya Junction";
   const totalDistance = ride?.distance || "5.4 km";
   const estimatedTime = ride?.time || "18 min";
   const paymentMethod = (ride?.paymentMode || ride?.payment_method || "cash").toLowerCase();
@@ -155,8 +157,13 @@ const RideDetailsScreen = ({ navigation, route }) => {
             </TouchableOpacity>
           </View>
 
-          {/* Dropoff Block */}
-          <View style={[styles.locationTimelineRow, { marginBottom: 0 }]}>
+          {/* Dropoff / Destination Block */}
+          <View
+            style={[
+              styles.locationTimelineRow,
+              { marginBottom: isReturnTrip ? 20 : 0 },
+            ]}
+          >
             <View style={styles.timelineVisualColumn}>
               <View
                 style={[
@@ -164,16 +171,16 @@ const RideDetailsScreen = ({ navigation, route }) => {
                   { backgroundColor: "#EF4444", borderRadius: 2 },
                 ]}
               />
+              {isReturnTrip && <View style={styles.dashedLinkLine} />}
             </View>
 
             <View style={styles.addressLabelBlock}>
               <Text style={[styles.addressStatusTag, { color: "#EF4444" }]}>
-                DROPOFF
+                {isReturnTrip ? "DESTINATION" : "DROPOFF"}
               </Text>
               <Text style={styles.addressMainText} numberOfLines={1}>
-                {dropoffLocation}
+                {isReturnTrip ? destinationLocation : dropoffLocation}
               </Text>
-              <Text style={styles.addressSubText}>Peradeniya, Sri Lanka</Text>
             </View>
 
             <TouchableOpacity
@@ -183,6 +190,26 @@ const RideDetailsScreen = ({ navigation, route }) => {
               <Feather name="navigation" size={16} color="#00A859" />
             </TouchableOpacity>
           </View>
+
+          {/* Round trip: return leg back to pickup */}
+          {isReturnTrip && (
+            <View style={[styles.locationTimelineRow, { marginBottom: 0 }]}>
+              <View style={styles.timelineVisualColumn}>
+                <View
+                  style={[styles.nodeCircle, { backgroundColor: "#00A859" }]}
+                />
+              </View>
+
+              <View style={styles.addressLabelBlock}>
+                <Text style={[styles.addressStatusTag, { color: "#00A859" }]}>
+                  THEN
+                </Text>
+                <Text style={styles.addressMainText} numberOfLines={1}>
+                  Return to pickup
+                </Text>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* --- METRIC GRID ROW (TRIPLE SEPARATE SMALL BLOCKS) --- */}

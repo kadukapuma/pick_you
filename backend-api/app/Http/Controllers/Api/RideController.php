@@ -141,6 +141,12 @@ class RideController extends Controller
                     'drop_address' => $ride->drop_address,
                     'drop_lat' => $ride->drop_latitude,
                     'drop_lng' => $ride->drop_longitude,
+                    // Round trip: the driver needs to see this — and the destination —
+                    // before accepting, since they're committing to drive there and back.
+                    'trip_type' => $ride->trip_type,
+                    'destination_address' => $ride->destination_address,
+                    'destination_lat' => $ride->destination_latitude,
+                    'destination_lng' => $ride->destination_longitude,
                     'distance_km' => (float) $ride->distance_km,
                     'estimated_fare' => (float) $ride->estimated_fare,
                     // The driver needs this before accepting: it decides whether
@@ -177,6 +183,13 @@ class RideController extends Controller
             'payment_method' => 'sometimes|in:cash,card',
             'use_wallet_credit' => 'sometimes|boolean',
             'use_loyalty_points' => 'sometimes|boolean',
+            // Return trip: driver takes the passenger to a destination and back to
+            // pickup. The drop is always the pickup point for a return trip — never
+            // taken from the request — so only the destination needs validating here.
+            'trip_type' => 'sometimes|in:oneway,return',
+            'destination_address' => 'required_if:trip_type,return|string',
+            'destination_lat' => 'required_if:trip_type,return|numeric',
+            'destination_lng' => 'required_if:trip_type,return|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -192,19 +205,41 @@ class RideController extends Controller
 
         $pickupLng = (float) $request->pickup_lng;
         $pickupLat = (float) $request->pickup_lat;
-        $dropLng = (float) $request->drop_lng;
-        $dropLat = (float) $request->drop_lat;
+        $tripType = $request->input('trip_type', 'oneway');
+        $isReturn = $tripType === 'return';
+
+        // A return trip always ends back at the pickup point — the drop is derived,
+        // never taken from the request, so the passenger can't be dropped somewhere
+        // other than where they started on a "return" booking.
+        $dropLng = $isReturn ? $pickupLng : (float) $request->drop_lng;
+        $dropLat = $isReturn ? $pickupLat : (float) $request->drop_lat;
+        $dropAddress = $isReturn ? $request->pickup_address : $request->drop_address;
 
         try {
-            $route = $this->maps->route($pickupLat, $pickupLng, $dropLat, $dropLng);
+            if ($isReturn) {
+                $destinationLat = (float) $request->destination_lat;
+                $destinationLng = (float) $request->destination_lng;
+
+                // Outbound leg: pickup -> destination. Return leg: destination -> pickup.
+                $route = $this->maps->route($pickupLat, $pickupLng, $destinationLat, $destinationLng);
+                $returnRoute = $this->maps->route($destinationLat, $destinationLng, $pickupLat, $pickupLng);
+
+                $totalDistanceMeters = (float) $route['distance'] + (float) $returnRoute['distance'];
+                $totalDurationSeconds = (float) $route['duration'] + (float) $returnRoute['duration'];
+            } else {
+                $route = $this->maps->route($pickupLat, $pickupLng, $dropLat, $dropLng);
+
+                $totalDistanceMeters = (float) $route['distance'];
+                $totalDurationSeconds = (float) $route['duration'];
+            }
         } catch (GoogleMapsException $exception) {
             return $this->error($exception->getMessage(), $exception->statusCode());
         }
 
         $fareEstimate = $this->fares->estimate(
             $fareConfig,
-            ((float) $route['distance']) / 1000,
-            ((float) $route['duration']) / 60,
+            $totalDistanceMeters / 1000,
+            $totalDurationSeconds / 60,
             $pickupLat,
             $pickupLng,
             $dropLat,
@@ -223,9 +258,13 @@ class RideController extends Controller
             'pickup_address' => $request->pickup_address,
             'pickup_point' => DB::raw("point($pickupLng, $pickupLat)"),
             'pickup_geog' => DB::raw("ST_SetSRID(ST_MakePoint($pickupLng, $pickupLat), 4326)::geography"),
-            'drop_address' => $request->drop_address,
+            'drop_address' => $dropAddress,
             'drop_point' => DB::raw("point($dropLng, $dropLat)"),
             'drop_geog' => DB::raw("ST_SetSRID(ST_MakePoint($dropLng, $dropLat), 4326)::geography"),
+            'trip_type' => $tripType,
+            'destination_address' => $isReturn ? $request->destination_address : null,
+            'destination_point' => $isReturn ? DB::raw("point($destinationLng, $destinationLat)") : null,
+            'destination_geog' => $isReturn ? DB::raw("ST_SetSRID(ST_MakePoint($destinationLng, $destinationLat), 4326)::geography") : null,
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
@@ -309,8 +348,11 @@ class RideController extends Controller
             'vehicle_type' => 'required|string',
             'pickup_lat' => 'required|numeric',
             'pickup_lng' => 'required|numeric',
-            'drop_lat' => 'required|numeric',
-            'drop_lng' => 'required|numeric',
+            'drop_lat' => 'required_unless:trip_type,return|numeric',
+            'drop_lng' => 'required_unless:trip_type,return|numeric',
+            'trip_type' => 'sometimes|in:oneway,return',
+            'destination_lat' => 'required_if:trip_type,return|numeric',
+            'destination_lng' => 'required_if:trip_type,return|numeric',
         ]);
 
         if ($validator->fails()) {
@@ -322,25 +364,41 @@ class RideController extends Controller
             return $this->error('Selected vehicle type is currently unavailable', 400);
         }
 
+        $pickupLat = (float) $request->pickup_lat;
+        $pickupLng = (float) $request->pickup_lng;
+        $isReturn = $request->input('trip_type', 'oneway') === 'return';
+        $dropLat = $isReturn ? $pickupLat : (float) $request->drop_lat;
+        $dropLng = $isReturn ? $pickupLng : (float) $request->drop_lng;
+
         try {
-            $route = $this->maps->route(
-                (float) $request->pickup_lat,
-                (float) $request->pickup_lng,
-                (float) $request->drop_lat,
-                (float) $request->drop_lng,
-            );
+            if ($isReturn) {
+                $destinationLat = (float) $request->destination_lat;
+                $destinationLng = (float) $request->destination_lng;
+
+                $route = $this->maps->route($pickupLat, $pickupLng, $destinationLat, $destinationLng);
+                $returnRoute = $this->maps->route($destinationLat, $destinationLng, $pickupLat, $pickupLng);
+
+                $totalDistanceMeters = (float) $route['distance'] + (float) $returnRoute['distance'];
+                $totalDurationSeconds = (float) $route['duration'] + (float) $returnRoute['duration'];
+            } else {
+                $route = $this->maps->route($pickupLat, $pickupLng, $dropLat, $dropLng);
+                $returnRoute = null;
+
+                $totalDistanceMeters = (float) $route['distance'];
+                $totalDurationSeconds = (float) $route['duration'];
+            }
         } catch (GoogleMapsException $exception) {
             return $this->error($exception->getMessage(), $exception->statusCode());
         }
 
         $fareEstimate = $this->fares->estimate(
             $fareConfig,
-            ((float) $route['distance']) / 1000,
-            ((float) $route['duration']) / 60,
-            (float) $request->pickup_lat,
-            (float) $request->pickup_lng,
-            (float) $request->drop_lat,
-            (float) $request->drop_lng,
+            $totalDistanceMeters / 1000,
+            $totalDurationSeconds / 60,
+            $pickupLat,
+            $pickupLng,
+            $dropLat,
+            $dropLng,
         );
 
         $estimatedFare = (string) $fareEstimate['estimated_fare'];
@@ -351,6 +409,9 @@ class RideController extends Controller
         return $this->success([
             'vehicle_type' => $fareConfig->vehicle_type,
             'route' => $route,
+            // Present only for a return trip - the destination -> pickup leg, so the
+            // app can draw the full out-and-back route on the map.
+            'return_route' => $returnRoute,
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
