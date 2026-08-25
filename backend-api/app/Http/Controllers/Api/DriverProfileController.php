@@ -201,6 +201,7 @@ class DriverProfileController extends Controller
             'acceptance' => '94%', // Replace with actual calculation logic when available
             'cancellation' => '2%', // Replace with actual calculation logic when available
             'vehicle' => $vehicleData,
+            'ownershipLetterUrl' => $vehicle?->images ? $images->url($vehicle->images->ownership_letter_path) : null,
             'bank' => [
                 'name' => $driver->bank_name,
                 'branch' => $driver->bank_branch,

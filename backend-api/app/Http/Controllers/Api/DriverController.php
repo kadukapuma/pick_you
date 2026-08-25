@@ -184,6 +184,7 @@ class DriverController extends Controller
             'interior' => 'nullable|file',
             'insurance' => 'nullable|file',
             'registration' => 'nullable|file',
+            'ownership_letter' => 'nullable|file',
             'license_front' => 'nullable|file',
             'license_back' => 'nullable|file',
         ]);
@@ -300,6 +301,13 @@ class DriverController extends Controller
                         $request->file('registration'),
                         "drivers/{$driver->id}/vehicles/{$vehicle->id}",
                         'registration',
+                    )
+                    : null,
+                'ownership_letter_path' => $request->hasFile('ownership_letter')
+                    ? $images->store(
+                        $request->file('ownership_letter'),
+                        "drivers/{$driver->id}/vehicles/{$vehicle->id}",
+                        'ownership-letter',
                     )
                     : null,
             ]);

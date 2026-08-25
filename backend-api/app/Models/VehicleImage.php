@@ -11,6 +11,7 @@ class VehicleImage extends Model
         'vehicle_id',
         'insurance_img',
         'licence_img',
+        'ownership_letter_path',
         'v_front',
         'v_back',
         'v_side',
