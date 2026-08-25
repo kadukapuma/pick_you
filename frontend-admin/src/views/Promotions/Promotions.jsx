@@ -11,7 +11,7 @@ import {
 } from '../../services/adminApi'
 import './Promotions.css'
 
-const REFERRED_GRID = '2fr 1.5fr 1fr 1.2fr'
+const REFERRED_GRID = '1.8fr 1.4fr 1fr 1.2fr 0.9fr 1.1fr'
 const USAGE_GRID = '2fr 1.5fr 1.2fr 1fr'
 
 const createIdempotencyKey = () => {
@@ -35,12 +35,17 @@ const Promotions = () => {
     const [result, setResult] = useState(null)
     const [referredPagination, setReferredPagination] = useState({ page: 1, totalPages: 1, total: 0, perPage: 20 })
 
+    const [driverReferredId, setDriverReferredId] = useState('')
     const [driverAmount, setDriverAmount] = useState('')
     const [driverNote, setDriverNote] = useState('')
+    const [loyaltyReferredId, setLoyaltyReferredId] = useState('')
     const [loyaltyPoints, setLoyaltyPoints] = useState('')
     const [loyaltyNote, setLoyaltyNote] = useState('')
     const [submittingDriver, setSubmittingDriver] = useState(false)
     const [submittingLoyalty, setSubmittingLoyalty] = useState(false)
+
+    const eligibleReferred = result?.referred_users?.data?.filter((user) => user.eligible_for_reward) || []
+    const minRides = result?.min_rides_for_reward ?? 1
 
     const [usageRows, setUsageRows] = useState([])
     const [usageLoading, setUsageLoading] = useState(true)
@@ -68,8 +73,10 @@ const Promotions = () => {
             setLoading(true)
             const data = await searchPromotions(token, phone.trim(), 1)
             applyResult(data, 1)
+            setDriverReferredId('')
             setDriverAmount('')
             setDriverNote('')
+            setLoyaltyReferredId('')
             setLoyaltyPoints('')
             setLoyaltyNote('')
         } catch (error) {
@@ -98,6 +105,10 @@ const Promotions = () => {
 
     const submitDriverReward = async (event) => {
         event.preventDefault()
+        if (!driverReferredId) {
+            Swal.fire('Referred signup required', 'Pick which qualifying referred signup this reward is for.', 'warning')
+            return
+        }
         const value = Number(driverAmount)
         if (!Number.isFinite(value) || value <= 0) {
             Swal.fire('Invalid amount', 'Enter an amount greater than 0.', 'warning')
@@ -108,9 +119,11 @@ const Promotions = () => {
             return
         }
 
+        const referredUser = eligibleReferred.find((user) => String(user.id) === driverReferredId)
+
         const confirmation = await Swal.fire({
             title: 'Confirm referral driver credit',
-            html: `<p><strong>LKR ${value.toFixed(2)}</strong> will be credited to ${result.referrer.name || 'this driver'}'s account, the same as a driver settlement credit.</p>`,
+            html: `<p><strong>LKR ${value.toFixed(2)}</strong> will be credited to ${result.referrer.name || 'this driver'}'s account, the same as a driver settlement credit, for referring ${referredUser?.name || 'this signup'} (${referredUser?.completed_rides ?? '?'} completed rides).</p>`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Credit driver',
@@ -123,9 +136,11 @@ const Promotions = () => {
             await rewardDriverReferral(token, result.referrer.id, {
                 amount: value.toFixed(2),
                 note: driverNote.trim(),
+                referredUserId: driverReferredId,
                 idempotencyKey: createIdempotencyKey(),
             })
             await refresh()
+            setDriverReferredId('')
             setDriverAmount('')
             setDriverNote('')
             await Swal.fire('Credit issued', `LKR ${value.toFixed(2)} was credited to the driver.`, 'success')
@@ -138,6 +153,10 @@ const Promotions = () => {
 
     const submitLoyaltyReward = async (event) => {
         event.preventDefault()
+        if (!loyaltyReferredId) {
+            Swal.fire('Referred signup required', 'Pick which qualifying referred signup this reward is for.', 'warning')
+            return
+        }
         const value = Number(loyaltyPoints)
         if (!Number.isFinite(value) || value <= 0) {
             Swal.fire('Invalid points', 'Enter a points value greater than 0.', 'warning')
@@ -148,9 +167,11 @@ const Promotions = () => {
             return
         }
 
+        const referredUser = eligibleReferred.find((user) => String(user.id) === loyaltyReferredId)
+
         const confirmation = await Swal.fire({
             title: 'Confirm referral loyalty points',
-            html: `<p><strong>${value.toFixed(2)} points</strong> will be added to ${result.referrer.name || 'this passenger'}'s loyalty balance.</p>`,
+            html: `<p><strong>${value.toFixed(2)} points</strong> will be added to ${result.referrer.name || 'this passenger'}'s loyalty balance, for referring ${referredUser?.name || 'this signup'} (${referredUser?.completed_rides ?? '?'} completed rides).</p>`,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonText: 'Add points',
@@ -163,9 +184,11 @@ const Promotions = () => {
             await rewardLoyaltyReferral(token, result.referrer.id, {
                 points: value.toFixed(2),
                 note: loyaltyNote.trim(),
+                referredUserId: loyaltyReferredId,
                 idempotencyKey: createIdempotencyKey(),
             })
             await refresh()
+            setLoyaltyReferredId('')
             setLoyaltyPoints('')
             setLoyaltyNote('')
             await Swal.fire('Points added', `${value.toFixed(2)} loyalty points were added.`, 'success')
@@ -236,24 +259,52 @@ const Promotions = () => {
                         {!result.referrer.is_driver && !result.referrer.is_passenger && (
                             <p className="promotions-notice">This user has no driver or passenger profile, so no reward can be issued.</p>
                         )}
+
+                        {(result.referrer.is_driver || result.referrer.is_passenger) && eligibleReferred.length === 0 && (
+                            <p className="promotions-notice">
+                                No referred signup on this page has reached {minRides} completed rides yet (and isn't already rewarded) — nothing to pay out right now.
+                            </p>
+                        )}
                     </div>
 
                     <div className="promotions-actions">
                         {result.referrer.is_driver && (
                             <form className="promotions-action-form" onSubmit={submitDriverReward}>
                                 <h3>Credit driver account</h3>
+                                <label>
+                                    <span>Qualifying referred signup ({minRides}+ completed rides)</span>
+                                    <select value={driverReferredId} onChange={(event) => setDriverReferredId(event.target.value)} disabled={eligibleReferred.length === 0}>
+                                        <option value="">Select a referred signup…</option>
+                                        {eligibleReferred.map((user) => (
+                                            <option key={user.id} value={user.id}>
+                                                {user.name || `#${user.id}`} — {user.completed_rides} rides
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
                                 <label><span>Amount (LKR)</span><input type="number" min="0.01" step="0.01" value={driverAmount} onChange={(event) => setDriverAmount(event.target.value)} /></label>
-                                <label><span>Note</span><textarea maxLength="500" rows="3" value={driverNote} onChange={(event) => setDriverNote(event.target.value)} placeholder="e.g. Referral bonus for 5 signups" /></label>
-                                <button type="submit" disabled={submittingDriver}>{submittingDriver ? 'Crediting…' : 'Credit driver'}</button>
+                                <label><span>Note</span><textarea maxLength="500" rows="3" value={driverNote} onChange={(event) => setDriverNote(event.target.value)} placeholder="e.g. Referral bonus for a qualifying signup" /></label>
+                                <button type="submit" disabled={submittingDriver || eligibleReferred.length === 0}>{submittingDriver ? 'Crediting…' : 'Credit driver'}</button>
                             </form>
                         )}
 
                         {result.referrer.is_passenger && (
                             <form className="promotions-action-form" onSubmit={submitLoyaltyReward}>
                                 <h3>Add loyalty points</h3>
+                                <label>
+                                    <span>Qualifying referred signup ({minRides}+ completed rides)</span>
+                                    <select value={loyaltyReferredId} onChange={(event) => setLoyaltyReferredId(event.target.value)} disabled={eligibleReferred.length === 0}>
+                                        <option value="">Select a referred signup…</option>
+                                        {eligibleReferred.map((user) => (
+                                            <option key={user.id} value={user.id}>
+                                                {user.name || `#${user.id}`} — {user.completed_rides} rides
+                                            </option>
+                                        ))}
+                                    </select>
+                                </label>
                                 <label><span>Points</span><input type="number" min="0.01" step="0.01" value={loyaltyPoints} onChange={(event) => setLoyaltyPoints(event.target.value)} /></label>
-                                <label><span>Note</span><textarea maxLength="500" rows="3" value={loyaltyNote} onChange={(event) => setLoyaltyNote(event.target.value)} placeholder="e.g. Referral bonus for 5 signups" /></label>
-                                <button type="submit" disabled={submittingLoyalty}>{submittingLoyalty ? 'Adding…' : 'Add points'}</button>
+                                <label><span>Note</span><textarea maxLength="500" rows="3" value={loyaltyNote} onChange={(event) => setLoyaltyNote(event.target.value)} placeholder="e.g. Referral bonus for a qualifying signup" /></label>
+                                <button type="submit" disabled={submittingLoyalty || eligibleReferred.length === 0}>{submittingLoyalty ? 'Adding…' : 'Add points'}</button>
                             </form>
                         )}
                     </div>
@@ -261,7 +312,7 @@ const Promotions = () => {
                     <div className="promotions-referred">
                         <h2>Referred signups</h2>
                         <DataTable
-                            headers={['Name', 'Phone', 'Roles', 'Registered']}
+                            headers={['Name', 'Phone', 'Roles', 'Registered', 'Rides', 'Status']}
                             gridTemplate={REFERRED_GRID}
                             pagination={{ ...referredPagination, onPageChange: loadReferredPage }}
                         >
@@ -271,6 +322,10 @@ const Promotions = () => {
                                     <span>{user.phone}</span>
                                     <span>{(user.roles || []).join(', ')}</span>
                                     <span>{user.registered_at ? new Date(user.registered_at).toLocaleString() : ''}</span>
+                                    <span>{user.completed_rides}</span>
+                                    <span className={`promotions-status promotions-status--${user.already_rewarded ? 'rewarded' : user.eligible_for_reward ? 'eligible' : 'waiting'}`}>
+                                        {user.already_rewarded ? 'Rewarded' : user.eligible_for_reward ? 'Eligible' : `Needs ${minRides}`}
+                                    </span>
                                 </div>
                             )) : (
                                 <div className="table-row" style={{ gridTemplateColumns: REFERRED_GRID }}>

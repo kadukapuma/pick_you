@@ -46,17 +46,31 @@ class AdminPromotionController extends Controller
         }
 
         $referredUsers = User::query()
+            ->with(['driver', 'passenger'])
             ->where('promo_code', $normalized)
             ->orderByDesc('created_at')
             ->paginate(20, page: $validated['page'] ?? 1);
 
-        $referredUsers->getCollection()->transform(fn (User $user) => [
-            'id' => $user->id,
-            'name' => trim($user->first_name . ' ' . $user->last_name),
-            'phone' => $user->phone,
-            'roles' => $user->activeRoles(),
-            'registered_at' => optional($user->created_at)->toDateTimeString(),
-        ]);
+        $rewardedUserIds = PromotionReward::query()
+            ->where('referrer_user_id', $referrer->id)
+            ->pluck('referred_user_id')
+            ->all();
+
+        $referredUsers->getCollection()->transform(function (User $user) use ($rewardedUserIds) {
+            $completedRides = ReferralRewardService::completedRideCount($user);
+
+            return [
+                'id' => $user->id,
+                'name' => trim($user->first_name . ' ' . $user->last_name),
+                'phone' => $user->phone,
+                'roles' => $user->activeRoles(),
+                'registered_at' => optional($user->created_at)->toDateTimeString(),
+                'completed_rides' => $completedRides,
+                'eligible_for_reward' => $completedRides >= ReferralRewardService::MIN_COMPLETED_RIDES_FOR_REWARD
+                    && ! in_array($user->id, $rewardedUserIds, true),
+                'already_rewarded' => in_array($user->id, $rewardedUserIds, true),
+            ];
+        });
 
         $rewards = PromotionReward::query()
             ->where('referrer_user_id', $referrer->id)
@@ -80,6 +94,7 @@ class AdminPromotionController extends Controller
             'referred_count' => $referredUsers->total(),
             'referred_users' => $referredUsers,
             'rewards' => $rewards,
+            'min_rides_for_reward' => ReferralRewardService::MIN_COMPLETED_RIDES_FOR_REWARD,
         ], 'Promotion lookup retrieved successfully.');
     }
 
@@ -133,7 +148,7 @@ class AdminPromotionController extends Controller
         $validated = $request->validate([
             'amount' => 'required|numeric|min:0.01|max:1000000',
             'note' => 'required|string|max:500',
-            'referred_user_id' => 'nullable|integer|exists:users,id',
+            'referred_user_id' => 'required|integer|exists:users,id',
         ]);
 
         $idempotencyKey = trim((string) $request->header('Idempotency-Key'));
@@ -146,7 +161,7 @@ class AdminPromotionController extends Controller
                 note: $validated['note'],
                 createdBy: $request->user(),
                 reference: $reference,
-                referredUser: isset($validated['referred_user_id']) ? User::find($validated['referred_user_id']) : null,
+                referredUser: User::findOrFail($validated['referred_user_id']),
             );
         } catch (DomainException $exception) {
             return $this->error($exception->getMessage(), 422);
@@ -166,7 +181,7 @@ class AdminPromotionController extends Controller
         $validated = $request->validate([
             'points' => 'required|numeric|min:0.01|max:1000000',
             'note' => 'required|string|max:500',
-            'referred_user_id' => 'nullable|integer|exists:users,id',
+            'referred_user_id' => 'required|integer|exists:users,id',
         ]);
 
         $idempotencyKey = trim((string) $request->header('Idempotency-Key'));
@@ -179,7 +194,7 @@ class AdminPromotionController extends Controller
                 note: $validated['note'],
                 createdBy: $request->user(),
                 reference: $reference,
-                referredUser: isset($validated['referred_user_id']) ? User::find($validated['referred_user_id']) : null,
+                referredUser: User::findOrFail($validated['referred_user_id']),
             );
         } catch (DomainException $exception) {
             return $this->error($exception->getMessage(), 422);

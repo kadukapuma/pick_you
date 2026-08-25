@@ -6,6 +6,7 @@ use App\Models\JournalEntry;
 use App\Models\LedgerAccount;
 use App\Models\OtpVerification;
 use App\Models\PromotionReward;
+use App\Models\RolePermission;
 use App\Models\User;
 use App\Services\Ledger\ReferralRewardService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -84,6 +85,22 @@ class ReferralPromotionTest extends TestCase
         $this->assertDatabaseCount('users', 0);
     }
 
+    /** A referred user with the given number of completed rides, linked to $referrer via promo code. */
+    private function makeQualifyingReferral(User $referrer, int $completedRides, string $phone = '94772220000'): User
+    {
+        [$referredDriverUser, $referredDriver] = $this->makeDriver($phone);
+        $referredDriverUser->update(['referred_by_user_id' => $referrer->id, 'promo_code' => $referrer->phone_normalized]);
+
+        [, $somePassenger] = $this->makePassenger('9477' . str_pad((string) random_int(1000000, 9999999), 7, '0', STR_PAD_LEFT));
+        $fare = $this->makeFareConfig();
+
+        for ($i = 0; $i < $completedRides; $i++) {
+            $this->makeCompletedRide($somePassenger, $referredDriver, $fare, 500);
+        }
+
+        return $referredDriverUser;
+    }
+
     public function test_referral_reward_service_credits_a_driver_and_records_the_ledger_entry(): void
     {
         $referrer = User::create([
@@ -109,16 +126,20 @@ class ReferralPromotionTest extends TestCase
             'is_verified' => true,
         ]);
 
+        $referredUser = $this->makeQualifyingReferral($referrer, 3);
+
         $reward = app(ReferralRewardService::class)->creditDriver(
             referrer: $referrer,
             amount: '500.00',
-            note: 'Referral bonus for 5 signups',
+            note: 'Referral bonus: 3 completed rides',
             createdBy: $admin,
             reference: 'test-ref-1',
+            referredUser: $referredUser,
         );
 
         $this->assertInstanceOf(PromotionReward::class, $reward);
         $this->assertSame(PromotionReward::TYPE_DRIVER_CREDIT, $reward->reward_type);
+        $this->assertSame($referredUser->id, $reward->referred_user_id);
 
         $driverAccountBalance = LedgerAccount::where('code', LedgerAccount::codeForDriver((int) $referrer->driver->id))
             ->value('balance');
@@ -155,16 +176,120 @@ class ReferralPromotionTest extends TestCase
             'is_verified' => true,
         ]);
 
+        $referredUser = $this->makeQualifyingReferral($referrer, 3, '94772220001');
+
         $reward = app(ReferralRewardService::class)->creditPassengerLoyalty(
             referrer: $referrer,
             points: '150.00',
-            note: 'Referral bonus for 3 signups',
+            note: 'Referral bonus: 3 completed rides',
             createdBy: $admin,
             reference: 'test-ref-2',
+            referredUser: $referredUser,
         );
 
         $this->assertSame(PromotionReward::TYPE_LOYALTY_POINTS, $reward->reward_type);
         $this->assertSame('150.00', bcadd((string) $referrer->passenger->fresh()->loyalty_points_balance, '0', 2));
+    }
+
+    public function test_reward_is_refused_when_referred_user_has_not_completed_enough_rides(): void
+    {
+        $referrer = User::create([
+            'first_name' => 'Driver',
+            'last_name' => 'Referrer',
+            'email' => 'driver-referrer2@example.com',
+            'phone' => '94771110002',
+            'phone_normalized' => '94771110002',
+            'role' => User::ROLE_DRIVER,
+            'is_active' => true,
+            'is_verified' => true,
+        ]);
+        $referrer->driver()->create(['status' => 'approved', 'availability' => 1, 'rating' => 5]);
+        $admin = $this->makeUser(User::ROLE_ADMIN, '94770000003');
+
+        $referredUser = $this->makeQualifyingReferral($referrer, 0, '94772220002');
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('at least 1 are required');
+
+        app(ReferralRewardService::class)->creditDriver(
+            referrer: $referrer,
+            amount: '500.00',
+            note: 'Too early',
+            createdBy: $admin,
+            reference: 'test-ref-3',
+            referredUser: $referredUser,
+        );
+    }
+
+    public function test_reward_is_refused_for_a_user_not_referred_by_this_owner(): void
+    {
+        $referrer = User::create([
+            'first_name' => 'Driver',
+            'last_name' => 'Referrer',
+            'email' => 'driver-referrer3@example.com',
+            'phone' => '94771110003',
+            'phone_normalized' => '94771110003',
+            'role' => User::ROLE_DRIVER,
+            'is_active' => true,
+            'is_verified' => true,
+        ]);
+        $referrer->driver()->create(['status' => 'approved', 'availability' => 1, 'rating' => 5]);
+        $admin = $this->makeUser(User::ROLE_ADMIN, '94770000004');
+
+        $otherReferrer = $this->makeUser(User::ROLE_PASSENGER, '94770000005');
+        $unrelatedUser = $this->makeQualifyingReferral($otherReferrer, 3, '94772220003');
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('not referred by this promotion code owner');
+
+        app(ReferralRewardService::class)->creditDriver(
+            referrer: $referrer,
+            amount: '500.00',
+            note: 'Wrong referrer',
+            createdBy: $admin,
+            reference: 'test-ref-4',
+            referredUser: $unrelatedUser,
+        );
+    }
+
+    public function test_reward_cannot_be_issued_twice_for_the_same_referred_signup(): void
+    {
+        $referrer = User::create([
+            'first_name' => 'Driver',
+            'last_name' => 'Referrer',
+            'email' => 'driver-referrer4@example.com',
+            'phone' => '94771110004',
+            'phone_normalized' => '94771110004',
+            'role' => User::ROLE_DRIVER,
+            'is_active' => true,
+            'is_verified' => true,
+        ]);
+        $referrer->driver()->create(['status' => 'approved', 'availability' => 1, 'rating' => 5]);
+        $admin = $this->makeUser(User::ROLE_ADMIN, '94770000006');
+
+        $referredUser = $this->makeQualifyingReferral($referrer, 3, '94772220004');
+        $service = app(ReferralRewardService::class);
+
+        $service->creditDriver(
+            referrer: $referrer,
+            amount: '500.00',
+            note: 'First reward',
+            createdBy: $admin,
+            reference: 'test-ref-5a',
+            referredUser: $referredUser,
+        );
+
+        $this->expectException(\DomainException::class);
+        $this->expectExceptionMessage('already been issued');
+
+        $service->creditDriver(
+            referrer: $referrer,
+            amount: '500.00',
+            note: 'Second reward attempt',
+            createdBy: $admin,
+            reference: 'test-ref-5b',
+            referredUser: $referredUser,
+        );
     }
 
     public function test_admin_search_reports_ride_counts_for_the_referrers_roles(): void
@@ -190,6 +315,49 @@ class ReferralPromotionTest extends TestCase
             ->assertJsonPath('data.referrer.total_rides_as_driver', 2)
             ->assertJsonPath('data.referrer.is_passenger', false)
             ->assertJsonPath('data.referrer.total_rides_as_passenger', null);
+    }
+
+    public function test_admin_search_reports_eligibility_per_referred_user(): void
+    {
+        $referrer = $this->makeUser(User::ROLE_PASSENGER, '94771119998');
+
+        $eligible = $this->makeQualifyingReferral($referrer, 1, '94772220005');
+        $tooEarly = $this->makeQualifyingReferral($referrer, 0, '94772220006');
+
+        $admin = $this->makeUser(User::ROLE_ADMIN, '94770000012');
+        $admin->ensureRole(User::ROLE_ADMIN);
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $response = $this->getJson('/api/admin/promotions/search?phone=94771119998')->assertOk();
+
+        $rows = collect($response->json('data.referred_users.data'))->keyBy('id');
+
+        $this->assertSame(1, $rows[$eligible->id]['completed_rides']);
+        $this->assertTrue($rows[$eligible->id]['eligible_for_reward']);
+        $this->assertFalse($rows[$eligible->id]['already_rewarded']);
+
+        $this->assertSame(0, $rows[$tooEarly->id]['completed_rides']);
+        $this->assertFalse($rows[$tooEarly->id]['eligible_for_reward']);
+
+        $response->assertJsonPath('data.min_rides_for_reward', 1);
+    }
+
+    public function test_admin_reward_endpoint_rejects_an_ineligible_referred_user(): void
+    {
+        $referrer = $this->makeUser(User::ROLE_DRIVER, '94771110007');
+        $referrer->driver()->create(['status' => 'approved', 'availability' => 1, 'rating' => 5]);
+        $tooEarly = $this->makeQualifyingReferral($referrer, 0, '94772220007');
+
+        $admin = $this->makeUser(User::ROLE_ADMIN, '94770000013');
+        $admin->ensureRole(User::ROLE_ADMIN);
+        RolePermission::create(['role' => User::ROLE_ADMIN, 'permission' => 'manage_promotions']);
+        Sanctum::actingAs($admin, ['role:admin']);
+
+        $this->postJson(
+            "/api/admin/promotions/users/{$referrer->id}/reward-driver",
+            ['amount' => '500.00', 'note' => 'Too early', 'referred_user_id' => $tooEarly->id],
+            ['Idempotency-Key' => 'reward-reject-1'],
+        )->assertStatus(422);
     }
 
     public function test_admin_usage_endpoint_lists_all_users_with_referral_counts_and_paginates(): void

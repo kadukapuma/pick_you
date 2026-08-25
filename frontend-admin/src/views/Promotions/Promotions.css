@@ -21,7 +21,7 @@
 .promotions-action-form { display: grid; gap: 12px; padding: 20px; background: #fff; border: 1px solid #e2e8e5; border-radius: 14px; }
 .promotions-action-form h3 { margin: 0; font-size: 15px; }
 .promotions-action-form label { display: grid; gap: 7px; font-weight: 700; font-size: 13px; }
-.promotions-action-form input, .promotions-action-form textarea { width: 100%; box-sizing: border-box; border: 1px solid #ced8d4; border-radius: 9px; padding: 11px 12px; font: inherit; }
+.promotions-action-form input, .promotions-action-form textarea, .promotions-action-form select { width: 100%; box-sizing: border-box; border: 1px solid #ced8d4; border-radius: 9px; padding: 11px 12px; font: inherit; background: #fff; }
 .promotions-action-form button { border: 0; border-radius: 9px; padding: 12px 18px; background: #087f5b; color: #fff; font-weight: 800; cursor: pointer; }
 .promotions-action-form button:disabled { opacity: .55; cursor: not-allowed; }
 
@@ -33,6 +33,11 @@
 .promotions-rewards article span { color: #087f5b; font-weight: 800; font-size: 12px; }
 .promotions-rewards article p { margin: 6px 0; }
 .promotions-rewards article small, .promotions-empty { color: #79837f; }
+
+.promotions-status { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .03em; }
+.promotions-status--eligible { background: #e6fcf5; color: #087f5b; }
+.promotions-status--rewarded { background: #eef2f0; color: #495a55; }
+.promotions-status--waiting { background: #fff8db; color: #6d5500; }
 
 .promotions-usage { margin-top: 28px; }
 .promotions-usage-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 14px; flex-wrap: wrap; }
