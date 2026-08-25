@@ -31,6 +31,10 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
 
   const [isSubmitted, setIsSubmitted] = useState(false);
 
+  // Vehicle ownership confirmation, tied to the Vehicle Registration document
+  const [isOwner, setIsOwner] = useState(null);
+  const [ownershipLetter, setOwnershipLetter] = useState(null);
+
   // Step 3: Processing & Text States Added
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingText, setProcessingText] = useState("Preparing your documents...");
@@ -56,9 +60,27 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
     }
   };
 
-  const allDocsUploaded = Object.values(uploads).every(
-    (status) => status !== null,
-  );
+  const handleUploadOwnershipLetter = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["image/*", "application/pdf"],
+      });
+
+      if (
+        result.type === "success" ||
+        (result.assets && result.assets.length > 0)
+      ) {
+        setOwnershipLetter(result.assets ? result.assets[0] : result);
+      }
+    } catch (err) {
+      console.log("Upload error:", err);
+    }
+  };
+
+  const allDocsUploaded =
+    Object.values(uploads).every((status) => status !== null) &&
+    isOwner !== null &&
+    (isOwner === true || (isOwner === false && ownershipLetter !== null));
 
   const handleSubmit = async () => {
     if (!allDocsUploaded) return;
@@ -109,6 +131,14 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
           });
         }
       });
+
+      if (isOwner === false && ownershipLetter) {
+        formData.append("ownership_letter", {
+          uri: ownershipLetter.uri,
+          name: ownershipLetter.name || "ownership_letter.jpg",
+          type: ownershipLetter.mimeType || "image/jpeg",
+        });
+      }
 
       // Step 3 (Premium): Updating state right before API validation call
       setProcessingText("Verifying vehicle information...");
@@ -281,6 +311,98 @@ const DocumentVerifyScreen = ({ navigation, onExit, setDriverStatus }) => {
           icon="car-info"
           docKey="registration"
         />
+
+        {uploads.registration && (
+          <View style={styles.ownershipCard}>
+            <Text style={styles.ownershipQuestion}>
+              Are you the owner of this vehicle?
+            </Text>
+
+            <View style={styles.ownershipToggleRow}>
+              <TouchableOpacity
+                style={[
+                  styles.ownershipOption,
+                  isOwner === true && styles.ownershipOptionSelected,
+                ]}
+                onPress={() => setIsOwner(true)}
+              >
+                <Feather
+                  name="check-circle"
+                  size={16}
+                  color={isOwner === true ? "#FFF" : "#64748B"}
+                />
+                <Text
+                  style={[
+                    styles.ownershipOptionText,
+                    isOwner === true && styles.ownershipOptionTextSelected,
+                  ]}
+                >
+                  Yes
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.ownershipOption,
+                  isOwner === false && styles.ownershipOptionSelected,
+                ]}
+                onPress={() => setIsOwner(false)}
+              >
+                <Feather
+                  name="x-circle"
+                  size={16}
+                  color={isOwner === false ? "#FFF" : "#64748B"}
+                />
+                <Text
+                  style={[
+                    styles.ownershipOptionText,
+                    isOwner === false && styles.ownershipOptionTextSelected,
+                  ]}
+                >
+                  No
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {isOwner === false && (
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.ownershipUploadBtn,
+                    ownershipLetter && {
+                      backgroundColor: "rgba(0, 168, 89, 0.1)",
+                      borderColor: BRAND_GREEN,
+                    },
+                  ]}
+                  onPress={handleUploadOwnershipLetter}
+                >
+                  <Feather
+                    name={ownershipLetter ? "check" : "upload"}
+                    size={16}
+                    color={ownershipLetter ? BRAND_GREEN : "#FFF"}
+                  />
+                  <Text
+                    style={[
+                      styles.ownershipUploadBtnText,
+                      ownershipLetter && { color: BRAND_GREEN },
+                    ]}
+                  >
+                    {ownershipLetter ? "Letter Uploaded" : "Upload Ownership Letter"}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.ownershipNoticeBox}>
+                  <Feather name="alert-triangle" size={16} color="#B45309" />
+                  <Text style={styles.ownershipNoticeText}>
+                    You need to send the hardcopy of this letter within 14
+                    days after you get approval.
+                  </Text>
+                </View>
+              </>
+            )}
+          </View>
+        )}
+
         <DocumentCard
           index={3}
           title="Insurance Certificate"
@@ -487,6 +609,76 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     marginLeft: 6,
+  },
+  ownershipCard: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 20,
+    padding: 15,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  ownershipQuestion: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+    marginBottom: 12,
+  },
+  ownershipToggleRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  ownershipOption: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#E2E8F0",
+  },
+  ownershipOptionSelected: {
+    backgroundColor: "#00A859",
+  },
+  ownershipOptionText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  ownershipOptionTextSelected: {
+    color: "#FFF",
+  },
+  ownershipUploadBtn: {
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0F172A",
+    borderRadius: 10,
+    height: 44,
+    marginTop: 12,
+    gap: 8,
+  },
+  ownershipUploadBtnText: {
+    color: "#FFF",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  ownershipNoticeBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: "#FEF3C7",
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+  },
+  ownershipNoticeText: {
+    flex: 1,
+    color: "#92400E",
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
   },
   submitBtn: {
     backgroundColor: "#CBD5E1",

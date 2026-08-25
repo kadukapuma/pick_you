@@ -207,6 +207,7 @@ const onRideRequestedTargeted = (raw) => {
     drop_lat: e.drop_lat,
     drop_lng: e.drop_lng,
     estimated_fare: e.estimated_fare,
+    payment_method: e.payment_method,
     distance_km: e.distance_km,
     passenger_name: e.passenger_name,
     passenger_profile_picture: e.passenger_profile_picture,

@@ -188,7 +188,11 @@ const fetchDrivers = async (token, { page = 1, perPage = 10 } = {}) => {
 
 const fetchDriverDetails = async (token, driverId) => {
   const payload = await apiFetch(`/drivers/${driverId}`, { token })
-  return { driver: mapDriver(payload.data), documents: {} }
+  const vehicleImages = payload.data?.vehicles?.[0]?.images
+  const documents = vehicleImages?.ownership_letter_path
+    ? { ownership_letter: { url: vehicleImages.ownership_letter_path } }
+    : {}
+  return { driver: mapDriver(payload.data), documents }
 }
 
 const fetchVehicles = async (token, driverId, { page = 1, perPage = 10 } = {}) => {

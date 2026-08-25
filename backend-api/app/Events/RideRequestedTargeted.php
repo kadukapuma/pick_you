@@ -35,6 +35,8 @@ class RideRequestedTargeted implements ShouldBroadcastNow
 
     public float $estimated_fare;
 
+    public string $payment_method;
+
     public string $passenger_name;
 
     public ?string $passenger_profile_picture;
@@ -58,6 +60,7 @@ class RideRequestedTargeted implements ShouldBroadcastNow
         $this->drop_lng = $ride->drop_longitude;
         $this->distance_km = (float) $ride->distance_km;
         $this->estimated_fare = (float) $ride->estimated_fare;
+        $this->payment_method = (string) $ride->payment_method;
 
         $passengerUser = optional($ride->passenger)->user;
         $this->passenger_name = trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? ''));

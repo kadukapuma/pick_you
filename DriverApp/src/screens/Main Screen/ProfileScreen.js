@@ -353,6 +353,21 @@ const ProfileScreen = ({ navigation, setIsLoggedIn }) => {
                 </View>
               </View>
 
+              {/* {user.ownershipLetterUrl && (
+                <View style={styles.ownershipHintCard}>
+                  <View style={styles.ownershipHintIconWrap}>
+                    <Feather name="alert-triangle" size={16} color="#B45309" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.ownershipHintFormat}>Ownership Letter Pending</Text>
+                    <Text style={styles.ownershipHintText}>
+                      Please submit the hardcopy of your ownership letter within
+                      14 days after you get approval.
+                    </Text>
+                  </View>
+                </View>
+              )} */}
+
               <Text style={styles.sectionTitle}>Preferences</Text>
               <View style={styles.menuGroup}>
                 <MenuItem
@@ -537,6 +552,38 @@ const styles = StyleSheet.create({
   bankHintText: {
     fontSize: 12,
     color: "#4D7C63",
+    lineHeight: 17,
+  },
+
+  ownershipHintCard: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "#FFFBEB",
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 12,
+    gap: 10,
+    borderWidth: 1,
+    borderColor: "#FEF3C7",
+  },
+  ownershipHintIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#FEF3C7",
+    justifyContent: "center",
+    alignItems: "center",
+    marginTop: 1,
+  },
+  ownershipHintFormat: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#92400E",
+    marginBottom: 2,
+  },
+  ownershipHintText: {
+    fontSize: 12,
+    color: "#92400E",
     lineHeight: 17,
   },
 
