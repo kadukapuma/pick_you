@@ -272,7 +272,11 @@ export default function SearchingScreen() {
 
   const rideStatus = String(rideData?.status || "REQUESTED").toUpperCase();
   const paymentStatus = String(rideData?.payment?.payment_status || "").toUpperCase();
-  const isAccepted = ["ACCEPTED", "ARRIVED", "STARTED"].includes(rideStatus);
+  // WAITING/RETURNING are return-trip-only phases after STARTED - driver has
+  // marked arrival at the destination, then either starts the return leg or
+  // the ride is completed there (see return_trip_feature.md Part D).
+  const isAccepted = ["ACCEPTED", "ARRIVED", "STARTED", "WAITING", "RETURNING"].includes(rideStatus);
+  const isOnTrip = ["STARTED", "WAITING", "RETURNING"].includes(rideStatus);
   const isCancelled = ["CANCELLED", "CANCELED"].includes(rideStatus);
   const isTerminal = rideStatus === "COMPLETED" || paymentStatus === "COMPLETED";
   const captureTripStart = useCallback(
@@ -308,8 +312,8 @@ export default function SearchingScreen() {
   }, [captureTripStart, rideId, rideStatus]);
 
   useEffect(() => {
-    if (rideStatus === "STARTED") setFollowAcceptedVehicle(true);
-  }, [rideStatus]);
+    if (isOnTrip) setFollowAcceptedVehicle(true);
+  }, [isOnTrip]);
 
   useEffect(() => {
     let cancelled = false;
@@ -523,7 +527,7 @@ export default function SearchingScreen() {
   };
 
   const handleCancel = async () => {
-    if (!rideId || rideStatus === "STARTED") return;
+    if (!rideId || isOnTrip) return;
     router.push({
       pathname: "/ride-booking/cancel-reason",
       params: { rideId: String(rideId) },
@@ -600,12 +604,17 @@ export default function SearchingScreen() {
     () => getRideDropoffCoordinate(rideData) || outboundTrip.dropoff || null,
     [outboundTrip.dropoff, rideData],
   );
-  // Round trip: the passenger's next stop while STARTED is the destination
-  // (B), not the final drop (which is the pickup point itself for a return
-  // trip) - falls back to dropoffCoord/outboundTrip.dropoff for a one-way ride.
+  // Round trip: the passenger's next stop is the destination (B) while
+  // driving out or parked there, then the pickup point once the driver
+  // starts the return leg - never the final drop, which is the pickup point
+  // itself for a return trip. Falls back to dropoffCoord for a one-way ride.
   const isReturn = isReturnTrip(rideData);
+  const isReturningLeg = isReturn && rideStatus === "RETURNING";
+  const isAtDestination = isReturn && rideStatus === "WAITING";
   const headingCoord = isReturn
-    ? getRideDestinationCoordinate(rideData) || outboundTrip.dropoff || null
+    ? isReturningLeg
+      ? pickupCoord
+      : getRideDestinationCoordinate(rideData) || outboundTrip.dropoff || null
     : dropoffCoord;
   const acceptedVehicleLocation = useMemo(() => {
     if (
@@ -650,9 +659,11 @@ export default function SearchingScreen() {
     outboundTrip.dropoff?.address ||
     "Destination";
   const headingAddress = isReturn
-    ? getRideDestinationAddress(rideData) ||
-      outboundTrip.dropoff?.address ||
-      "Destination"
+    ? isReturningLeg
+      ? pickupAddress
+      : getRideDestinationAddress(rideData) ||
+        outboundTrip.dropoff?.address ||
+        "Destination"
     : dropoffAddress;
   const handleRouteInfoChange = useCallback(
     (route: DirectionsResult | null) => setActiveRouteInfo(route),
@@ -664,9 +675,13 @@ export default function SearchingScreen() {
   const statusLabel =
     rideStatus === "ARRIVED"
       ? "Driver arrived"
-      : rideStatus === "STARTED"
-        ? "Trip started"
-        : "Driver on the way";
+      : rideStatus === "WAITING"
+        ? "Arrived at destination"
+        : rideStatus === "RETURNING"
+          ? "Returning to pickup"
+          : rideStatus === "STARTED"
+            ? "Trip started"
+            : "Driver on the way";
 
   return (
     <View style={styles.container}>
@@ -682,7 +697,7 @@ export default function SearchingScreen() {
           <RideMap
             style={styles.map}
             location={pickupCoord}
-            destination={rideStatus === "STARTED" ? headingCoord : null}
+            destination={isOnTrip && !isAtDestination ? headingCoord : null}
             driverLocation={acceptedVehicleLocation}
             nearbyVehicles={acceptedDriverVehicle}
             rideStatus={rideStatus}
@@ -690,7 +705,7 @@ export default function SearchingScreen() {
             followPitch={45}
             onFollowStateChange={setFollowAcceptedVehicle}
             showFocusControls
-            focusControlsTop={rideStatus === "STARTED" ? 166 : 150}
+            focusControlsTop={isOnTrip ? 166 : 150}
             showDriverMarker={false}
             vehicleImage={getVehicleMapIcon(
               rideData?.vehicle?.vehicle_type ||
@@ -700,12 +715,12 @@ export default function SearchingScreen() {
                 rideData?.vehicle_type,
             )}
             tripStartCoordinate={tripStartCoordinate}
-            includePickupInFocus={rideStatus !== "STARTED"}
+            includePickupInFocus={!isOnTrip}
             onRouteInfoChange={handleRouteInfoChange}
             fitEdgePadding={
               isMapFocused
                 ? { top: 110, right: 55, bottom: 130, left: 55 }
-                : rideStatus === "STARTED"
+                : isOnTrip
                   ? { top: 170, right: 55, bottom: 225, left: 55 }
                   : { top: 120, right: 65, bottom: 330, left: 65 }
             }
@@ -917,7 +932,7 @@ export default function SearchingScreen() {
       )}
 
       {/* Driver accepted / on the way sheet */}
-      {isAccepted && rideStatus !== "STARTED" && (
+      {isAccepted && !isOnTrip && (
         <DriverOnTheWaySheet
           rideData={rideData}
           statusLabel={statusLabel}
@@ -951,7 +966,7 @@ export default function SearchingScreen() {
           onShowDetails={() => setIsMapFocused(false)}
         />
       )}
-      {rideStatus === "STARTED" && (
+      {isOnTrip && (
         <OnTripSheet
           destination={headingAddress}
           durationText={activeRouteInfo?.durationText}

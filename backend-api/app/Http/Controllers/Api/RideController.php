@@ -215,6 +215,8 @@ class RideController extends Controller
         $dropLat = $isReturn ? $pickupLat : (float) $request->drop_lat;
         $dropAddress = $isReturn ? $request->pickup_address : $request->drop_address;
 
+        $outboundEstimate = null;
+
         try {
             if ($isReturn) {
                 $destinationLat = (float) $request->destination_lat;
@@ -226,6 +228,20 @@ class RideController extends Controller
 
                 $totalDistanceMeters = (float) $route['distance'] + (float) $returnRoute['distance'];
                 $totalDurationSeconds = (float) $route['duration'] + (float) $returnRoute['duration'];
+
+                // One-way estimate, kept as the fare floor for a ride that ends at
+                // the destination instead of completing the return leg - see
+                // arriveDestination()/completeRide() and
+                // FareCalculationService::completionBreakdown().
+                $outboundEstimate = $this->fares->estimate(
+                    $fareConfig,
+                    ((float) $route['distance']) / 1000,
+                    ((float) $route['duration']) / 60,
+                    $pickupLat,
+                    $pickupLng,
+                    $destinationLat,
+                    $destinationLng,
+                );
             } else {
                 $route = $this->maps->route($pickupLat, $pickupLng, $dropLat, $dropLng);
 
@@ -247,8 +263,12 @@ class RideController extends Controller
         );
 
         $estimatedFare = (string) $fareEstimate['estimated_fare'];
+        $outboundFare = $outboundEstimate ? (string) $outboundEstimate['estimated_fare'] : null;
         if ($passenger->isVerifiedStudent()) {
             $estimatedFare = $this->commission->studentAdjustedFare($estimatedFare, $fareConfig);
+            if ($outboundFare !== null) {
+                $outboundFare = $this->commission->studentAdjustedFare($outboundFare, $fareConfig);
+            }
         }
 
         $ride = Ride::create([
@@ -265,6 +285,9 @@ class RideController extends Controller
             'destination_address' => $isReturn ? $request->destination_address : null,
             'destination_point' => $isReturn ? DB::raw("point($destinationLng, $destinationLat)") : null,
             'destination_geog' => $isReturn ? DB::raw("ST_SetSRID(ST_MakePoint($destinationLng, $destinationLat), 4326)::geography") : null,
+            'outbound_distance_km' => $outboundEstimate['distance_km'] ?? null,
+            'outbound_duration_minutes' => $outboundEstimate['duration_minutes'] ?? null,
+            'outbound_fare' => $outboundFare,
             'distance_km' => $fareEstimate['distance_km'],
             'estimated_distance_km' => $fareEstimate['distance_km'],
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
@@ -370,6 +393,8 @@ class RideController extends Controller
         $dropLat = $isReturn ? $pickupLat : (float) $request->drop_lat;
         $dropLng = $isReturn ? $pickupLng : (float) $request->drop_lng;
 
+        $outboundEstimate = null;
+
         try {
             if ($isReturn) {
                 $destinationLat = (float) $request->destination_lat;
@@ -380,6 +405,16 @@ class RideController extends Controller
 
                 $totalDistanceMeters = (float) $route['distance'] + (float) $returnRoute['distance'];
                 $totalDurationSeconds = (float) $route['duration'] + (float) $returnRoute['duration'];
+
+                $outboundEstimate = $this->fares->estimate(
+                    $fareConfig,
+                    ((float) $route['distance']) / 1000,
+                    ((float) $route['duration']) / 60,
+                    $pickupLat,
+                    $pickupLng,
+                    $destinationLat,
+                    $destinationLng,
+                );
             } else {
                 $route = $this->maps->route($pickupLat, $pickupLng, $dropLat, $dropLng);
                 $returnRoute = null;
@@ -402,8 +437,12 @@ class RideController extends Controller
         );
 
         $estimatedFare = (string) $fareEstimate['estimated_fare'];
+        $outboundFare = $outboundEstimate ? (string) $outboundEstimate['estimated_fare'] : null;
         if ($request->user()->passenger?->isVerifiedStudent()) {
             $estimatedFare = $this->commission->studentAdjustedFare($estimatedFare, $fareConfig);
+            if ($outboundFare !== null) {
+                $outboundFare = $this->commission->studentAdjustedFare($outboundFare, $fareConfig);
+            }
         }
 
         return $this->success([
@@ -417,6 +456,11 @@ class RideController extends Controller
             'estimated_duration_minutes' => $fareEstimate['duration_minutes'],
             'estimated_fare' => $estimatedFare,
             'fare_breakdown' => $fareEstimate['breakdown'],
+            // What the fare would be if the ride ends at the destination
+            // instead of completing the return leg (see completeRide()).
+            'outbound_distance_km' => $outboundEstimate['distance_km'] ?? null,
+            'outbound_duration_minutes' => $outboundEstimate['duration_minutes'] ?? null,
+            'outbound_fare' => $outboundFare,
         ], 'Ride estimate calculated successfully');
     }
 
@@ -586,6 +630,107 @@ class RideController extends Controller
     }
 
     /**
+     * Return trip only: driver marks arrival at the destination, before
+     * either starting the return leg or the ride being completed there.
+     */
+    public function arriveDestination(Request $request, $id)
+    {
+        $ride = Ride::find($id);
+
+        if (! $ride) {
+            return $this->error('Ride not found', 404);
+        }
+
+        $driver = $request->user()->driver;
+
+        if (! $driver || $ride->driver_id !== $driver->id) {
+            return $this->error('You are not authorized to update this ride', 403);
+        }
+
+        if ($ride->trip_type !== 'return') {
+            return $this->error('Only return trips have a destination arrival step', 400);
+        }
+
+        if ($ride->status === 'WAITING') {
+            return $this->success($ride, 'Already marked arrived at the destination');
+        }
+
+        if ($ride->status !== 'STARTED') {
+            return $this->error('Ride must be in progress to mark arrival at the destination', 400);
+        }
+
+        try {
+            $ride = $this->rideTransition->transition(
+                $ride->id,
+                RideStateMachine::WAITING,
+                'Driver arrived at the destination.',
+            );
+        } catch (DomainException) {
+            return $this->error('Cannot mark arrival at the destination', 409);
+        }
+
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
+        event(new RideStatusUpdated($ride));
+
+        $this->notifications->notify(
+            $ride->passenger->user,
+            'Arrived at Destination',
+            'Your driver has arrived at the destination.',
+            ['ride_id' => $ride->id, 'status' => $ride->status],
+        );
+
+        return $this->success($ride, 'Marked arrived at the destination');
+    }
+
+    /**
+     * Return trip only: driver starts the return leg back to the pickup point.
+     */
+    public function startReturn(Request $request, $id)
+    {
+        $ride = Ride::find($id);
+
+        if (! $ride) {
+            return $this->error('Ride not found', 404);
+        }
+
+        $driver = $request->user()->driver;
+
+        if (! $driver || $ride->driver_id !== $driver->id) {
+            return $this->error('You are not authorized to update this ride', 403);
+        }
+
+        if ($ride->status === 'RETURNING') {
+            return $this->success($ride, 'Return leg already started');
+        }
+
+        if ($ride->status !== 'WAITING') {
+            return $this->error('Driver must mark arrival at the destination before starting the return leg', 400);
+        }
+
+        try {
+            $ride = $this->rideTransition->transition(
+                $ride->id,
+                RideStateMachine::RETURNING,
+                'Driver started the return leg.',
+            );
+        } catch (DomainException) {
+            return $this->error('Cannot start the return leg', 409);
+        }
+
+        $ride->load(['passenger.user', 'driver.user', 'vehicle', 'fareConfig', 'payment']);
+        event(new RideStatusUpdated($ride));
+
+        $this->notifications->notify(
+            $ride->passenger->user,
+            'Return Trip Started',
+            'Your driver is now heading back to the pickup point.',
+            ['ride_id' => $ride->id, 'status' => $ride->status],
+        );
+
+        return $this->success($ride, 'Return leg started');
+    }
+
+    /**
      * Driver rejects the ride
      */
     public function rejectRide(Request $request, $id)
@@ -610,7 +755,11 @@ class RideController extends Controller
     {
         $ride = Ride::find($id);
 
-        if (! $ride || $ride->status !== 'STARTED') {
+        // A return trip can complete from WAITING (ends at the destination
+        // without the return leg - billed only for the outbound distance, see
+        // FareCalculationService::completionBreakdown()) or RETURNING (full
+        // round trip). A one-way ride only ever completes from STARTED.
+        if (! $ride || ! in_array($ride->status, ['STARTED', 'WAITING', 'RETURNING'], true)) {
             return $this->error('Ride cannot be completed', 400);
         }
 

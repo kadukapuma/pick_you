@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -27,8 +27,10 @@ import { useGoogleRoute } from "../../hooks/useGoogleRoute";
 import api from "../../services/api";
 import { clearActiveRideLocationSync } from "../../services/driverLocationSync";
 import {
+    getDestinationCoordinate,
     getDropCoordinate,
     getPickupCoordinate,
+    isReturnTrip,
 } from "../../utils/rideLocation";
 import { getVehicleMapIcon } from "../../utils/vehicleMapIcons";
 import GoogleRideMap from "../../components/map/GoogleRideMap";
@@ -86,7 +88,20 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
   const customerPhone = ride?.customerPhone;
-  const destinationLabel = ride?.drop || "Destination";
+  const isReturn = isReturnTrip(ride);
+
+  // Return trip lifecycle, driven by the backend (not GPS proximity) - the
+  // driver explicitly marks arrival at the destination, then either starts
+  // the return leg or the passenger ends the ride there. See
+  // return_trip_feature.md and RideStateMachine.php (WAITING/RETURNING).
+  const [rideStatus, setRideStatus] = useState(ride?.status || "STARTED");
+  const phase = !isReturn
+    ? "oneway"
+    : rideStatus === "WAITING"
+      ? "at_destination"
+      : rideStatus === "RETURNING"
+        ? "returning"
+        : "to_destination";
 
   const handleCallCustomer = useCallback(() => {
     if (!customerPhone) {
@@ -101,11 +116,17 @@ const TripInProgressScreen = ({ navigation, route }) => {
   const summaryFare = Number(ride?.final_fare || ride?.estimated_fare || 0);
   const dropLat = ride?.dropLat;
   const dropLng = ride?.dropLng;
+  const destinationLat = ride?.destinationLat;
+  const destinationLng = ride?.destinationLng;
   const pickupLat = ride?.pickupLat;
   const pickupLng = ride?.pickupLng;
   const dropCoord = useMemo(
     () => getDropCoordinate({ dropLat, dropLng }),
     [dropLat, dropLng],
+  );
+  const destinationCoord = useMemo(
+    () => getDestinationCoordinate({ destinationLat, destinationLng }),
+    [destinationLat, destinationLng],
   );
   const pickupCoord = useMemo(
     () => getPickupCoordinate({ pickupLat, pickupLng }),
@@ -113,7 +134,27 @@ const TripInProgressScreen = ({ navigation, route }) => {
   );
   const { location: driverCoord } = useDriverLocation();
   const cameraRef = useRef(null);
-  const hasRouteOrigin = Boolean(driverCoord || pickupCoord);
+  // No active navigation while parked at the destination - there's nowhere
+  // to route to until the driver starts the return leg.
+  const hasRouteOrigin = phase !== "at_destination" && Boolean(driverCoord || pickupCoord);
+
+  // Where the driver is actually headed right now, and what to call it.
+  // - to_destination: driving to the return-trip destination
+  // - at_destination: parked, waiting for "Start Return" or an early end
+  // - returning: driving back to the pickup point
+  // - oneway: the normal one-way drop
+  const navTargetCoord =
+    phase === "to_destination" || phase === "at_destination"
+      ? destinationCoord
+      : phase === "returning"
+        ? pickupCoord
+        : dropCoord;
+  const destinationLabel =
+    phase === "to_destination" || phase === "at_destination"
+      ? ride?.destination || "Destination"
+      : phase === "returning"
+        ? "Pickup (return)"
+        : ride?.drop || "Destination";
 
   const minimizeToHome = useCallback(() => {
     navigation.navigate("MainTabs");
@@ -136,8 +177,8 @@ const TripInProgressScreen = ({ navigation, route }) => {
     [driverCoord, pickupCoord],
   );
   const destination = useMemo(
-    () => dropCoord ?? origin,
-    [dropCoord, origin],
+    () => navTargetCoord ?? origin,
+    [navTargetCoord, origin],
   );
   const { directions } = useGoogleRoute(origin, destination, {
     enabled: hasRouteOrigin,
@@ -160,19 +201,21 @@ const TripInProgressScreen = ({ navigation, route }) => {
     directions?.distanceText ||
     "Updating";
   const maneuverInstruction =
-    currentStep?.instruction ||
-    (directions?.distanceText
-      ? `Continue to ${destinationLabel}`
-      : "Calculating route to destination");
+    phase === "at_destination"
+      ? "Waiting to start the return leg"
+      : currentStep?.instruction ||
+        (directions?.distanceText
+          ? `Continue to ${destinationLabel}`
+          : "Calculating route to destination");
 
   const routeCoordinates = useMemo(
     () =>
       directions?.polyline?.length > 0
         ? directions.polyline
-        : dropCoord
-          ? [origin, dropCoord]
+        : navTargetCoord
+          ? [origin, navTargetCoord]
           : [origin],
-    [directions?.polyline, dropCoord, origin],
+    [directions?.polyline, navTargetCoord, origin],
   );
   const mapPadding = useMemo(
     () => ({ top: 160, right: 50, bottom: 220, left: 50 }),
@@ -181,9 +224,9 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
   // --- SLIDER MECHANICS & ANIMATIONS ---
   const slideX = useRef(new Animated.Value(0)).current;
-  const [isCompleting, setIsCompleting] = useState(false);
+  const [isActionRunning, setIsActionRunning] = useState(false);
   const completedRef = useRef(false);
-  const completingRef = useRef(false);
+  const actionInFlightRef = useRef(false);
   const [followVehicle, setFollowVehicle] = useState(true);
 
   const handleRecenter = useCallback(() => {
@@ -202,11 +245,21 @@ const TripInProgressScreen = ({ navigation, route }) => {
     extrapolate: "clamp",
   });
 
-  const handleCompleteTrip = async () => {
-    if (!ride?.id || completingRef.current) return;
+  const resetSlider = useCallback(() => {
+    completedRef.current = false;
+    Animated.spring(slideX, {
+      toValue: 0,
+      useNativeDriver: false,
+      tension: 40,
+      friction: 7,
+    }).start();
+  }, [slideX]);
 
-    completingRef.current = true;
-    setIsCompleting(true);
+  const handleCompleteTrip = useCallback(async () => {
+    if (!ride?.id || actionInFlightRef.current) return;
+
+    actionInFlightRef.current = true;
+    setIsActionRunning(true);
     try {
       const response = await api.post(`/rides/${ride.id}/complete`);
       const completedRide = response.data?.data ?? response.data ?? ride;
@@ -226,13 +279,84 @@ const TripInProgressScreen = ({ navigation, route }) => {
         error.response?.data?.message ||
           "Failed to complete ride. Please try again.",
       );
-      completedRef.current = false;
-      slideX.setValue(0);
+      resetSlider();
     } finally {
-      completingRef.current = false;
-      setIsCompleting(false);
+      actionInFlightRef.current = false;
+      setIsActionRunning(false);
     }
-  };
+  }, [navigation, resetSlider, ride]);
+
+  const handleEndAtDestination = useCallback(() => {
+    if (!ride?.id || actionInFlightRef.current) return;
+
+    Alert.alert(
+      "End ride here?",
+      "The passenger will be charged only for the distance to this point — not the return leg. Confirm the passenger has agreed to end the trip here.",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "End Ride Here", style: "destructive", onPress: handleCompleteTrip },
+      ],
+    );
+  }, [handleCompleteTrip, ride?.id]);
+
+  const handleArriveDestination = useCallback(async () => {
+    if (!ride?.id || actionInFlightRef.current) return;
+
+    actionInFlightRef.current = true;
+    setIsActionRunning(true);
+    try {
+      const response = await api.post(`/rides/${ride.id}/arrive-destination`);
+      const updated = response.data?.data ?? response.data;
+      setRideStatus(updated?.status || "WAITING");
+      resetSlider();
+    } catch (error) {
+      console.log("Error marking arrival at destination:", error.response?.data || error);
+      alert(
+        error.response?.data?.message ||
+          "Could not mark arrival at the destination. Please try again.",
+      );
+      resetSlider();
+    } finally {
+      actionInFlightRef.current = false;
+      setIsActionRunning(false);
+    }
+  }, [resetSlider, ride?.id]);
+
+  const handleStartReturn = useCallback(async () => {
+    if (!ride?.id || actionInFlightRef.current) return;
+
+    actionInFlightRef.current = true;
+    setIsActionRunning(true);
+    try {
+      const response = await api.post(`/rides/${ride.id}/start-return`);
+      const updated = response.data?.data ?? response.data;
+      setRideStatus(updated?.status || "RETURNING");
+    } catch (error) {
+      console.log("Error starting return leg:", error.response?.data || error);
+      alert(
+        error.response?.data?.message ||
+          "Could not start the return leg. Please try again.",
+      );
+    } finally {
+      actionInFlightRef.current = false;
+      setIsActionRunning(false);
+    }
+  }, [ride?.id]);
+
+  // The slider always drives the single "forward" action for the current
+  // phase - mark arrived at the destination, or complete the trip. Starting
+  // the return leg and ending early at the destination are separate buttons
+  // shown only in the at_destination phase (see the render below).
+  const handleSliderAction = phase === "to_destination" ? handleArriveDestination : handleCompleteTrip;
+
+  // panResponder below is created once (useRef) but the action it should
+  // trigger changes across phases - route through a ref so its closure
+  // always calls the current handler without recreating the gesture
+  // responder.
+  const handleSliderActionRef = useRef(handleSliderAction);
+  useEffect(() => {
+    handleSliderActionRef.current = handleSliderAction;
+  }, [handleSliderAction]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -240,7 +364,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       onMoveShouldSetPanResponder: () => true,
 
       onPanResponderMove: (_, gestureState) => {
-        if (completedRef.current || completingRef.current) return;
+        if (completedRef.current || actionInFlightRef.current) return;
 
         let dx = gestureState.dx;
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10; // offset account for inner padding boundaries
@@ -252,7 +376,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       },
 
       onPanResponderRelease: (_, gestureState) => {
-        if (completedRef.current || completingRef.current) return;
+        if (completedRef.current || actionInFlightRef.current) return;
 
         const maxSlide = SLIDER_WIDTH - THUMB_SIZE - 10;
         const reachedEnd = gestureState.dx > SLIDER_WIDTH * 0.7;
@@ -269,7 +393,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
               Haptics.NotificationFeedbackType.Success,
             );
 
-            handleCompleteTrip();
+            handleSliderActionRef.current();
           });
         } else {
           Animated.spring(slideX, {
@@ -315,7 +439,13 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
         <View style={styles.floatingTripStateBadge}>
           <View style={styles.pulseDot} />
-          <Text style={styles.floatingBadgeText}>ON TRIP</Text>
+          <Text style={styles.floatingBadgeText}>
+            {phase === "at_destination"
+              ? "AT DESTINATION"
+              : phase === "returning"
+                ? "RETURNING TO PICKUP"
+                : "ON TRIP"}
+          </Text>
         </View>
       </SafeAreaView>
 
@@ -396,32 +526,67 @@ const TripInProgressScreen = ({ navigation, route }) => {
 
         <View style={styles.sheetDivider} />
 
-        {/* SWIPABLE INTERACTION TRACK ELEMENT */}
-        <View style={styles.sliderContainer}>
-          <View style={styles.sliderTrack}>
-            <Text style={styles.sliderText}>Slide to Arrive or Complete</Text>
-
-            {/* Glowing inner colored progress layout fill */}
-            <Animated.View
-              style={[styles.sliderGlowFill, { width: progressWidth }]}
-            />
-
-            {/* Interactive Thumb Trigger Element */}
-            <Animated.View
-              style={[
-                styles.sliderThumb,
-                { transform: [{ translateX: slideX }] },
-              ]}
-              {...panResponder.panHandlers}
+        {phase === "at_destination" ? (
+          /* AT DESTINATION: start the return leg, or the passenger ends
+             the trip here instead - billed only for the outbound distance. */
+          <View style={styles.atDestinationActions}>
+            <TouchableOpacity
+              style={[styles.startReturnBtn, isActionRunning && styles.disabledBtn]}
+              onPress={handleStartReturn}
+              disabled={isActionRunning}
+              activeOpacity={0.85}
             >
-              {isCompleting ? (
-                <ActivityIndicator size="small" color="#00A859" />
+              {isActionRunning ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
-                <Feather name="chevrons-right" size={22} color="#00A859" />
+                <>
+                  <Feather name="corner-up-left" size={18} color="#FFFFFF" style={{ marginRight: 8 }} />
+                  <Text style={styles.startReturnBtnText}>Start Return Trip</Text>
+                </>
               )}
-            </Animated.View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.endHereBtn}
+              onPress={handleEndAtDestination}
+              disabled={isActionRunning}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.endHereBtnText}>Passenger ending trip here</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        ) : (
+          /* SWIPABLE INTERACTION TRACK ELEMENT */
+          <View style={styles.sliderContainer}>
+            <View style={styles.sliderTrack}>
+              <Text style={styles.sliderText}>
+                {phase === "to_destination"
+                  ? "Slide when Arrived at Destination"
+                  : "Slide to Complete Trip"}
+              </Text>
+
+              {/* Glowing inner colored progress layout fill */}
+              <Animated.View
+                style={[styles.sliderGlowFill, { width: progressWidth }]}
+              />
+
+              {/* Interactive Thumb Trigger Element */}
+              <Animated.View
+                style={[
+                  styles.sliderThumb,
+                  { transform: [{ translateX: slideX }] },
+                ]}
+                {...panResponder.panHandlers}
+              >
+                {isActionRunning ? (
+                  <ActivityIndicator size="small" color="#00A859" />
+                ) : (
+                  <Feather name="chevrons-right" size={22} color="#00A859" />
+                )}
+              </Animated.View>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Pure black backdrop alignment plate to isolate dynamic software notch fields */}
@@ -726,6 +891,42 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 10,
     elevation: 6,
+  },
+  atDestinationActions: {
+    paddingTop: 4,
+    paddingBottom: 8,
+    gap: 10,
+  },
+  startReturnBtn: {
+    flexDirection: "row",
+    backgroundColor: "#00A859",
+    height: 56,
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#00A859",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  disabledBtn: {
+    opacity: 0.55,
+  },
+  startReturnBtnText: {
+    color: "#FFFFFF",
+    fontWeight: "800",
+    fontSize: 15,
+  },
+  endHereBtn: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  endHereBtnText: {
+    color: "#94A3B8",
+    fontWeight: "600",
+    fontSize: 13,
+    textDecorationLine: "underline",
   },
   safeAreaBottomFillBlack: {
     position: "absolute",

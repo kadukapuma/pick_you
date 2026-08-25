@@ -5,12 +5,17 @@ Maps routing, Redis, and queues — the machinery a Return Trip feature must bui
 (2) the full design for the feature itself.
 
 > [!NOTE]
-> **Status: implemented** per Part C. Backend (migration, `Ride` model, `RideController`,
-> `RideRequestedTargeted` broadcast), PassengerApp (booking flow, `select-vehicle.tsx`,
-> `confirm.tsx`, `matching.tsx`, `ReturnTripLocationPicker.tsx`), and DriverApp
-> (`IncomingRideModel.js`, `RideDetailsScreen.js`, `rideLocation.js`) are all wired up.
+> **Status: implemented**, including the follow-up lifecycle described in **Part D** —
+> explicit "arrived at destination" / "start return leg" driver actions, and an early-end
+> at the destination billed only for the outbound distance. Part B below (WAITING/RETURNING
+> removed for simplicity) is **superseded by Part D**; kept for history. Backend (migration,
+> `Ride` model, `RideController`, `RideStateMachine`, `RideTransitionService`,
+> `FareCalculationService`, `RideLocationPointProcessor`, `RideRequestedTargeted` broadcast),
+> PassengerApp (booking flow, `select-vehicle.tsx`, `confirm.tsx`, `matching.tsx`,
+> `ReturnTripLocationPicker.tsx`), and DriverApp (`IncomingRideModel.js`,
+> `RideDetailsScreen.js`, `TripInProgressScreen.js`, `rideLocation.js`) are all wired up.
 > PHP lint, PassengerApp `tsc --noEmit`, and DriverApp `eslint` all pass clean. **Not yet
-> done:** running the new migration against a real database (left for the user to run —
+> done:** running the new migrations against a real database (left for the user to run —
 > touches persisted schema), and a live end-to-end run of both mobile apps against a live
 > backend with real Google Maps/Redis/Reverb.
 
@@ -498,3 +503,91 @@ already never persisted on the ride row (A.2).
    `return-location.tsx`/`select-return-vehicle.tsx` and lands on the normal vehicle-selection
    and matching screens.
 7. DriverApp: confirm the destination shows on the incoming-offer card before accepting.
+
+---
+
+## Part D — Explicit destination-arrival lifecycle (supersedes Part B's simplification)
+
+Built in response to direct feedback: the driver must **explicitly mark arrival** at the
+return-trip destination (not just keep driving), then either start the return leg or — if the
+passenger wants to end the trip there — complete the ride on the spot, **billed only for the
+outbound distance actually travelled**, not the round-trip estimate. This reintroduces the
+`WAITING`/`RETURNING` states from the original draft of this document, minus the wait-fee/timer
+machinery that draft also had (not asked for here).
+
+### D.1 State machine (current)
+
+```mermaid
+stateDiagram-v2
+    [*] --> REQUESTED
+    REQUESTED --> ACCEPTED
+    ACCEPTED --> ARRIVED
+    ARRIVED --> STARTED
+    REQUESTED --> CANCELLED
+    ACCEPTED --> CANCELLED
+    ARRIVED --> CANCELLED
+
+    STARTED --> COMPLETED: oneway, or return trip ending before the destination
+    STARTED --> WAITING: return trip only — driver marks arrival at the destination
+    WAITING --> RETURNING: driver starts the return leg
+    WAITING --> COMPLETED: early end at the destination — outbound-only fare
+    RETURNING --> COMPLETED: back at pickup — full round-trip fare
+```
+
+### D.2 Schema — `rides` (new migration, additive to Part B's columns)
+
+```php
+$table->decimal('outbound_distance_km', 10, 2)->nullable();     // pickup -> destination only
+$table->decimal('outbound_duration_minutes', 10, 2)->nullable();
+$table->decimal('outbound_fare', 10, 2)->nullable();             // one-way estimate, stored at booking
+$table->timestamp('destination_arrived_at')->nullable();
+$table->timestamp('return_started_at')->nullable();
+```
+
+`outbound_*` are computed at booking time in `RideController::store()`/`estimate()` from the
+first (pickup→destination) `GoogleMapsService::route()` call — the same one already made to
+build the round-trip total, just also fed through `FareCalculationService::estimate()` on its
+own before being summed with the return leg.
+
+### D.3 The fare rule
+
+**`return_started_at === null` is the signal** that a return trip ended without ever starting
+the return leg — checked in `FareCalculationService::completionBreakdown()` and (for the live
+"if it ended right now" figure) `RideLocationPointProcessor::incrementRideDistance()`:
+
+```php
+$isPartialReturn = $ride->trip_type === 'return' && $ride->return_started_at === null;
+$estimatedFare = $isPartialReturn
+    ? (float) ($ride->outbound_fare ?? $ride->estimated_fare)   // floor: one-way estimate
+    : (float) $ride->estimated_fare;                             // floor: round-trip estimate
+```
+
+Nothing else changes — `actualDistanceKm()` already only sees GPS points between `started_at`
+and `completed_at`, which for a partial return is naturally just the outbound leg (no separate
+"reject points during WAITING" logic was even needed here beyond the housekeeping in D.4).
+
+### D.4 GPS point acceptance
+
+`RideLocationPointProcessor::validateRideLifecycle()` now treats `STARTED` and `RETURNING` as
+the driving phases (points accepted, distance accumulated) and `WAITING` as parked (points
+recorded but rejected with reason `trip_paused_at_destination`, not folded into distance) —
+so a passenger who lingers at the destination before deciding isn't billed for GPS noise while
+the vehicle is stationary.
+
+### D.5 New endpoints
+
+```
+POST /rides/{id}/arrive-destination   → STARTED -> WAITING     (return trips only; driver)
+POST /rides/{id}/start-return         → WAITING -> RETURNING   (driver)
+POST /rides/{id}/complete             (existing endpoint, now also valid from WAITING and RETURNING)
+```
+
+### D.6 DriverApp — `TripInProgressScreen.js`
+
+Tracks `rideStatus` locally (updated from each action's response, not GPS-guessed) and derives
+a `phase`: `to_destination` / `at_destination` / `returning` / `oneway`. The nav target, ETA
+banner, and slider label all key off `phase`. At `at_destination` the slider is replaced with
+two explicit actions: **"Start Return Trip"** (primary button) and **"Passenger ending trip
+here"** (smaller, behind a confirmation dialog warning the fare will only cover the outbound
+leg) — the driver tapping the latter is what "the driver agrees to complete the ride" means in
+practice, since they're the one operating the app.
