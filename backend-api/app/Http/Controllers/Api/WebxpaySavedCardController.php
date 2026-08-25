@@ -10,7 +10,7 @@ use App\Services\Payments\WebxpayTokenizationSetup;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Throwable;
+use Throwable;  
 
 class WebxpaySavedCardController extends Controller
 {
@@ -76,6 +76,7 @@ class WebxpaySavedCardController extends Controller
             Log::error('WEBXPAY saved card synchronization failed.', [
                 'passenger_id' => $passenger->id,
                 'exception' => $exception::class,
+                'message' => $exception->getMessage(),
             ]);
 
             return $this->error(

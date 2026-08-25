@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Events\RideStatusUpdated;
 use App\Models\JournalEntry;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
@@ -9,6 +10,7 @@ use App\Models\User;
 use App\Services\Payments\PassengerCreditService;
 use App\Services\Payments\WebxpayOutcomeProcessor;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use Tests\Concerns\BuildsLedgerScenarios;
 use Tests\TestCase;
 
@@ -146,6 +148,131 @@ class WebxpayOutcomeProcessorTest extends TestCase
         );
 
         $this->assertLedgerBalances();
+    }
+
+    public function test_verified_approval_broadcasts_ride_status_for_the_driver(): void
+    {
+        Event::fake([RideStatusUpdated::class]);
+
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'webxpay-broadcast-payment-1',
+            'payment_status' => 'PENDING',
+            'gateway' => 'webxpay',
+        ]);
+
+        $payment->allocations()->create([
+            'type' => PaymentAllocation::TYPE_CARD,
+            'amount' => '800.00',
+            'status' => PaymentAllocation::STATUS_RESERVED,
+            'reference' => "payment:{$payment->id}:card",
+            'reserved_at' => now(),
+        ]);
+
+        $attempt = $payment->attempts()->create([
+            'attempt_number' => 1,
+            'gateway' => 'webxpay',
+            'merchant_order_id' => 'PKU-BROADCAST-A01',
+            'status' => 'PROCESSING',
+            'amount' => '800.00',
+            'currency' => 'LKR',
+            'started_at' => now(),
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        app(WebxpayOutcomeProcessor::class)->process(
+            attempt: $attempt,
+            parsed: [
+                'merchant_order_id' => 'PKU-BROADCAST-A01',
+                'provider_reference' => 'WXP-BROADCAST-1',
+                'transaction_time' => '2026-08-05 12:30:00',
+                'gateway' => '46',
+                'status_code' => '00',
+                'comment' => 'Approved',
+                'transaction_amount' => '800.00',
+                'requested_amount' => '800.00',
+            ]
+        );
+
+        Event::assertDispatched(
+            RideStatusUpdated::class,
+            fn (RideStatusUpdated $event) => $event->ride['id'] === $ride->id
+        );
+    }
+
+    public function test_verified_decline_does_not_broadcast_ride_status(): void
+    {
+        Event::fake([RideStatusUpdated::class]);
+
+        [, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        $payment = Payment::create([
+            'ride_id' => $ride->id,
+            'passenger_id' => $passenger->id,
+            'payment_method' => 'card',
+            'amount' => '800.00',
+            'transaction_id' => 'webxpay-no-broadcast-payment-1',
+            'payment_status' => 'PENDING',
+            'gateway' => 'webxpay',
+        ]);
+
+        $payment->allocations()->create([
+            'type' => PaymentAllocation::TYPE_CARD,
+            'amount' => '800.00',
+            'status' => PaymentAllocation::STATUS_RESERVED,
+            'reference' => "payment:{$payment->id}:card",
+            'reserved_at' => now(),
+        ]);
+
+        $attempt = $payment->attempts()->create([
+            'attempt_number' => 1,
+            'gateway' => 'webxpay',
+            'merchant_order_id' => 'PKU-NO-BROADCAST-A01',
+            'status' => 'PROCESSING',
+            'amount' => '800.00',
+            'currency' => 'LKR',
+            'started_at' => now(),
+            'expires_at' => now()->addMinutes(15),
+        ]);
+
+        app(WebxpayOutcomeProcessor::class)->process(
+            attempt: $attempt,
+            parsed: [
+                'merchant_order_id' => 'PKU-NO-BROADCAST-A01',
+                'provider_reference' => 'WXP-NO-BROADCAST-1',
+                'transaction_time' => '2026-08-05 12:30:00',
+                'gateway' => '46',
+                'status_code' => '15',
+                'comment' => 'Declined',
+            ]
+        );
+
+        Event::assertNotDispatched(RideStatusUpdated::class);
     }
 
     public function test_verified_decline_releases_card_without_settlement(): void
