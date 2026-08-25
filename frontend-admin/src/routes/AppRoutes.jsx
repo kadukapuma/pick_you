@@ -30,6 +30,7 @@ import Settings from '../views/Settings'
 import FareConfigs from '../views/FareConfigs'
 import Finance from '../views/Finance'
 import CreditRefunds from '../views/CreditRefunds'
+import Promotions from '../views/Promotions'
 import Permissions from '../views/Permissions'
 import Operators from '../views/Operators'
 import VehicleTypes from '../views/VehicleTypes'
@@ -68,6 +69,9 @@ const AppRoutes = () => {
     const canViewReports =
         admin?.role === 'super_admin' ||
         admin?.permissions?.includes('manage_reports')
+    const canManagePromotions =
+        admin?.role === 'super_admin' ||
+        admin?.permissions?.includes('manage_promotions')
 
     return (
         <Routes>
@@ -110,6 +114,10 @@ const AppRoutes = () => {
                     <Route
                         path="credit-refunds"
                         element={canManageCredits ? <CreditRefunds /> : <Navigate to="/admin-portal" replace />}
+                    />
+                    <Route
+                        path="promotions"
+                        element={canManagePromotions ? <Promotions /> : <Navigate to="/admin-portal" replace />}
                     />
                     <Route
                         path="reports"

@@ -44,6 +44,8 @@ export default function SignUpScreen() {
 
   const [email, setEmail] = useState("");
 
+  const [promoCode, setPromoCode] = useState("");
+
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
@@ -51,7 +53,7 @@ export default function SignUpScreen() {
   // Clear validation errors while typing
   useEffect(() => {
     setValidationErrors({});
-  }, [firstName, lastName, email]);
+  }, [firstName, lastName, email, promoCode]);
 
   const validateForm = (): boolean => {
     const errors: Record<string, string> = {};
@@ -98,6 +100,7 @@ export default function SignUpScreen() {
         last_name: lastName,
         email: email.trim() || undefined,
         phone: mobileNumber,
+        promo_code: promoCode.trim() || undefined,
       });
 
       if (!registerResult.success) {
@@ -253,6 +256,25 @@ export default function SignUpScreen() {
                 {validationErrors.email}
               </Text>
             )}
+
+            {/* Promotion code */}
+            <Text className="text-sm font-medium text-gray-600 mb-1">
+              Promotion Code <Text className="text-gray-400">(Optional)</Text>
+            </Text>
+
+            <TextInput
+              className="bg-[#EDEDED] rounded-xl px-4 py-3 mb-5 text-base"
+              placeholder="Referrer's phone number"
+              placeholderTextColor="#999"
+              keyboardType="phone-pad"
+              value={promoCode}
+              onChangeText={setPromoCode}
+              editable={!isVerifying}
+              autoCapitalize="none"
+              autoCorrect={false}
+              returnKeyType="done"
+              onSubmitEditing={handleSignUp}
+            />
 
             {showError && (
               <Text className="text-red-500 text-sm mb-3 text-center">

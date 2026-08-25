@@ -43,6 +43,7 @@ class DriverAuthController extends Controller
             'email' => 'required|email|max:255',
             'phone' => 'required|string|max:20',
             'password' => 'required|string|min:8|confirmed',
+            'promo_code' => 'nullable|string|max:20',
         ]);
         if ($validator->fails()) {
             return $this->error('Validation Error', 422, $validator->errors());
@@ -52,6 +53,27 @@ class DriverAuthController extends Controller
             $phone = $this->phones->normalize($request->phone);
         } catch (InvalidArgumentException $exception) {
             return $this->error($exception->getMessage(), 422, ['phone' => [$exception->getMessage()]]);
+        }
+
+        $promoCode = null;
+        if ($request->filled('promo_code')) {
+            try {
+                $promoCode = $this->phones->normalize($request->promo_code);
+            } catch (InvalidArgumentException) {
+                return $this->error('Enter a valid phone number as the promotion code.', 422, [
+                    'promo_code' => ['Enter a valid phone number as the promotion code.'],
+                ]);
+            }
+            if ($promoCode === $phone) {
+                return $this->error('You cannot use your own phone number as a promotion code.', 422, [
+                    'promo_code' => ['You cannot use your own phone number as a promotion code.'],
+                ]);
+            }
+            if (! User::where('phone_normalized', $promoCode)->exists()) {
+                return $this->error('This promotion code does not match a PickU account.', 422, [
+                    'promo_code' => ['This promotion code does not match a PickU account.'],
+                ]);
+            }
         }
 
         $email = mb_strtolower(trim($request->email));
@@ -78,6 +100,7 @@ class DriverAuthController extends Controller
         PendingDriverEnrollment::create([
             'token_hash' => hash('sha256', $rawToken),
             'phone_normalized' => $phone,
+            'promo_code' => $promoCode,
             'first_name' => trim($request->first_name),
             'last_name' => trim($request->last_name),
             'login_email' => $email,
@@ -148,6 +171,10 @@ class DriverAuthController extends Controller
                     throw new InvalidArgumentException('Driver enrollment is invalid or expired.');
                 }
 
+                $referredBy = $locked->promo_code
+                    ? User::where('phone_normalized', $locked->promo_code)->first()
+                    : null;
+
                 $user = $this->phoneIdentities->resolve($locked->phone_normalized, true);
                 if (! $user) {
                     $user = User::create([
@@ -156,6 +183,8 @@ class DriverAuthController extends Controller
                         'email' => $locked->login_email,
                         'phone' => $locked->phone_normalized,
                         'phone_normalized' => $locked->phone_normalized,
+                        'promo_code' => $locked->promo_code,
+                        'referred_by_user_id' => $referredBy?->id,
                         'password' => null,
                         'role' => User::ROLE_DRIVER,
                         'is_active' => true,
@@ -165,10 +194,14 @@ class DriverAuthController extends Controller
                     // An existing identity (e.g. already a passenger) keeps its own
                     // email; only backfill if it never had one, so the driver
                     // registration email never silently overwrites a verified one.
+                    // Same for the promo code: it's write-once, set only if this
+                    // identity never recorded one.
                     $user->update([
                         'phone_normalized' => $locked->phone_normalized,
                         'is_verified' => true,
                         'email' => $user->email ?: $locked->login_email,
+                        'promo_code' => $user->promo_code ?: $locked->promo_code,
+                        'referred_by_user_id' => $user->referred_by_user_id ?: $referredBy?->id,
                     ]);
                 }
                 if ($user->driver) {

@@ -16,6 +16,7 @@ class LoyaltyPointTransaction extends Model
     // rows - a redemption isn't "sourced" from a rate.
     public const SOURCE_STUDENT_BONUS = 'student_bonus';
     public const SOURCE_GENERAL_ACCRUAL = 'general_accrual';
+    public const SOURCE_REFERRAL_BONUS = 'referral_bonus';
 
     protected $fillable = [
         'passenger_id',

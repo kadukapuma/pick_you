@@ -558,6 +558,40 @@ const payoutDriverAccount = async (token, driverId, payout) => {
   return payload.data || {}
 }
 
+// Referral Promotions
+const searchPromotions = async (token, phone, page = 1) => {
+  const params = new URLSearchParams({ phone, page: String(page) })
+  const payload = await apiFetch(`/admin/promotions/search?${params}`, { token })
+  return payload.data || {}
+}
+
+const fetchPromotionUsage = async (token, { search = '', page = 1 } = {}) => {
+  const params = new URLSearchParams({ page: String(page) })
+  if (search) params.set('search', search)
+  const payload = await apiFetch(`/admin/promotions/usage?${params}`, { token })
+  return payload.data || { data: [] }
+}
+
+const rewardDriverReferral = async (token, userId, reward) => {
+  const payload = await apiFetch(`/admin/promotions/users/${userId}/reward-driver`, {
+    method: 'POST',
+    token,
+    body: { amount: reward.amount, note: reward.note, referred_user_id: reward.referredUserId },
+    headers: { 'Idempotency-Key': reward.idempotencyKey },
+  })
+  return payload.data || {}
+}
+
+const rewardLoyaltyReferral = async (token, userId, reward) => {
+  const payload = await apiFetch(`/admin/promotions/users/${userId}/reward-loyalty`, {
+    method: 'POST',
+    token,
+    body: { points: reward.points, note: reward.note, referred_user_id: reward.referredUserId },
+    headers: { 'Idempotency-Key': reward.idempotencyKey },
+  })
+  return payload.data || {}
+}
+
 // Reports
 const fetchReportsOverview = async (token, period = 'week') => {
   const payload = await apiFetch(`/admin/reports/overview?period=${period}`, { token })
@@ -752,4 +786,8 @@ export {
   fetchPaymentCreditRefunds,
   searchRefundablePayments,
   createPaymentCreditRefund,
+  searchPromotions,
+  fetchPromotionUsage,
+  rewardDriverReferral,
+  rewardLoyaltyReferral,
 }

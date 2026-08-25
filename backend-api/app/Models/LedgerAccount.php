@@ -25,6 +25,7 @@ class LedgerAccount extends Model
         'PASSENGER_RECEIVABLE' => self::TYPE_ASSET,
         'PASSENGER_CREDIT_EXPENSE' => self::TYPE_EXPENSE,
         'PASSENGER_LOYALTY_LIABILITY' => self::TYPE_LIABILITY,
+        'REFERRAL_EXPENSE' => self::TYPE_EXPENSE,
     ];
 
     public function lines()

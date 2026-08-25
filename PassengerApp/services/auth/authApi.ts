@@ -8,6 +8,7 @@ export interface RegisterPhonePayload {
   last_name: string;
   phone: string;
   email?: string;
+  promo_code?: string;
 }
 
 export interface AuthResponse {

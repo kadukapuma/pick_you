@@ -149,6 +149,7 @@ class PassengerAuthController extends Controller
             'last_name' => 'required|string|max:255',
             'email' => 'nullable|email|max:255|unique:users',
             'phone' => 'required|string',
+            'promo_code' => 'nullable|string|max:20',
         ]);
 
         if ($validator->fails()) {
@@ -156,6 +157,23 @@ class PassengerAuthController extends Controller
         }
 
         $notifyPhone = $this->normalizePhoneNumber($request->phone);
+
+        $promoCode = null;
+        $referredBy = null;
+        if ($request->filled('promo_code')) {
+            $promoCode = $this->normalizePhoneNumber($request->promo_code);
+            if ($promoCode === $notifyPhone) {
+                return $this->error('You cannot use your own phone number as a promotion code.', 422, [
+                    'promo_code' => ['You cannot use your own phone number as a promotion code.'],
+                ]);
+            }
+            $referredBy = User::where('phone_normalized', $promoCode)->first();
+            if (! $referredBy) {
+                return $this->error('This promotion code does not match a PickU account.', 422, [
+                    'promo_code' => ['This promotion code does not match a PickU account.'],
+                ]);
+            }
+        }
 
         $verifiedOtp = OtpVerification::where('contact', $notifyPhone)
             ->where('purpose', 'passenger_login')
@@ -178,7 +196,7 @@ class PassengerAuthController extends Controller
             return $this->error('Passenger access is suspended. Please contact support.', 403);
         }
 
-        $user = DB::transaction(function () use ($request, $notifyPhone) {
+        $user = DB::transaction(function () use ($request, $notifyPhone, $promoCode, $referredBy) {
             $user = $this->phoneIdentities->resolve($request->phone, true);
             if (! $user) {
                 $user = User::create([
@@ -187,11 +205,17 @@ class PassengerAuthController extends Controller
                     'email' => $request->email,
                     'phone' => $notifyPhone,
                     'phone_normalized' => $notifyPhone,
+                    'promo_code' => $promoCode,
+                    'referred_by_user_id' => $referredBy?->id,
                     'password' => null,
                     'role' => User::ROLE_PASSENGER,
                     'is_active' => true,
                     'is_verified' => true,
                 ]);
+            } elseif (! $user->promo_code && $promoCode) {
+                // Write-once: only backfill if this identity (e.g. already a
+                // driver completing passenger signup) never recorded a code.
+                $user->update(['promo_code' => $promoCode, 'referred_by_user_id' => $referredBy?->id]);
             }
             $user->ensureRole(User::ROLE_PASSENGER);
             $user->passenger()->firstOrCreate([], ['wallet_balance' => 0]);
