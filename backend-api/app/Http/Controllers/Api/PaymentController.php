@@ -15,6 +15,7 @@ use App\Models\Ride;
 use App\Models\WalletTransaction;
 use App\Services\Ledger\Money;
 use App\Services\Ledger\RideSettlementService;
+use App\Services\Payments\LoyaltyPointsService;
 use App\Services\Payments\PassengerCreditService;
 use App\Services\Payments\PaymentGateway;
 use App\Traits\ApiResponse;
@@ -33,6 +34,7 @@ class PaymentController extends Controller
     public function __construct(
         private readonly RideSettlementService $settlement,
         private readonly PassengerCreditService $credits,
+        private readonly LoyaltyPointsService $loyaltyPoints,
     ) {}
 
     /**
@@ -125,15 +127,24 @@ class PaymentController extends Controller
                 $payment
             );
 
+            $loyaltyAllocation = $this->reserveSelectedLoyaltyPoints(
+                $request,
+                $ride,
+                $payment,
+                $this->remainingAmount($payment, $creditAllocation)
+            );
+
             $remainingAmount = $this->remainingAmount(
                 $payment,
-                $creditAllocation
+                $creditAllocation,
+                $loyaltyAllocation
             );
 
             if (Money::isZero($remainingAmount)) {
                 $payment = $this->completeCreditOnlyPayment(
                     $payment,
-                    $creditAllocation
+                    $creditAllocation,
+                    $loyaltyAllocation
                 );
 
                 return $this->success(
@@ -240,6 +251,7 @@ class PaymentController extends Controller
         try {
             [$payment, $alreadyProcessed] = $this->createOrFetchPayment($ride->id, $paymentMethod);
             $creditAllocation = null;
+            $loyaltyAllocation = null;
 
             if (! $alreadyProcessed) {
                 $creditAllocation = $this->reserveSelectedCredit(
@@ -247,28 +259,37 @@ class PaymentController extends Controller
                     $ride,
                     $payment
                 );
+                $loyaltyAllocation = $this->reserveSelectedLoyaltyPoints(
+                    $request,
+                    $ride,
+                    $payment,
+                    $this->remainingAmount($payment, $creditAllocation)
+                );
             }
             $remainingAmount = $this->remainingAmount(
                 $payment,
-                $creditAllocation
+                $creditAllocation,
+                $loyaltyAllocation
             );
             if (
-                $creditAllocation
+                ($creditAllocation || $loyaltyAllocation)
                 && Money::isZero($remainingAmount)
                 && ! $alreadyProcessed
             ) {
                 $payment = $this->completeCreditOnlyPayment(
                     $payment,
-                    $creditAllocation
+                    $creditAllocation,
+                    $loyaltyAllocation
                 );
             } elseif (
                 $paymentMethod === 'cash'
-                && $ride->use_wallet_credit
+                && ($ride->use_wallet_credit || $ride->use_loyalty_points)
                 && ! $alreadyProcessed
             ) {
                 $payment = $this->completeCashSplitPayment(
                     $payment,
                     $creditAllocation,
+                    $loyaltyAllocation,
                     $remainingAmount
                 );
             }
@@ -307,6 +328,7 @@ class PaymentController extends Controller
                     $payment,
                     $attempt,
                     $creditAllocation,
+                    $loyaltyAllocation,
                     $cardAllocation
                 );
             }
@@ -417,7 +439,8 @@ class PaymentController extends Controller
                 : $lockedRide->estimated_fare;
 
             $cashSettlesImmediately = $paymentMethod === 'cash'
-                && ! $lockedRide->use_wallet_credit;
+                && ! $lockedRide->use_wallet_credit
+                && ! $lockedRide->use_loyalty_points;
 
             $payment = Payment::create([
                 'ride_id' => $lockedRide->id,
@@ -565,22 +588,85 @@ class PaymentController extends Controller
         );
     }
 
+    /**
+     * $capAmount is what's left of the payment after any credit allocation
+     * already reserved - loyalty points must not independently claim up to
+     * the full payment amount when credit already covers part of it, or the
+     * two allocations can together exceed what's owed (remainingAmount()
+     * would then reject the payment outright rather than gracefully
+     * splitting between the two balances).
+     */
+    private function reserveSelectedLoyaltyPoints(
+        Request $request,
+        Ride $ride,
+        Payment $payment,
+        string $capAmount,
+    ): ?PaymentAllocation {
+        if (! $ride->use_loyalty_points) {
+            return null;
+        }
+
+        $existing = $payment->allocations()
+            ->where(
+                'type',
+                PaymentAllocation::TYPE_LOYALTY_POINTS
+            )
+            ->first();
+
+        if (
+            $existing
+            && in_array($existing->status, [
+                PaymentAllocation::STATUS_RESERVED,
+                PaymentAllocation::STATUS_COMPLETED,
+            ], true)
+        ) {
+            return $existing;
+        }
+
+        if (Money::isZero($capAmount)) {
+            return null;
+        }
+
+        $idempotencyKey = trim(
+            (string) $request->header('Idempotency-Key')
+        );
+
+        return $this->loyaltyPoints->reserve(
+            payment: $payment,
+            amount: $capAmount,
+            reference: sprintf(
+                'ride:%d:payment:%d:loyalty:%s',
+                $ride->id,
+                $payment->id,
+                $idempotencyKey
+            ),
+        );
+    }
+
     private function remainingAmount(
         Payment $payment,
         ?PaymentAllocation $creditAllocation,
+        ?PaymentAllocation $loyaltyAllocation = null,
     ): string {
         $creditAmount = $creditAllocation
             ? Money::of($creditAllocation->amount)
             : '0.00';
 
+        $loyaltyAmount = $loyaltyAllocation
+            ? Money::of($loyaltyAllocation->amount)
+            : '0.00';
+
         $remaining = Money::sub(
-            Money::of($payment->amount),
-            $creditAmount
+            Money::sub(
+                Money::of($payment->amount),
+                $creditAmount
+            ),
+            $loyaltyAmount
         );
 
         if (Money::isNegative($remaining)) {
             throw new DomainException(
-                'PickU credit allocation exceeds the payment amount.'
+                'PickU credit and loyalty point allocations exceed the payment amount.'
             );
         }
 
@@ -648,11 +734,13 @@ class PaymentController extends Controller
     private function completeCashSplitPayment(
         Payment $payment,
         ?PaymentAllocation $creditAllocation,
+        ?PaymentAllocation $loyaltyAllocation,
         string $cashAmount,
     ): Payment {
         return DB::transaction(function () use (
             $payment,
             $creditAllocation,
+            $loyaltyAllocation,
             $cashAmount,
         ) {
             $lockedPayment = Payment::query()
@@ -695,6 +783,16 @@ class PaymentController extends Controller
                 );
             }
 
+            if ($loyaltyAllocation) {
+                $this->loyaltyPoints->consume(
+                    allocation: $loyaltyAllocation,
+                    reference: sprintf(
+                        'payment:%d:cash',
+                        $lockedPayment->id
+                    ),
+                );
+            }
+
             $lockedPayment->update([
                 'payment_status' => PaymentStatus::COMPLETED->value,
                 'paid_at' => now(),
@@ -711,11 +809,13 @@ class PaymentController extends Controller
 
     private function completeCreditOnlyPayment(
         Payment $payment,
-        PaymentAllocation $creditAllocation,
+        ?PaymentAllocation $creditAllocation,
+        ?PaymentAllocation $loyaltyAllocation = null,
     ): Payment {
         return DB::transaction(function () use (
             $payment,
             $creditAllocation,
+            $loyaltyAllocation,
         ) {
             $lockedPayment = Payment::query()
                 ->lockForUpdate()
@@ -728,13 +828,37 @@ class PaymentController extends Controller
                 return $lockedPayment;
             }
 
-            $completedCredit = $this->credits->consume(
-                allocation: $creditAllocation,
-                reference: sprintf(
-                    'payment:%d:credit-only',
-                    $lockedPayment->id
-                ),
-            );
+            $consumedAmount = '0.00';
+
+            if ($creditAllocation) {
+                $completedCredit = $this->credits->consume(
+                    allocation: $creditAllocation,
+                    reference: sprintf(
+                        'payment:%d:credit-only',
+                        $lockedPayment->id
+                    ),
+                );
+
+                $consumedAmount = Money::add(
+                    $consumedAmount,
+                    (string) $completedCredit->amount
+                );
+            }
+
+            if ($loyaltyAllocation) {
+                $completedLoyalty = $this->loyaltyPoints->consume(
+                    allocation: $loyaltyAllocation,
+                    reference: sprintf(
+                        'payment:%d:credit-only',
+                        $lockedPayment->id
+                    ),
+                );
+
+                $consumedAmount = Money::add(
+                    $consumedAmount,
+                    (string) $completedLoyalty->amount
+                );
+            }
 
             $lockedPayment->update([
                 'payment_status' => PaymentStatus::COMPLETED->value,
@@ -750,9 +874,11 @@ class PaymentController extends Controller
                 'event_type' => 'PAYMENT_COMPLETED',
                 'source' => 'backend',
                 'metadata' => [
-                    'amount' => $completedCredit->amount,
+                    'amount' => $consumedAmount,
                     'currency' => 'LKR',
-                    'payment_source' => 'PICKU_CREDIT',
+                    'payment_source' => $creditAllocation && $loyaltyAllocation
+                        ? 'PICKU_CREDIT_AND_LOYALTY_POINTS'
+                        : ($loyaltyAllocation ? 'LOYALTY_POINTS' : 'PICKU_CREDIT'),
                 ],
             ]);
 
@@ -800,6 +926,7 @@ class PaymentController extends Controller
         Payment $payment,
         PaymentAttempt $attempt,
         ?PaymentAllocation $creditAllocation,
+        ?PaymentAllocation $loyaltyAllocation,
         PaymentAllocation $cardAllocation,
     ): Payment {
         $method = PassengerPaymentMethod::query()
@@ -821,6 +948,7 @@ class PaymentController extends Controller
             $attempt,
             $result,
             $creditAllocation,
+            $loyaltyAllocation,
             $cardAllocation,
         ) {
             $lockedPayment = Payment::query()
@@ -890,6 +1018,16 @@ class PaymentController extends Controller
                             ),
                         );
                     }
+
+                    if ($loyaltyAllocation) {
+                        $this->loyaltyPoints->release(
+                            allocation: $loyaltyAllocation,
+                            reference: sprintf(
+                                'attempt:%d',
+                                $lockedAttempt->id
+                            ),
+                        );
+                    }
                 }
 
                 return $lockedPayment->refresh();
@@ -910,6 +1048,16 @@ class PaymentController extends Controller
             if ($creditAllocation) {
                 $this->credits->consume(
                     allocation: $creditAllocation,
+                    reference: sprintf(
+                        'attempt:%d',
+                        $lockedAttempt->id
+                    ),
+                );
+            }
+
+            if ($loyaltyAllocation) {
+                $this->loyaltyPoints->consume(
+                    allocation: $loyaltyAllocation,
                     reference: sprintf(
                         'attempt:%d',
                         $lockedAttempt->id

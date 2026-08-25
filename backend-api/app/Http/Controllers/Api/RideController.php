@@ -132,6 +132,7 @@ class RideController extends Controller
                     'status' => $ride->status,
                     'vehicle_type' => $ride->fareConfig?->vehicle_type,
                     'use_wallet_credit' => (bool) $ride->use_wallet_credit,
+                    'use_loyalty_points' => (bool) $ride->use_loyalty_points,
                     'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? '')),
                     'passenger_profile_picture' => $passengerUser?->profile_picture,
                     'pickup_address' => $ride->pickup_address,
@@ -146,6 +147,7 @@ class RideController extends Controller
                     // they collect cash at the end or nothing at all.
                     'payment_method' => $ride->payment_method,
                     'use_wallet_credit' => (bool) $ride->use_wallet_credit,
+                    'use_loyalty_points' => (bool) $ride->use_loyalty_points,
                     'requested_at' => optional($ride->requested_at)?->toDateTimeString(),
                     // This is the server deadline, not 20 seconds from when a
                     // delayed push notification is opened on the device.
@@ -174,6 +176,7 @@ class RideController extends Controller
             // Older app builds omit this; default to cash so they keep working.
             'payment_method' => 'sometimes|in:cash,card',
             'use_wallet_credit' => 'sometimes|boolean',
+            'use_loyalty_points' => 'sometimes|boolean',
         ]);
 
         if ($validator->fails()) {
@@ -230,6 +233,9 @@ class RideController extends Controller
             'payment_method' => $request->input('payment_method', 'cash'),
             'use_wallet_credit' => $request->boolean(
                 'use_wallet_credit'
+            ),
+            'use_loyalty_points' => $request->boolean(
+                'use_loyalty_points'
             ),
             'fare_breakdown' => [
                 'policy' => 'estimate_plus_extras',

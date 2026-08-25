@@ -10,6 +10,7 @@ class PaymentAllocation extends Model
     public const TYPE_PICKU_CREDIT = 'PICKU_CREDIT';
     public const TYPE_CARD = 'CARD';
     public const TYPE_CASH = 'CASH';
+    public const TYPE_LOYALTY_POINTS = 'LOYALTY_POINTS';
 
     public const STATUS_RESERVED = 'RESERVED';
     public const STATUS_COMPLETED = 'COMPLETED';

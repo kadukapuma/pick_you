@@ -16,12 +16,14 @@ class Passenger extends Model
         'wallet_balance',
         'wallet_reserved_balance',
         'loyalty_points_balance',
+        'loyalty_points_reserved_balance',
     ];
 
     protected $casts = [
         'wallet_balance' => 'decimal:2',
         'wallet_reserved_balance' => 'decimal:2',
         'loyalty_points_balance' => 'decimal:2',
+        'loyalty_points_reserved_balance' => 'decimal:2',
     ];
 
     public function user()

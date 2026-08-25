@@ -17,6 +17,7 @@ class WebxpayOutcomeProcessor
     public function __construct(
         private readonly WebxpayStatusMapper $statusMapper,
         private readonly PassengerCreditService $credits,
+        private readonly LoyaltyPointsService $loyaltyPoints,
         private readonly RideSettlementService $settlement
     ) {}
 
@@ -159,6 +160,18 @@ class WebxpayOutcomeProcessor
                 ->lockForUpdate()
                 ->first();
 
+            $loyaltyAllocation = PaymentAllocation::query()
+                ->where(
+                    'payment_id',
+                    $lockedPayment->id
+                )
+                ->where(
+                    'type',
+                    PaymentAllocation::TYPE_LOYALTY_POINTS
+                )
+                ->lockForUpdate()
+                ->first();
+
             if ($mappedStatus === PaymentAttemptStatus::DECLINED) {
                 $lockedAttempt->update([
                     'status' => PaymentAttemptStatus::DECLINED->value,
@@ -178,6 +191,13 @@ class WebxpayOutcomeProcessor
                 if ($creditAllocation) {
                     $this->credits->release(
                         allocation: $creditAllocation,
+                        reference: 'webxpay:'.$parsed['provider_reference']
+                    );
+                }
+
+                if ($loyaltyAllocation) {
+                    $this->loyaltyPoints->release(
+                        allocation: $loyaltyAllocation,
                         reference: 'webxpay:'.$parsed['provider_reference']
                     );
                 }
@@ -258,6 +278,14 @@ class WebxpayOutcomeProcessor
             if ($creditAllocation) {
                 $this->credits->consume(
                     allocation: $creditAllocation,
+                    reference: 'webxpay:'
+                        .$parsed['provider_reference']
+                );
+            }
+
+            if ($loyaltyAllocation) {
+                $this->loyaltyPoints->consume(
+                    allocation: $loyaltyAllocation,
                     reference: 'webxpay:'
                         .$parsed['provider_reference']
                 );

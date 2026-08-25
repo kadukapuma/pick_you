@@ -31,9 +31,10 @@ class LedgerService
         ?int $createdBy = null,
         ?string $gateway = null,
         ?int $reversesEntryId = null,
+        bool $allowZero = false,
     ): JournalEntry {
         return DB::transaction(function () use (
-            $type, $idempotencyKey, $description, $lines, $reference, $createdBy, $gateway, $reversesEntryId
+            $type, $idempotencyKey, $description, $lines, $reference, $createdBy, $gateway, $reversesEntryId, $allowZero
         ) {
             // Idempotency first: a retried request, a duplicate webhook or a
             // re-queued job must not post the same money twice.
@@ -46,7 +47,7 @@ class LedgerService
             }
 
             $normalised = $this->normalise($lines);
-            $this->assertBalanced($normalised);
+            $this->assertBalanced($normalised, $allowZero);
 
             $accounts = $this->lockAccounts(array_column($normalised, 'account'));
 
@@ -146,8 +147,17 @@ class LedgerService
         }, $lines);
     }
 
-    /** @param array<int, array{account: string, debit: string, credit: string}> $lines */
-    private function assertBalanced(array $lines): void
+    /**
+     * @param  array<int, array{account: string, debit: string, credit: string}>  $lines
+     *
+     * $allowZero exists for callers that need an audit record of "nothing
+     * moved" - e.g. a cash ride settling at 0% commission, where the driver
+     * owes nothing and is owed nothing, but the ride should still show up in
+     * the ledger as settled. Defaults to false so every other caller keeps
+     * the protection this guard exists for: catching an accidentally empty
+     * entry from a calculation bug before it's posted.
+     */
+    private function assertBalanced(array $lines, bool $allowZero = false): void
     {
         $debits = '0.00';
         $credits = '0.00';
@@ -161,7 +171,7 @@ class LedgerService
             throw UnbalancedEntryException::forTotals($debits, $credits);
         }
 
-        if (Money::isZero($debits)) {
+        if (! $allowZero && Money::isZero($debits)) {
             throw new DomainException('Refusing to post a zero-value journal entry.');
         }
     }

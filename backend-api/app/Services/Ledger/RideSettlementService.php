@@ -38,6 +38,20 @@ class RideSettlementService
             );
         }
 
+        // Idempotency guard for the whole settlement tail, not just the
+        // journal post: a retried call must not re-run the rides snapshot or
+        // either loyalty-points award a second time. JournalEntry::post()
+        // already no-ops the ledger side on a duplicate idempotency key, but
+        // that alone doesn't stop the point-awarding code below from
+        // double-incrementing a passenger's balance on a replay.
+        $existingEntry = JournalEntry::query()
+            ->where('idempotency_key', "ride:{$payment->ride_id}:settlement")
+            ->first();
+
+        if ($existingEntry) {
+            return $existingEntry;
+        }
+
         $ride = $payment->ride()->firstOrFail();
 
         if (! $ride->driver_id) {
@@ -82,19 +96,28 @@ class RideSettlementService
         );
 
         // A verified student on a vehicle type with no student_commission_rate
-        // configured resolves to 0% commission - nothing actually needs to
-        // move through the books, and the ledger correctly refuses to post a
-        // zero-value entry. Skip posting rather than crashing the payment.
-        $entry = $this->isZeroValue($lines)
-            ? null
-            : $this->ledger->post(
-                type: JournalEntry::TYPE_RIDE_SETTLEMENT,
-                idempotencyKey: "ride:{$ride->id}:settlement",
-                description: "Ride {$ride->ride_code} settled ({$method})",
-                lines: $lines,
-                reference: $payment,
-                gateway: $payment->gateway,
-            );
+        // configured (or any other 0%-commission cash ride) resolves to
+        // all-zero lines - nothing actually moves, since the driver already
+        // holds the full cash fare and owes nothing either way. Posted with
+        // allowZero anyway, so every settled ride still has an audit-trail
+        // entry in the ledger rather than silently disappearing from it.
+        $entry = $this->ledger->post(
+            type: JournalEntry::TYPE_RIDE_SETTLEMENT,
+            idempotencyKey: "ride:{$ride->id}:settlement",
+            description: "Ride {$ride->ride_code} settled ({$method})",
+            lines: $lines,
+            reference: $payment,
+            gateway: $payment->gateway,
+            allowZero: true,
+        );
+
+        // Points actually redeemed against this payment, if any - snapshotted
+        // alongside the other settlement values so it's never rewritten by a
+        // later re-settle.
+        $loyaltyPointsUsed = $payment->allocations()
+            ->where('type', PaymentAllocation::TYPE_LOYALTY_POINTS)
+            ->where('status', PaymentAllocation::STATUS_COMPLETED)
+            ->value('amount') ?? '0.00';
 
         // Snapshot values onto the ride so a later commission-rate change
         // never rewrites the historical settlement.
@@ -104,26 +127,14 @@ class RideSettlementService
                 'commission_rate' => $computed['rate'],
                 'commission_amount' => $computed['commission'],
                 'driver_earning' => $computed['driver_earning'],
+                'loyalty_points_used' => $loyaltyPointsUsed,
                 'updated_at' => now(),
             ]);
 
         $this->awardStudentLoyaltyPoints($ride, $computed['commission']);
+        $this->awardGeneralLoyaltyPoints($ride, $computed['commission']);
 
         return $entry;
-    }
-
-    /**
-     * @param array<int, array{account: string, debit?: string, credit?: string}> $lines
-     */
-    private function isZeroValue(array $lines): bool
-    {
-        $total = '0.00';
-
-        foreach ($lines as $line) {
-            $total = Money::add($total, $line['debit'] ?? '0');
-        }
-
-        return Money::isZero($total);
     }
 
     /**
@@ -155,6 +166,63 @@ class RideSettlementService
             'passenger_id' => $passenger->id,
             'ride_id' => $ride->id,
             'points' => $commission,
+            'type' => LoyaltyPointTransaction::TYPE_EARNED,
+            'source' => LoyaltyPointTransaction::SOURCE_STUDENT_BONUS,
+            'created_at' => now(),
+        ]);
+    }
+
+    /**
+     * A configurable fraction of the commission actually charged is credited
+     * to every passenger as points, regardless of student status - runs
+     * unconditionally, stacking with whatever awardStudentLoyaltyPoints()
+     * above already credited a verified student.
+     *
+     * Ledger-backed, unlike the student mechanism: posts its own journal
+     * entry debiting REVENUE_COMMISSION and crediting
+     * PASSENGER_LOYALTY_LIABILITY, so the liability is visible the moment
+     * points are earned rather than only once they're redeemed. This is a
+     * known, accepted asymmetry with awardStudentLoyaltyPoints(), which stays
+     * off-ledger - retrofitting that one is out of scope here.
+     */
+    private function awardGeneralLoyaltyPoints(\App\Models\Ride $ride, string $commission): void
+    {
+        if (Money::isZero($commission)) {
+            return;
+        }
+
+        $rate = $this->commission->loyaltyPointsRateFor($ride);
+        $points = Money::mul($commission, $rate);
+
+        if (Money::isZero($points)) {
+            return;
+        }
+
+        $passenger = $ride->passenger()->first();
+
+        if (! $passenger) {
+            return;
+        }
+
+        $this->ledger->post(
+            type: JournalEntry::TYPE_LOYALTY_ACCRUAL,
+            idempotencyKey: "ride:{$ride->id}:loyalty-accrual",
+            description: "Loyalty points accrued for ride {$ride->ride_code}",
+            lines: [
+                ['account' => 'REVENUE_COMMISSION', 'debit' => $points],
+                ['account' => 'PASSENGER_LOYALTY_LIABILITY', 'credit' => $points],
+            ],
+            reference: $ride,
+        );
+
+        $passenger->increment('loyalty_points_balance', $points);
+
+        LoyaltyPointTransaction::create([
+            'passenger_id' => $passenger->id,
+            'ride_id' => $ride->id,
+            'points' => $points,
+            'type' => LoyaltyPointTransaction::TYPE_EARNED,
+            'source' => LoyaltyPointTransaction::SOURCE_GENERAL_ACCRUAL,
             'created_at' => now(),
         ]);
     }
@@ -235,6 +303,18 @@ class RideSettlementService
             ) {
                 $lines[] = [
                     'account' => 'PASSENGER_WALLET_LIABILITY',
+                    'debit' => $amount,
+                ];
+
+                continue;
+            }
+
+            if (
+                $allocation->type
+                === PaymentAllocation::TYPE_LOYALTY_POINTS
+            ) {
+                $lines[] = [
+                    'account' => 'PASSENGER_LOYALTY_LIABILITY',
                     'debit' => $amount,
                 ];
 

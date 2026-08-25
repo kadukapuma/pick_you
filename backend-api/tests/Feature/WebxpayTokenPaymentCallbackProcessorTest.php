@@ -6,6 +6,7 @@ use App\Models\PassengerPaymentMethod;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\WebxpayTokenPaymentOperation;
+use App\Services\Payments\LoyaltyPointsService;
 use App\Services\Payments\PassengerCreditService;
 use App\Services\Payments\WebxpayOutcomeProcessor;
 use App\Services\Payments\WebxpayTokenPaymentCallbackProcessor;
@@ -39,7 +40,8 @@ class WebxpayTokenPaymentCallbackProcessorTest extends TestCase
         $processor = new WebxpayTokenPaymentCallbackProcessor(
             new WebxpayTokenPaymentResultParser,
             $outcome,
-            $credits
+            $credits,
+            app(LoyaltyPointsService::class)
         );
         $encoded = $this->encodedResult([
             'Success' => true,
@@ -68,7 +70,8 @@ class WebxpayTokenPaymentCallbackProcessorTest extends TestCase
         $processor = new WebxpayTokenPaymentCallbackProcessor(
             new WebxpayTokenPaymentResultParser,
             $outcome,
-            $credits
+            $credits,
+            app(LoyaltyPointsService::class)
         );
 
         $result = $processor->process($operation, $token, $this->encodedResult([
@@ -100,7 +103,8 @@ class WebxpayTokenPaymentCallbackProcessorTest extends TestCase
         $processor = new WebxpayTokenPaymentCallbackProcessor(
             new WebxpayTokenPaymentResultParser,
             $outcome,
-            $credits
+            $credits,
+            app(LoyaltyPointsService::class)
         );
 
         $this->expectException(DomainException::class);
@@ -136,7 +140,8 @@ class WebxpayTokenPaymentCallbackProcessorTest extends TestCase
         $processor = new WebxpayTokenPaymentCallbackProcessor(
             new WebxpayTokenPaymentResultParser,
             $outcome,
-            app(PassengerCreditService::class)
+            app(PassengerCreditService::class),
+            app(LoyaltyPointsService::class)
         );
 
         $processor->process($operation, $token, $this->encodedResult([
@@ -167,7 +172,8 @@ class WebxpayTokenPaymentCallbackProcessorTest extends TestCase
         $processor = new WebxpayTokenPaymentCallbackProcessor(
             new WebxpayTokenPaymentResultParser,
             $outcome,
-            $credits
+            $credits,
+            app(LoyaltyPointsService::class)
         );
 
         $this->expectException(DomainException::class);

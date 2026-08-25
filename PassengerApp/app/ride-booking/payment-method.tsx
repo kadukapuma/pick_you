@@ -7,6 +7,7 @@ import PaymentScreen, {
 } from "../../features/payments/PaymentScreen";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
 import { creditService } from "../../services/payments/creditService";
+import { loyaltyService } from "../../services/payments/loyaltyService";
 import {
   CARD_PAYMENTS_ENABLED,
   paymentService,
@@ -45,25 +46,63 @@ export default function PaymentMethodScreen() {
   } = useRideSearch();
   const [cardAvailable, setCardAvailable] = useState(CARD_PAYMENTS_ENABLED);
   const [walletAvailable, setWalletAvailable] = useState(false);
-  const [available, setAvailable] = useState<string | null>(null);
-  const [reserved, setReserved] = useState("0.00");
+  // PickU credit (wallet) and loyalty points are two separate balances on
+  // the backend, each with their own reserve/consume lifecycle - but the
+  // passenger sees them as one combined "PickU credit" balance and one
+  // toggle. Applying it reserves from both automatically.
+  const [walletBalance, setWalletBalance] = useState<string | null>(null);
+  const [walletReserved, setWalletReserved] = useState("0.00");
+  const [loyaltyBalance, setLoyaltyBalance] = useState<string | null>(null);
+  const [loyaltyReserved, setLoyaltyReserved] = useState("0.00");
   const [creditError, setCreditError] = useState("");
   const [loadingCredit, setLoadingCredit] = useState(true);
   const [fallbackNotice, setFallbackNotice] = useState(false);
-  const loadCredit = async () => {
-    setLoadingCredit(true);
-    const result = await creditService.getSummary();
-    if (result.success && result.data) {
-      setAvailable(result.data.availableBalance);
-      setReserved(result.data.reservedBalance);
-      setCreditError("");
+  const available = useMemo(() => {
+    if (walletBalance === null && loyaltyBalance === null) return null;
+    return (Number(walletBalance || 0) + Number(loyaltyBalance || 0)).toFixed(
+      2,
+    );
+  }, [walletBalance, loyaltyBalance]);
+  const reserved = useMemo(
+    () => (Number(walletReserved) + Number(loyaltyReserved)).toFixed(2),
+    [walletReserved, loyaltyReserved],
+  );
+  const applyCreditResults = (
+    credit: Awaited<ReturnType<typeof creditService.getSummary>>,
+    loyalty: Awaited<ReturnType<typeof loyaltyService.getSummary>>,
+  ) => {
+    const creditOk = Boolean(credit.success && credit.data);
+    const loyaltyOk = Boolean(loyalty.success && loyalty.data);
+    if (creditOk) {
+      setWalletBalance(credit.data!.availableBalance);
+      setWalletReserved(credit.data!.reservedBalance);
     } else {
-      setAvailable(null);
+      setWalletBalance(null);
+    }
+    if (loyaltyOk) {
+      setLoyaltyBalance(loyalty.data!.availableBalance);
+      setLoyaltyReserved(loyalty.data!.reservedBalance);
+    } else {
+      setLoyaltyBalance(null);
+    }
+    if (!creditOk && !loyaltyOk) {
       setCreditError(
-        result.message || "PickU credit is temporarily unavailable.",
+        credit.message ||
+          loyalty.message ||
+          "PickU credit is temporarily unavailable.",
       );
       setUsePickuCredit(false);
+    } else {
+      setCreditError("");
     }
+  };
+  const loadCredit = async () => {
+    setLoadingCredit(true);
+    const [credit, loyalty] = await Promise.all([
+      creditService.getSummary(),
+      loyaltyService.getSummary(),
+    ]);
+    applyCreditResults(credit, loyalty);
     setLoadingCredit(false);
   };
   useEffect(() => {
@@ -71,7 +110,8 @@ export default function PaymentMethodScreen() {
     void Promise.all([
       paymentService.getCapabilities(),
       creditService.getSummary(),
-    ]).then(([capabilities, credit]) => {
+      loyaltyService.getSummary(),
+    ]).then(([capabilities, credit, loyalty]) => {
       if (!active) return;
       const card = capabilities.card || CARD_PAYMENTS_ENABLED;
       setCardAvailable(card);
@@ -80,20 +120,13 @@ export default function PaymentMethodScreen() {
         setPaymentMethod("cash");
         setFallbackNotice(true);
       }
-      if (credit.success && credit.data) {
-        setAvailable(credit.data.availableBalance);
-        setReserved(credit.data.reservedBalance);
-      } else {
-        setCreditError(
-          credit.message || "PickU credit is temporarily unavailable.",
-        );
-        setUsePickuCredit(false);
-      }
+      applyCreditResults(credit, loyalty);
       setLoadingCredit(false);
     });
     return () => {
       active = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentMethod, setPaymentMethod, setUsePickuCredit]);
   const estimate = Number(outboundTrip.selectedRide?.price || 0);
   const credit = useMemo(
@@ -142,6 +175,11 @@ export default function PaymentMethodScreen() {
                   ? "Balance unavailable"
                   : `${formatLkr(available)} available`}
             </Text>
+            {!loadingCredit && Number(loyaltyBalance || 0) > 0 ? (
+              <Text style={styles.creditSubtext}>
+                Includes {formatLkr(loyaltyBalance!)} in loyalty points
+              </Text>
+            ) : null}
           </View>
           <Switch
             value={usePickuCredit}
@@ -330,6 +368,12 @@ const styles = StyleSheet.create({
   creditCopy: { flex: 1 },
   creditTitle: { color: paymentTheme.ink, fontSize: 15, fontWeight: "900" },
   creditBalance: { color: paymentTheme.muted, fontSize: 11, marginTop: 3 },
+  creditSubtext: {
+    color: paymentTheme.green,
+    fontSize: 10,
+    fontWeight: "700",
+    marginTop: 2,
+  },
   helper: {
     color: paymentTheme.muted,
     fontSize: 11,
