@@ -51,9 +51,20 @@ class FareCalculationService
         $ride->loadMissing('fareConfig');
         $fareConfig = $ride->fareConfig;
 
-        $estimatedDistanceKm = (float) ($ride->estimated_distance_km ?: $ride->distance_km);
+        // A return trip that ends at the destination without ever starting
+        // the return leg is billed only for the outbound distance - the
+        // round-trip estimate/distance would otherwise floor the fare at a
+        // trip the passenger didn't take (see RideController::arriveDestination()/
+        // completeRide()).
+        $isPartialReturn = $ride->trip_type === 'return' && $ride->return_started_at === null;
+
+        $estimatedDistanceKm = $isPartialReturn
+            ? (float) ($ride->outbound_distance_km ?? $ride->estimated_distance_km ?: $ride->distance_km)
+            : (float) ($ride->estimated_distance_km ?: $ride->distance_km);
         $actualDistanceKm = $this->actualDistanceKm($ride, $estimatedDistanceKm);
-        $estimatedDurationMinutes = round(max(0, (float) $ride->estimated_duration_minutes), 2);
+        $estimatedDurationMinutes = $isPartialReturn
+            ? round(max(0, (float) ($ride->outbound_duration_minutes ?? $ride->estimated_duration_minutes)), 2)
+            : round(max(0, (float) $ride->estimated_duration_minutes), 2);
         $actualDurationMinutes = $this->minutesBetween($ride->started_at, $ride->completed_at);
         $waitingMinutes = $this->minutesBetween($ride->arrived_at, $ride->started_at);
         $chargeableWaitingMinutes = round(max(
@@ -76,7 +87,9 @@ class FareCalculationService
         $durationOverageMinutes = round(max(0, $actualDurationMinutes - $estimatedDurationMinutes), 2);
         $durationOverageFare = round($durationOverageMinutes * (float) $fareConfig->per_minute_rate, 2);
 
-        $estimatedFare = round((float) $ride->estimated_fare, 2);
+        $estimatedFare = $isPartialReturn
+            ? round((float) ($ride->outbound_fare ?? $ride->estimated_fare), 2)
+            : round((float) $ride->estimated_fare, 2);
         $recomputedFare = round((float) $fareConfig->base_fare + $distanceFare + $durationOverageFare + $waitingFare, 2);
         $finalFare = round(max($estimatedFare, $recomputedFare), 2);
 
@@ -95,6 +108,7 @@ class FareCalculationService
             'fare_breakdown' => [
                 'policy' => 'included_km_plus_overages',
                 'version' => 2,
+                'is_partial_return' => $isPartialReturn,
                 'estimated_fare' => $estimatedFare,
                 'estimated_distance_km' => round($estimatedDistanceKm, 2),
                 'estimated_duration_minutes' => $estimatedDurationMinutes,

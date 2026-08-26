@@ -165,6 +165,23 @@ export function getRideDropoffCoordinate(ride: any): RideCoordinate | null {
   return latitude == null || longitude == null ? null : { latitude, longitude };
 }
 
+// Return trip only: the waypoint the driver goes to before heading back to
+// pickup. Distinct from getRideDropoffCoordinate, which is the final drop -
+// the pickup point itself for a return trip, not where the trip is headed.
+export function isReturnTrip(ride: any): boolean {
+  return String(ride?.trip_type || "").toLowerCase() === "return";
+}
+
+export function getRideDestinationCoordinate(ride: any): RideCoordinate | null {
+  const latitude = readNumber(ride?.destination_latitude, ride?.destination_lat);
+  const longitude = readNumber(ride?.destination_longitude, ride?.destination_lng);
+  return latitude == null || longitude == null ? null : { latitude, longitude };
+}
+
+export function getRideDestinationAddress(ride: any): string | null {
+  return typeof ride?.destination_address === "string" ? ride.destination_address : null;
+}
+
 export function formatMetersDistance(meters: number | null | undefined): string | null {
   const value = Number(meters);
   if (!Number.isFinite(value) || value <= 0) return null;

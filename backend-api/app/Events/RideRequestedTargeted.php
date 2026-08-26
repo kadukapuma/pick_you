@@ -31,6 +31,14 @@ class RideRequestedTargeted implements ShouldBroadcastNow
 
     public ?float $drop_lng;
 
+    public string $trip_type;
+
+    public ?string $destination_address;
+
+    public ?float $destination_lat;
+
+    public ?float $destination_lng;
+
     public float $distance_km;
 
     public float $estimated_fare;
@@ -58,6 +66,10 @@ class RideRequestedTargeted implements ShouldBroadcastNow
         $this->drop_address = (string) $ride->drop_address;
         $this->drop_lat = $ride->drop_latitude;
         $this->drop_lng = $ride->drop_longitude;
+        $this->trip_type = (string) ($ride->trip_type ?? 'oneway');
+        $this->destination_address = $ride->destination_address;
+        $this->destination_lat = $ride->destination_latitude;
+        $this->destination_lng = $ride->destination_longitude;
         $this->distance_km = (float) $ride->distance_km;
         $this->estimated_fare = (float) $ride->estimated_fare;
         $this->payment_method = (string) $ride->payment_method;

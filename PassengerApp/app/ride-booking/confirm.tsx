@@ -25,6 +25,7 @@ import {
 } from "../../services/errors/userMessages";
 import {
   fallbackRoute,
+  formatDistance,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
@@ -42,18 +43,21 @@ export default function ConfirmationScreen() {
   const [isBooking, setIsBooking] = useState(false);
   const [isSheetExpanded, setIsSheetExpanded] = useState(false);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
+  const [returnDirections, setReturnDirections] =
+    useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
 
   const insets = useSafeAreaInsets();
   const {
+    tripType,
     outboundTrip,
-    returnTrip,
     setIsSearchingForDriver,
     setActiveRide,
     paymentMethod,
     selectedPaymentCard,
     usePickuCredit,
   } = useRideSearch();
+  const isReturnTrip = tripType === "return";
   const nearbySelectedVehicles = useNearbyVehicles(
     outboundTrip.pickup,
     outboundTrip.selectedRide?.id,
@@ -142,15 +146,37 @@ export default function ConfirmationScreen() {
           outboundTrip.dropoff.longitude,
         );
         setDirections(fallback);
+        if (isReturnTrip) {
+          setReturnDirections(
+            fallbackRoute(
+              outboundTrip.dropoff.latitude,
+              outboundTrip.dropoff.longitude,
+              outboundTrip.pickup.latitude,
+              outboundTrip.pickup.longitude,
+            ),
+          );
+        }
         setLoadingRoute(false);
         try {
-          const res = await getCachedDirections_withCache(
-            outboundTrip.pickup.latitude,
-            outboundTrip.pickup.longitude,
-            outboundTrip.dropoff.latitude,
-            outboundTrip.dropoff.longitude,
-          );
+          const [res, returnRes] = await Promise.all([
+            getCachedDirections_withCache(
+              outboundTrip.pickup.latitude,
+              outboundTrip.pickup.longitude,
+              outboundTrip.dropoff.latitude,
+              outboundTrip.dropoff.longitude,
+            ),
+            isReturnTrip
+              ? getCachedDirections_withCache(
+                  outboundTrip.dropoff.latitude,
+                  outboundTrip.dropoff.longitude,
+                  outboundTrip.pickup.latitude,
+                  outboundTrip.pickup.longitude,
+                )
+              : Promise.resolve(null),
+          ]);
           if (!cancelled && res) setDirections(res);
+          if (!cancelled && isReturnTrip && returnRes)
+            setReturnDirections(returnRes);
         } catch (e) {
           logExpectedError("Confirmation route lookup failed", e);
         } finally {
@@ -161,7 +187,7 @@ export default function ConfirmationScreen() {
     return () => {
       cancelled = true;
     };
-  }, [outboundTrip.pickup, outboundTrip.dropoff]);
+  }, [outboundTrip.pickup, outboundTrip.dropoff, isReturnTrip]);
 
   if (
     !outboundTrip.pickup ||
@@ -185,14 +211,32 @@ export default function ConfirmationScreen() {
   const handleConfirmBooking = async () => {
     setIsBooking(true);
     try {
+      // For a return trip, `outboundTrip.dropoff` holds the destination (B) —
+      // the backend always derives the actual drop as the pickup point (A) for
+      // a return booking, so `drop_*` here is a placeholder the server ignores.
       const payload = {
         vehicle_type: outboundTrip.selectedRide!.id,
+        trip_type: isReturnTrip ? "return" : "oneway",
         pickup_address: outboundTrip.pickup!.address || "Unknown Pickup",
         pickup_lat: outboundTrip.pickup!.latitude,
         pickup_lng: outboundTrip.pickup!.longitude,
-        drop_address: outboundTrip.dropoff!.address || "Unknown Drop",
-        drop_lat: outboundTrip.dropoff!.latitude,
-        drop_lng: outboundTrip.dropoff!.longitude,
+        drop_address: isReturnTrip
+          ? outboundTrip.pickup!.address || "Unknown Pickup"
+          : outboundTrip.dropoff!.address || "Unknown Drop",
+        drop_lat: isReturnTrip
+          ? outboundTrip.pickup!.latitude
+          : outboundTrip.dropoff!.latitude,
+        drop_lng: isReturnTrip
+          ? outboundTrip.pickup!.longitude
+          : outboundTrip.dropoff!.longitude,
+        ...(isReturnTrip
+          ? {
+              destination_address:
+                outboundTrip.dropoff!.address || "Unknown Destination",
+              destination_lat: outboundTrip.dropoff!.latitude,
+              destination_lng: outboundTrip.dropoff!.longitude,
+            }
+          : {}),
         payment_method: paymentMethod,
         // The app shows PickU credit and loyalty points as one combined
         // balance under a single toggle - both flags mirror it, and the
@@ -277,10 +321,14 @@ export default function ConfirmationScreen() {
     }
   };
 
-  const totalPrice =
-    outboundTrip.selectedRide.price + (returnTrip.selectedRide?.price || 0);
+  // For a return trip, select-vehicle.tsx already priced the full round trip
+  // (pickup -> destination -> pickup), so this is the whole fare, not one leg.
+  const totalPrice = outboundTrip.selectedRide.price;
 
-  const totalDistanceText = directions?.distanceText || "Calculating route";
+  const totalDistanceText =
+    isReturnTrip && directions && returnDirections
+      ? formatDistance(directions.distance + returnDirections.distance)
+      : directions?.distanceText || "Calculating route";
   const selectedVehicleMarkers = nearbySelectedVehicles;
 
   return (
@@ -297,9 +345,13 @@ export default function ConfirmationScreen() {
         pickup={outboundTrip.pickup!}
         dropoff={outboundTrip.dropoff!}
         routeCoordinates={
-          directions && directions.polyline.length > 0
-            ? directions.polyline
-            : [outboundTrip.pickup!, outboundTrip.dropoff!]
+          isReturnTrip
+            ? directions && returnDirections
+              ? [...directions.polyline, ...returnDirections.polyline]
+              : [outboundTrip.pickup!, outboundTrip.dropoff!, outboundTrip.pickup!]
+            : directions && directions.polyline.length > 0
+              ? directions.polyline
+              : [outboundTrip.pickup!, outboundTrip.dropoff!]
         }
         routeColor="#20B768"
         pickupColor="#20B768"
@@ -378,6 +430,17 @@ export default function ConfirmationScreen() {
                 <Ionicons name="receipt-outline" size={21} color="#159A5B" />
               </View>
               <Text style={styles.detailsTitle}>Trip details</Text>
+              {isReturnTrip && (
+                <View style={styles.roundTripBadge}>
+                  <Ionicons
+                    name="repeat"
+                    size={12}
+                    color="#159A5B"
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={styles.roundTripBadgeText}>Round trip</Text>
+                </View>
+              )}
             </View>
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Vehicle</Text>
@@ -386,9 +449,15 @@ export default function ConfirmationScreen() {
               </Text>
             </View>
             <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Distance</Text>
+              <Text style={styles.detailLabel}>
+                {isReturnTrip ? "Total distance" : "Distance"}
+              </Text>
               <Text style={styles.detailValue}>
-                {loadingRoute ? "Calculating route" : totalDistanceText}
+                {loadingRoute
+                  ? "Calculating route"
+                  : isReturnTrip
+                    ? `${totalDistanceText} (round trip)`
+                    : totalDistanceText}
               </Text>
             </View>
             <View style={styles.detailsDivider} />
@@ -397,7 +466,13 @@ export default function ConfirmationScreen() {
               <View style={styles.routeTimeline}>
                 <View style={styles.pickupPoint} />
                 <View style={styles.routeLine} />
-                <View style={styles.dropoffPoint} />
+                <View style={isReturnTrip ? styles.midPoint : styles.dropoffPoint} />
+                {isReturnTrip && (
+                  <>
+                    <View style={styles.routeLine} />
+                    <View style={styles.dropoffPoint} />
+                  </>
+                )}
               </View>
               <View style={styles.routeContent}>
                 <View style={styles.routeLocation}>
@@ -407,11 +482,23 @@ export default function ConfirmationScreen() {
                   </Text>
                 </View>
                 <View style={styles.routeLocation}>
-                  <Text style={styles.routeLabelDropoff}>Drop-off</Text>
+                  <Text style={styles.routeLabelDropoff}>
+                    {isReturnTrip ? "Destination" : "Drop-off"}
+                  </Text>
                   <Text style={styles.locationDetailText}>
                     {outboundTrip.dropoff.address}
                   </Text>
                 </View>
+                {isReturnTrip && (
+                  <View style={styles.routeLocation}>
+                    <Text style={styles.routeLabelPickup}>
+                      Return to pickup
+                    </Text>
+                    <Text style={styles.locationDetailText}>
+                      {outboundTrip.pickup.address}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
 
@@ -627,6 +714,28 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#9CA3AF",
     backgroundColor: "#FFFFFF",
+  },
+  midPoint: {
+    width: 11,
+    height: 11,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#F97316",
+    backgroundColor: "#FFFFFF",
+  },
+  roundTripBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#E8F8F0",
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginLeft: "auto",
+  },
+  roundTripBadgeText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#159A5B",
   },
   routeContent: { flex: 1, gap: 13 },
   routeLocation: { gap: 3 },

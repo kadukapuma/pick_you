@@ -41,7 +41,7 @@ class RideTransitionService
             $driverId = $attributes['driver_id'] ?? $ride->driver_id;
             if ($driverId) {
                 try {
-                    if (in_array($toStatus, [RideStateMachine::ACCEPTED, RideStateMachine::ARRIVED, RideStateMachine::STARTED], true)) {
+                    if (in_array($toStatus, [RideStateMachine::ACCEPTED, RideStateMachine::ARRIVED, RideStateMachine::STARTED, RideStateMachine::WAITING, RideStateMachine::RETURNING], true)) {
                         \Illuminate\Support\Facades\Redis::setex("driver:active_ride:{$driverId}", 86400, (string) $ride->id);
                     } elseif (in_array($toStatus, [RideStateMachine::COMPLETED, RideStateMachine::CANCELLED], true)) {
                         \Illuminate\Support\Facades\Redis::del("driver:active_ride:{$driverId}");
@@ -65,6 +65,8 @@ class RideTransitionService
             RideStateMachine::ACCEPTED => ['accepted_at' => now()],
             RideStateMachine::ARRIVED => ['arrived_at' => now()],
             RideStateMachine::STARTED => ['started_at' => now()],
+            RideStateMachine::WAITING => ['destination_arrived_at' => now()],
+            RideStateMachine::RETURNING => ['return_started_at' => now()],
             RideStateMachine::COMPLETED => ['completed_at' => now()],
             RideStateMachine::CANCELLED => ['cancelled_at' => now()],
             default => [],

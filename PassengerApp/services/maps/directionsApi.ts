@@ -23,12 +23,12 @@ const CACHE_TTL = 5 * 60 * 1000;
 const ROUTE_REQUEST_TIMEOUT_MS = 5500;
 const FALLBACK_ROAD_DISTANCE_FACTOR = 1.28;
 
-const formatDistance = (meters: number): string => {
+export const formatDistance = (meters: number): string => {
   if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
   return `${Math.round(meters)} m`;
 };
 
-const formatDuration = (seconds: number): string => {
+export const formatDuration = (seconds: number): string => {
   const minutes = Math.round(seconds / 60);
   if (minutes < 1) return "< 1 min";
   if (minutes === 1) return "1 min";

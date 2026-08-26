@@ -210,18 +210,19 @@ export default function RideSearchScreen() {
 
   function handleReturnConfirm(
     pickup: LocationSuggestion,
-    stop: LocationSuggestion | null,
-    dropoff: LocationSuggestion,
+    destination: LocationSuggestion,
   ) {
+    // `destination` is stored as the trip's "dropoff" for map/fare purposes on
+    // the vehicle-selection screen — the ride always returns to `pickup`,
+    // which the backend derives automatically (see confirm.tsx).
     setOutboundPickup(pickup);
-    setOutboundDropoff(dropoff);
+    setOutboundDropoff(destination);
     setContextTripType("return");
     router.push({
-      pathname: "/ride-booking/select-return-vehicle",
+      pathname: "/ride-booking/select-vehicle",
       params: {
-        outboundPickup: JSON.stringify(pickup),
-        outboundDest: JSON.stringify(dropoff),
-        returnStop: JSON.stringify(stop),
+        pickup: JSON.stringify(pickup),
+        destination: JSON.stringify(destination),
         bookForFriend: String(bookForFriend),
       },
     });

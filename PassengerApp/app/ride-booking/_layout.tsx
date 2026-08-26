@@ -12,8 +12,6 @@ export default function RideBookingLayout() {
             <Stack.Screen name="matching" />
             <Stack.Screen name="select-vehicle" />
             <Stack.Screen name="confirm" />
-            <Stack.Screen name="select-return-vehicle" />
-            <Stack.Screen name="return-location" />
             <Stack.Screen name="saved-places" />
             <Stack.Screen name="location-map" />
             <Stack.Screen name="pickup-map" />

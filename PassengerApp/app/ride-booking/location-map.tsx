@@ -137,30 +137,20 @@ export default function SetLocationMapScreen() {
       };
 
       setOutboundPickup(pickupSuggestion);
+      // For a return trip, `destinationSuggestion` is the destination (B) —
+      // select-vehicle.tsx and confirm.tsx price/derive the round trip from
+      // pickup + this single dropoff value; there's no separate return address.
       setOutboundDropoff(destinationSuggestion);
+      setTripType(activeTab);
 
-      if (activeTab === "oneway") {
-        setTripType("oneway");
-        router.push({
-          pathname: "/ride-booking/select-vehicle" as any,
-          params: {
-            pickup: JSON.stringify(pickupSuggestion),
-            destination: JSON.stringify(destinationSuggestion),
-            bookForFriend: "false",
-          },
-        });
-      } else {
-        setTripType("return");
-        router.push({
-          pathname: "/ride-booking/select-return-vehicle" as any,
-          params: {
-            outboundPickup: JSON.stringify(pickupSuggestion),
-            outboundDest: JSON.stringify(destinationSuggestion),
-            returnStop: JSON.stringify(null),
-            bookForFriend: "false",
-          },
-        });
-      }
+      router.push({
+        pathname: "/ride-booking/select-vehicle" as any,
+        params: {
+          pickup: JSON.stringify(pickupSuggestion),
+          destination: JSON.stringify(destinationSuggestion),
+          bookForFriend: "false",
+        },
+      });
     } catch (e) {
       logExpectedError("Map drop location selection failed", e);
       Alert.alert("Could not select location", "Please move the map pin slightly and try again.");

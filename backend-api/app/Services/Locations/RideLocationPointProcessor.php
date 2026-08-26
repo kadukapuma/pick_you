@@ -103,7 +103,12 @@ class RideLocationPointProcessor
         }
 
         $actualDistanceKm = round($distanceKm, 4);
-        $estimatedDistanceKm = (float) ($ride->estimated_distance_km ?: $ride->distance_km);
+        // A return trip that never started the return leg is billed only for
+        // the outbound distance - see FareCalculationService::completionBreakdown().
+        $isPartialReturn = $ride->trip_type === 'return' && $ride->return_started_at === null;
+        $estimatedDistanceKm = $isPartialReturn
+            ? (float) ($ride->outbound_distance_km ?? $ride->estimated_distance_km ?: $ride->distance_km)
+            : (float) ($ride->estimated_distance_km ?: $ride->distance_km);
         $waitingMinutes = $this->minutesBetween($ride->arrived_at, $ride->started_at);
         $chargeableWaitingMinutes = round(max(
             0,
@@ -113,7 +118,9 @@ class RideLocationPointProcessor
         $extraDistanceKm = round(max(0, $actualDistanceKm - $includedKm), 4);
         $extraDistanceFare = round($extraDistanceKm * (float) $ride->fareConfig->per_km_rate, 2);
         $waitingFare = round($chargeableWaitingMinutes * (float) $ride->fareConfig->per_minute_rate, 2);
-        $estimatedFare = round((float) $ride->estimated_fare, 2);
+        $estimatedFare = $isPartialReturn
+            ? round((float) ($ride->outbound_fare ?? $ride->estimated_fare), 2)
+            : round((float) $ride->estimated_fare, 2);
         $finalFare = round(max($estimatedFare, (float) $ride->fareConfig->base_fare + $extraDistanceFare + $waitingFare), 2);
 
         return [
@@ -136,7 +143,11 @@ class RideLocationPointProcessor
 
     private function validateRideLifecycle(Ride $ride, CarbonImmutable $recordedAt): array
     {
-        if (! in_array($ride->status, ['ACCEPTED', 'ARRIVED', 'STARTED'], true)) {
+        // WAITING (parked at the return-trip destination) is a valid ride
+        // state but not a driving phase - points recorded then are rejected
+        // rather than folded into the distance, so a passenger who ends the
+        // ride there isn't billed for GPS noise while parked.
+        if (! in_array($ride->status, ['ACCEPTED', 'ARRIVED', 'STARTED', 'WAITING', 'RETURNING'], true)) {
             return [false, 'ride_not_active'];
         }
 
@@ -148,7 +159,12 @@ class RideLocationPointProcessor
             return [false, 'after_trip_completed'];
         }
 
-        return [$ride->status === 'STARTED', $ride->status === 'STARTED' ? null : 'before_trip_started'];
+        $isDrivingPhase = in_array($ride->status, ['STARTED', 'RETURNING'], true);
+        if ($isDrivingPhase) {
+            return [true, null];
+        }
+
+        return [false, $ride->status === 'WAITING' ? 'trip_paused_at_destination' : 'before_trip_started'];
     }
 
     private function previousAcceptedPoint(Ride $ride): ?object
@@ -197,7 +213,14 @@ class RideLocationPointProcessor
         $perKmRate = (float) optional($ride->fareConfig)->per_km_rate;
         $extraDistanceFare = round($extraDistanceKm * $perKmRate, 2);
         $waitingFare = (float) $ride->waiting_fare;
-        $estimatedFare = (float) $ride->estimated_fare;
+        // While a return trip is still on its outbound leg (or ends at the
+        // destination without ever returning), the live "if it ended now"
+        // fare should be floored at the one-way estimate, not the round-trip
+        // total - matching FareCalculationService::completionBreakdown().
+        $isPartialReturn = $ride->trip_type === 'return' && $ride->return_started_at === null;
+        $estimatedFare = $isPartialReturn
+            ? (float) ($ride->outbound_fare ?? $ride->estimated_fare)
+            : (float) $ride->estimated_fare;
 
         // Duration overage isn't computed live - it depends on total elapsed
         // time vs. the estimate and is only finalized once at completion.
