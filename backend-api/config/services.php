@@ -42,6 +42,10 @@ return [
         'sender_id' => env('NOTIFYLK_SENDER_ID'),
     ],
 
+    'otp' => [
+        'bypass_phone' => env('OTP_BYPASS_PHONE'),
+    ],
+
     'expo' => [
         'access_token' => env('EXPO_ACCESS_TOKEN'),
     ],
