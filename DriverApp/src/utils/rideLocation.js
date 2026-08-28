@@ -59,14 +59,14 @@ export function normalizeRidePayload(source = {}) {
   return {
     id: source.id ?? source.ride_id,
     ride_code: source.ride_code,
-    pickup: source.pickup ?? source.pickup_address ?? "",
-    drop: source.drop ?? source.drop_address ?? "",
+    pickup: source.pickup || source.pickup_address || "",
+    drop: source.drop || source.drop_address || "",
     pickupLat,
     pickupLng,
     dropLat,
     dropLng,
     trip_type: source.trip_type ?? "oneway",
-    destination: source.destination ?? source.destination_address ?? "",
+    destination: source.destination || source.destination_address || "",
     destinationLat,
     destinationLng,
     price:
