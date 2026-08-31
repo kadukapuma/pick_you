@@ -40,22 +40,29 @@ class WebxpayTokenizationCallbackProcessor
 
         $result = $this->parser->parse($encodedResult);
 
-        if (
-            ! hash_equals($operation->customer_id, $result->customerId)
-            || ! hash_equals(
-                strtolower($operation->customer_email),
-                strtolower($result->customerEmail)
-            )
-        ) {
-            throw new RuntimeException(
-                'WEBXPAY tokenization customer does not match the operation.'
-            );
+        /**
+         * An error envelope (e.g. duplicate_card) carries no customer block
+         * to check - the callback token verified above is what binds this
+         * request to this operation, so there's nothing further to match.
+         */
+        if ($result->customerId !== null || $result->customerEmail !== null) {
+            if (
+                ! hash_equals($operation->customer_id, (string) $result->customerId)
+                || ! hash_equals(
+                    strtolower($operation->customer_email),
+                    strtolower((string) $result->customerEmail)
+                )
+            ) {
+                throw new RuntimeException(
+                    'WEBXPAY tokenization customer does not match the operation.'
+                );
+            }
         }
 
         if (! $result->successful) {
             $operation->markFailed(
-                'THREE_DS_FAILED',
-                'Card authentication was not completed.'
+                $result->failureCode ?? 'THREE_DS_FAILED',
+                $result->failureReason ?? 'Card authentication was not completed.'
             );
 
             return WebxpayTokenizationOperation::STATUS_FAILED;

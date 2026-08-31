@@ -87,6 +87,7 @@ class WebxpayTokenizationPageController extends Controller
             Log::error('WEBXPAY hosted session submission failed.', [
                 'operation_id' => $operation->id,
                 'exception' => $exception::class,
+                'message' => $exception->getMessage(),
             ]);
 
             return response()->json([
@@ -131,6 +132,9 @@ class WebxpayTokenizationPageController extends Controller
             Log::error('WEBXPAY tokenization callback failed.', [
                 'operation_id' => $operation->id,
                 'exception' => $exception::class,
+                'message' => $exception->getMessage(),
+                'result3ds_length' => strlen($validated['result3ds']),
+                'result3ds_preview' => substr($validated['result3ds'], 0, 80),
             ]);
 
             return response()->json([

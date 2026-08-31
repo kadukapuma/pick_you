@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
+import { Alert, StyleSheet, Switch, Text, TouchableOpacity, View } from "react-native";
 import PaymentScreen, {
   PaymentButton,
 } from "../../features/payments/PaymentScreen";
@@ -14,6 +14,10 @@ import {
 } from "../../services/payments/paymentService";
 import type { PaymentMethod } from "../../state/booking/RideBookingContext";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
+
+// Temporary hold switch for the card payment flow until Webxpay is ready.
+// Set this to false when you want to re-enable the card option later.
+const FORCE_DISABLE_CARD_PAYMENTS = true;
 
 const methods: {
   id: PaymentMethod;
@@ -113,7 +117,8 @@ export default function PaymentMethodScreen() {
       loyaltyService.getSummary(),
     ]).then(([capabilities, credit, loyalty]) => {
       if (!active) return;
-      const card = capabilities.card || CARD_PAYMENTS_ENABLED;
+      const backendCard = capabilities.card || CARD_PAYMENTS_ENABLED;
+      const card = !FORCE_DISABLE_CARD_PAYMENTS && backendCard;
       setCardAvailable(card);
       setWalletAvailable(capabilities.wallet);
       if (!card && paymentMethod === "card") {
@@ -136,6 +141,9 @@ export default function PaymentMethodScreen() {
   const remainder = Math.max(0, estimate - credit);
   const canUseCredit =
     walletAvailable && Number(available || 0) > 0 && !creditError;
+  const visibleMethods = methods.filter(
+    (method) => method.id !== "card" || cardAvailable,
+  );
   return (
     <PaymentScreen
       title="Payment method"
@@ -227,7 +235,7 @@ export default function PaymentMethodScreen() {
       </View>
       <Text style={styles.sectionLabel}>PAY THE REMAINING AMOUNT WITH</Text>
       <View style={styles.methods}>
-        {methods.map((method) => {
+        {visibleMethods.map((method) => {
           const selected = paymentMethod === method.id;
           const disabled = method.id === "card" && !cardAvailable;
           const subtitle =
@@ -245,13 +253,22 @@ export default function PaymentMethodScreen() {
               disabled={disabled}
               onPress={() => {
                 if (method.id === "card") {
+                  if (!cardAvailable) {
+                    Alert.alert(
+                      "Card payments are pending",
+                      "Card payment is not available yet. Please pay with cash for now.",
+                    );
+                    return;
+                  }
+
                   router.push({
                     pathname: "/payments/cards",
                     params: { mode: "booking" },
                   });
-                } else {
-                  setPaymentMethod(method.id);
+                  return;
                 }
+
+                setPaymentMethod(method.id);
               }}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected, disabled }}

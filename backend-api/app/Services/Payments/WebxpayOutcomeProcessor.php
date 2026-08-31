@@ -4,13 +4,17 @@ namespace App\Services\Payments;
 
 use App\Enums\PaymentAttemptStatus;
 use App\Enums\PaymentStatus;
+use App\Events\RideStatusUpdated;
 use App\Models\Payment;
 use App\Models\PaymentAllocation;
 use App\Models\PaymentAttempt;
+use App\Models\Ride;
 use App\Services\Ledger\Money;
 use App\Services\Ledger\RideSettlementService;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class WebxpayOutcomeProcessor
 {
@@ -28,7 +32,7 @@ class WebxpayOutcomeProcessor
         PaymentAttempt $attempt,
         array $parsed
     ): Payment {
-        return DB::transaction(function () use (
+        $payment = DB::transaction(function () use (
             $attempt,
             $parsed
         ) {
@@ -317,5 +321,28 @@ class WebxpayOutcomeProcessor
 
             return $lockedPayment->refresh();
         }, 3);
+
+        if ($payment->payment_status === PaymentStatus::COMPLETED->value) {
+            $this->broadcastRideStatus($payment->ride_id);
+        }
+
+        return $payment;
+    }
+
+    /**
+     * The money is already committed at this point. A broadcast failure must
+     * not turn a successful payment into an error the gateway callback will
+     * retry (which could double-process the payment).
+     */
+    private function broadcastRideStatus(int $rideId): void
+    {
+        try {
+            event(new RideStatusUpdated(Ride::findOrFail($rideId)));
+        } catch (Throwable $exception) {
+            Log::warning('Could not broadcast ride status after WEBXPAY payment.', [
+                'ride_id' => $rideId,
+                'error' => $exception->getMessage(),
+            ]);
+        }
     }
 }

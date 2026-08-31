@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
   Image,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -931,21 +932,30 @@ export default function SelectRideScreen() {
 
         {/* ── OPTIONS ROW ────────────────────────────────────────────────── */}
         <View style={styles.optionsRow}>
-          <TouchableOpacity
-            style={styles.optionChip}
-            onPress={() => {
-              const currentRide = rideOptions.find(
-                (ride) => ride.id === selectedRide,
-              );
-              if (currentRide) {
-                setOutboundRide(currentRide);
-              }
-              router.push("/ride-booking/payment-method");
-            }}
-            activeOpacity={0.82}
-            accessibilityRole="button"
-            accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
-          >
+<TouchableOpacity
+  style={styles.optionChip}
+  onPress={() => {
+   if (paymentMethod === "card") {
+  Alert.alert(
+    "Card payments are pending",
+    "Cash is the only available payment option right now.",
+  );
+  return;
+}
+
+
+    const currentRide = rideOptions.find(
+      (ride) => ride.id === selectedRide,
+    );
+    if (currentRide) {
+      setOutboundRide(currentRide);
+    }
+    router.push("/ride-booking/payment-method");
+  }}
+  activeOpacity={0.82}
+  accessibilityRole="button"
+  accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
+>
             <Ionicons
               name={
                 usePickuCredit

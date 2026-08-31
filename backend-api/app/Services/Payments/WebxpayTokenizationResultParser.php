@@ -27,7 +27,40 @@ class WebxpayTokenizationResultParser
 
         $payload = json_decode($decoded, true);
 
-        if (! is_array($payload) || ! is_bool($payload['success'] ?? null)) {
+        if (! is_array($payload)) {
+            throw new RuntimeException(
+                'WEBXPAY tokenization result is invalid.'
+            );
+        }
+
+        /**
+         * WEBXPAY sometimes returns an error envelope instead of the normal
+         * success/customer/card shape - e.g. {"error":true,"type":
+         * "duplicate_card","explanation":"..."} when the card is already
+         * tokenized for this customer. That's a real, expected outcome, not
+         * a malformed response - surface it as a failure with WEBXPAY's own
+         * reason instead of throwing "invalid".
+         */
+        if (($payload['error'] ?? null) === true) {
+            $code = is_string($payload['type'] ?? null) && trim($payload['type']) !== ''
+                ? $payload['type']
+                : 'PROVIDER_ERROR';
+
+            $reason = is_string($payload['explanation'] ?? null) && trim($payload['explanation']) !== ''
+                ? trim($payload['explanation'])
+                : 'WEBXPAY rejected the card.';
+
+            return new WebxpayTokenizationResult(
+                successful: false,
+                customerId: null,
+                customerEmail: null,
+                providerCardId: null,
+                failureCode: $code,
+                failureReason: $reason
+            );
+        }
+
+        if (! is_bool($payload['success'] ?? null)) {
             throw new RuntimeException(
                 'WEBXPAY tokenization result is invalid.'
             );
