@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
-import { Image, Platform, StyleSheet, View } from "react-native";
+import { Image, Platform, StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { useSmoothLocation } from "../../hooks/useSmoothLocation";
 
@@ -102,10 +102,19 @@ const useFollowCameraLocation = (location, enabled) => {
   return cameraLocation;
 };
 
-function DotMarker({ color = "#00A859" }) {
+function DotMarker({ color = "#00A859", label }) {
   return (
-    <View style={[styles.dotOuter, { backgroundColor: `${color}33` }]}>
-      <View style={[styles.dotInner, { backgroundColor: color }]} />
+    <View style={styles.dotMarkerWrap}>
+      {label ? (
+        <View style={[styles.dotLabelPill, { backgroundColor: color }]}>
+          <Text style={styles.dotLabelText} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+      ) : null}
+      <View style={[styles.dotOuter, { backgroundColor: `${color}33` }]}>
+        <View style={[styles.dotInner, { backgroundColor: color }]} />
+      </View>
     </View>
   );
 }
@@ -154,6 +163,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
     showRoute = true,
     routeColor = "#00A859",
     destinationColor = "#00A859",
+    destinationLabel,
     vehicleImage,
     vehicleHeading = 0,
     vehicleSize = 46,
@@ -380,7 +390,7 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
 
       {destination ? (
         <Marker coordinate={toLatLng(destination)} anchor={{ x: 0.5, y: 0.5 }}>
-          <DotMarker color={destinationColor} />
+          <DotMarker color={destinationColor} label={destinationLabel} />
         </Marker>
       ) : null}
     </MapView>
@@ -392,6 +402,34 @@ export default memo(GoogleRideMap);
 const styles = StyleSheet.create({
   map: {
     flex: 1,
+  },
+  dotMarkerWrap: {
+    width: 26,
+    height: 26,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  dotLabelPill: {
+    position: "absolute",
+    bottom: "100%",
+    marginBottom: 6,
+    alignSelf: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#FFFFFF",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  dotLabelText: {
+    color: "#FFFFFF",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.3,
   },
   dotOuter: {
     width: 26,

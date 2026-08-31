@@ -38,6 +38,17 @@ class PassengerAuthController extends Controller
         }
     }
 
+    private function isBypassPhone(string $normalizedPhone): bool
+    {
+        $bypassPhone = config('services.otp.bypass_phone');
+
+        if (blank($bypassPhone)) {
+            return false;
+        }
+
+        return $this->normalizePhoneNumber($bypassPhone) === $normalizedPhone;
+    }
+
     public function sendOtp(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -58,6 +69,10 @@ class PassengerAuthController extends Controller
         }
 
         $otpCode = $this->otpCodes->generate();
+
+        if ($this->isBypassPhone($notifyPhone)) {
+            return $this->success(['otp' => $otpCode], 'OTP sent successfully');
+        }
 
         OtpVerification::create([
             'contact' => $notifyPhone,
@@ -90,19 +105,21 @@ class PassengerAuthController extends Controller
 
         $notifyPhone = $this->normalizePhoneNumber($request->phone);
 
-        $otp = OtpVerification::where('contact', $notifyPhone)
-            ->where('purpose', 'passenger_login')
-            ->where('is_verified', false)
-            ->where('expires_at', '>', now())
-            ->latest()
-            ->get()
-            ->first(fn (OtpVerification $otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
+        if (! $this->isBypassPhone($notifyPhone)) {
+            $otp = OtpVerification::where('contact', $notifyPhone)
+                ->where('purpose', 'passenger_login')
+                ->where('is_verified', false)
+                ->where('expires_at', '>', now())
+                ->latest()
+                ->get()
+                ->first(fn (OtpVerification $otp) => $this->otpCodes->matches((string) $request->otp_code, $otp->otp_code));
 
-        if (!$otp) {
-            return $this->error('Invalid or expired OTP', 400);
+            if (!$otp) {
+                return $this->error('Invalid or expired OTP', 400);
+            }
+
+            $otp->update(['is_verified' => true]);
         }
-
-        $otp->update(['is_verified' => true]);
 
         try {
             $user = $this->phoneIdentities->resolve($request->phone);
@@ -175,15 +192,17 @@ class PassengerAuthController extends Controller
             }
         }
 
-        $verifiedOtp = OtpVerification::where('contact', $notifyPhone)
-            ->where('purpose', 'passenger_login')
-            ->where('is_verified', true)
-            ->where('expires_at', '>', now()->subMinutes(15))
-            ->latest()
-            ->first();
+        if (! $this->isBypassPhone($notifyPhone)) {
+            $verifiedOtp = OtpVerification::where('contact', $notifyPhone)
+                ->where('purpose', 'passenger_login')
+                ->where('is_verified', true)
+                ->where('expires_at', '>', now()->subMinutes(15))
+                ->latest()
+                ->first();
 
-        if (!$verifiedOtp) {
-            return $this->error('Please verify OTP before registering', 403);
+            if (!$verifiedOtp) {
+                return $this->error('Please verify OTP before registering', 403);
+            }
         }
 
         try {

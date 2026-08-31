@@ -616,6 +616,14 @@ export default function SearchingScreen() {
       ? pickupCoord
       : getRideDestinationCoordinate(rideData) || outboundTrip.dropoff || null
     : dropoffCoord;
+  // Mirrors DriverApp's TripInProgressScreen: the mid-trip stop isn't a
+  // "drop", and the final stop on a return trip is pickup and drop at once
+  // (drop is always forced equal to pickup server-side for a return trip).
+  const headingTargetKind = isReturn
+    ? isReturningLeg
+      ? "pickup_drop"
+      : "destination"
+    : "dropoff";
   const acceptedVehicleLocation = useMemo(() => {
     if (
       driverLocation &&
@@ -698,6 +706,7 @@ export default function SearchingScreen() {
             style={styles.map}
             location={pickupCoord}
             destination={isOnTrip && !isAtDestination ? headingCoord : null}
+            targetKind={headingTargetKind}
             driverLocation={acceptedVehicleLocation}
             nearbyVehicles={acceptedDriverVehicle}
             rideStatus={rideStatus}

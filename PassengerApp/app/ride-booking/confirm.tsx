@@ -355,7 +355,12 @@ export default function ConfirmationScreen() {
         }
         routeColor="#20B768"
         pickupColor="#20B768"
-        dropoffColor="#F97316"
+        // A return trip's "dropoff" here is really the mid-trip destination
+        // waypoint the driver comes back from, and the ride's actual drop is
+        // always forced equal to pickup server-side - see select-vehicle.tsx.
+        pickupLabel={isReturnTrip ? "Pickup & Drop" : undefined}
+        dropoffLabel={isReturnTrip ? "Return Point" : "Drop"}
+        dropoffColor={isReturnTrip ? "#7C3AED" : "#F97316"}
         nearbyVehicles={selectedVehicleMarkers}
       />
 

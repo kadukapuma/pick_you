@@ -11,12 +11,18 @@ import type { MapCoordinate, NearbyVehicle } from "./vehicleMapTypes";
 
 type Coordinate = MapCoordinate;
 
+type TargetKind = "pickup" | "dropoff" | "destination" | "pickup_drop";
+
 type Props = {
   location: Coordinate;
   destination: Coordinate | null;
   driverLocation?: Coordinate | null;
   nearbyVehicles?: NearbyVehicle[];
   rideStatus?: string;
+  // Overrides the default pickup/dropoff inference below - needed for a
+  // return trip, where the map target is a mid-trip waypoint or the
+  // pickup-that's-also-the-drop, neither of which is a plain "dropoff".
+  targetKind?: TargetKind;
   onMapPress?: (event: any) => void;
   followVehicle?: boolean;
   followPitch?: number;
@@ -53,6 +59,7 @@ export default function RideMap({
   destination,
   driverLocation,
   rideStatus,
+  targetKind,
   followVehicle = false,
   followPitch = 0,
   onFollowStateChange,
@@ -68,7 +75,12 @@ export default function RideMap({
   onRouteInfoChange,
 }: Props) {
   const normalizedStatus = String(rideStatus || "").toUpperCase();
-  const isOnTrip = normalizedStatus === "STARTED";
+  // RETURNING is a return trip driving its second leg - still "on trip" in
+  // every sense that matters here (route to an active target, not resting
+  // at the nominal pickup). Excluding it made activeTarget below fall back
+  // to `location` instead of the caller's `destination`, only landing on
+  // the right coordinate by coincidence when the two happened to match.
+  const isOnTrip = normalizedStatus === "STARTED" || normalizedStatus === "RETURNING";
   const activeTarget = isOnTrip && destination ? destination : location;
   const displayDriverLocation = driverLocation ?? undefined;
   const activeOrigin = isOnTrip ? tripStartCoordinate || location : displayDriverLocation ?? location;
@@ -170,7 +182,7 @@ export default function RideMap({
     <DriverStyleRideMap
       vehicleLocation={displayDriverLocation}
       target={activeTarget}
-      targetKind={isOnTrip ? "dropoff" : "pickup"}
+      targetKind={targetKind ?? (isOnTrip ? "dropoff" : "pickup")}
       tripStart={
         isOnTrip && showPickupMarker
           ? tripStartCoordinate || location

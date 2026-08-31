@@ -156,6 +156,23 @@ const TripInProgressScreen = ({ navigation, route }) => {
         ? "Pickup (return)"
         : ride?.drop || "Destination";
 
+  // The map pin at navTargetCoord must not be styled as a generic "drop" pin
+  // for a return trip: the mid-trip stop is a waypoint the driver comes back
+  // from (not a drop), and the final stop is pickup and drop at once, since
+  // a return trip's drop_* is always forced equal to pickup_* server-side.
+  const navMarkerColor =
+    phase === "to_destination" || phase === "at_destination"
+      ? "#7C3AED"
+      : phase === "returning"
+        ? "#00A859"
+        : "#EF4444";
+  const navMarkerLabel =
+    phase === "to_destination" || phase === "at_destination"
+      ? "RETURN POINT"
+      : phase === "returning"
+        ? "PICKUP & DROP"
+        : "DROP";
+
   const minimizeToHome = useCallback(() => {
     navigation.navigate("MainTabs");
     return true;
@@ -331,6 +348,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
       const response = await api.post(`/rides/${ride.id}/start-return`);
       const updated = response.data?.data ?? response.data;
       setRideStatus(updated?.status || "RETURNING");
+      // The slider was last left parked at the far right from the earlier
+      // "arrived at destination" slide (see handleArriveDestination) - this
+      // phase reuses that same slider for "Slide to Complete Trip", so it
+      // must be explicitly reset or the thumb renders stuck on the right.
+      resetSlider();
     } catch (error) {
       console.log("Error starting return leg:", error.response?.data || error);
       alert(
@@ -341,7 +363,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       actionInFlightRef.current = false;
       setIsActionRunning(false);
     }
-  }, [ride?.id]);
+  }, [resetSlider, ride?.id]);
 
   // The slider always drives the single "forward" action for the current
   // phase - mark arrived at the destination, or complete the trip. Starting
@@ -458,7 +480,8 @@ const TripInProgressScreen = ({ navigation, route }) => {
         routeCoordinates={routeCoordinates}
         showRoute={hasRouteOrigin}
         routeColor="#2F80ED"
-        destinationColor="#EF4444"
+        destinationColor={navMarkerColor}
+        destinationLabel={navMarkerLabel}
         vehicleImage={vehicleImage}
         vehicleSize={46}
         edgePadding={mapPadding}

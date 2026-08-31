@@ -24,6 +24,8 @@ const TripCompletedScreen = ({ navigation, route }) => {
   const customerName = ride?.customerName || "John David";
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropLocation = ride?.drop || "Peradeniya Junction";
+  const isReturnTrip = String(ride?.trip_type || "").toLowerCase() === "return";
+  const destinationLocation = ride?.destination || "Peradeniya Junction";
   const fareAmount =
     ride?.final_fare || ride?.estimated_fare || ride?.fare || "Rs. 850";
   const numericFare = Number(ride?.final_fare || ride?.estimated_fare || 0);
@@ -312,6 +314,12 @@ const TripCompletedScreen = ({ navigation, route }) => {
             <View style={styles.timelineNodeAxis}>
               <View style={styles.greenNodeDot} />
               <View style={styles.dashedLinkLine} />
+              {isReturnTrip && (
+                <>
+                  <View style={styles.purpleNodeDot} />
+                  <View style={styles.dashedLinkLine} />
+                </>
+              )}
               <View style={styles.redNodeDot} />
             </View>
 
@@ -323,8 +331,19 @@ const TripCompletedScreen = ({ navigation, route }) => {
                 </Text>
               </View>
 
+              {isReturnTrip && (
+                <View style={[styles.addressMetaGroup, { marginTop: 12 }]}>
+                  <Text style={styles.addressTitleLabel}>Return Point</Text>
+                  <Text style={styles.addressValueText} numberOfLines={1}>
+                    {destinationLocation}
+                  </Text>
+                </View>
+              )}
+
               <View style={[styles.addressMetaGroup, { marginTop: 12 }]}>
-                <Text style={styles.addressTitleLabel}>Drop Location</Text>
+                <Text style={styles.addressTitleLabel}>
+                  {isReturnTrip ? "Returned To" : "Drop Location"}
+                </Text>
                 <Text style={styles.addressValueText} numberOfLines={1}>
                   {dropLocation}
                 </Text>
@@ -582,6 +601,12 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#E2E8F0",
     marginVertical: 4,
+  },
+  purpleNodeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#7C3AED",
   },
   redNodeDot: {
     width: 8,

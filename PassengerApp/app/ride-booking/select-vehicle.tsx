@@ -832,7 +832,14 @@ export default function SelectRideScreen() {
         pickupColor={GREEN}
         nearbyVehicles={nearbyVehicles}
         fitEdgePadding={{ top: 120, right: 80, bottom: 430, left: 80 }}
-        dropoffColor="#F97316"
+        // A return trip's marked "destination" is a waypoint the driver
+        // comes back from, not a drop - and the ride's actual drop is
+        // always forced equal to pickup server-side, so the pickup pin
+        // doubles as the drop too. See DriverStyleRideMap.tsx / matching.tsx
+        // for the same distinction on the live-tracking map.
+        pickupLabel={tripType === "return" ? "Pickup & Drop" : undefined}
+        dropoffLabel={tripType === "return" ? "Return Point" : "Drop"}
+        dropoffColor={tripType === "return" ? "#7C3AED" : "#F97316"}
       />
 
       {/* ── BACK BUTTON ─────────────────────────────────────────────────── */}
