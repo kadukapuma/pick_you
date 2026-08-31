@@ -22,10 +22,12 @@ import VehicleMarker from "./VehicleMarker";
 import type { MapCoordinate } from "./vehicleMapTypes";
 import { PASSENGER_LIGHT_MAP_STYLE } from "./rideMapStyle";
 
+type TargetKind = "pickup" | "dropoff" | "destination" | "pickup_drop";
+
 type Props = {
   vehicleLocation?: MapCoordinate | null;
   target: MapCoordinate;
-  targetKind: "pickup" | "dropoff";
+  targetKind: TargetKind;
   tripStart?: MapCoordinate | null;
   includeTripStartInFocus?: boolean;
   routeCoordinates?: MapCoordinate[];
@@ -183,21 +185,27 @@ const useFollowCameraLocation = (
   return cameraLocation;
 };
 
-function PlaceMarker({
-  kind,
-}: {
-  kind: "pickup" | "dropoff";
-}) {
-  const isPickup = kind === "pickup";
-  const color = isPickup ? "#20B768" : "#F97316";
-  const label = isPickup ? "Pickup" : "Drop";
+// A return trip's mid-trip stop is a waypoint the driver comes back from -
+// not a drop - and its final stop is pickup and drop at once, since a
+// return trip's drop is always forced equal to pickup server-side. Labeling
+// either of those "Drop" misleads the passenger about what's actually
+// happening, hence the two extra kinds beyond the plain one-way pair.
+const PLACE_MARKER_STYLE: Record<TargetKind, { color: string; label: string; glyph: string }> = {
+  pickup: { color: "#20B768", label: "Pickup", glyph: "P" },
+  dropoff: { color: "#F97316", label: "Drop", glyph: "D" },
+  destination: { color: "#7C3AED", label: "Return Point", glyph: "R" },
+  pickup_drop: { color: "#20B768", label: "Pickup & Drop", glyph: "P" },
+};
+
+function PlaceMarker({ kind }: { kind: TargetKind }) {
+  const { color, label, glyph } = PLACE_MARKER_STYLE[kind];
   return (
     <View style={styles.placeMarkerWrap}>
       <View style={[styles.placeLabel, { borderColor: `${color}33` }]}>
         <Text style={[styles.placeLabelText, { color }]}>{label}</Text>
       </View>
       <View style={[styles.placePin, { backgroundColor: color }]}>
-        <Text style={styles.placePinText}>{isPickup ? "P" : "D"}</Text>
+        <Text style={styles.placePinText}>{glyph}</Text>
       </View>
       <View style={[styles.placePinTip, { borderTopColor: color }]} />
     </View>
@@ -448,7 +456,7 @@ export default function DriverStyleRideMap({
           <PlaceMarker kind={targetKind} />
         </Marker>
 
-        {tripStart && targetKind === "dropoff" ? (
+        {tripStart && (targetKind === "dropoff" || targetKind === "destination") ? (
           <Marker coordinate={toLatLng(tripStart)} anchor={{ x: 0.5, y: 1 }}>
             <PlaceMarker kind="pickup" />
           </Marker>
