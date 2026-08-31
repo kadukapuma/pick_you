@@ -12,31 +12,14 @@ const isDriverOnline = (driver) => Number(driver?.availability) === 1
 const Drivers = () => {
     const { token } = useAdmin()
     const { driversState } = useOutletContext()
-    const { drivers, loading, error, setDrivers, pagination, page, setPage } = driversState
+    const { drivers, loading, error, setDrivers, pagination, page, setPage, search, setSearch } = driversState
     const navigate = useNavigate()
-    const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
 
     const filteredDrivers = useMemo(() => {
-        const query = search.trim().toLowerCase()
-
-        return drivers.filter((driver) => {
-            const matchesStatus =
-                statusFilter === 'all' || driver.status === statusFilter
-            if (!matchesStatus) return false
-            if (!query) return true
-
-            return [
-                driver.name,
-                driver.email,
-                driver.phone,
-                driver.license_number,
-                driver?.vehicle?.plate_number,
-            ]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(query))
-        })
-    }, [drivers, search, statusFilter])
+        if (statusFilter === 'all') return drivers
+        return drivers.filter((driver) => driver.status === statusFilter)
+    }, [drivers, statusFilter])
 
     const handleToggleActive = async (id, currentActive) => {
         const action = currentActive ? 'suspend' : 'activate';

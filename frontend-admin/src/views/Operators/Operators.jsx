@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Swal from 'sweetalert2'
 import { useAdmin } from '../../context/AdminContext'
 import DataTable from '../../components/DataTable/DataTable'
@@ -28,6 +28,7 @@ const Operators = () => {
     const [page, setPage] = useState(1)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [isEditingOperator, setIsEditingOperator] = useState(false)
     const [editingOperatorId, setEditingOperatorId] = useState(null)
@@ -54,6 +55,7 @@ const Operators = () => {
             const response = await fetchOperators(token, {
                 page,
                 perPage: pagination.perPage,
+                search: debouncedSearch,
             })
             setOperators(response.operators || [])
             if (response.pagination) {
@@ -67,27 +69,22 @@ const Operators = () => {
         } finally {
             setLoading(false)
         }
-    }, [page, pagination.perPage, token])
+    }, [page, pagination.perPage, token, debouncedSearch])
+
+    useEffect(() => {
+        const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+        return () => clearTimeout(timeout)
+    }, [search])
+
+    useEffect(() => {
+        setPage(1)
+    }, [debouncedSearch])
 
     useEffect(() => {
         loadOperators()
     }, [loadOperators])
 
-    const filteredOperators = useMemo(() => {
-        const query = search.trim().toLowerCase()
-        if (!query) return operators
-
-        return operators.filter((operator) => {
-            return [
-                operator.first_name,
-                operator.last_name,
-                operator.email,
-                operator.phone,
-            ]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(query))
-        })
-    }, [operators, search])
+    const filteredOperators = operators
 
     const resetForm = () => {
         setFormData({

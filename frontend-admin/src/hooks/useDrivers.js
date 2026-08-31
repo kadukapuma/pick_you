@@ -13,6 +13,17 @@ const useDrivers = (token) => {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(timeout)
+  }, [search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   const loadDrivers = useCallback(async () => {
     if (!token) return
@@ -24,6 +35,7 @@ const useDrivers = (token) => {
       const data = await fetchDrivers(token, {
         page,
         perPage: pagination.perPage,
+        search: debouncedSearch,
       })
       setDrivers(data.drivers || [])
       if (data.pagination) {
@@ -37,7 +49,7 @@ const useDrivers = (token) => {
     } finally {
       setLoading(false)
     }
-  }, [token, page, pagination.perPage])
+  }, [token, page, pagination.perPage, debouncedSearch])
 
   useEffect(() => {
     if (!token) {
@@ -131,6 +143,8 @@ const useDrivers = (token) => {
     refresh: loadDrivers,
     updateDriver,
     setDrivers,
+    search,
+    setSearch,
   }
 }
 

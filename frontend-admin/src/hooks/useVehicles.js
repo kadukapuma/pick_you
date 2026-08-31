@@ -13,6 +13,17 @@ const useVehicles = (token, driverId) => {
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+    return () => clearTimeout(timeout)
+  }, [search])
+
+  useEffect(() => {
+    setPage(1)
+  }, [debouncedSearch])
 
   const loadVehicles = useCallback(async () => {
     if (!token) return
@@ -24,6 +35,7 @@ const useVehicles = (token, driverId) => {
       const data = await fetchVehicles(token, driverId, {
         page,
         perPage: pagination.perPage,
+        search: debouncedSearch,
       })
       setVehicles(data.vehicles || [])
       if (data.pagination) {
@@ -37,7 +49,7 @@ const useVehicles = (token, driverId) => {
     } finally {
       setLoading(false)
     }
-  }, [token, driverId, page, pagination.perPage])
+  }, [token, driverId, page, pagination.perPage, debouncedSearch])
 
   useEffect(() => {
     if (!token) {
@@ -102,6 +114,8 @@ const useVehicles = (token, driverId) => {
     refresh: loadVehicles,
     updateVehicle,
     setVehicles,
+    search,
+    setSearch,
   }
 }
 
