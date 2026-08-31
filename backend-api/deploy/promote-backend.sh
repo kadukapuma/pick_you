@@ -44,7 +44,7 @@ apply() {
     rsync -a --delete "${EXCLUDES[@]}" "$SRC/" "$DST/"
 
     echo "=== composer install (production, no-dev) ==="
-    (cd "$DST" && composer install --no-dev --optimize-autoloader)
+    (cd "$DST" && /usr/local/bin/composer install --no-dev --optimize-autoloader)
 
     echo "=== Clearing caches ==="
     (cd "$DST" && php artisan config:clear && php artisan route:clear && php artisan cache:clear)
