@@ -117,6 +117,7 @@ class RideMatchingService
                 'ride_id' => $ride->id,
                 'expires_at' => $offerExpiresAt->format(DATE_ATOM),
             ],
+            'driver',
         );
     }
 
