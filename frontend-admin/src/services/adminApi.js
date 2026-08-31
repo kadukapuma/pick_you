@@ -177,12 +177,15 @@ const fetchMe = async (token) => {
   return payload.data || payload
 }
 
-const fetchDrivers = async (token, { page = 1, perPage = 10, search = '' } = {}) => {
+const fetchDrivers = async (token, { page = 1, perPage = 10, search = '', status = '' } = {}) => {
   const params = new URLSearchParams()
   params.set('page', String(page))
   params.set('per_page', String(perPage))
   if (search) {
     params.set('search', search)
+  }
+  if (status && status !== 'all') {
+    params.set('status', status)
   }
   const payload = await apiFetch(`/drivers?${params.toString()}`, { token })
   const data = payload.data || {}
@@ -190,6 +193,11 @@ const fetchDrivers = async (token, { page = 1, perPage = 10, search = '' } = {})
     drivers: (data.data || []).map(mapDriver),
     pagination: mapPagination(data, page, perPage),
   }
+}
+
+const fetchDriverStatusCounts = async (token) => {
+  const payload = await apiFetch('/drivers/status-counts', { token })
+  return payload.data || {}
 }
 
 const fetchDriverDetails = async (token, driverId) => {
@@ -755,6 +763,7 @@ export {
   fetchAdmins,
   fetchOperators,
   fetchDrivers,
+  fetchDriverStatusCounts,
   fetchMe,
   fetchDriverDetails,
   fetchPassengers,

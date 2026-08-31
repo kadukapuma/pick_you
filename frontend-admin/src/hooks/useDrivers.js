@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
 import echo from '../echo'
-import { fetchDrivers, mapDriver } from '../services/adminApi'
+import { fetchDrivers, fetchDriverStatusCounts, mapDriver } from '../services/adminApi'
+
+const DEFAULT_STATUS_COUNTS = {
+  all: 0,
+  approved: 0,
+  pending: 0,
+  rejected: 0,
+  suspended: 0,
+  updated: 0,
+}
 
 const useDrivers = (token) => {
   const [drivers, setDrivers] = useState([])
@@ -15,6 +24,8 @@ const useDrivers = (token) => {
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusCounts, setStatusCounts] = useState(DEFAULT_STATUS_COUNTS)
 
   useEffect(() => {
     const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 400)
@@ -23,7 +34,18 @@ const useDrivers = (token) => {
 
   useEffect(() => {
     setPage(1)
-  }, [debouncedSearch])
+  }, [debouncedSearch, statusFilter])
+
+  const loadStatusCounts = useCallback(async () => {
+    if (!token) return
+
+    try {
+      const counts = await fetchDriverStatusCounts(token)
+      setStatusCounts((prev) => ({ ...prev, ...counts }))
+    } catch {
+      // Non-critical: leave the previous counts in place if this fails.
+    }
+  }, [token])
 
   const loadDrivers = useCallback(async () => {
     if (!token) return
@@ -36,6 +58,7 @@ const useDrivers = (token) => {
         page,
         perPage: pagination.perPage,
         search: debouncedSearch,
+        status: statusFilter,
       })
       setDrivers(data.drivers || [])
       if (data.pagination) {
@@ -49,7 +72,16 @@ const useDrivers = (token) => {
     } finally {
       setLoading(false)
     }
-  }, [token, page, pagination.perPage, debouncedSearch])
+  }, [token, page, pagination.perPage, debouncedSearch, statusFilter])
+
+  useEffect(() => {
+    if (!token) {
+      setStatusCounts(DEFAULT_STATUS_COUNTS)
+      return
+    }
+
+    loadStatusCounts()
+  }, [token, loadStatusCounts])
 
   useEffect(() => {
     if (!token) {
@@ -70,12 +102,18 @@ const useDrivers = (token) => {
       const nextDriver = mapDriver(payload?.driver ?? payload)
       if (!nextDriver?.id) return
 
+      loadStatusCounts()
+
       setDrivers((prev) => {
         const exists = prev.some((driver) => driver.id === nextDriver.id)
         if (exists) {
           return prev.map((driver) =>
             driver.id === nextDriver.id ? nextDriver : driver,
           )
+        }
+        const matchesFilter = statusFilter === 'all' || nextDriver.status === statusFilter
+        if (!matchesFilter) {
+          return prev
         }
         setPagination((prevPagination) => ({
           ...prevPagination,
@@ -94,7 +132,7 @@ const useDrivers = (token) => {
       channel.stopListening('DriverCreated', handleCreated)
       echo.leave('admin.drivers')
     }
-  }, [token, page])
+  }, [token, page, statusFilter, loadStatusCounts])
 
   // Listen for real-time driver availability updates
   useEffect(() => {
@@ -131,7 +169,8 @@ const useDrivers = (token) => {
         driver.id === nextDriver.id ? nextDriver : driver,
       ),
     )
-  }, [])
+    loadStatusCounts()
+  }, [loadStatusCounts])
 
   return {
     drivers,
@@ -145,6 +184,9 @@ const useDrivers = (token) => {
     setDrivers,
     search,
     setSearch,
+    statusFilter,
+    setStatusFilter,
+    statusCounts,
   }
 }
 

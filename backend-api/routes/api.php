@@ -368,6 +368,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // so leave those admin/super_admin-only for now rather than silently
         // locking existing admins out until the permissions are seeded.
         Route::get('/drivers', [DriverController::class, 'index']);
+        Route::get('/drivers/status-counts', [DriverController::class, 'statusCounts']);
         Route::get('/drivers/{id}', [DriverController::class, 'show']);
         Route::put('/drivers/{id}/status', [DriverController::class, 'updateStatus']);
         Route::put('/drivers/{id}/active-status', [DriverController::class, 'updateActiveStatus']);
