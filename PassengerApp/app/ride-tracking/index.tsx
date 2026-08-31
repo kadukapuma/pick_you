@@ -72,7 +72,8 @@ export default function LiveTrackerPage() {
         connected: false,
         stale: true,
     });
-    const [showRatingModal, setShowRatingModal] = useState(isInitiallyPaid);
+    const [showRatingModal, setShowRatingModal] = useState(false);
+    const hasShownPaidConfirmationRef = useRef(isInitiallyPaid);
     const [eventStatus, setEventStatus] = useState<string | null>(
         initialEventStatus && !isInitiallyPaid && !["ACCEPTED", "ARRIVED", "STARTED", "PAID"].includes(String(initialEventStatus).toUpperCase())
             ? String(initialEventStatus).toUpperCase()
@@ -154,7 +155,8 @@ export default function LiveTrackerPage() {
 
             if (paymentStatus && lastPaymentStatusRef.current !== paymentStatus) {
                 lastPaymentStatusRef.current = paymentStatus;
-                if (paymentStatus === "COMPLETED" && !ratingSubmitted) {
+                if (paymentStatus === "COMPLETED" && !ratingSubmitted && !hasShownPaidConfirmationRef.current) {
+                    hasShownPaidConfirmationRef.current = true;
                     setEventStatus("PAID");
                     setEventPaymentStatus(paymentStatus);
                     setShowRatingModal(true);
@@ -299,6 +301,7 @@ export default function LiveTrackerPage() {
             });
 
             if (response.success) {
+                hasShownPaidConfirmationRef.current = true;
                 setRatingSubmitted(true);
                 setShowRatingModal(false);
                 resetTrip();
