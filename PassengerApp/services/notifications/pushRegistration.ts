@@ -59,6 +59,7 @@ export async function registerForPushNotifications(): Promise<void> {
     await apiClient.post("/devices/push-token", {
       token,
       platform: Platform.OS,
+      app: "passenger",
     });
   } catch (error) {
     if (__DEV__) console.warn("Push notification registration failed:", error);
