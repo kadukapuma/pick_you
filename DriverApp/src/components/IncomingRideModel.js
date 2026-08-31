@@ -51,6 +51,8 @@ const IncomingRideModal = ({
   const isCashRide =
     (rideData?.paymentMode || rideData?.payment_method || "cash").toLowerCase() === "cash";
   const usesPickuCredit = Boolean(rideData?.use_wallet_credit);
+  const isReturnTrip =
+    String(rideData?.trip_type || "").toLowerCase() === "return";
   const [countdown, setCountdown] = useState(remainingOfferSeconds);
   const soundRef = useRef(null);
   const soundOperationRef = useRef(Promise.resolve());
@@ -197,9 +199,15 @@ const IncomingRideModal = ({
 
             <View style={styles.headerMainRow}>
               <View>
-                <Text style={styles.badgeText}>NEW RIDE REQUEST</Text>
+                <Text style={styles.badgeText}>
+                  {isReturnTrip ? "NEW ROUND TRIP REQUEST" : "NEW RIDE REQUEST"}
+                </Text>
                 <Text style={styles.mainTitleText}>Incoming Ride</Text>
-                <Text style={styles.subTitleText}>You have a new trip request</Text>
+                <Text style={styles.subTitleText}>
+                  {isReturnTrip
+                    ? "Round trip — you'll wait and bring them back"
+                    : "You have a new trip request"}
+                </Text>
               </View>
 
               {/* Premium Countdown Ring UI Elements */}
@@ -230,7 +238,13 @@ const IncomingRideModal = ({
                 <View style={styles.timelineVisualColumn}>
                   <View style={[styles.nodeCircle, { backgroundColor: "#00A859" }]} />
                   <View style={styles.dashedLinkLine} />
-                  <View style={[styles.nodeCircle, { backgroundColor: "#EF4444", borderRadius: 2 }]} />
+                  <View style={[styles.nodeCircle, { backgroundColor: "#F59E0B", borderRadius: 2 }]} />
+                  {isReturnTrip && (
+                    <>
+                      <View style={styles.dashedLinkLine} />
+                      <View style={[styles.nodeCircle, { backgroundColor: "#00A859" }]} />
+                    </>
+                  )}
                 </View>
 
                 <View style={styles.addressLabelBlock}>
@@ -239,16 +253,26 @@ const IncomingRideModal = ({
                     <Text style={styles.addressMainText} numberOfLines={1}>
                       {rideData?.pickup || "Kandy City Center"}
                     </Text>
-                    <Text style={styles.addressSubText}>Kandy, Sri Lanka</Text>
                   </View>
 
-                  <View style={[styles.addressItem, { marginBottom: 0 }]}>
-                    <Text style={styles.addressTag}>DROPOFF</Text>
-                    <Text style={styles.addressMainText} numberOfLines={1}>
-                      {rideData?.drop || "Peradeniya Junction"}
+                  <View style={[styles.addressItem, isReturnTrip && { marginBottom: 16 }]}>
+                    <Text style={styles.addressTag}>
+                      {isReturnTrip ? "DESTINATION" : "DROPOFF"}
                     </Text>
-                    <Text style={styles.addressSubText}>Peradeniya, Sri Lanka</Text>
+                    <Text style={styles.addressMainText} numberOfLines={1}>
+                      {(isReturnTrip ? rideData?.destination : rideData?.drop) ||
+                        "Peradeniya Junction"}
+                    </Text>
                   </View>
+
+                  {isReturnTrip && (
+                    <View style={[styles.addressItem, { marginBottom: 0 }]}>
+                      <Text style={styles.addressTag}>THEN</Text>
+                      <Text style={styles.addressMainText} numberOfLines={1}>
+                        Return to pickup
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
 

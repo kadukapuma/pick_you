@@ -689,6 +689,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
                   mode="date"
                   display="spinner"
                   maximumDate={new Date()}
+                  minimumDate={new Date(1900, 0, 1)}
                   onChange={onDateChange}
                   textColor="#000000"
                 />
@@ -701,6 +702,7 @@ const ProfileSetupScreen = ({ navigation, route, onExit }) => {
             mode="date"
             display="default"
             maximumDate={new Date()}
+            minimumDate={new Date(1900, 0, 1)}
             onChange={onDateChange}
           />
         ))}

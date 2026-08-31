@@ -156,6 +156,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/rides/{id}/reject', [RideController::class, 'rejectRide'])->middleware('idempotent');
         Route::post('/rides/{id}/arrive', [RideController::class, 'arriveRide'])->middleware('idempotent');
         Route::post('/rides/{id}/start', [RideController::class, 'startRide'])->middleware('idempotent');
+        Route::post('/rides/{id}/arrive-destination', [RideController::class, 'arriveDestination'])->middleware('idempotent');
+        Route::post('/rides/{id}/start-return', [RideController::class, 'startReturn'])->middleware('idempotent');
         Route::post('/rides/{id}/complete', [RideController::class, 'completeRide'])->middleware('idempotent');
         Route::post('/driver-locations', [DriverLocationController::class, 'store'])
             ->middleware('throttle:60,1');

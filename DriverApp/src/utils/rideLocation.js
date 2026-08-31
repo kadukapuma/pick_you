@@ -40,6 +40,15 @@ export function normalizeRidePayload(source = {}) {
   const dropLng = parseCoord(
     source.drop_lng ?? source.dropLng ?? source.drop_longitude,
   );
+  // Return trip only: the waypoint before the driver heads back to pickup.
+  // `drop` above is always the pickup point for a return trip - `destination`
+  // is the place the ride is actually going to.
+  const destinationLat = parseCoord(
+    source.destination_lat ?? source.destinationLat ?? source.destination_latitude,
+  );
+  const destinationLng = parseCoord(
+    source.destination_lng ?? source.destinationLng ?? source.destination_longitude,
+  );
   const vehicleType =
     source.vehicle_type ??
     source.fare_config?.vehicle_type ??
@@ -50,12 +59,16 @@ export function normalizeRidePayload(source = {}) {
   return {
     id: source.id ?? source.ride_id,
     ride_code: source.ride_code,
-    pickup: source.pickup ?? source.pickup_address ?? "",
-    drop: source.drop ?? source.drop_address ?? "",
+    pickup: source.pickup || source.pickup_address || "",
+    drop: source.drop || source.drop_address || "",
     pickupLat,
     pickupLng,
     dropLat,
     dropLng,
+    trip_type: source.trip_type ?? "oneway",
+    destination: source.destination || source.destination_address || "",
+    destinationLat,
+    destinationLng,
     price:
       source.price ??
       Number(source.final_fare || source.estimated_fare || 0).toFixed(2),
@@ -113,6 +126,15 @@ export function getPickupCoordinate(ride) {
 export function getDropCoordinate(ride) {
   if (ride?.dropLat == null || ride?.dropLng == null) return null;
   return { latitude: ride.dropLat, longitude: ride.dropLng };
+}
+
+export function getDestinationCoordinate(ride) {
+  if (ride?.destinationLat == null || ride?.destinationLng == null) return null;
+  return { latitude: ride.destinationLat, longitude: ride.destinationLng };
+}
+
+export function isReturnTrip(ride) {
+  return String(ride?.trip_type || "").toLowerCase() === "return";
 }
 
 export function hasValidPickup(ride) {

@@ -9,6 +9,11 @@ export const API_BASE_URL =
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  // Without this, a slow/hung response (network stall, a slow broadcast on
+  // the server) leaves the calling screen waiting forever with no way to
+  // recover - e.g. a ride-action button stuck showing its spinner. Failing
+  // after 20s turns that into a normal, catchable error instead.
+  timeout: 20000,
   headers: {
     'Accept': 'application/json',
   },

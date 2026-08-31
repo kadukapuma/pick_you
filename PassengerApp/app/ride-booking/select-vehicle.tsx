@@ -18,6 +18,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import {
   fallbackRoute,
+  formatDistance,
+  formatDuration,
   getCachedDirections_withCache,
   type DirectionsResult,
 } from "../../services/maps/directionsApi";
@@ -435,6 +437,10 @@ export default function SelectRideScreen() {
 
   const [selectedRide, setSelectedRide] = useState<string | null>(null);
   const [directions, setDirections] = useState<DirectionsResult | null>(null);
+  // For a return trip: the destination -> pickup leg, so distance/fare/map
+  // reflect the whole out-and-back trip, not just the outbound half.
+  const [returnDirections, setReturnDirections] =
+    useState<DirectionsResult | null>(null);
   const [loadingRoute, setLoadingRoute] = useState(true);
   const [rideOptions, setRideOptions] = useState<RideOption[]>([]);
   const [loadingVehicles, setLoadingVehicles] = useState(true);
@@ -542,6 +548,7 @@ export default function SelectRideScreen() {
       return;
     }
     let cancelled = false;
+    const isReturn = tripType === "return";
     (async () => {
       setLoadingRoute(true);
       const fallback = fallbackRoute(
@@ -551,15 +558,37 @@ export default function SelectRideScreen() {
         Number(destinationLongitude),
       );
       setDirections(fallback);
+      if (isReturn) {
+        setReturnDirections(
+          fallbackRoute(
+            Number(destinationLatitude),
+            Number(destinationLongitude),
+            Number(pickupLatitude),
+            Number(pickupLongitude),
+          ),
+        );
+      }
       setLoadingRoute(false);
       try {
-        const result = await getCachedDirections_withCache(
-          Number(pickupLatitude),
-          Number(pickupLongitude),
-          Number(destinationLatitude),
-          Number(destinationLongitude),
-        );
+        const [result, returnResult] = await Promise.all([
+          getCachedDirections_withCache(
+            Number(pickupLatitude),
+            Number(pickupLongitude),
+            Number(destinationLatitude),
+            Number(destinationLongitude),
+          ),
+          isReturn
+            ? getCachedDirections_withCache(
+                Number(destinationLatitude),
+                Number(destinationLongitude),
+                Number(pickupLatitude),
+                Number(pickupLongitude),
+              )
+            : Promise.resolve(null),
+        ]);
         if (!cancelled && result) setDirections(result);
+        if (!cancelled && isReturn && returnResult)
+          setReturnDirections(returnResult);
       } catch (e) {
         logExpectedError("Vehicle selection route lookup failed", e);
       } finally {
@@ -574,6 +603,7 @@ export default function SelectRideScreen() {
     destinationLongitude,
     pickupLatitude,
     pickupLongitude,
+    tripType,
   ]);
 
   // Fetch vehicles
@@ -609,8 +639,10 @@ export default function SelectRideScreen() {
 
   // Compute local fares first, then refine with backend estimates in the background.
   useEffect(() => {
+    const isReturn = tripType === "return";
     if (
       !directions ||
+      (isReturn && !returnDirections) ||
       _rawVehicles.length === 0 ||
       !Number.isFinite(Number(pickupLatitude)) ||
       !Number.isFinite(Number(pickupLongitude)) ||
@@ -619,12 +651,22 @@ export default function SelectRideScreen() {
     )
       return;
 
+    // Round trip: the passenger is billed for both legs, so the fallback
+    // price (used until the backend estimate lands) must reflect the full
+    // out-and-back distance/duration, not just the leg to the destination.
+    const totalDistanceMeters = isReturn
+      ? directions.distance + (returnDirections?.distance ?? 0)
+      : directions.distance;
+    const totalDurationSeconds = isReturn
+      ? directions.duration + (returnDirections?.duration ?? 0)
+      : directions.duration;
+
     let cancelled = false;
     const fallbackOptions = _rawVehicles.map((vehicle) =>
       mapDBVehicleToOption(
         vehicle,
-        directions.distance,
-        directions.duration,
+        totalDistanceMeters,
+        totalDurationSeconds,
         nearestDistanceByType[normaliseVehicleKey(vehicle.name ?? "car")],
       ),
     );
@@ -644,13 +686,22 @@ export default function SelectRideScreen() {
         try {
           const estimate = await apiClient.post<RideEstimateResponse>(
             "/rides/estimate",
-            {
-              vehicle_type: vehicle.name,
-              pickup_lat: Number(pickupLatitude),
-              pickup_lng: Number(pickupLongitude),
-              drop_lat: Number(destinationLatitude),
-              drop_lng: Number(destinationLongitude),
-            },
+            isReturn
+              ? {
+                  vehicle_type: vehicle.name,
+                  trip_type: "return",
+                  pickup_lat: Number(pickupLatitude),
+                  pickup_lng: Number(pickupLongitude),
+                  destination_lat: Number(destinationLatitude),
+                  destination_lng: Number(destinationLongitude),
+                }
+              : {
+                  vehicle_type: vehicle.name,
+                  pickup_lat: Number(pickupLatitude),
+                  pickup_lng: Number(pickupLongitude),
+                  drop_lat: Number(destinationLatitude),
+                  drop_lng: Number(destinationLongitude),
+                },
             {
               suppressErrorLog: true,
               timeoutMs: 4500,
@@ -686,8 +737,10 @@ export default function SelectRideScreen() {
     destinationLatitude,
     destinationLongitude,
     directions,
+    returnDirections,
     pickupLatitude,
     pickupLongitude,
+    tripType,
     _rawVehicles,
   ]);
 
@@ -715,11 +768,10 @@ export default function SelectRideScreen() {
     setOutboundPickup(pickup);
     setOutboundDropoff(destination);
     setOutboundRide(opt);
-    router.push(
-      tripType === "return"
-        ? "/ride-booking/return-location"
-        : "/ride-booking/confirm",
-    );
+    // One-way and return trips both confirm here now — a return trip's
+    // destination and vehicle choice were already collected above, and the
+    // return drop is always the pickup point, derived server-side.
+    router.push("/ride-booking/confirm");
   }, [
     destination,
     pickup,
@@ -729,7 +781,6 @@ export default function SelectRideScreen() {
     setOutboundDropoff,
     setOutboundPickup,
     setOutboundRide,
-    tripType,
   ]);
 
   const hasPendingFareSetup = Boolean(
@@ -769,9 +820,13 @@ export default function SelectRideScreen() {
         pickup={pickup}
         dropoff={destination}
         routeCoordinates={
-          directions && directions.polyline.length > 0
-            ? directions.polyline
-            : [pickup, destination]
+          tripType === "return"
+            ? directions && returnDirections
+              ? [...directions.polyline, ...returnDirections.polyline]
+              : [pickup, destination, pickup]
+            : directions && directions.polyline.length > 0
+              ? directions.polyline
+              : [pickup, destination]
         }
         routeColor={GREEN}
         pickupColor={GREEN}
@@ -789,12 +844,22 @@ export default function SelectRideScreen() {
         <Ionicons name="arrow-back" size={20} color="#111827" />
       </TouchableOpacity>
 
+      {/* ── ROUND TRIP BADGE ────────────────────────────────────────────── */}
+      {tripType === "return" && (
+        <View style={styles.roundTripPill}>
+          <Ionicons name="repeat" size={13} color="#FFFFFF" />
+          <Text style={styles.roundTripPillText}>Round trip</Text>
+        </View>
+      )}
+
       {/* ── ROUTE PILL ──────────────────────────────────────────────────── */}
       {!loadingRoute && directions && (
         <View style={styles.routePill}>
           <Ionicons name="navigate" size={14} color={GREEN} />
           <Text style={styles.routePillText}>
-            {directions.distanceText} · {directions.durationText}
+            {tripType === "return" && returnDirections
+              ? `${formatDistance(directions.distance + returnDirections.distance)} · ${formatDuration(directions.duration + returnDirections.duration)} (round trip)`
+              : `${directions.distanceText} · ${directions.durationText}`}
           </Text>
         </View>
       )}
@@ -936,7 +1001,7 @@ export default function SelectRideScreen() {
           activeOpacity={0.82}
         >
           <Text style={styles.bookBtnText}>
-            {tripType === "return" ? "Continue to Return →" : "Book Now"}
+            {tripType === "return" ? "Continue to Confirm →" : "Book Now"}
           </Text>
         </TouchableOpacity>
       </Animated.View>
@@ -1008,6 +1073,34 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     color: "#111827",
+  },
+
+  roundTripPill: {
+    position: "absolute",
+    top: Platform.OS === "ios" ? 58 : (StatusBar.currentHeight ?? 24) + 12,
+    right: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: GREEN,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 6,
+      },
+      android: { elevation: 5 },
+    }),
+  },
+
+  roundTripPillText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#FFFFFF",
   },
 
   // ── Bottom sheet ────────────────────────────────────────────────────────────
