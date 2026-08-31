@@ -956,9 +956,9 @@ export default function SearchingScreen() {
           paymentMethod={paymentMethod}
           promoCode={promoCode}
           fareAmount={
-            outboundTrip.selectedRide?.price ||
             rideData?.estimated_fare ||
-            rideData?.fare_estimate
+            rideData?.fare_estimate ||
+            outboundTrip.selectedRide?.price
           }
           distanceText={
             rideData?.distance_text || rideData?.distanceText || null
