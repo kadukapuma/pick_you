@@ -348,6 +348,11 @@ const TripInProgressScreen = ({ navigation, route }) => {
       const response = await api.post(`/rides/${ride.id}/start-return`);
       const updated = response.data?.data ?? response.data;
       setRideStatus(updated?.status || "RETURNING");
+      // The slider was last left parked at the far right from the earlier
+      // "arrived at destination" slide (see handleArriveDestination) - this
+      // phase reuses that same slider for "Slide to Complete Trip", so it
+      // must be explicitly reset or the thumb renders stuck on the right.
+      resetSlider();
     } catch (error) {
       console.log("Error starting return leg:", error.response?.data || error);
       alert(
@@ -358,7 +363,7 @@ const TripInProgressScreen = ({ navigation, route }) => {
       actionInFlightRef.current = false;
       setIsActionRunning(false);
     }
-  }, [ride?.id]);
+  }, [resetSlider, ride?.id]);
 
   // The slider always drives the single "forward" action for the current
   // phase - mark arrived at the destination, or complete the trip. Starting
