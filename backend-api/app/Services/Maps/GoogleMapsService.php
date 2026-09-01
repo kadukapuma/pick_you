@@ -177,6 +177,7 @@ class GoogleMapsService
                 'durationText' => $this->formatDuration($duration),
                 'steps' => $steps,
                 'currentStep' => $steps[0] ?? null,
+                'isFallback' => false,
             ];
 
             Cache::put($cacheKey, $normalized, (int) config('google_maps.route_cache_ttl_seconds', 300));
@@ -219,6 +220,7 @@ class GoogleMapsService
             'durationText' => $this->formatDuration($duration),
             'steps' => [],
             'currentStep' => null,
+            'isFallback' => true,
         ];
     }
 
