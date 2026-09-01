@@ -5,6 +5,7 @@ import type { EdgePadding } from "react-native-maps";
 import {
   fallbackRoute,
   getCachedDirections_withCache,
+  peekCachedDirections,
   type DirectionsResult,
 } from "../../../services/maps/directionsApi";
 import type { MapCoordinate, NearbyVehicle } from "./vehicleMapTypes";
@@ -150,9 +151,17 @@ export default function RideMap({
         return;
       }
 
-      const fallback = fallbackRoute(originLat, originLng, targetLat, targetLng);
-      setRouteCoordinates(fallbackRouteCoordinates);
-      onRouteInfoChange?.(fallback);
+      const cached = peekCachedDirections(originLat, originLng, targetLat, targetLng);
+      if (cached) {
+        setRouteCoordinates(
+          cached.polyline?.length ? cached.polyline : fallbackRouteCoordinates,
+        );
+        onRouteInfoChange?.(cached);
+      } else {
+        const fallback = fallbackRoute(originLat, originLng, targetLat, targetLng);
+        setRouteCoordinates(fallbackRouteCoordinates);
+        onRouteInfoChange?.(fallback);
+      }
 
       const directions = await getCachedDirections_withCache(
         originLat,

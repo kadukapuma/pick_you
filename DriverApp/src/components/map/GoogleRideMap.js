@@ -182,7 +182,17 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
   const lastAnimatedCameraRef = useRef(null);
   const markerTrackingTimeoutRef = useRef(null);
   const [tracksVehicleMarkerChanges, setTracksVehicleMarkerChanges] = useState(true);
-  const { location: smoothOrigin } = useSmoothLocation(origin);
+  // Only the real road-following route (not the origin-destination fallback
+  // chord computed below) is safe to feed back in here for road-snapped
+  // interpolation.
+  const routePoints = useMemo(
+    () =>
+      routeCoordinates.length > 1
+        ? routeCoordinates.filter(isValidCoordinate).map(toLatLng)
+        : null,
+    [routeCoordinates],
+  );
+  const { location: smoothOrigin } = useSmoothLocation(origin, routePoints);
   const renderedOrigin = useMemo(
     () => smoothOrigin ?? origin,
     [smoothOrigin, origin],
@@ -275,6 +285,28 @@ const GoogleRideMap = forwardRef(function GoogleRideMap(
       Platform.OS === "android" ? 700 : 150,
     );
   }, [vehicleImage]);
+
+  // react-native-maps freezes a marker's rendered bitmap once
+  // tracksViewChanges goes false, so the icon stops rotating even though
+  // its coordinate keeps moving. Re-arm tracking whenever the heading
+  // moves enough to matter, then let it re-freeze shortly after.
+  const currentHeading = renderedOrigin.heading ?? vehicleHeading;
+  const lastFrozenHeadingRef = useRef(null);
+  useEffect(() => {
+    if (!vehicleImage || !Number.isFinite(currentHeading)) return;
+    const previous = lastFrozenHeadingRef.current;
+    const changed =
+      previous == null ||
+      Math.abs(((currentHeading - previous + 540) % 360) - 180) > 3;
+    if (!changed) return;
+
+    setTracksVehicleMarkerChanges(true);
+    if (markerTrackingTimeoutRef.current) clearTimeout(markerTrackingTimeoutRef.current);
+    markerTrackingTimeoutRef.current = setTimeout(() => {
+      lastFrozenHeadingRef.current = currentHeading;
+      setTracksVehicleMarkerChanges(false);
+    }, Platform.OS === "android" ? 700 : 150);
+  }, [currentHeading, vehicleImage]);
 
   useEffect(() => {
     if (followVehicle || cameraIsFree || visibleCoordinates.length < 1) return;

@@ -19,6 +19,7 @@ export type SmoothCoordinate = {
 
 const R = 6371000;
 const MIN_GPS_HEADING_SPEED_MPS = 3;
+const ROUTE_SNAP_MAX_METERS = 60;
 const clamp = (v: number, min: number, max: number) => Math.min(Math.max(v, min), max);
 const rad = (v: number) => (v * Math.PI) / 180;
 const deg = (v: number) => (v * 180) / Math.PI;
@@ -43,9 +44,98 @@ const bearing = (a: RawLocation, b: RawLocation) => {
   )) + 360) % 360;
 };
 
+export type RoutePoint = { latitude: number; longitude: number };
+
+// Local tangent-plane projection: good enough over the few-hundred-meter
+// spans between consecutive GPS fixes, and much cheaper than haversine
+// per-segment since it runs across the whole route on every fix.
+const localScale = (refLat: number) => {
+  const latScale = 111320;
+  return { latScale, lngScale: latScale * Math.cos(rad(refLat)) };
+};
+
+const projectPointOnSegment = (
+  p: RoutePoint,
+  a: RoutePoint,
+  b: RoutePoint,
+  scale: { latScale: number; lngScale: number },
+) => {
+  const ax = a.longitude * scale.lngScale, ay = a.latitude * scale.latScale;
+  const bx = b.longitude * scale.lngScale, by = b.latitude * scale.latScale;
+  const px = p.longitude * scale.lngScale, py = p.latitude * scale.latScale;
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  const t = lenSq === 0 ? 0 : clamp(((px - ax) * dx + (py - ay) * dy) / lenSq, 0, 1);
+  const point: RoutePoint = {
+    latitude: a.latitude + t * (b.latitude - a.latitude),
+    longitude: a.longitude + t * (b.longitude - a.longitude),
+  };
+  const distanceMeters = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  return { t, point, distance: distanceMeters };
+};
+
+type RouteProjection = { index: number; t: number; point: RoutePoint; distance: number };
+
+const projectOntoRoute = (p: RoutePoint, route: RoutePoint[]): RouteProjection | null => {
+  if (route.length < 2) return null;
+  const scale = localScale(p.latitude);
+  let best: RouteProjection | null = null;
+  for (let i = 0; i < route.length - 1; i++) {
+    const projected = projectPointOnSegment(p, route[i], route[i + 1], scale);
+    if (!best || projected.distance < best.distance) {
+      best = { index: i, ...projected };
+    }
+  }
+  return best;
+};
+
+// Only valid for forward motion along the route (from earlier index/t to a
+// later one) - a backward projection means the raw fixes aren't tracking
+// this route usefully, so callers fall back to a straight chord.
+const buildRoutePath = (
+  route: RoutePoint[],
+  from: RouteProjection,
+  to: RouteProjection,
+): RoutePoint[] | null => {
+  if (from.index > to.index || (from.index === to.index && from.t > to.t)) return null;
+  const path: RoutePoint[] = [from.point];
+  for (let i = from.index + 1; i <= to.index; i++) path.push(route[i]);
+  path.push(to.point);
+  return path;
+};
+
+const interpolateAlongPath = (path: RoutePoint[], fraction: number): RoutePoint => {
+  if (path.length < 2) return path[0];
+  const lengths: number[] = [];
+  let total = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = distance(path[i] as RawLocation, path[i + 1] as RawLocation);
+    lengths.push(d);
+    total += d;
+  }
+  if (total <= 0) return path[0];
+  let remaining = clamp(fraction, 0, 1) * total;
+  for (let i = 0; i < lengths.length; i++) {
+    if (remaining <= lengths[i] || i === lengths.length - 1) {
+      const segFraction = lengths[i] === 0 ? 0 : clamp(remaining / lengths[i], 0, 1);
+      const a = path[i], b = path[i + 1];
+      return {
+        latitude: a.latitude + (b.latitude - a.latitude) * segFraction,
+        longitude: a.longitude + (b.longitude - a.longitude) * segFraction,
+      };
+    }
+    remaining -= lengths[i];
+  }
+  return path[path.length - 1];
+};
+
 type Accepted = RawLocation & SmoothCoordinate & { recordedAt: number; receivedAt: number };
 
-export function useSmoothLocation(raw?: RawLocation | null, resetKey?: string | number) {
+export function useSmoothLocation(
+  raw?: RawLocation | null,
+  resetKey?: string | number,
+  routePoints?: RoutePoint[] | null,
+) {
   const rawLatitude = raw?.latitude;
   const rawLongitude = raw?.longitude;
   const rawHeading = raw?.heading;
@@ -60,6 +150,8 @@ export function useSmoothLocation(raw?: RawLocation | null, resetKey?: string | 
   const accepted = useRef<Accepted | null>(null);
   const displayed = useRef<SmoothCoordinate | null>(null);
   const frame = useRef<number | null>(null);
+  const routePointsRef = useRef<RoutePoint[] | null | undefined>(routePoints);
+  routePointsRef.current = routePoints;
 
   useEffect(() => () => {
     if (frame.current != null) cancelAnimationFrame(frame.current);
@@ -185,14 +277,39 @@ export function useSmoothLocation(raw?: RawLocation | null, resetKey?: string | 
     let lastPaint = 0;
     setLastRejected(null);
     setTrackingState("animating");
+
+    // Prefer walking the fetched road route over the two fixes' straight
+    // chord, so cornering doesn't read as the vehicle cutting off-road -
+    // only when both fixes actually sit close to that route.
+    let routePath: RoutePoint[] | null = null;
+    const route = routePointsRef.current;
+    if (route && route.length > 1) {
+      const startProjection = projectOntoRoute(start, route);
+      const targetProjection = projectOntoRoute(target, route);
+      if (
+        startProjection &&
+        targetProjection &&
+        startProjection.distance <= ROUTE_SNAP_MAX_METERS &&
+        targetProjection.distance <= ROUTE_SNAP_MAX_METERS
+      ) {
+        routePath = buildRoutePath(route, startProjection, targetProjection);
+      }
+    }
+
     const animate = () => {
       const time = Date.now();
       const progress = clamp((time - started) / duration, 0, 1);
       if (time - lastPaint >= 32 || progress === 1) {
         const eased = progress * progress * (3 - 2 * progress);
+        const position = routePath
+          ? interpolateAlongPath(routePath, eased)
+          : {
+              latitude: start.latitude + (target.latitude - start.latitude) * eased,
+              longitude: start.longitude + (target.longitude - start.longitude) * eased,
+            };
         const next = {
-          latitude: start.latitude + (target.latitude - start.latitude) * eased,
-          longitude: start.longitude + (target.longitude - start.longitude) * eased,
+          latitude: position.latitude,
+          longitude: position.longitude,
           heading: (start.heading + turn * eased + 360) % 360,
         };
         lastPaint = time;

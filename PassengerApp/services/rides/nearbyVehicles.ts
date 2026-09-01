@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiClient } from "../api/client";
 import type { MapCoordinate, NearbyVehicle } from "../../features/ride-booking/map/vehicleMapTypes";
 
@@ -19,6 +19,7 @@ export function useNearbyVehicles(center?: MapCoordinate | null, vehicleType?: s
   const [vehicles, setVehicles] = useState<NearbyVehicle[]>([]);
   const latitude = center?.latitude;
   const longitude = center?.longitude;
+  const requestSequenceRef = useRef(0);
 
   useEffect(() => {
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
@@ -27,10 +28,14 @@ export function useNearbyVehicles(center?: MapCoordinate | null, vehicleType?: s
     }
     let cancelled = false;
     const load = async () => {
+      const requestId = ++requestSequenceRef.current;
       const query = new URLSearchParams({ latitude: String(latitude), longitude: String(longitude) });
       if (vehicleType) query.set("vehicle_type", vehicleType);
       const response = await apiClient.get<NearbyVehicleResponse[]>(`/nearby-vehicles?${query.toString()}`, { suppressErrorLog: true });
-      if (cancelled) return;
+      // A slower earlier request can resolve after a newer one - only the
+      // latest in-flight request is allowed to update state, otherwise a
+      // stale response can snap vehicles backward.
+      if (cancelled || requestId !== requestSequenceRef.current) return;
       if (!response.success || !Array.isArray(response.data)) {
         setVehicles([]);
         return;

@@ -6,6 +6,7 @@ const MAX_PLAUSIBLE_SPEED_MPS = 60;
 const SNAP_AFTER_MS = 20000;
 const STALE_AFTER_MS = 30000;
 const MIN_GPS_HEADING_SPEED_MPS = 3;
+const ROUTE_SNAP_MAX_METERS = 60;
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 const toRadians = (value) => (value * Math.PI) / 180;
@@ -35,6 +36,78 @@ const bearingBetween = (from, to) => {
 
 const shortestHeadingDelta = (from, to) => ((to - from + 540) % 360) - 180;
 const easeInOut = (progress) => progress * progress * (3 - 2 * progress);
+
+// Local tangent-plane projection: good enough over the few-hundred-meter
+// spans between consecutive GPS fixes, and much cheaper than haversine
+// per-segment since it runs across the whole route on every fix.
+const localScale = (refLat) => {
+  const latScale = 111320;
+  return { latScale, lngScale: latScale * Math.cos(toRadians(refLat)) };
+};
+
+const projectPointOnSegment = (p, a, b, scale) => {
+  const ax = a.longitude * scale.lngScale, ay = a.latitude * scale.latScale;
+  const bx = b.longitude * scale.lngScale, by = b.latitude * scale.latScale;
+  const px = p.longitude * scale.lngScale, py = p.latitude * scale.latScale;
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  const t = lenSq === 0 ? 0 : clamp(((px - ax) * dx + (py - ay) * dy) / lenSq, 0, 1);
+  const point = {
+    latitude: a.latitude + t * (b.latitude - a.latitude),
+    longitude: a.longitude + t * (b.longitude - a.longitude),
+  };
+  const distance = Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+  return { t, point, distance };
+};
+
+const projectOntoRoute = (p, route) => {
+  if (!route || route.length < 2) return null;
+  const scale = localScale(p.latitude);
+  let best = null;
+  for (let i = 0; i < route.length - 1; i++) {
+    const projected = projectPointOnSegment(p, route[i], route[i + 1], scale);
+    if (!best || projected.distance < best.distance) {
+      best = { index: i, ...projected };
+    }
+  }
+  return best;
+};
+
+// Only valid for forward motion along the route (from earlier index/t to a
+// later one) - a backward projection means the raw fixes aren't tracking
+// this route usefully, so callers fall back to a straight chord.
+const buildRoutePath = (route, from, to) => {
+  if (from.index > to.index || (from.index === to.index && from.t > to.t)) return null;
+  const path = [from.point];
+  for (let i = from.index + 1; i <= to.index; i++) path.push(route[i]);
+  path.push(to.point);
+  return path;
+};
+
+const interpolateAlongPath = (path, fraction) => {
+  if (path.length < 2) return path[0];
+  const lengths = [];
+  let total = 0;
+  for (let i = 0; i < path.length - 1; i++) {
+    const d = distanceMeters(path[i], path[i + 1]);
+    lengths.push(d);
+    total += d;
+  }
+  if (total <= 0) return path[0];
+  let remaining = clamp(fraction, 0, 1) * total;
+  for (let i = 0; i < lengths.length; i++) {
+    if (remaining <= lengths[i] || i === lengths.length - 1) {
+      const segFraction = lengths[i] === 0 ? 0 : clamp(remaining / lengths[i], 0, 1);
+      const a = path[i], b = path[i + 1];
+      return {
+        latitude: a.latitude + (b.latitude - a.latitude) * segFraction,
+        longitude: a.longitude + (b.longitude - a.longitude) * segFraction,
+      };
+    }
+    remaining -= lengths[i];
+  }
+  return path[path.length - 1];
+};
 
 const normalizeSample = (sample) => {
   const latitude = Number(sample?.latitude);
@@ -70,7 +143,7 @@ const normalizeSample = (sample) => {
   };
 };
 
-export function useSmoothLocation(rawLocation) {
+export function useSmoothLocation(rawLocation, routePoints) {
   const rawLatitude = rawLocation?.latitude;
   const rawLongitude = rawLocation?.longitude;
   const rawHeading = rawLocation?.heading;
@@ -86,6 +159,8 @@ export function useSmoothLocation(rawLocation) {
   const acceptedRef = useRef(null);
   const animationRef = useRef(null);
   const locationRef = useRef(null);
+  const routePointsRef = useRef(routePoints);
+  routePointsRef.current = routePoints;
 
   useEffect(() => {
     return () => {
@@ -235,14 +310,38 @@ export function useSmoothLocation(rawLocation) {
     setLastRejected((prev) => (prev === null ? prev : null));
     setTrackingState((prev) => (prev === "animating" ? prev : "animating"));
 
+    // Prefer walking the fetched road route over the two fixes' straight
+    // chord, so cornering doesn't read as the vehicle cutting off-road -
+    // only when both fixes actually sit close to that route.
+    let routePath = null;
+    const route = routePointsRef.current;
+    if (route && route.length > 1) {
+      const startProjection = projectOntoRoute(start, route);
+      const targetProjection = projectOntoRoute(target, route);
+      if (
+        startProjection &&
+        targetProjection &&
+        startProjection.distance <= ROUTE_SNAP_MAX_METERS &&
+        targetProjection.distance <= ROUTE_SNAP_MAX_METERS
+      ) {
+        routePath = buildRoutePath(route, startProjection, targetProjection);
+      }
+    }
+
     const animate = () => {
       const now = Date.now();
       const progress = clamp((now - startedAt) / duration, 0, 1);
       if (now - lastPaintAt >= 32 || progress === 1) {
         const eased = easeInOut(progress);
+        const position = routePath
+          ? interpolateAlongPath(routePath, eased)
+          : {
+              latitude: start.latitude + (target.latitude - start.latitude) * eased,
+              longitude: start.longitude + (target.longitude - start.longitude) * eased,
+            };
         const next = {
-          latitude: start.latitude + (target.latitude - start.latitude) * eased,
-          longitude: start.longitude + (target.longitude - start.longitude) * eased,
+          latitude: position.latitude,
+          longitude: position.longitude,
           heading: (start.heading + headingDelta * eased + 360) % 360,
         };
         lastPaintAt = now;

@@ -21,6 +21,8 @@ const directionsCache = new Map<
 const directionsInFlight = new Map<string, Promise<DirectionsResult | null>>();
 const CACHE_TTL = 5 * 60 * 1000;
 const ROUTE_REQUEST_TIMEOUT_MS = 5500;
+const ROUTE_MAX_ATTEMPTS = 2;
+const ROUTE_RETRY_DELAY_MS = 350;
 const FALLBACK_ROAD_DISTANCE_FACTOR = 1.28;
 
 export const formatDistance = (meters: number): string => {
@@ -111,25 +113,34 @@ export const getDirections = async (
   destinationLat: number,
   destinationLon: number,
 ): Promise<DirectionsResult | null> => {
-  const response = await apiClient.post<DirectionsResult>("/maps/routes", {
-    origin: { latitude: pickupLat, longitude: pickupLon },
-    destination: { latitude: destinationLat, longitude: destinationLon },
-  }, {
-    suppressErrorLog: true,
-    timeoutMs: ROUTE_REQUEST_TIMEOUT_MS,
-  });
+  let lastMessage: string | undefined;
 
-  if (response.success && response.data) {
-    return normalizeDirections(
-      response.data,
-      pickupLat,
-      pickupLon,
-      destinationLat,
-      destinationLon,
-    );
+  for (let attempt = 1; attempt <= ROUTE_MAX_ATTEMPTS; attempt++) {
+    const response = await apiClient.post<DirectionsResult>("/maps/routes", {
+      origin: { latitude: pickupLat, longitude: pickupLon },
+      destination: { latitude: destinationLat, longitude: destinationLon },
+    }, {
+      suppressErrorLog: true,
+      timeoutMs: ROUTE_REQUEST_TIMEOUT_MS,
+    });
+
+    if (response.success && response.data) {
+      return normalizeDirections(
+        response.data,
+        pickupLat,
+        pickupLon,
+        destinationLat,
+        destinationLon,
+      );
+    }
+
+    lastMessage = response.message;
+    if (attempt < ROUTE_MAX_ATTEMPTS) {
+      await new Promise((resolve) => setTimeout(resolve, ROUTE_RETRY_DELAY_MS));
+    }
   }
 
-  console.log("Google route request failed:", response.message);
+  console.log("Google route request failed:", lastMessage);
   return fallbackRoute(pickupLat, pickupLon, destinationLat, destinationLon);
 };
 
@@ -143,6 +154,16 @@ const getCachedDirections = (key: string): DirectionsResult | null => {
   }
 
   return cached.data;
+};
+
+export const peekCachedDirections = (
+  pickupLat: number,
+  pickupLon: number,
+  destinationLat: number,
+  destinationLon: number,
+): DirectionsResult | null => {
+  const key = `${pickupLat.toFixed(5)},${pickupLon.toFixed(5)}-${destinationLat.toFixed(5)},${destinationLon.toFixed(5)}`;
+  return getCachedDirections(key);
 };
 
 export const getCachedDirections_withCache = async (

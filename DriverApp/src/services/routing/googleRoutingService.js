@@ -4,6 +4,8 @@ const directionsCache = new Map();
 const directionsInFlight = new Map();
 const CACHE_TTL = 5 * 60 * 1000;
 const ROUTE_TIMEOUT_MS = 6000;
+const ROUTE_MAX_ATTEMPTS = 2;
+const ROUTE_RETRY_DELAY_MS = 350;
 
 const formatDistance = (meters) => {
   if (meters >= 1000) return `${(meters / 1000).toFixed(1)} km`;
@@ -214,25 +216,34 @@ export const getDirections = async (
   destinationLat,
   destinationLon,
 ) => {
-  try {
-    const response = await api.post("/maps/routes", {
-      origin: { latitude: pickupLat, longitude: pickupLon },
-      destination: { latitude: destinationLat, longitude: destinationLon },
-    }, {
-      timeout: ROUTE_TIMEOUT_MS,
-    });
+  let lastError;
 
-    return normalizeDirections(
-      response.data?.data ?? response.data ?? null,
-      pickupLat,
-      pickupLon,
-      destinationLat,
-      destinationLon,
-    );
-  } catch (error) {
-    console.log("Google route request failed:", error.response?.data || error);
-    return fallbackRoute(pickupLat, pickupLon, destinationLat, destinationLon);
+  for (let attempt = 1; attempt <= ROUTE_MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await api.post("/maps/routes", {
+        origin: { latitude: pickupLat, longitude: pickupLon },
+        destination: { latitude: destinationLat, longitude: destinationLon },
+      }, {
+        timeout: ROUTE_TIMEOUT_MS,
+      });
+
+      return normalizeDirections(
+        response.data?.data ?? response.data ?? null,
+        pickupLat,
+        pickupLon,
+        destinationLat,
+        destinationLon,
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt < ROUTE_MAX_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, ROUTE_RETRY_DELAY_MS));
+      }
+    }
   }
+
+  console.log("Google route request failed:", lastError?.response?.data || lastError);
+  return fallbackRoute(pickupLat, pickupLon, destinationLat, destinationLon);
 };
 
 const getCachedDirections = (key) => {
@@ -245,6 +256,16 @@ const getCachedDirections = (key) => {
   }
 
   return cached.data;
+};
+
+export const peekCachedDirections = (
+  pickupLat,
+  pickupLon,
+  destinationLat,
+  destinationLon,
+) => {
+  const key = `v2:${pickupLat.toFixed(5)},${pickupLon.toFixed(5)}-${destinationLat.toFixed(5)},${destinationLon.toFixed(5)}`;
+  return getCachedDirections(key);
 };
 
 export const getCachedDirections_withCache = async (
