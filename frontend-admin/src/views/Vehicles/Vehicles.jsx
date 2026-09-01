@@ -6,32 +6,14 @@ import VehicleTypeIcon from '../../components/VehicleTypeIcon/VehicleTypeIcon'
 
 const Vehicles = () => {
     const { vehiclesState } = useOutletContext()
-    const { vehicles, loading, error, pagination, setPage } = vehiclesState
+    const { vehicles, loading, error, pagination, setPage, search, setSearch } = vehiclesState
     const navigate = useNavigate()
-    const [search, setSearch] = useState('')
     const [statusFilter, setStatusFilter] = useState('all')
 
     const filteredVehicles = useMemo(() => {
-        const query = search.trim().toLowerCase()
-
-        return vehicles.filter((vehicle) => {
-            const matchesStatus =
-                statusFilter === 'all' || vehicle.status === statusFilter
-            if (!matchesStatus) return false
-            if (!query) return true
-
-            return [
-                vehicle.plate_number,
-                vehicle.make,
-                vehicle.model,
-                vehicle.vehicle_type,
-                vehicle?.driver?.name,
-                vehicle?.driver?.email,
-            ]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(query))
-        })
-    }, [vehicles, search, statusFilter])
+        if (statusFilter === 'all') return vehicles
+        return vehicles.filter((vehicle) => vehicle.status === statusFilter)
+    }, [vehicles, statusFilter])
 
     return (
         <section className="content-page">

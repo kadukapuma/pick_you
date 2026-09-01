@@ -32,6 +32,8 @@ const RideDetailsScreen = ({ navigation, route }) => {
   // Clean data properties or clean local user fallbacks
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const isForFriend = Boolean(ride?.isForFriend);
+  const bookingPassengerName = ride?.bookingPassengerName;
   const pickupLocation = ride?.pickup || "Kandy City Center";
   const dropoffLocation = ride?.drop || "Peradeniya Junction";
   const isReturnTrip = String(ride?.trip_type || "").toLowerCase() === "return";
@@ -124,6 +126,16 @@ const RideDetailsScreen = ({ navigation, route }) => {
                 />
                 <Text style={styles.verifiedTagText}>Verified Customer</Text>
               </View>
+
+              {isForFriend && (
+                <View style={styles.friendTagRow}>
+                  <Ionicons name="people" size={12} color="#C4B5FD" />
+                  <Text style={styles.friendTagText}>
+                    Booked for a friend
+                    {bookingPassengerName ? ` by ${bookingPassengerName}` : ""}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         </LinearGradient>
@@ -462,6 +474,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
     color: "#00A859",
+    marginLeft: 4,
+    letterSpacing: 0.2,
+  },
+  friendTagRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(196, 181, 253, 0.15)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    marginTop: 6,
+  },
+  friendTagText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#C4B5FD",
     marginLeft: 4,
     letterSpacing: 0.2,
   },

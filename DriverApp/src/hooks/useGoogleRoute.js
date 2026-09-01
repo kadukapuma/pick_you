@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   fallbackRoute,
   getCachedDirections_withCache,
+  peekCachedDirections,
 } from "../services/routing/googleRoutingService";
 
 const routeDistanceMeters = (from, to) => {
@@ -60,13 +61,20 @@ export function useGoogleRoute(origin, destination, options = {}) {
       if (routeOriginIsStale) return;
 
       setLoading(true);
+      const cached = peekCachedDirections(
+        routeOriginLat,
+        routeOriginLng,
+        destLatitude,
+        destLongitude,
+      );
       setDirections(
-        fallbackRoute(
-          routeOriginLat,
-          routeOriginLng,
-          destLatitude,
-          destLongitude,
-        ),
+        cached ||
+          fallbackRoute(
+            routeOriginLat,
+            routeOriginLng,
+            destLatitude,
+            destLongitude,
+          ),
       );
       try {
         const result = await getCachedDirections_withCache(

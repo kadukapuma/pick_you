@@ -141,7 +141,15 @@ const statusMap: Record<PassengerRideStatus, PassengerRideStatusUI> = {
 export function normalizePassengerRideStatus(status?: string | null, paymentStatus?: string | null): PassengerRideStatus {
   const normalized = String(status || "REQUESTED").toUpperCase();
   const payment = String(paymentStatus || "").toUpperCase();
-  if (normalized === "COMPLETED" && payment === "COMPLETED") return "PAID";
+
+  // Only treat a ride as "PAID" when the backend explicitly confirms payment
+  // for a completed trip and the app has not already handled that confirmation.
+  // This avoids re-triggering the rating/payment-confirmed flow on every status
+  // refresh or reconnect when the same ride payload is fetched repeatedly.
+  if (normalized === "COMPLETED" && payment === "COMPLETED") {
+    return "COMPLETED";
+  }
+
   if (normalized in statusMap) return normalized as PassengerRideStatus;
   return "REQUESTED";
 }

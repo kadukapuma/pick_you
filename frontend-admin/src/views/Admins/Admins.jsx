@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { useAdmin } from '../../context/AdminContext'
 import { apiFetch, fetchAdmins, updateAdminStatus } from '../../services/adminApi'
 import DataTable from '../../components/DataTable/DataTable'
@@ -21,6 +21,7 @@ const Admins = () => {
     const [page, setPage] = useState(1)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [formData, setFormData] = useState({
         first_name: '',
@@ -39,6 +40,7 @@ const Admins = () => {
             const response = await fetchAdmins(token, {
                 page,
                 perPage: pagination.perPage,
+                search: debouncedSearch,
             })
             setAdmins(response.admins || [])
             if (response.pagination) {
@@ -55,6 +57,15 @@ const Admins = () => {
     }
 
     useEffect(() => {
+        const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+        return () => clearTimeout(timeout)
+    }, [search])
+
+    useEffect(() => {
+        setPage(1)
+    }, [debouncedSearch])
+
+    useEffect(() => {
         if (!token) {
             setAdmins([])
             setPagination({ page: 1, perPage: 10, total: 0, totalPages: 1 })
@@ -63,23 +74,9 @@ const Admins = () => {
         }
 
         loadAdmins()
-    }, [token, page])
+    }, [token, page, debouncedSearch])
 
-    const filteredAdmins = useMemo(() => {
-        const query = search.trim().toLowerCase()
-        if (!query) return admins
-
-        return admins.filter((admin) => {
-            return [
-                admin.first_name,
-                admin.last_name,
-                admin.email,
-                admin.phone,
-            ]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(query))
-        })
-    }, [admins, search])
+    const filteredAdmins = admins
 
     const handleToggleStatus = async (id, currentStatus) => {
         const action = currentStatus ? 'suspend' : 'activate'

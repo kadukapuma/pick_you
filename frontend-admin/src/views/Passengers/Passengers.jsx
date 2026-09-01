@@ -21,6 +21,7 @@ const Passengers = () => {
     const [page, setPage] = useState(1)
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState('')
+    const [debouncedSearch, setDebouncedSearch] = useState('')
 
     const loadPassengers = async () => {
         try {
@@ -28,6 +29,7 @@ const Passengers = () => {
             const response = await fetchPassengers(token, {
                 page,
                 perPage: pagination.perPage,
+                search: debouncedSearch,
             })
             setPassengers(response.passengers || [])
             if (response.pagination) {
@@ -44,6 +46,15 @@ const Passengers = () => {
     }
 
     useEffect(() => {
+        const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 400)
+        return () => clearTimeout(timeout)
+    }, [search])
+
+    useEffect(() => {
+        setPage(1)
+    }, [debouncedSearch])
+
+    useEffect(() => {
         if (!token) {
             setPassengers([])
             setPagination({ page: 1, perPage: 10, total: 0, totalPages: 1 })
@@ -52,7 +63,7 @@ const Passengers = () => {
         }
 
         loadPassengers()
-    }, [token, page])
+    }, [token, page, debouncedSearch])
 
     useEffect(() => {
         if (!token) return
@@ -87,22 +98,9 @@ const Passengers = () => {
     }, [token])
 
     const filteredPassengers = useMemo(() => {
-        const query = search.trim().toLowerCase()
-
-        return passengers.filter((p) => {
-            if (studentFilter === 'student' && !p.student_verification) return false
-            if (!query) return true
-
-            return [
-                p.user?.first_name,
-                p.user?.last_name,
-                p.user?.email,
-                p.user?.phone,
-            ]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(query))
-        })
-    }, [passengers, search, studentFilter])
+        if (studentFilter !== 'student') return passengers
+        return passengers.filter((p) => p.student_verification)
+    }, [passengers, studentFilter])
 
     const handleToggleStatus = async (id, currentStatus) => {
         const action = currentStatus ? 'suspend' : 'activate';

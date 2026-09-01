@@ -35,6 +35,22 @@ class VehicleController extends Controller
             $query->where('driver_id', $request->input('driver_id'));
         }
 
+        $search = trim((string) $request->input('search', $request->input('q', '')));
+        if ($search !== '') {
+            $query->where(function ($q) use ($search) {
+                $q->where('vehicle_number', 'like', "%{$search}%")
+                    ->orWhere('brand', 'like', "%{$search}%")
+                    ->orWhere('model', 'like', "%{$search}%")
+                    ->orWhere('color', 'like', "%{$search}%")
+                    ->orWhereHas('driver.user', function ($uq) use ($search) {
+                        $uq->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('phone', 'like', "%{$search}%");
+                    });
+            });
+        }
+
         $data = $query->paginate($perPage);
 
         return $this->success($data, 'Vehicle list retrieved successfully.');

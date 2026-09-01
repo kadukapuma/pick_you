@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Animated,
   KeyboardAvoidingView,
   Platform,
@@ -17,6 +18,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import LocationPicker from "../../features/ride-booking/booking/PickupDropoffPicker";
 import ReturnLocationPicker from "../../features/ride-booking/booking/ReturnTripLocationPicker";
 import BookForFriendToggle from "../../features/ride-booking/booking/BookForFriendToggle";
+import FriendDetailsInput from "../../features/ride-booking/booking/FriendDetailsInput";
 import TripTypeToggle from "../../features/ride-booking/booking/TripTypeToggle";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 import { LocationSuggestion } from "../../services/maps/locationSuggestions";
@@ -31,6 +33,12 @@ export default function RideSearchScreen() {
     setOutboundPickup,
     setOutboundDropoff,
     setTripType: setContextTripType,
+    isForFriend,
+    setIsForFriend,
+    friendName,
+    setFriendName,
+    friendPhone,
+    setFriendPhone,
   } = useRideSearch();
 
   const params = useLocalSearchParams<{
@@ -47,8 +55,6 @@ export default function RideSearchScreen() {
   const [tripType, setTripType] = useState<TripType>(
     (params.tripType === "return-trip" || params.tripType === "return") ? "return-trip" : "one-way"
   );
-  const [bookForFriend, setBookForFriend] = useState(false);
-
   const slideAnim = useRef(new Animated.Value(0)).current;
   const contentOpacity = useRef(new Animated.Value(1)).current;
 
@@ -153,9 +159,18 @@ export default function RideSearchScreen() {
         </View>
 
         <BookForFriendToggle
-          value={bookForFriend}
-          onToggle={setBookForFriend}
+          value={isForFriend}
+          onToggle={setIsForFriend}
         />
+
+        {isForFriend && (
+          <FriendDetailsInput
+            name={friendName}
+            onNameChange={setFriendName}
+            phone={friendPhone}
+            onPhoneChange={setFriendPhone}
+          />
+        )}
 
         <TripTypeToggle
           tripType={tripType}
@@ -191,10 +206,29 @@ export default function RideSearchScreen() {
     </SafeAreaView>
   );
 
+  function friendDetailsAreValid(): boolean {
+    if (!isForFriend) return true;
+
+    if (!friendName.trim()) {
+      Alert.alert("Friend's name required", "Please enter your friend's name.");
+      return false;
+    }
+    if (friendPhone.replace(/\D/g, "").length < 10) {
+      Alert.alert(
+        "Friend's phone required",
+        "Please enter a valid phone number for your friend.",
+      );
+      return false;
+    }
+    return true;
+  }
+
   function handleLocationConfirm(
     pickup: LocationSuggestion,
     destination: LocationSuggestion,
   ) {
+    if (!friendDetailsAreValid()) return;
+
     setOutboundPickup(pickup);
     setOutboundDropoff(destination);
     setContextTripType("oneway");
@@ -203,7 +237,6 @@ export default function RideSearchScreen() {
       params: {
         pickup: JSON.stringify(pickup),
         destination: JSON.stringify(destination),
-        bookForFriend: String(bookForFriend),
       },
     });
   }
@@ -212,6 +245,8 @@ export default function RideSearchScreen() {
     pickup: LocationSuggestion,
     destination: LocationSuggestion,
   ) {
+    if (!friendDetailsAreValid()) return;
+
     // `destination` is stored as the trip's "dropoff" for map/fare purposes on
     // the vehicle-selection screen — the ride always returns to `pickup`,
     // which the backend derives automatically (see confirm.tsx).
@@ -223,7 +258,6 @@ export default function RideSearchScreen() {
       params: {
         pickup: JSON.stringify(pickup),
         destination: JSON.stringify(destination),
-        bookForFriend: String(bookForFriend),
       },
     });
   }

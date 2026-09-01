@@ -72,7 +72,8 @@ export default function LiveTrackerPage() {
         connected: false,
         stale: true,
     });
-    const [showRatingModal, setShowRatingModal] = useState(isInitiallyPaid);
+    const [showRatingModal, setShowRatingModal] = useState(false);
+    const hasShownPaidConfirmationRef = useRef(isInitiallyPaid);
     const [eventStatus, setEventStatus] = useState<string | null>(
         initialEventStatus && !isInitiallyPaid && !["ACCEPTED", "ARRIVED", "STARTED", "PAID"].includes(String(initialEventStatus).toUpperCase())
             ? String(initialEventStatus).toUpperCase()
@@ -154,7 +155,8 @@ export default function LiveTrackerPage() {
 
             if (paymentStatus && lastPaymentStatusRef.current !== paymentStatus) {
                 lastPaymentStatusRef.current = paymentStatus;
-                if (paymentStatus === "COMPLETED" && !ratingSubmitted) {
+                if (paymentStatus === "COMPLETED" && !ratingSubmitted && !hasShownPaidConfirmationRef.current && ride?.payment?.payment_status === "COMPLETED") {
+                    hasShownPaidConfirmationRef.current = true;
                     setEventStatus("PAID");
                     setEventPaymentStatus(paymentStatus);
                     setShowRatingModal(true);
@@ -237,15 +239,21 @@ export default function LiveTrackerPage() {
             if (result.status === "completed") {
                 setEventPaymentStatus("COMPLETED");
                 setEventStatus(null);
-                setRideData((previous: any) => ({
-                    ...previous,
-                    payment: {
-                        ...(previous?.payment || {}),
-                        payment_status: "COMPLETED",
-                        gateway_reference: result.reference,
-                    },
-                }));
-                setShowRatingModal(true);
+                setRideData((previous: any) => {
+                    const updatedRide = {
+                        ...previous,
+                        payment: {
+                            ...(previous?.payment || {}),
+                            payment_status: "COMPLETED",
+                            gateway_reference: result.reference,
+                        },
+                    };
+                    // Only show rating modal if payment is confirmed in ride data
+                    if (updatedRide?.payment?.payment_status === "COMPLETED" && !ratingSubmitted) {
+                        setShowRatingModal(true);
+                    }
+                    return updatedRide;
+                });
                 return;
             }
 
@@ -299,6 +307,7 @@ export default function LiveTrackerPage() {
             });
 
             if (response.success) {
+                hasShownPaidConfirmationRef.current = true;
                 setRatingSubmitted(true);
                 setShowRatingModal(false);
                 resetTrip();

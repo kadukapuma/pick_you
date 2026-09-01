@@ -209,7 +209,21 @@ export default function GoogleRideMap({
   const [vehicleMarkersReady, setVehicleMarkersReady] = useState(true);
   const [hasUserMovedMap, setHasUserMovedMap] = useState(false);
   const [isMapReady, setIsMapReady] = useState(false);
-  const { location: smoothDriverLocation } = useSmoothLocation(driverLocation);
+  // Only the real road-following route (not the pickup-dropoff fallback
+  // chord computed below) is safe to feed back in here for road-snapped
+  // interpolation.
+  const routePoints = useMemo(
+    () =>
+      routeCoordinates && routeCoordinates.length > 1
+        ? routeCoordinates.filter(isValidCoordinate).map(toLatLng)
+        : null,
+    [routeCoordinates],
+  );
+  const { location: smoothDriverLocation } = useSmoothLocation(
+    driverLocation,
+    undefined,
+    routePoints,
+  );
   const renderedDriverLocation = useMemo(
     () => smoothDriverLocation ?? driverLocation,
     [smoothDriverLocation, driverLocation],
@@ -329,6 +343,28 @@ export default function GoogleRideMap({
       Platform.OS === "android" ? 700 : 150,
     );
   }, []);
+
+  // react-native-maps freezes a marker's rendered bitmap once
+  // tracksViewChanges goes false, so the icon stops rotating even though
+  // its coordinate keeps moving. Re-arm tracking whenever the active
+  // vehicle's heading moves enough to matter, then let it re-freeze.
+  const activeVehicleHeading = vehicleLocationForCamera?.heading;
+  const lastFrozenHeadingRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!Number.isFinite(activeVehicleHeading)) return;
+    const previous = lastFrozenHeadingRef.current;
+    const changed =
+      previous == null ||
+      Math.abs(((Number(activeVehicleHeading) - previous + 540) % 360) - 180) > 3;
+    if (!changed) return;
+
+    setVehicleMarkersReady(true);
+    if (markerTrackingTimeoutRef.current) clearTimeout(markerTrackingTimeoutRef.current);
+    markerTrackingTimeoutRef.current = setTimeout(() => {
+      lastFrozenHeadingRef.current = Number(activeVehicleHeading);
+      setVehicleMarkersReady(false);
+    }, Platform.OS === "android" ? 700 : 150);
+  }, [activeVehicleHeading]);
 
   const focusVehicle = useCallback(() => {
     if (!focusVehicleCoordinate) return;

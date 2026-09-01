@@ -240,9 +240,20 @@ export default function DriverStyleRideMap({
   const locationSourceKey = vehicleLocation
     ? `${vehicleLocation.ride_id || "ride"}:${vehicleLocation.driver_id || "driver"}`
     : "waiting";
+  // Only the real road-following route (not the vehicle-to-target fallback
+  // line computed below from this hook's own output) is safe to feed back
+  // in here for road-snapped interpolation.
+  const routePoints = useMemo(
+    () =>
+      routeCoordinates.length > 1
+        ? routeCoordinates.filter(isValidCoordinate).map(toLatLng)
+        : null,
+    [routeCoordinates],
+  );
   const { location: smoothVehicleLocation } = useSmoothLocation(
     vehicleLocation,
     locationSourceKey,
+    routePoints,
   );
   const renderedVehicleLocation = useMemo(
     () => smoothVehicleLocation ?? vehicleLocation,
@@ -316,6 +327,29 @@ export default function DriverStyleRideMap({
       Platform.OS === "android" ? 700 : 150,
     );
   }, []);
+
+  // react-native-maps freezes a marker's rendered bitmap once
+  // tracksViewChanges goes false, so the icon stops rotating even though
+  // its coordinate keeps moving. Re-arm tracking whenever the heading
+  // moves enough to matter, then let it re-freeze shortly after.
+  const lastFrozenHeadingRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!Number.isFinite(routeHeading)) return;
+    const previous = lastFrozenHeadingRef.current;
+    const changed =
+      previous == null ||
+      Math.abs(((routeHeading - previous + 540) % 360) - 180) > 3;
+    if (!changed) return;
+
+    setTracksVehicleMarkerChanges(true);
+    if (markerTrackingTimeoutRef.current) {
+      clearTimeout(markerTrackingTimeoutRef.current);
+    }
+    markerTrackingTimeoutRef.current = setTimeout(() => {
+      lastFrozenHeadingRef.current = routeHeading;
+      setTracksVehicleMarkerChanges(false);
+    }, Platform.OS === "android" ? 700 : 150);
+  }, [routeHeading]);
 
   const focusVehicle = useCallback(() => {
     if (!renderedVehicleLocation) return;

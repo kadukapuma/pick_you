@@ -22,8 +22,17 @@ class AdminController extends Controller
             $perPage = 10;
         }
         $perPage = min($perPage, 100);
+        $search = trim((string) $request->input('search', $request->input('q', '')));
 
         $admins = User::where('role', User::ROLE_ADMIN)
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('email', 'like', "%{$search}%")
+                        ->orWhere('phone', 'like', "%{$search}%");
+                });
+            })
             ->with('rolePermissions')
             ->orderByDesc('id')
             ->paginate($perPage);

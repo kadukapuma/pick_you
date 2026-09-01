@@ -4,6 +4,7 @@ namespace App\Services\Payments;
 
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
 class WebxpayTokenizationClient
@@ -347,6 +348,15 @@ class WebxpayTokenizationClient
                 $threeDsUrl
             );
         }
+
+        Log::warning('WEBXPAY card save request was rejected.', [
+            'type' => is_string($payload['type'] ?? null) ? $payload['type'] : null,
+            'explanation' => is_string($payload['explanation'] ?? null)
+                ? trim($payload['explanation'])
+                : null,
+            'response_keys' => array_keys($payload),
+            'response' => $payload,
+        ]);
 
         throw new RuntimeException(
             'WEBXPAY card save request was rejected.'

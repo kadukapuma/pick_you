@@ -79,10 +79,25 @@ export function normalizeRidePayload(source = {}) {
       (source.distance_km != null
         ? `${Number(source.distance_km).toFixed(1)} km`
         : ""),
+    // A passenger can book for a friend - the friend is who's actually at
+    // pickup, so the driver should see and call *them*, not the account
+    // holder. `bookingPassengerName` keeps the payer's name around in case a
+    // screen wants to show "booked by X" alongside it.
+    isForFriend: Boolean(source.is_for_friend ?? source.isForFriend),
+    bookingPassengerName: passengerName || null,
     customerName:
-      source.customerName || source.passenger_name || passengerName || "Passenger",
+      (source.is_for_friend || source.isForFriend
+        ? source.friend_name || source.friendName
+        : null) ||
+      source.customerName ||
+      source.passenger_name ||
+      passengerName ||
+      "Passenger",
     customerProfilePicture: passengerProfilePicture,
     customerPhone:
+      (source.is_for_friend || source.isForFriend
+        ? source.friend_phone || source.friendPhone
+        : null) ??
       source.customerPhone ??
       source.passenger_phone ??
       source.passenger?.phone ??

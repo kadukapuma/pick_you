@@ -12,6 +12,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
 import api from "../../services/api";
+import { subscribeToRideStatus } from "../../services/ridePaymentRealtime";
 
 const TripCompletedScreen = ({ navigation, route }) => {
   const insets = useSafeAreaInsets();
@@ -121,6 +122,33 @@ const TripCompletedScreen = ({ navigation, route }) => {
     return () => {
       cancelled = true;
       clearInterval(timer);
+    };
+  }, [isPaymentPending, ride?.id]);
+
+  // Push-based complement to the poll above: as soon as the backend
+  // broadcasts a payment outcome, apply it immediately instead of waiting
+  // up to 3s. The poll stays as a fallback if the socket is unavailable.
+  useEffect(() => {
+    if (!ride?.id || !isPaymentPending) return;
+
+    let cancelled = false;
+    let unsubscribe = null;
+
+    subscribeToRideStatus(ride.id, (updatedRide) => {
+      if (!cancelled) {
+        setRide((current) => ({ ...current, ...updatedRide }));
+      }
+    }).then((unsub) => {
+      if (cancelled) {
+        unsub();
+      } else {
+        unsubscribe = unsub;
+      }
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
     };
   }, [isPaymentPending, ride?.id]);
 

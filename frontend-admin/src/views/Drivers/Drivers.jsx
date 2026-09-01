@@ -1,4 +1,3 @@
-import { useMemo, useState } from 'react'
 import { useNavigate, useOutletContext } from 'react-router-dom'
 import { resolveAssetUrl, updateDriverActiveStatus } from '../../services/adminApi'
 import { useAdmin } from '../../context/AdminContext'
@@ -9,34 +8,32 @@ import SearchBar from '../../components/SearchBar/SearchBar'
 
 const isDriverOnline = (driver) => Number(driver?.availability) === 1
 
+const STATUS_FILTERS = [
+    { value: 'all', label: 'All' },
+    { value: 'approved', label: 'Approved' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'rejected', label: 'Rejected' },
+    { value: 'suspended', label: 'Suspended' },
+]
+
 const Drivers = () => {
     const { token } = useAdmin()
     const { driversState } = useOutletContext()
-    const { drivers, loading, error, setDrivers, pagination, page, setPage } = driversState
+    const {
+        drivers,
+        loading,
+        error,
+        setDrivers,
+        pagination,
+        page,
+        setPage,
+        search,
+        setSearch,
+        statusFilter,
+        setStatusFilter,
+        statusCounts,
+    } = driversState
     const navigate = useNavigate()
-    const [search, setSearch] = useState('')
-    const [statusFilter, setStatusFilter] = useState('all')
-
-    const filteredDrivers = useMemo(() => {
-        const query = search.trim().toLowerCase()
-
-        return drivers.filter((driver) => {
-            const matchesStatus =
-                statusFilter === 'all' || driver.status === statusFilter
-            if (!matchesStatus) return false
-            if (!query) return true
-
-            return [
-                driver.name,
-                driver.email,
-                driver.phone,
-                driver.license_number,
-                driver?.vehicle?.plate_number,
-            ]
-                .filter(Boolean)
-                .some((value) => value.toLowerCase().includes(query))
-        })
-    }, [drivers, search, statusFilter])
 
     const handleToggleActive = async (id, currentActive) => {
         const action = currentActive ? 'suspend' : 'activate';
@@ -78,19 +75,20 @@ const Drivers = () => {
         <section className="content-page">
             <div className="top-actions-row" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', gap: '20px' }}>
                 <div className="stats-summary" style={{ margin: 0, flex: 1, flexWrap: 'nowrap', overflowX: 'auto' }}>
-                    {/* <div className="stat-pill">
-                        Total Drivers: <strong>{pagination.total || drivers.length}</strong>
-                    </div> */}
-                    <div className="stat-pill">
-                        Active: <strong>{drivers.filter(d => d.status === 'approved').length}</strong>
-                    </div>
-                    <div className="stat-pill">
-                        Pending: <strong>{drivers.filter(d => d.status === 'pending').length}</strong>
-                    </div>
-                    <div className="stat-pill">                        Rejected: <strong>{drivers.filter(d => d.status === 'rejected').length}</strong>
-                    </div>
-                    <div className="stat-pill">                        Suspended: <strong>{drivers.filter(d => d.status === 'suspended').length}</strong>
-                    </div>
+                    {STATUS_FILTERS.map(({ value, label }) => (
+                        <button
+                            key={value}
+                            type="button"
+                            className="stat-pill"
+                            style={{
+                                border: statusFilter === value ? '1.5px solid #08d612' : undefined,
+                                cursor: 'pointer',
+                            }}
+                            onClick={() => setStatusFilter(value)}
+                        >
+                            {label}: <strong>{statusCounts[value] ?? 0}</strong>
+                        </button>
+                    ))}
                 </div>
 
                 <SearchBar
@@ -119,8 +117,12 @@ const Drivers = () => {
                     <div className="table-row" style={{ gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 0.8fr 1fr' }}>
                         <span className="form-error" style={{ gridColumn: '1 / -1' }}>{error}</span>
                     </div>
+                ) : drivers.length === 0 ? (
+                    <div className="table-row" style={{ gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 0.8fr 1fr' }}>
+                        <span className="muted" style={{ gridColumn: '1 / -1', textAlign: 'center' }}>No drivers found.</span>
+                    </div>
                 ) : (
-                    filteredDrivers.map((driver) => (
+                    drivers.map((driver) => (
                         <div className="table-row" key={driver.id} style={{ gridTemplateColumns: '1.5fr 1.5fr 1fr 1fr 1fr 0.8fr 1fr' }}>
                             <div className="cell-driver">
                                 <div className="avatar-initials">

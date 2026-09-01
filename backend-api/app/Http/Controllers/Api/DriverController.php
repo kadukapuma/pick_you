@@ -11,6 +11,7 @@ use App\Services\Media\ImageStorageService;
 use App\Models\AdminNotificationLog;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\DriverApprovedMail;
 use App\Mail\DriverSuspendedMail;
@@ -19,6 +20,8 @@ class DriverController extends Controller
 {
     use ApiResponse;
 
+    public const STATUSES = ['pending', 'approved', 'suspended', 'updated', 'rejected'];
+
     public function index(Request $request)
     {
         $perPage = $request->integer('per_page', 10);
@@ -26,13 +29,43 @@ class DriverController extends Controller
             $perPage = 10;
         }
         $perPage = min($perPage, 100);
+        $search = trim((string) $request->input('search', $request->input('q', '')));
+        $status = trim((string) $request->input('status', ''));
 
         $data = Driver::with(['user', 'vehicles.images'])
             ->withCount('rides')
+            ->when($search !== '', function ($query) use ($search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('license_number', 'like', "%{$search}%")
+                        ->orWhereHas('user', function ($uq) use ($search) {
+                            $uq->where('first_name', 'like', "%{$search}%")
+                                ->orWhere('last_name', 'like', "%{$search}%")
+                                ->orWhere('email', 'like', "%{$search}%")
+                                ->orWhere('phone', 'like', "%{$search}%");
+                        });
+                });
+            })
+            ->when($status !== '' && $status !== 'all', function ($query) use ($status) {
+                $query->where('status', $status);
+            })
             ->orderByDesc('id')
             ->paginate($perPage);
 
         return $this->success($data, 'Driver list retrieved successfully.');
+    }
+
+    public function statusCounts()
+    {
+        $counts = Driver::select('status', DB::raw('count(*) as count'))
+            ->groupBy('status')
+            ->pluck('count', 'status');
+
+        $result = ['all' => (int) $counts->sum()];
+        foreach (self::STATUSES as $status) {
+            $result[$status] = (int) ($counts[$status] ?? 0);
+        }
+
+        return $this->success($result, 'Driver status counts retrieved successfully.');
     }
 
     public function store(Request $request)

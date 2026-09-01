@@ -21,6 +21,9 @@ protected $fillable = [
     'drop_address',
     'drop_point',
     'drop_geog',
+    'is_for_friend',
+    'friend_name',
+    'friend_phone',
     'trip_type',
     'destination_address',
     'destination_point',
@@ -68,6 +71,7 @@ protected $fillable = [
     protected $casts = [
         'use_wallet_credit' => 'boolean',
         'use_loyalty_points' => 'boolean',
+        'is_for_friend' => 'boolean',
         'fare_breakdown' => 'array',
         // Without these, decimal scale depends on the database driver: Postgres
         // returns "60.00" where SQLite returns "60".

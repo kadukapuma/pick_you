@@ -20,10 +20,10 @@ class WebxpaySavedCardSynchronizerTest extends TestCase
         [$user, $passenger] = $this->makePassenger();
 
         $mockCard = $this->makeCard($passenger);
-        $staleCard = PassengerPaymentMethod::create([
+        $existingCard = PassengerPaymentMethod::create([
             'passenger_id' => $passenger->id,
             'gateway' => 'webxpay',
-            'token' => 'stale-provider-card',
+            'token' => 'existing-provider-card',
             'brand' => 'visa',
             'last4' => '9999',
             'exp_month' => 1,
@@ -55,16 +55,18 @@ class WebxpaySavedCardSynchronizerTest extends TestCase
         $methods = app(WebxpaySavedCardSynchronizer::class)
             ->sync($passenger);
 
-        $this->assertCount(1, $methods);
-        $this->assertSame('1111', $methods->sole()->last4);
-        $this->assertFalse($methods->sole()->is_default);
+        // WEBXPAY's list not mentioning a previously-synced card doesn't
+        // mean it's gone - its own list endpoint can be transiently
+        // incomplete, so a card is only ever removed by explicit deletion.
+        $this->assertCount(2, $methods);
         $this->assertDatabaseHas('passenger_payment_methods', [
             'id' => $mockCard->id,
             'gateway' => 'mock',
             'is_default' => true,
         ]);
-        $this->assertDatabaseMissing('passenger_payment_methods', [
-            'id' => $staleCard->id,
+        $this->assertDatabaseHas('passenger_payment_methods', [
+            'id' => $existingCard->id,
+            'gateway' => 'webxpay',
         ]);
         $this->assertDatabaseHas('passenger_payment_methods', [
             'passenger_id' => $passenger->id,
@@ -111,12 +113,12 @@ class WebxpaySavedCardSynchronizerTest extends TestCase
         $this->assertArrayNotHasKey('token', $method->toArray());
     }
 
-    public function test_empty_provider_list_removes_only_webxpay_cards(): void
+    public function test_empty_provider_list_does_not_delete_existing_local_cards(): void
     {
         [$user, $passenger] = $this->makePassenger();
 
         $mockCard = $this->makeCard($passenger);
-        PassengerPaymentMethod::create([
+        $webxpayCard = PassengerPaymentMethod::create([
             'passenger_id' => $passenger->id,
             'gateway' => 'webxpay',
             'token' => 'provider-card-id',
@@ -127,6 +129,9 @@ class WebxpaySavedCardSynchronizerTest extends TestCase
             'is_default' => false,
         ]);
 
+        // A WEBXPAY list response can be transiently empty even though the
+        // card is still valid on their side - sync must not treat that as
+        // "delete everything."
         $this->mock(
             WebxpayTokenizationClient::class,
             function (MockInterface $mock) use ($user, $passenger) {
@@ -143,13 +148,13 @@ class WebxpaySavedCardSynchronizerTest extends TestCase
         $methods = app(WebxpaySavedCardSynchronizer::class)
             ->sync($passenger);
 
-        $this->assertCount(0, $methods);
+        $this->assertCount(1, $methods);
         $this->assertDatabaseHas('passenger_payment_methods', [
             'id' => $mockCard->id,
             'gateway' => 'mock',
         ]);
-        $this->assertDatabaseMissing('passenger_payment_methods', [
-            'passenger_id' => $passenger->id,
+        $this->assertDatabaseHas('passenger_payment_methods', [
+            'id' => $webxpayCard->id,
             'gateway' => 'webxpay',
         ]);
     }

@@ -177,13 +177,27 @@ const fetchMe = async (token) => {
   return payload.data || payload
 }
 
-const fetchDrivers = async (token, { page = 1, perPage = 10 } = {}) => {
-  const payload = await apiFetch(`/drivers?page=${page}&per_page=${perPage}`, { token })
+const fetchDrivers = async (token, { page = 1, perPage = 10, search = '', status = '' } = {}) => {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('per_page', String(perPage))
+  if (search) {
+    params.set('search', search)
+  }
+  if (status && status !== 'all') {
+    params.set('status', status)
+  }
+  const payload = await apiFetch(`/drivers?${params.toString()}`, { token })
   const data = payload.data || {}
   return {
     drivers: (data.data || []).map(mapDriver),
     pagination: mapPagination(data, page, perPage),
   }
+}
+
+const fetchDriverStatusCounts = async (token) => {
+  const payload = await apiFetch('/drivers/status-counts', { token })
+  return payload.data || {}
 }
 
 const fetchDriverDetails = async (token, driverId) => {
@@ -195,12 +209,15 @@ const fetchDriverDetails = async (token, driverId) => {
   return { driver: mapDriver(payload.data), documents }
 }
 
-const fetchVehicles = async (token, driverId, { page = 1, perPage = 10 } = {}) => {
+const fetchVehicles = async (token, driverId, { page = 1, perPage = 10, search = '' } = {}) => {
   const params = new URLSearchParams()
   params.set('page', String(page))
   params.set('per_page', String(perPage))
   if (driverId) {
     params.set('driver_id', String(driverId))
+  }
+  if (search) {
+    params.set('search', search)
   }
   const payload = await apiFetch(`/vehicles?${params.toString()}`, { token })
   const data = payload.data || {}
@@ -210,8 +227,14 @@ const fetchVehicles = async (token, driverId, { page = 1, perPage = 10 } = {}) =
   }
 }
 
-const fetchPassengers = async (token, { page = 1, perPage = 10 } = {}) => {
-  const payload = await apiFetch(`/passengers?page=${page}&per_page=${perPage}`, { token })
+const fetchPassengers = async (token, { page = 1, perPage = 10, search = '' } = {}) => {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('per_page', String(perPage))
+  if (search) {
+    params.set('search', search)
+  }
+  const payload = await apiFetch(`/passengers?${params.toString()}`, { token })
   const data = payload.data || {}
   return {
     passengers: data.data || [],
@@ -233,8 +256,14 @@ const updatePassengerStudentStatus = async (token, passengerId, status, rejectio
   return { passenger: payload.data }
 }
 
-const fetchAdmins = async (token, { page = 1, perPage = 10 } = {}) => {
-  const payload = await apiFetch(`/admins?page=${page}&per_page=${perPage}`, { token })
+const fetchAdmins = async (token, { page = 1, perPage = 10, search = '' } = {}) => {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('per_page', String(perPage))
+  if (search) {
+    params.set('search', search)
+  }
+  const payload = await apiFetch(`/admins?${params.toString()}`, { token })
   const data = payload.data || {}
   return {
     admins: data.data || [],
@@ -242,8 +271,14 @@ const fetchAdmins = async (token, { page = 1, perPage = 10 } = {}) => {
   }
 }
 
-const fetchOperators = async (token, { page = 1, perPage = 10 } = {}) => {
-  const payload = await apiFetch(`/operators?page=${page}&per_page=${perPage}`, { token })
+const fetchOperators = async (token, { page = 1, perPage = 10, search = '' } = {}) => {
+  const params = new URLSearchParams()
+  params.set('page', String(page))
+  params.set('per_page', String(perPage))
+  if (search) {
+    params.set('search', search)
+  }
+  const payload = await apiFetch(`/operators?${params.toString()}`, { token })
   const data = payload.data || {}
   return {
     operators: data.data || [],
@@ -728,6 +763,7 @@ export {
   fetchAdmins,
   fetchOperators,
   fetchDrivers,
+  fetchDriverStatusCounts,
   fetchMe,
   fetchDriverDetails,
   fetchPassengers,

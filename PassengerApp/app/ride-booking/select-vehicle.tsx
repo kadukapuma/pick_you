@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
   Image,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -210,21 +211,8 @@ function formatEtaFromDistanceMeters(distanceMeters: number): string {
 
 function mapDBVehicleToOption(
   vt: DBVehicleType,
-  distanceMeters: number,
-  durationSeconds: number,
   nearestVehicleDistanceMeters?: number,
 ): RideOption {
-  let price = 0;
-  if (vt.fare_config) {
-    const { base_fare, per_km_rate, per_minute_rate } = vt.fare_config;
-    price =
-      parseFloat(base_fare) +
-      (distanceMeters / 1000) * parseFloat(per_km_rate) +
-      (durationSeconds / 60) * parseFloat(per_minute_rate);
-  } else {
-    price = 150 + (distanceMeters / 1000) * 60;
-  }
-
   const safeName = normaliseVehicleKey(vt.name ?? "car");
 
   // Real ETA: time for the closest available driver of this vehicle type to
@@ -239,7 +227,9 @@ function mapDBVehicleToOption(
     id: vt.name, // Keep original for backend queries
     name: vt.display_name,
     icon: ICON_MAP[safeName] ?? "car",
-    price: parseFloat(price.toFixed(2)),
+    // Price is unknown until the backend's authoritative /rides/estimate
+    // response arrives (see loadBackendEstimates below) — NaN marks "not priced yet".
+    price: NaN,
     eta,
     rating: RATING_MAP[safeName] ?? 4.6,
     passengerCount: vt.passenger_count ?? 4,
@@ -337,7 +327,8 @@ function RideCard({
     outputRange: [1, 4],
   });
 
-  const stars = (ride.price * STARS_PER_LKR).toFixed(1);
+  const priceReady = Number.isFinite(ride.price);
+  const stars = priceReady ? (ride.price * STARS_PER_LKR).toFixed(1) : null;
 
   return (
     <Animated.View
@@ -404,16 +395,18 @@ function RideCard({
     adjustsFontSizeToFit
     minimumFontScale={0.6}
   >
-    LKR {ride.price.toFixed(2)}
+    {priceReady ? `LKR ${ride.price.toFixed(2)}` : "Calculating…"}
   </Text>
 
   {/* Stars earned */}
-  <View style={styles.starsRow}>
-    <Ionicons name="star" size={11} color="#FBBF24" />
-    <Text style={styles.starsText} numberOfLines={1}>
-      Earn {stars}
-    </Text>
-  </View>
+  {priceReady && (
+    <View style={styles.starsRow}>
+      <Ionicons name="star" size={11} color="#FBBF24" />
+      <Text style={styles.starsText} numberOfLines={1}>
+        Earn {stars}
+      </Text>
+    </View>
+  )}
 </Animated.View>
       </Pressable>
     </Animated.View>
@@ -651,22 +644,13 @@ export default function SelectRideScreen() {
     )
       return;
 
-    // Round trip: the passenger is billed for both legs, so the fallback
-    // price (used until the backend estimate lands) must reflect the full
-    // out-and-back distance/duration, not just the leg to the destination.
-    const totalDistanceMeters = isReturn
-      ? directions.distance + (returnDirections?.distance ?? 0)
-      : directions.distance;
-    const totalDurationSeconds = isReturn
-      ? directions.duration + (returnDirections?.duration ?? 0)
-      : directions.duration;
-
     let cancelled = false;
+    // Cards render immediately with icon/name/eta so the sheet doesn't sit
+    // empty, but price is left unset (NaN) until the backend's authoritative
+    // /rides/estimate response lands below — the UI never shows a client-computed fare.
     const fallbackOptions = _rawVehicles.map((vehicle) =>
       mapDBVehicleToOption(
         vehicle,
-        totalDistanceMeters,
-        totalDurationSeconds,
         nearestDistanceByType[normaliseVehicleKey(vehicle.name ?? "car")],
       ),
     );
@@ -712,7 +696,7 @@ export default function SelectRideScreen() {
           if (!estimate.success || !estimate.data) continue;
 
           const apiFare = Number(estimate.data.estimated_fare);
-          const sane = apiFare > 0 && apiFare < fallback.price * 10;
+          const sane = apiFare > 0 && Number.isFinite(apiFare);
           if (!sane) continue;
 
           setRideOptions((current) =>
@@ -723,7 +707,8 @@ export default function SelectRideScreen() {
             ),
           );
         } catch {
-          // The local fare config estimate remains usable if backend estimate is slow.
+          // Backend estimate failed/timed out — this vehicle's card keeps
+          // showing "Calculating…" rather than falling back to a client guess.
         }
       }
     };
@@ -764,7 +749,7 @@ export default function SelectRideScreen() {
     if (!pickup || !destination || !selectedRide || rideOptions.length === 0)
       return;
     const opt = rideOptions.find((r) => r.id === selectedRide);
-    if (!opt) return;
+    if (!opt || !Number.isFinite(opt.price)) return;
     setOutboundPickup(pickup);
     setOutboundDropoff(destination);
     setOutboundRide(opt);
@@ -787,6 +772,9 @@ export default function SelectRideScreen() {
     directions && _rawVehicles.length > 0 && rideOptions.length === 0,
   );
   const loading = loadingRoute || loadingVehicles || hasPendingFareSetup;
+  const selectedRidePriceReady = Number.isFinite(
+    rideOptions.find((r) => r.id === selectedRide)?.price,
+  );
   const nearbyVehicles = React.useMemo(
     () =>
       selectedRide
@@ -944,21 +932,30 @@ export default function SelectRideScreen() {
 
         {/* ── OPTIONS ROW ────────────────────────────────────────────────── */}
         <View style={styles.optionsRow}>
-          <TouchableOpacity
-            style={styles.optionChip}
-            onPress={() => {
-              const currentRide = rideOptions.find(
-                (ride) => ride.id === selectedRide,
-              );
-              if (currentRide) {
-                setOutboundRide(currentRide);
-              }
-              router.push("/ride-booking/payment-method");
-            }}
-            activeOpacity={0.82}
-            accessibilityRole="button"
-            accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
-          >
+<TouchableOpacity
+  style={styles.optionChip}
+  onPress={() => {
+   if (paymentMethod === "card") {
+  Alert.alert(
+    "Card payments are pending",
+    "Cash is the only available payment option right now.",
+  );
+  return;
+}
+
+
+    const currentRide = rideOptions.find(
+      (ride) => ride.id === selectedRide,
+    );
+    if (currentRide) {
+      setOutboundRide(currentRide);
+    }
+    router.push("/ride-booking/payment-method");
+  }}
+  activeOpacity={0.82}
+  accessibilityRole="button"
+  accessibilityLabel={`Change payment method. Currently ${usePickuCredit ? `PickU credit plus ${paymentMethod}` : paymentMethod}`}
+>
             <Ionicons
               name={
                 usePickuCredit
@@ -1001,14 +998,19 @@ export default function SelectRideScreen() {
         <TouchableOpacity
           style={[
             styles.bookBtn,
-            (!selectedRide || loading) && styles.bookBtnDisabled,
+            (!selectedRide || loading || !selectedRidePriceReady) &&
+              styles.bookBtnDisabled,
           ]}
           onPress={handleBookNow}
-          disabled={!selectedRide || loading}
+          disabled={!selectedRide || loading || !selectedRidePriceReady}
           activeOpacity={0.82}
         >
           <Text style={styles.bookBtnText}>
-            {tripType === "return" ? "Continue to Confirm →" : "Book Now"}
+            {!loading && selectedRide && !selectedRidePriceReady
+              ? "Calculating fare…"
+              : tripType === "return"
+                ? "Continue to Confirm →"
+                : "Book Now"}
           </Text>
         </TouchableOpacity>
       </Animated.View>
