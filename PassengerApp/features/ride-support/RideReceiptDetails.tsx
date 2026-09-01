@@ -433,14 +433,14 @@ export default function RideReceiptDetails({ ride, initialTab = "receipt" }: Pro
         )}
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.secondaryButton} onPress={openHelp} activeOpacity={0.86}>
+          {/* <TouchableOpacity style={styles.secondaryButton} onPress={openHelp} activeOpacity={0.86}>
             <Ionicons name="information-circle-outline" size={18} color={rideTheme.darkGreen} />
             <Text style={styles.secondaryButtonText}>Help</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.primaryButton} onPress={mailReceipt} activeOpacity={0.86}>
+          </TouchableOpacity> */}
+          {/* <TouchableOpacity style={styles.primaryButton} onPress={mailReceipt} activeOpacity={0.86}>
             <Ionicons name="mail-outline" size={18} color="#FFFFFF" />
             <Text style={styles.primaryButtonText}>Mail Receipt</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </ScrollView>
     </SafeAreaView>
