@@ -230,7 +230,19 @@ const IncomingRideModal = ({
 
           {/* --- BOTTOM BODY WRAPPER (LIGHT PANEL METRICS) --- */}
           <View style={styles.whiteBodySection}>
-            
+
+            {rideData?.isForFriend && (
+              <View style={styles.friendBadgeRow}>
+                <Ionicons name="people" size={14} color="#7C3AED" />
+                <Text style={styles.friendBadgeText}>
+                  Booked for a friend
+                  {rideData?.bookingPassengerName
+                    ? ` by ${rideData.bookingPassengerName}`
+                    : ""}
+                </Text>
+              </View>
+            )}
+
             {/* Route Timeline & Fare Panel split */}
             <View style={styles.upperMetricsRow}>
               {/* Connected Route Graphics */}
@@ -589,6 +601,22 @@ const styles = StyleSheet.create({
   },
   cardBadgeText: {
     color: "#1D4ED8",
+  },
+  friendBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: "#F5F3FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginBottom: 10,
+  },
+  friendBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#7C3AED",
+    marginLeft: 4,
   },
   triMetricsContainer: {
     flexDirection: "row",

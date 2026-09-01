@@ -15,6 +15,8 @@ use App\Services\Maps\GoogleMapsService;
 use App\Services\RideMatching\RideMatchingRedis;
 use App\Services\RideMatching\RideMatchingService;
 use App\Services\Notifications\NotificationService;
+use App\Services\Auth\NotifySmsSender;
+use App\Services\Auth\PhoneNumberNormalizer;
 use App\Services\Rides\RideStateMachine;
 use App\Services\Rides\RideTransitionService;
 use App\Traits\ApiResponse;
@@ -38,6 +40,8 @@ class RideController extends Controller
         private readonly CommissionService $commission,
         private readonly GoogleMapsService $maps,
         private readonly NotificationService $notifications,
+        private readonly PhoneNumberNormalizer $phones,
+        private readonly NotifySmsSender $sms,
     ) {}
 
     /**
@@ -135,6 +139,9 @@ class RideController extends Controller
                     'use_loyalty_points' => (bool) $ride->use_loyalty_points,
                     'passenger_name' => trim(($passengerUser?->first_name ?? 'Passenger').' '.($passengerUser?->last_name ?? '')),
                     'passenger_profile_picture' => $passengerUser?->profile_picture,
+                    'is_for_friend' => (bool) $ride->is_for_friend,
+                    'friend_name' => $ride->friend_name,
+                    'friend_phone' => $ride->friend_phone,
                     'pickup_address' => $ride->pickup_address,
                     'pickup_lat' => $ride->pickup_latitude,
                     'pickup_lng' => $ride->pickup_longitude,
@@ -190,10 +197,28 @@ class RideController extends Controller
             'destination_address' => 'required_if:trip_type,return|string',
             'destination_lat' => 'required_if:trip_type,return|numeric',
             'destination_lng' => 'required_if:trip_type,return|numeric',
+            // Booking for a friend: the friend is picked up, but the
+            // authenticated passenger stays the payer/account holder.
+            'is_for_friend' => 'sometimes|boolean',
+            'friend_name' => 'required_if:is_for_friend,true|string|max:100',
+            'friend_phone' => 'required_if:is_for_friend,true|string|max:20',
         ]);
 
         if ($validator->fails()) {
             return $this->error('Validation Error', 422, $validator->errors());
+        }
+
+        $isForFriend = $request->boolean('is_for_friend');
+        $friendPhone = null;
+
+        if ($isForFriend) {
+            try {
+                $friendPhone = $this->phones->normalize((string) $request->friend_phone);
+            } catch (\InvalidArgumentException) {
+                return $this->error('Invalid phone number format. Must be a valid Sri Lankan mobile number.', 422, [
+                    'friend_phone' => $request->friend_phone,
+                ]);
+            }
         }
 
         $passenger = $request->user()->passenger;
@@ -281,6 +306,9 @@ class RideController extends Controller
             'drop_address' => $dropAddress,
             'drop_point' => DB::raw("point($dropLng, $dropLat)"),
             'drop_geog' => DB::raw("ST_SetSRID(ST_MakePoint($dropLng, $dropLat), 4326)::geography"),
+            'is_for_friend' => $isForFriend,
+            'friend_name' => $isForFriend ? $request->friend_name : null,
+            'friend_phone' => $isForFriend ? $friendPhone : null,
             'trip_type' => $tripType,
             'destination_address' => $isReturn ? $request->destination_address : null,
             'destination_point' => $isReturn ? DB::raw("point($destinationLng, $destinationLat)") : null,
@@ -525,6 +553,16 @@ class RideController extends Controller
             "Ride booked with {$driverName} in vehicle {$ride->vehicle->vehicle_number}.",
             ['ride_id' => $ride->id, 'status' => $ride->status],
         );
+
+        if ($ride->is_for_friend && $ride->friend_phone) {
+            $driverPhone = $driverUser?->phone;
+            $driverPhoneLine = $driverPhone ? " Driver contact: {$driverPhone}." : '';
+
+            $this->sms->send(
+                $ride->friend_phone,
+                "Hi {$ride->friend_name}, a PickU ride has been booked for you. {$driverName} is on the way in {$ride->vehicle->vehicle_number}.{$driverPhoneLine}",
+            );
+        }
 
         return $this->success($ride, 'Ride accepted successfully');
     }

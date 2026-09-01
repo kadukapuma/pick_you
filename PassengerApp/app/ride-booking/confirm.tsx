@@ -56,6 +56,9 @@ export default function ConfirmationScreen() {
     paymentMethod,
     selectedPaymentCard,
     usePickuCredit,
+    isForFriend,
+    friendName,
+    friendPhone,
   } = useRideSearch();
   const isReturnTrip = tripType === "return";
   const nearbySelectedVehicles = useNearbyVehicles(
@@ -244,6 +247,13 @@ export default function ConfirmationScreen() {
         // balance.
         use_wallet_credit: usePickuCredit,
         use_loyalty_points: usePickuCredit,
+        ...(isForFriend
+          ? {
+              is_for_friend: true,
+              friend_name: friendName.trim(),
+              friend_phone: friendPhone.trim(),
+            }
+          : {}),
       };
 
       if (__DEV__) {
@@ -453,6 +463,14 @@ export default function ConfirmationScreen() {
                 {outboundTrip.selectedRide.name}
               </Text>
             </View>
+            {isForFriend && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Booking for</Text>
+                <Text style={styles.detailValue} numberOfLines={1}>
+                  {friendName.trim()} · {friendPhone.trim()}
+                </Text>
+              </View>
+            )}
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>
                 {isReturnTrip ? "Total distance" : "Distance"}

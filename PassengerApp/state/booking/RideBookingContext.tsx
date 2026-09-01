@@ -49,6 +49,15 @@ interface RideSearchContextType {
   scheduledAt: string | null;
   setScheduledAt: (value: string | null) => void;
 
+  // Book for a friend: the friend is picked up, but this account stays the
+  // payer/account holder for wallet, loyalty, and rating purposes.
+  isForFriend: boolean;
+  setIsForFriend: (value: boolean) => void;
+  friendName: string;
+  setFriendName: (value: string) => void;
+  friendPhone: string;
+  setFriendPhone: (value: string) => void;
+
   // Reset
   resetTrip: () => void;
 
@@ -82,6 +91,9 @@ export function RideSearchProvider({
   const [usePickuCredit, setUsePickuCredit] = useState(false);
   const [promoCode, setPromoCode] = useState<string | null>(null);
   const [scheduledAt, setScheduledAt] = useState<string | null>(null);
+  const [isForFriend, setIsForFriend] = useState(false);
+  const [friendName, setFriendName] = useState("");
+  const [friendPhone, setFriendPhone] = useState("");
   const [activeRideId, setActiveRideId] = useState<number | null>(null);
   const [activeRideStatus, setActiveRideStatus] = useState<string | null>(null);
 
@@ -106,6 +118,9 @@ export function RideSearchProvider({
     setUsePickuCredit(false);
     setPromoCode(null);
     setScheduledAt(null);
+    setIsForFriend(false);
+    setFriendName("");
+    setFriendPhone("");
     setActiveRideId(null);
     setActiveRideStatus(null);
   };
@@ -135,6 +150,12 @@ export function RideSearchProvider({
     setPromoCode,
     scheduledAt,
     setScheduledAt,
+    isForFriend,
+    setIsForFriend,
+    friendName,
+    setFriendName,
+    friendPhone,
+    setFriendPhone,
     resetTrip,
     isSearchingForDriver,
     setIsSearchingForDriver,

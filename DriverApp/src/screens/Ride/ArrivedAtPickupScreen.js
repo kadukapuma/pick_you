@@ -81,6 +81,8 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
 
   const customerName = ride?.customerName || "John David";
   const customerProfilePicture = ride?.customerProfilePicture;
+  const isForFriend = Boolean(ride?.isForFriend);
+  const bookingPassengerName = ride?.bookingPassengerName;
   const customerPhone = ride?.customerPhone;
 
   const handleCallCustomer = useCallback(() => {
@@ -236,6 +238,12 @@ const ArrivedAtPickupScreen = ({ navigation, route }) => {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.customerName}>{customerName}</Text>
+              {isForFriend && (
+                <Text style={styles.friendSubtitle}>
+                  Booked for a friend
+                  {bookingPassengerName ? ` by ${bookingPassengerName}` : ""}
+                </Text>
+              )}
             </View>
           </View>
 
@@ -459,6 +467,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#0F172A",
     letterSpacing: -0.4,
+  },
+  friendSubtitle: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#7C3AED",
+    marginTop: 2,
   },
   ratingRow: {
     flexDirection: "row",
