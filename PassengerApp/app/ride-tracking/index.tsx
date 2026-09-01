@@ -74,6 +74,7 @@ export default function LiveTrackerPage() {
     });
     const [showRatingModal, setShowRatingModal] = useState(false);
     const hasShownPaidConfirmationRef = useRef(isInitiallyPaid);
+    const hasShownCompletionRef = useRef(false);
     const [eventStatus, setEventStatus] = useState<string | null>(
         initialEventStatus && !isInitiallyPaid && !["ACCEPTED", "ARRIVED", "STARTED", "PAID"].includes(String(initialEventStatus).toUpperCase())
             ? String(initialEventStatus).toUpperCase()
@@ -144,8 +145,16 @@ export default function LiveTrackerPage() {
             if (status && lastAlertedStatusRef.current !== status) {
                 lastAlertedStatusRef.current = status;
                 if (["COMPLETED", "CANCELLED", "CANCELED"].includes(status)) {
-                    setEventStatus(status);
-                    setEventPaymentStatus(paymentStatus);
+                    if (status === "COMPLETED" && !hasShownCompletionRef.current) {
+                        hasShownCompletionRef.current = true;
+                        setEventStatus(status);
+                        setEventPaymentStatus(paymentStatus);
+                        resolved = true;
+                        stopStatusPolling();
+                    } else if (status !== "COMPLETED") {
+                        setEventStatus(status);
+                        setEventPaymentStatus(paymentStatus);
+                    }
                 }
                 if (["CANCELLED", "CANCELED"].includes(status)) {
                     resolved = true;
@@ -204,7 +213,7 @@ export default function LiveTrackerPage() {
             stopStatusPolling();
             unsubscribe?.();
         };
-    }, [rideId, ratingSubmitted, selectedPaymentMethod, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap, isInitiallyPaid]);
+    }, [rideId, selectedPaymentMethod, setActiveRide, setIsSearchingForDriver, shouldUseActiveRideMap, isInitiallyPaid]);
 
     if (shouldUseActiveRideMap) {
         return (
