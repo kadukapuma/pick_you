@@ -1,0 +1,148 @@
+.delete-account-page {
+    --ink: #1c1c1a;
+    --ink-soft: #57564f;
+    --ink-faint: #8a897f;
+    --rule: #e4e2d8;
+    --paper: #fbfaf6;
+    --accent: #0a7d22;
+    --accent-soft: #eaf3e9;
+
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 96px 24px 120px;
+    background-color: var(--paper);
+    color: var(--ink);
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.6;
+}
+
+.delete-account-header {
+    border-bottom: 1px solid var(--rule);
+    padding-bottom: 28px;
+    margin-bottom: 32px;
+}
+
+.delete-account-eyebrow {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0 0 14px;
+}
+
+.delete-account-header h1 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    margin: 0 0 14px;
+}
+
+.delete-account-intro {
+    font-size: 1rem;
+    color: var(--ink-soft);
+    margin: 0;
+}
+
+.delete-account-form .form-group {
+    margin-bottom: 20px;
+}
+
+.delete-account-form label {
+    display: block;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+}
+
+.delete-account-form input,
+.delete-account-form textarea {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-family: inherit;
+    color: var(--ink);
+    background: #fff;
+    box-sizing: border-box;
+    resize: vertical;
+}
+
+.delete-account-form input:focus,
+.delete-account-form textarea:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+}
+
+.submit-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.form-message {
+    margin-top: 16px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    font-size: 0.9rem;
+}
+
+.form-message.success {
+    background: var(--accent-soft);
+    color: var(--accent);
+}
+
+.form-message.error {
+    background: #fde8e8;
+    color: #b42318;
+}
+
+.delete-account-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(28, 28, 26, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    z-index: 100;
+}
+
+.delete-account-modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 32px;
+    max-width: 420px;
+    width: 100%;
+    text-align: center;
+}
+
+.delete-account-modal h2 {
+    font-family: Georgia, 'Times New Roman', serif;
+    font-size: 1.4rem;
+    color: var(--ink);
+    margin: 0 0 14px;
+}
+
+.delete-account-modal p {
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+    line-height: 1.6;
+    margin: 0 0 24px;
+}
