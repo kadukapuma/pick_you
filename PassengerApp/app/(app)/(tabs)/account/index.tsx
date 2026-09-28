@@ -69,6 +69,7 @@ const accountSections = (studentStatus: StudentVerificationStatus): { title: str
       { title: "Voucher redeem", subtitle: "Apply voucher and promo codes", icon: "ticket-outline", route: "/(app)/(tabs)/account/vouchers" },
       { title: "Help & support", subtitle: "Ride help and safety support", icon: "help-circle-outline", route: "/(app)/(tabs)/account/help-support" },
       { title: "About PickU", subtitle: "App information and terms", icon: "information-circle-outline", route: "/(app)/(tabs)/account/about" },
+      { title: "Settings", subtitle: "Notifications, privacy and account", icon: "settings-outline", route: "/(app)/(tabs)/account/settings" },
     ],
   },
 ];

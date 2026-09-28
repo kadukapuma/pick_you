@@ -7,6 +7,7 @@ import DocumentVefityscreen from "../screens/DocumnetVefityScreen";
 import EditProfileScreen from "../screens/Main Screen/EditProfileScreen";
 import TripDetailsScreen from "../screens/Main Screen/TripDetailsScreen";
 import NotificationScreen from "../screens/NotificationScreen";
+import SettingsScreen from "../screens/Main Screen/SettingsScreen";
 import ProfileSetScreen from "../screens/ProfileSetupScreen";
 import VehicleDetailsScreen from "../screens/VehicleDeatilsScreem";
 import VerificationScreen from "../screens/VerificationScreen";
@@ -140,6 +141,12 @@ const MainNavigator = ({
       <Stack.Screen
         name="Notifications"
         component={NotificationScreen}
+        options={{ animation: "slide_from_right" }}
+      />
+
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
         options={{ animation: "slide_from_right" }}
       />
 

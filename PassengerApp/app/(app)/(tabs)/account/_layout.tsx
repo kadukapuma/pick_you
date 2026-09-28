@@ -21,6 +21,7 @@ export default function AccountLayout() {
       <Stack.Screen name="vouchers" />
       <Stack.Screen name="help-support" />
       <Stack.Screen name="about" />
+      <Stack.Screen name="settings" />
     </Stack>
   );
 }

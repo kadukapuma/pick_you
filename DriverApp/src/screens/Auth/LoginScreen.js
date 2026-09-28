@@ -1,8 +1,4 @@
-import {
-  Feather,
-  FontAwesome,
-  MaterialCommunityIcons,
-} from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { MotiText, MotiView } from "moti";
 import { useState } from "react";
 import {
@@ -355,45 +351,6 @@ const LoginScreen = ({
                       <Text style={styles.loginBtnText}>Login</Text>
                     </TouchableOpacity>
                   </MotiView>
-
-                  {/* DIVIDER */}
-                  <MotiView
-                    from={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 1000 }}
-                    style={styles.dividerRow}
-                  >
-                    <View style={styles.line} />
-                    <Text style={styles.dividerText}>or continue with</Text>
-                    <View style={styles.line} />
-                  </MotiView>
-
-                  {/* SOCIAL ROW */}
-                  <View style={styles.socialRow}>
-                    <MotiView
-                      from={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 1100, type: "spring" }}
-                    >
-                      <TouchableOpacity style={styles.socialBtn}>
-                        <FontAwesome name="google" size={17} color="#1E293B" />
-                      </TouchableOpacity>
-                    </MotiView>
-
-                    <MotiView
-                      from={{ opacity: 0, scale: 0.5 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: 1200, type: "spring" }}
-                    >
-                      <TouchableOpacity style={styles.socialBtn}>
-                        <FontAwesome
-                          name="facebook"
-                          size={17}
-                          color="#1E293B"
-                        />
-                      </TouchableOpacity>
-                    </MotiView>
-                  </View>
 
                   {/* FOOTER */}
                   <MotiView
