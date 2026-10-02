@@ -48,10 +48,10 @@ class WebxpaySavedCardSynchronizer
                 $now = now();
 
                 /**
-                 * Atomic upsert (INSERT ... ON CONFLICT (gateway, token) DO
-                 * UPDATE) instead of firstOrNew+save. The card-add callback
-                 * and the "list saved cards" endpoint can both reconcile the
-                 * same new card at nearly the same instant; a check-then-
+                 * Atomic upsert scoped to the passenger, gateway and token.
+                 * Provider card IDs may recur for different customers; never
+                 * update another passenger's card. Callbacks and card listing
+                 * can reconcile the same card concurrently; a check-then-
                  * insert has a race window that trips the unique constraint
                  * under contention, and simply retrying the transaction
                  * still has to win a timing race. An upsert has no such
@@ -70,7 +70,7 @@ class WebxpaySavedCardSynchronizer
                         'created_at' => $now,
                         'updated_at' => $now,
                     ], $cards),
-                    ['gateway', 'token'],
+                    ['passenger_id', 'gateway', 'token'],
                     ['brand', 'last4', 'exp_month', 'exp_year', 'updated_at']
                 );
 

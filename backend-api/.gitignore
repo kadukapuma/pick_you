@@ -27,3 +27,9 @@ database-backups/
 
 /storage/app/payment-keys/*
 !/storage/app/payment-keys/.gitignore
+
+
+
+docs
+
+help

@@ -47,7 +47,6 @@ use App\Http\Controllers\Api\SupportTicketController;
 use App\Http\Controllers\Api\VehicleController;
 use App\Http\Controllers\Api\VehicleTypeController;
 use App\Http\Controllers\Api\WalletTransactionController;
-use App\Http\Controllers\Api\WebxpayReturnController;
 use App\Http\Controllers\Api\WebxpaySavedCardController;
 use App\Http\Controllers\Api\WebxpaySavedCardPaymentController;
 use App\Services\Auth\AuthPayload;
@@ -89,10 +88,6 @@ Route::get(
     '/payment-capabilities',
     [PaymentCapabilityController::class, 'show']
 )->middleware('throttle:60,1');
-Route::post(
-    '/payments/webxpay/return',
-    [WebxpayReturnController::class, 'handle']
-)->name('webxpay.return');
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', function (Request $request, AuthPayload $payload) {
         $user = $request->user();

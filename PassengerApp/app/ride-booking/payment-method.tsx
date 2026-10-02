@@ -15,9 +15,9 @@ import {
 import type { PaymentMethod } from "../../state/booking/RideBookingContext";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 
-// Temporary hold switch for the card payment flow until Webxpay is ready.
-// Set this to false when you want to re-enable the card option later.
-const FORCE_DISABLE_CARD_PAYMENTS = true;
+// Card payments are live: Webxpay tokenize save-card + pay-by-token flow is
+// verified end-to-end (see PaymentController::createWebxpayCheckout).
+const FORCE_DISABLE_CARD_PAYMENTS = false;
 
 const methods: {
   id: PaymentMethod;

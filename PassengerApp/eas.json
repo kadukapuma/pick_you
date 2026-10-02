@@ -16,6 +16,8 @@
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
         "EXPO_PUBLIC_REVERB_APP_KEY": "app-key",
+        "EXPO_PUBLIC_DEV_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_MOCK_CARD_PAYMENTS": "false",
         "GOOGLE_MAPS_ANDROID_API_KEY_PASSENGER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ",
         "GOOGLE_MAPS_IOS_API_KEY_PASSENGER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ"
       }
@@ -23,11 +25,13 @@
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://picku.lk",
-        "EXPO_PUBLIC_WS_HOST": "picku.lk",
+        "EXPO_PUBLIC_API_URL": "https://test.picku.lk",
+        "EXPO_PUBLIC_WS_HOST": "test.picku.lk",
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
         "EXPO_PUBLIC_REVERB_APP_KEY": "app-key",
+        "EXPO_PUBLIC_DEV_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_MOCK_CARD_PAYMENTS": "false",
         "GOOGLE_MAPS_ANDROID_API_KEY_PASSENGER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ",
         "GOOGLE_MAPS_IOS_API_KEY_PASSENGER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ"
       }
@@ -43,6 +47,8 @@
         "EXPO_PUBLIC_WS_PORT": "443",
         "EXPO_PUBLIC_WS_SCHEME": "https",
         "EXPO_PUBLIC_REVERB_APP_KEY": "app-key",
+        "EXPO_PUBLIC_DEV_MODE": "false",
+        "EXPO_PUBLIC_ENABLE_MOCK_CARD_PAYMENTS": "false",
         "GOOGLE_MAPS_ANDROID_API_KEY_PASSENGER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ",
         "GOOGLE_MAPS_IOS_API_KEY_PASSENGER": "AIzaSyBAP0SC8iTCXcKUgyU73v_JxePfgfpcMeQ"
       }

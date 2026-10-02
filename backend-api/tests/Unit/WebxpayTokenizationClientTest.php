@@ -142,6 +142,54 @@ class WebxpayTokenizationClientTest extends TestCase
         );
     }
 
+    public function test_it_maps_expiries_with_an_omitted_month_leading_zero(): void
+    {
+        Http::fake([
+            'https://tokenize.test/api/auth' => Http::response([
+                'token' => 'header.payload.signature',
+            ]),
+            'https://tokenize.test/api/cards/get' => Http::response(
+                array_map(fn ($expiry) => [
+                    'cardId' => 'provider-'.$expiry,
+                    'cardLast' => '1111',
+                    'cardExpiry' => $expiry,
+                    'cardScheme' => 'VISA',
+                ], ['229', '0229', '929', '1229'])
+            ),
+        ]);
+
+        $cards = $this->client()->cards('picku-passenger-9', 'passenger@example.test');
+
+        $this->assertSame([2, 2, 9, 12], array_map(fn ($card) => $card->expMonth, $cards));
+        $this->assertSame([2029, 2029, 2029, 2029], array_map(fn ($card) => $card->expYear, $cards));
+    }
+
+    public function test_it_still_rejects_invalid_expiries_after_normalization(): void
+    {
+        foreach (['029', '0029', '1329', '29', '202902', '2/29', null, 'abc'] as $expiry) {
+            Http::fake([
+                'https://tokenize.test/api/auth' => Http::response([
+                    'token' => 'header.payload.signature',
+                ]),
+                'https://tokenize.test/api/cards/get' => Http::response([
+                    [
+                        'cardId' => 'provider-card-id',
+                        'cardLast' => '1111',
+                        'cardExpiry' => $expiry,
+                        'cardScheme' => 'VISA',
+                    ],
+                ]),
+            ]);
+
+            try {
+                $this->client()->cards('picku-passenger-9', 'passenger@example.test');
+                $this->fail('Expected invalid expiry to be rejected.');
+            } catch (RuntimeException $exception) {
+                $this->assertSame('WEBXPAY returned an invalid card expiry.', $exception->getMessage());
+            }
+        }
+    }
+
     public function test_it_accepts_an_empty_saved_card_list(): void
     {
         Http::fake([

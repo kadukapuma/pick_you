@@ -8,7 +8,7 @@ export default function SearchBar({
   compact?: boolean;
   onPress?: () => void;
 }) {
-  return (
+  return (  
     <View style={{ paddingHorizontal: 2 }}>
       <TouchableOpacity
         activeOpacity={0.7}
