@@ -6,8 +6,9 @@ import { paymentTheme } from "../../features/payments/paymentTheme";
 import { paymentService } from "../../services/payments/paymentService";
 
 export default function WebxpayResultScreen() {
-  const { ride_id: rideId = "" } = useLocalSearchParams<{
+  const { ride_id: rideId = "", amount = "" } = useLocalSearchParams<{
     ride_id?: string;
+    amount?: string;
     payment_id?: string;
     status?: string;
   }>();
@@ -66,6 +67,7 @@ export default function WebxpayResultScreen() {
         pathname: "/payments/pending",
         params: {
           rideId,
+          amount,
         },
       });
     }
@@ -75,7 +77,7 @@ export default function WebxpayResultScreen() {
     return () => {
       cancelled = true;
     };
-  }, [rideId]);
+  }, [amount, rideId]);
 
   return (
     <PaymentScreen title="Confirming payment" canGoBack={false}>

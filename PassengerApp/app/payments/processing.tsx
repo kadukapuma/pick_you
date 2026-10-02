@@ -47,6 +47,7 @@ export default function PaymentProcessingScreen() {
         pathname: "/payments/result",
         params: {
           ride_id: rideId,
+          amount,
         },
       });
     };
@@ -76,6 +77,12 @@ export default function PaymentProcessingScreen() {
                   await paymentService.prepareWebxpayCheckout(rideId);
 
                 if (cancelled) {
+                  return;
+                }
+
+                if (prepared.alreadyInProgress) {
+                  // Show the trusted status instead of a misleading failure.
+                  routeToTrustedResult();
                   return;
                 }
 

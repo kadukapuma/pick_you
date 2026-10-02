@@ -6,8 +6,13 @@ import PaymentScreen, {
 } from "../../features/payments/PaymentScreen";
 import { StatusOrb } from "../../features/payments/PaymentVisuals";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
+import { useRideSearch } from "../../state/booking/RideBookingContext";
 
 export default function PaymentSuccessScreen() {
+  const { selectedPaymentCard } = useRideSearch();
+  const cardLabel = selectedPaymentCard
+    ? `${selectedPaymentCard.brand.toUpperCase()} •••• ${selectedPaymentCard.last4}`
+    : "Card";
   const { rideId = "", amount = "0", reference = "" } = useLocalSearchParams<{
     rideId?: string;
     amount?: string;
@@ -44,7 +49,7 @@ export default function PaymentSuccessScreen() {
         <Text style={styles.text}>Your ride payment has been securely confirmed.</Text>
       </View>
       <PaymentCard>
-        <Detail label="Payment method" value="Visa •••• 6492" />
+        <Detail label="Payment method" value={cardLabel} />
         <Divider />
         <Detail label="Ride" value={rideId ? `#${rideId}` : "Current ride"} />
         {reference ? <><Divider /><Detail label="Reference" value={reference} /></> : null}
