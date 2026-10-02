@@ -1,0 +1,28 @@
+# EAS archives from this Git repository root.
+# Both mobile apps are standalone; server/admin files are not build inputs.
+/backend-api/
+/frontend-admin/
+/(.md)/
+
+# Dependencies and local/generated files
+node_modules/
+/.git
+.expo/
+.expo-shared/
+.vscode/
+.idea/
+dist/
+build/
+coverage/
+*.log
+*.zip
+*.apk
+*.aab
+
+# PassengerApp uses Expo prebuild; preserve its existing exclusions.
+/PassengerApp/android/
+/PassengerApp/ios/
+/PassengerApp/documents/
+/PassengerApp/downloads/
+/PassengerApp/documentation/
+/PassengerApp/app-example/

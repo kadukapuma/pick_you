@@ -417,6 +417,12 @@ class WebxpayTokenizationClient
 
         $expiry = $card['cardExpiry'] ?? null;
 
+        // WEBXPAY may omit the leading zero for single-digit months:
+        // "229" represents February 2029 (MMYY "0229").
+        if (is_string($expiry) && preg_match('/^[1-9][0-9]{2}$/D', $expiry) === 1) {
+            $expiry = '0'.$expiry;
+        }
+
         if (! is_string($expiry) || preg_match('/^[0-9]{4}$/', $expiry) !== 1) {
             throw new RuntimeException(
                 'WEBXPAY returned an invalid card expiry.'

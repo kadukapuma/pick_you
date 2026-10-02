@@ -24,7 +24,6 @@ use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\URL;
 use Throwable;
 
 class PaymentController extends Controller
@@ -75,6 +74,18 @@ class PaymentController extends Controller
         if ($ride->status !== 'COMPLETED') {
             return $this->error(
                 'Ride must be completed before checkout.',
+                422
+            );
+        }
+
+        $hasSavedCard = PassengerPaymentMethod::query()
+            ->where('passenger_id', $ride->passenger_id)
+            ->where('gateway', 'webxpay')
+            ->exists();
+
+        if (! $hasSavedCard) {
+            return $this->error(
+                'Please add a card before checkout.',
                 422
             );
         }
@@ -178,23 +189,6 @@ class PaymentController extends Controller
                 expiresAt: $expiresAt
             );
 
-            $signedCheckoutPath = URL::temporarySignedRoute(
-                'webxpay.checkout',
-                $expiresAt,
-                [
-                    'attempt' => $attempt->id,
-                ],
-                absolute: false
-            );
-
-            $checkoutUrl = rtrim(
-                (string) config('app.url'),
-                '/'
-            ).'/'.ltrim(
-                $signedCheckoutPath,
-                '/'
-            );
-
             return $this->success(
                 [
                     'payment_id' => $payment->id,
@@ -202,7 +196,7 @@ class PaymentController extends Controller
                     'merchant_order_id' => $attempt->merchant_order_id,
                     'amount' => $attempt->amount,
                     'currency' => $attempt->currency,
-                    'checkout_url' => $checkoutUrl,
+                    'checkout_url' => null,
                     'expires_at' => $attempt->expires_at?->toIso8601String(),
                 ],
                 'WEBXPAY checkout prepared.',

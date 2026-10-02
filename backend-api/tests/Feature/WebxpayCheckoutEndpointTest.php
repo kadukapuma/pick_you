@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Models\Passenger;
+use App\Models\PassengerPaymentMethod;
 use App\Models\Payment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
@@ -12,6 +14,20 @@ class WebxpayCheckoutEndpointTest extends TestCase
 {
     use BuildsLedgerScenarios;
     use RefreshDatabase;
+
+    private function makeWebxpaySavedCard(Passenger $passenger): PassengerPaymentMethod
+    {
+        return PassengerPaymentMethod::create([
+            'passenger_id' => $passenger->id,
+            'gateway' => 'webxpay',
+            'token' => 'webxpay-card-'.uniqid(),
+            'brand' => 'visa',
+            'last4' => '4242',
+            'exp_month' => 12,
+            'exp_year' => (int) now()->addYear()->year,
+            'is_default' => true,
+        ]);
+    }
 
     public function test_unauthenticated_checkout_request_is_rejected(): void
     {
@@ -184,6 +200,43 @@ class WebxpayCheckoutEndpointTest extends TestCase
             );
     }
 
+    public function test_checkout_is_rejected_when_passenger_has_no_saved_card(): void
+    {
+        config()->set([
+            'payments.webxpay.enabled' => true,
+        ]);
+
+        [$passengerUser, $passenger] = $this->makePassenger();
+        [, $driver] = $this->makeDriver();
+        $fare = $this->makeFareConfig();
+
+        $ride = $this->makeCompletedRide(
+            $passenger,
+            $driver,
+            $fare,
+            800,
+            'card'
+        );
+
+        Sanctum::actingAs(
+            $passengerUser,
+            ['role:passenger']
+        );
+
+        $this->postJson(
+            "/api/rides/{$ride->id}/payments/webxpay/checkout",
+            [],
+            [
+                'Idempotency-Key' => 'webxpay-checkout-no-saved-card',
+            ]
+        )
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'message',
+                'Please add a card before checkout.'
+            );
+    }
+
     public function test_checkout_is_rejected_when_payment_is_already_completed(): void
     {
         config()->set([
@@ -193,6 +246,7 @@ class WebxpayCheckoutEndpointTest extends TestCase
         [$passengerUser, $passenger] = $this->makePassenger();
         [, $driver] = $this->makeDriver();
         $fare = $this->makeFareConfig();
+        $this->makeWebxpaySavedCard($passenger);
 
         $ride = $this->makeCompletedRide(
             $passenger,
@@ -242,6 +296,7 @@ class WebxpayCheckoutEndpointTest extends TestCase
         [$passengerUser, $passenger] = $this->makePassenger();
         [, $driver] = $this->makeDriver();
         $fare = $this->makeFareConfig();
+        $this->makeWebxpaySavedCard($passenger);
 
         $ride = $this->makeCompletedRide(
             $passenger,
@@ -294,12 +349,12 @@ class WebxpayCheckoutEndpointTest extends TestCase
     {
         config()->set([
             'payments.webxpay.enabled' => true,
-            'payments.webxpay.secret_key' => 'test-secret',
         ]);
 
         [$passengerUser, $passenger] = $this->makePassenger();
         [, $driver] = $this->makeDriver();
         $fare = $this->makeFareConfig();
+        $this->makeWebxpaySavedCard($passenger);
 
         $ride = $this->makeCompletedRide(
             $passenger,
@@ -342,53 +397,6 @@ class WebxpayCheckoutEndpointTest extends TestCase
         $this->assertSame('LKR', $attempt->currency);
         $this->assertNotNull($attempt->expires_at);
 
-        $checkoutUrl = $response->json('data.checkout_url');
-
-        $this->assertIsString($checkoutUrl);
-        $this->assertNotSame('', $checkoutUrl);
-        $this->assertStringNotContainsString(
-            'test-secret',
-            $response->getContent()
-        );
-    }
-
-    public function test_checkout_page_rejects_an_unsigned_url(): void
-    {
-        [, $passenger] = $this->makePassenger();
-        [, $driver] = $this->makeDriver();
-        $fare = $this->makeFareConfig();
-
-        $ride = $this->makeCompletedRide(
-            $passenger,
-            $driver,
-            $fare,
-            800,
-            'card'
-        );
-
-        $payment = Payment::create([
-            'ride_id' => $ride->id,
-            'passenger_id' => $passenger->id,
-            'payment_method' => 'card',
-            'amount' => '800.00',
-            'transaction_id' => 'webxpay-unsigned-page-payment',
-            'payment_status' => 'PENDING',
-            'gateway' => 'webxpay',
-        ]);
-
-        $attempt = $payment->attempts()->create([
-            'attempt_number' => 1,
-            'gateway' => 'webxpay',
-            'merchant_order_id' => 'PKU-UNSIGNED-A01',
-            'status' => 'PROCESSING',
-            'amount' => '800.00',
-            'currency' => 'LKR',
-            'started_at' => now(),
-            'expires_at' => now()->addMinutes(15),
-        ]);
-
-        $this->get(
-            "/payments/webxpay/checkout/{$attempt->id}"
-        )->assertForbidden();
+        $this->assertNull($response->json('data.checkout_url'));
     }
 }

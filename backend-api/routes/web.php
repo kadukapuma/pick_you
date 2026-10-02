@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\WebxpayCheckoutController;
 use App\Http\Controllers\WebxpayTokenizationPageController;
 use App\Http\Controllers\WebxpayTokenPaymentReturnController;
 use Illuminate\Support\Facades\Route;
@@ -8,13 +7,6 @@ use Illuminate\Support\Facades\Route;
 Route::get('/', function () {
     return view('welcome');
 });
-
-Route::get(
-    '/payments/webxpay/checkout/{attempt}',
-    [WebxpayCheckoutController::class, 'show']
-)
-    ->middleware('signed:relative')
-    ->name('webxpay.checkout');
 
 Route::get(
     '/payments/webxpay/cards/{operation}',
