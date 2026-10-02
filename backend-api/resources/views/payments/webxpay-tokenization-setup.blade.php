@@ -371,6 +371,11 @@
                     return;
                 }
 
+                if (payload.data.app_result_url) {
+                    window.location.assign(payload.data.app_result_url);
+                    return;
+                }
+
                 document.querySelector('main').innerHTML = `
                     <div class="success-state">
                         <div class="icon">

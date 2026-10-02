@@ -9,11 +9,12 @@ import PaymentScreen, {
   PaymentCard,
 } from "../../features/payments/PaymentScreen";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
-import * as WebBrowser from "expo-web-browser";
+import { useSecurePayment } from "../../features/payments/useSecurePayment";
 import { useRideSearch } from "../../state/booking/RideBookingContext";
 
 export default function PaymentProcessingScreen() {
   const { selectedPaymentCard } = useRideSearch();
+  const { open: openSecurePayment, modal: securePaymentModal } = useSecurePayment();
   const {
     rideId = "",
     amount = "0",
@@ -92,62 +93,62 @@ export default function PaymentProcessingScreen() {
                   return;
                 }
 
-                if (!prepared.checkout.checkoutUrl) {
+                if (!prepared.checkout.attemptId) {
                   routeToTrustedResult();
                   return;
                 }
 
-                if (selectedPaymentCard && prepared.checkout.attemptId) {
-                  const tokenPayment =
-                    await paymentService.startWebxpaySavedCardPayment(
+                if (!selectedPaymentCard) {
+                  router.replace({
+                    pathname: "/payments/failed",
+                    params: {
                       rideId,
-                      prepared.checkout.attemptId,
-                      selectedPaymentCard.id,
-                    );
-
-                  if (cancelled) {
-                    return;
-                  }
-
-                  if (!tokenPayment.success || !tokenPayment.payment) {
-                    router.replace({
-                      pathname: "/payments/failed",
-                      params: {
-                        rideId,
-                        amount,
-                        message:
-                          tokenPayment.message ||
-                          "Could not start the saved-card payment.",
-                      },
-                    });
-                    return;
-                  }
-
-                  if (
-                    tokenPayment.payment.requiresThreeDs &&
-                    tokenPayment.payment.threeDsUrl
-                  ) {
-                    await WebBrowser.openAuthSessionAsync(
-                      tokenPayment.payment.threeDsUrl,
-                      "picku://payments/result",
-                    );
-                  }
-
-                  if (!cancelled) {
-                    routeToTrustedResult();
-                  }
+                      amount,
+                      message: "Please select a saved card to pay with.",
+                    },
+                  });
                   return;
                 }
 
-                await WebBrowser.openAuthSessionAsync(
-                  prepared.checkout.checkoutUrl,
-                  "picku://payments/result",
-                );
+                const tokenPayment =
+                  await paymentService.startWebxpaySavedCardPayment(
+                    rideId,
+                    prepared.checkout.attemptId,
+                    selectedPaymentCard.id,
+                  );
+
+                if (cancelled) {
+                  return;
+                }
+
+                if (!tokenPayment.success || !tokenPayment.payment) {
+                  router.replace({
+                    pathname: "/payments/failed",
+                    params: {
+                      rideId,
+                      amount,
+                      message:
+                        tokenPayment.message ||
+                        "Could not start the saved-card payment.",
+                    },
+                  });
+                  return;
+                }
+
+                if (
+                  tokenPayment.payment.requiresThreeDs &&
+                  tokenPayment.payment.threeDsUrl
+                ) {
+                  await openSecurePayment({
+                    url: tokenPayment.payment.threeDsUrl,
+                    returnPath: "result",
+                    reference: rideId,
+                  });
+                }
 
                 if (!cancelled) {
                   routeToTrustedResult();
                 }
-
                 return;
               }
 
@@ -230,10 +231,11 @@ export default function PaymentProcessingScreen() {
         clearTimeout(timer);
       }
     };
-  }, [amount, documentPreview, preview, rideId, selectedPaymentCard, spin]);
+  }, [amount, documentPreview, preview, rideId, selectedPaymentCard, spin, openSecurePayment]);
 
   return (
     <PaymentScreen title="Confirming payment" canGoBack={false}>
+      {securePaymentModal}
       <View style={styles.hero}>
         <View style={styles.loaderShell}>
           <Animated.View

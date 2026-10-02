@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as Linking from "expo-linking";
-import * as WebBrowser from "expo-web-browser";
+import { useSecurePayment } from "../../features/payments/useSecurePayment";
 import { router, useLocalSearchParams } from "expo-router";
 import { useState } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
@@ -14,6 +14,7 @@ import { paymentService } from "../../services/payments/paymentService";
 export default function CardSetupScreen() {
   const { mode } = useLocalSearchParams<{ mode?: string }>();
   const [opening, setOpening] = useState(false);
+  const securePayment = useSecurePayment();
 
   const openSecureSetup = async () => {
     if (opening) return;
@@ -30,18 +31,14 @@ export default function CardSetupScreen() {
         return;
       }
 
-      const result = await WebBrowser.openAuthSessionAsync(
-        prepared.setup.setupUrl,
-        "picku://payments/card-result",
-      );
+      const returnUrl = await securePayment.open({
+        url: prepared.setup.setupUrl,
+        returnPath: "card-result",
+        reference: prepared.setup.operationId,
+      });
 
-      if (result.type === "success" && result.url) {
-        // openAuthSessionAsync sometimes consumes the redirect itself
-        // without the OS also dispatching it through the app's normal deep
-        // link handling, which would otherwise land on card-result.tsx. Push
-        // there explicitly so the flow always completes instead of leaving
-        // this screen stuck on "Opening secure setup...".
-        const { queryParams } = Linking.parse(result.url);
+      if (returnUrl) {
+        const { queryParams } = Linking.parse(returnUrl);
         router.replace({
           pathname: "/payments/card-result",
           params: {
@@ -50,7 +47,7 @@ export default function CardSetupScreen() {
             mode,
           },
         });
-      } else if (result.type !== "success") {
+      } else {
         router.replace({
           pathname: "/payments/card-setup-status",
           params: { status: "cancelled", mode },
@@ -79,6 +76,7 @@ export default function CardSetupScreen() {
         />
       }
     >
+      {securePayment.modal}
       <View style={styles.hero}>
         <View style={styles.icon}>
           <Ionicons name="card-outline" size={34} color={paymentTheme.green} />

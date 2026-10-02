@@ -101,6 +101,9 @@ class WebxpayTokenizationPageController extends Controller
             'data' => [
                 'operation_id' => $operation->id,
                 'operation_status' => $operation->fresh()->status,
+                'app_result_url' => $result->requiresThreeDs()
+                    ? null
+                    : $this->appResultUrl($operation, $operation->fresh()->status),
                 'requires_3ds' => $result->requiresThreeDs(),
                 'three_ds_url' => $result->threeDsUrl,
             ],

@@ -5,10 +5,6 @@ namespace App\Providers;
 use App\Services\Payments\MockPaymentGateway;
 use App\Services\Payments\PaymentGateway;
 use App\Services\Payments\WebxpayAppResultUrl;
-use App\Services\Payments\WebxpayCheckoutRequest;
-use App\Services\Payments\WebxpayRequestPayload;
-use App\Services\Payments\WebxpayResponseParser;
-use App\Services\Payments\WebxpayResponseVerifier;
 use App\Services\Payments\WebxpayTokenizationClient;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Support\ServiceProvider;
@@ -19,69 +15,11 @@ class PaymentGatewayServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->singleton(
-            WebxpayRequestPayload::class,
-            function () {
-                $configuredPath = (string) config(
-                    'payments.webxpay.public_key_path'
-                );
-
-                return new WebxpayRequestPayload(
-                    base_path($configuredPath)
-                );
-            }
-        );
-        $this->app->singleton(
-            WebxpayResponseVerifier::class,
-            function () {
-                $configuredPath = (string) config(
-                    'payments.webxpay.public_key_path'
-                );
-
-                return new WebxpayResponseVerifier(
-                    base_path($configuredPath)
-                );
-            }
-        );
-        $this->app->singleton(
-            WebxpayResponseParser::class,
-            function () {
-                return new WebxpayResponseParser(
-                    expectedGatewayId: (string) config(
-                        'payments.webxpay.response_gateway_id'
-                    )
-                );
-            }
-        );
-
-        $this->app->singleton(
             WebxpayAppResultUrl::class,
             function () {
                 return new WebxpayAppResultUrl(
                     (string) config(
                         'payments.webxpay.app_result_url'
-                    )
-                );
-            }
-        );
-
-        $this->app->singleton(
-            WebxpayCheckoutRequest::class,
-            function ($app) {
-                return new WebxpayCheckoutRequest(
-                    payload: $app->make(
-                        WebxpayRequestPayload::class
-                    ),
-                    secretKey: (string) config(
-                        'payments.webxpay.secret_key'
-                    ),
-                    gatewayId: (string) config(
-                        'payments.webxpay.payment_gateway_id'
-                    ),
-                    currency: (string) config(
-                        'payments.webxpay.currency'
-                    ),
-                    encryptionMethod: (string) config(
-                        'payments.webxpay.encryption_method'
                     )
                 );
             }

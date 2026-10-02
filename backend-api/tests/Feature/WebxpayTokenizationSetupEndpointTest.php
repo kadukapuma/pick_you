@@ -113,10 +113,42 @@ class WebxpayTokenizationSetupEndpointTest extends TestCase
             'country' => 'Sri Lanka',
         ])->assertOk()
             ->assertJsonPath('data.requires_3ds', true)
+            ->assertJsonPath('data.app_result_url', null)
             ->assertJsonPath(
                 'data.three_ds_url',
                 'https://tokenize.stagingxpay.info/3ds/challenge-id'
             );
+    }
+
+    public function test_setup_without_3ds_returns_a_correlated_app_link(): void
+    {
+        [$user, $passenger] = $this->makePassenger();
+        config()->set('payments.webxpay.tokenization.app_result_url', 'picku://payments/card-result');
+        $operation = WebxpayTokenizationOperation::create([
+            'passenger_id' => $passenger->id,
+            'status' => WebxpayTokenizationOperation::STATUS_INITIATED,
+            'customer_id' => 'picku-passenger-'.$passenger->id,
+            'customer_email' => $user->email,
+            'expires_at' => now()->addMinutes(15),
+        ]);
+        $this->mock(WebxpayTokenizationSessionProcessor::class, function (MockInterface $mock) use ($operation) {
+            $mock->shouldReceive('process')->once()->andReturnUsing(function () use ($operation) {
+                $operation->markCompleted();
+                return WebxpaySaveCardResult::completed();
+            });
+        });
+        $url = URL::temporarySignedRoute(
+            'webxpay.tokenization.session', $operation->expires_at,
+            ['operation' => $operation->id], absolute: false
+        );
+        $this->postJson($url, [
+            'session' => 'SESSION0002407982678H6120461N79',
+            'address_line_one' => 'Kandy', 'city' => 'Kandy',
+            'postal_code' => '20000', 'country' => 'Sri Lanka',
+        ])->assertOk()
+            ->assertJsonPath('data.requires_3ds', false)
+            ->assertJsonPath('data.app_result_url',
+                'picku://payments/card-result?operation_id='.$operation->id.'&status=COMPLETED');
     }
 
     public function test_unsigned_card_setup_page_is_rejected(): void
