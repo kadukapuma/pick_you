@@ -8,6 +8,7 @@ import ContactUs from '../views/Landing/ContactUs'
 import ForDrivers from '../views/Landing/ForDrivers'
 import GetApp from '../views/Landing/GetApp/GetApp'
 import PrivacyPolicy from '../views/Landing/PrivacyPolicy/PrivacyPolicy'
+import DeleteAccountRequest from '../views/Landing/DeleteAccount/DeleteAccountRequest'
 import TermsAndConditions from '../views/Landing/TermsAndConditions/TermsAndConditions'
 import {
     PassengerPayment,
@@ -84,6 +85,7 @@ const AppRoutes = () => {
                 <Route path="about" element={<AboutUs />} />
                 <Route path="contact" element={<ContactUs />} />
                 <Route path="privacy-policy" element={<PrivacyPolicy />} />
+                <Route path=":appType/delete-account" element={<DeleteAccountRequest />} />
                 <Route path="terms-and-conditions" element={<TermsAndConditions />} />
                 <Route path="passenger/terms-and-conditions" element={<PassengerTerms />} />
                 <Route path="passenger/privacy-policy" element={<PassengerPrivacy />} />

@@ -10,7 +10,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
       "infoPlist": {
         "UIBackgroundModes": [
           "location",
@@ -18,7 +18,8 @@
         ],
         "ITSAppUsesNonExemptEncryption": false
       },
-      "bundleIdentifier": "com.picku.DriverApp"
+      "bundleIdentifier": "com.picku.DriverApp",
+      "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "versionCode": 3,
