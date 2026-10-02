@@ -1,6 +1,5 @@
 import { apiClient } from "../api/client";
 import type {
-  NewCardInput,
   OutstandingPayment,
   PaymentCapabilities,
   PaymentResult,
@@ -85,14 +84,6 @@ type RawPayment = {
   failure_reason?: string;
 };
 
-function detectBrand(cardNumber: string): SavedCard["brand"] {
-  const digits = cardNumber.replace(/\D/g, "");
-  if (/^4/.test(digits)) return "visa";
-  if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard";
-  if (/^3[47]/.test(digits)) return "amex";
-  return "unknown";
-}
-
 function toSavedCard(raw: RawPaymentMethod): SavedCard {
   const brand = (raw.brand as SavedCard["brand"]) || "unknown";
   const month = String(raw.exp_month).padStart(2, "0");
@@ -156,6 +147,8 @@ export const paymentService = {
     success: boolean;
     message?: string;
     checkout?: WebxpayCheckout;
+    /** The ride already has a completed or in-flight payment; no new attempt was created. */
+    alreadyInProgress?: boolean;
   }> {
     const response = await apiClient.post<RawWebxpayCheckout>(
       `/rides/${rideId}/payments/webxpay/checkout`,
@@ -164,6 +157,7 @@ export const paymentService = {
     if (!response.success || !response.data) {
       return {
         success: false,
+        alreadyInProgress: response.status === 409,
         message:
           response.message || "Could not prepare the secure WEBXPAY checkout.",
       };
@@ -283,39 +277,6 @@ export const paymentService = {
     const cards = await this.listCards();
 
     return cards.find((card) => card.id === cardId) || null;
-  },
-
-  /**
-   * TEST-MODE card entry. This posts the raw number to our backend, which
-   * tokenizes it (via the mock gateway right now) and discards everything
-   * except the token and last4 - see PassengerPaymentMethodController::store.
-   * This is NOT the intended production posture (a bank-hosted form that
-   * never sends the PAN to us at all); it exists so the card ledger path can
-   * be exercised without a live gateway.
-   */
-  async saveCard(
-    input: NewCardInput,
-  ): Promise<{ success: boolean; message?: string; card?: SavedCard }> {
-    const response = await apiClient.post<RawPaymentMethod>(
-      "/payment-methods",
-      {
-        number: input.number.replace(/\s/g, ""),
-        exp_month: input.expMonth,
-        exp_year: input.expYear,
-        cvv: input.cvv,
-        brand: detectBrand(input.number),
-        is_default: input.isDefault,
-      },
-    );
-
-    if (!response.success || !response.data) {
-      return {
-        success: false,
-        message: response.message || "Could not save this card.",
-      };
-    }
-
-    return { success: true, card: toSavedCard(response.data) };
   },
 
   async setDefaultCard(cardId: string): Promise<boolean> {
