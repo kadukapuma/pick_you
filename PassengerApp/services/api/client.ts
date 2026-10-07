@@ -7,6 +7,8 @@ export interface ApiResponse<T = any> {
   data?: T;
   message?: string;
   errors?: Record<string, string[]>;
+  /** HTTP status of a failed response (absent for network errors). */
+  status?: number;
 }
 
 type ApiRequestOptions = RequestInit & {
@@ -104,6 +106,7 @@ class ApiClient {
           success: false,
           message: data.message || "An error occurred",
           errors: data.errors,
+          status: response.status,
         };
       }
 

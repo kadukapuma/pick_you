@@ -6,14 +6,15 @@ import { StatusOrb } from "../../features/payments/PaymentVisuals";
 import { formatLkr, paymentTheme } from "../../features/payments/paymentTheme";
 
 export default function PaymentPendingScreen() {
-  const { rideId = "", amount = "0" } = useLocalSearchParams<{ rideId?: string; amount?: string }>();
+  const { rideId = "", amount = "" } = useLocalSearchParams<{ rideId?: string; amount?: string }>();
+  const hasAmount = Number(amount) > 0;
 
   return (
     <PaymentScreen title="Payment pending" canGoBack={false}>
       <View style={styles.hero}>
         <StatusOrb kind="processing" />
         <Text style={styles.title}>Still confirming payment</Text>
-        <Text style={styles.amount}>{formatLkr(amount)}</Text>
+        {hasAmount ? <Text style={styles.amount}>{formatLkr(amount)}</Text> : null}
         <Text style={styles.text}>The payment provider has not returned a final result yet. You will not be charged twice.</Text>
       </View>
       <PaymentCard>
@@ -22,7 +23,7 @@ export default function PaymentPendingScreen() {
         <View style={styles.detail}><Text style={styles.label}>Status</Text><Text style={styles.pending}>Processing</Text></View>
       </PaymentCard>
       <View style={styles.note}><Ionicons name="notifications-outline" size={18} color={paymentTheme.green} /><Text style={styles.noteText}>PickU will update the receipt after backend reconciliation.</Text></View>
-      <PaymentButton label="Check again" icon="refresh-outline" onPress={() => router.replace({ pathname: "/payments/processing", params: { rideId, amount } })} />
+      <PaymentButton label="Check again" icon="refresh-outline" onPress={() => router.replace({ pathname: "/payments/result", params: { ride_id: rideId, amount } })} />
       <PaymentButton label="Return to trips" icon="car-outline" variant="secondary" onPress={() => router.replace("/(app)/(tabs)/trips")} />
     </PaymentScreen>
   );
